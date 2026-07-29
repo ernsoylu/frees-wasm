@@ -1,0 +1,20 @@
+{
+  "name": "units_pressure",
+  "source": "{ Unit-annotated literals convert to SI at parse time: 140 kPa is 140000 Pa. }\nP = 140 [kPa]\nQ = P * 2\n",
+  "expect": {
+    "variables": {
+      "P": 140000.0,
+      "Q": 280000.0
+    },
+    "display_names": {
+      "p": "P",
+      "q": "Q"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,4 @@
+{ Variable names are case-insensitive: these are all one variable. }
+Tin = 300
+T_out = TIN * 2
+result = t_Out + tin

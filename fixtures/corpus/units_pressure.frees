@@ -1,0 +1,3 @@
+{ Unit-annotated literals convert to SI at parse time: 140 kPa is 140000 Pa. }
+P = 140 [kPa]
+Q = P * 2

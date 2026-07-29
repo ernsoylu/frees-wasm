@@ -1,0 +1,5 @@
+{ Sequential feed-in, then a simultaneous pair, then a sequential tail. }
+k = 4
+p + q = k
+p - q = 1
+r = p * q

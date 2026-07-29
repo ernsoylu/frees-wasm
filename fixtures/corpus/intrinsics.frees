@@ -1,0 +1,9 @@
+{ Elementary intrinsics with known values. }
+a = sqrt(16)
+b = abs(-3.5)
+c = exp(0)
+d = ln(1)
+e = min(3, 7)
+f = max(3, 7)
+g = sin(0)
+h = cos(0)

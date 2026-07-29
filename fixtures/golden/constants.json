@@ -1,0 +1,22 @@
+{
+  "name": "constants",
+  "source": "{ Built-in constants carry a trailing '#'. }\na = pi#\nb = R#\nc = g#\n",
+  "expect": {
+    "variables": {
+      "a": 3.141592653589793,
+      "b": 8.314462618,
+      "c": 9.80665
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

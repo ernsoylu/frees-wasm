@@ -1,0 +1,22 @@
+{
+  "name": "sequential",
+  "source": "{ Three scalar blocks that must solve in dependency order, not source order. }\nc = b + 1\nb = a * 3\na = 2\n",
+  "expect": {
+    "variables": {
+      "a": 2.0,
+      "b": 6.0,
+      "c": 7.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

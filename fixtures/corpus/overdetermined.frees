@@ -1,0 +1,3 @@
+{ Two equations, one unknown - must fail with a degrees-of-freedom error. }
+z = 1
+z = 2

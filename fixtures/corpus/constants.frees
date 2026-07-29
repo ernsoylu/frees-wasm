@@ -1,0 +1,4 @@
+{ Built-in constants carry a trailing '#'. }
+a = pi#
+b = R#
+c = g#

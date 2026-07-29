@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/frees-core",
+    "crates/frees-cli",
+    "crates/frees-wasm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/ernsoylu/frees-wasm"
+rust-version = "1.85"
+
+[workspace.dependencies]
+frees-core = { path = "crates/frees-core" }
+
+# Engine dependencies — see docs/dependency-map.md for the Java originals.
+petgraph = { version = "0.6", default-features = false, features = ["graphmap"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+libm = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# The wasm bundle is a product constraint (PLAN.md §3 D1). Optimise for size
+# where it does not cost solver throughput.
+[profile.release-wasm]
+inherits = "release"
+opt-level = "s"
+strip = true

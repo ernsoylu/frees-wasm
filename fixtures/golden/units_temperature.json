@@ -1,0 +1,20 @@
+{
+  "name": "units_temperature",
+  "source": "{ Temperature scales carry an additive offset. }\nT1 = 25 [C]\nT2 = 32 [F]\n",
+  "expect": {
+    "variables": {
+      "T1": 298.15,
+      "T2": 273.15
+    },
+    "display_names": {
+      "t1": "T1",
+      "t2": "T2"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

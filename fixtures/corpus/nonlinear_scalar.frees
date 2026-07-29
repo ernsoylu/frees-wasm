@@ -1,0 +1,2 @@
+{ A single nonlinear equation requiring Newton iteration. }
+x ^ 3 - 2 * x - 5 = 0

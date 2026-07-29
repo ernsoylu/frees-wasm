@@ -1,0 +1,5 @@
+{ A brace comment }
+a = 1  { trailing brace comment }
+"a quote comment"
+b = 2  // a line comment
+c = a + b

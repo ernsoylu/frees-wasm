@@ -1,0 +1,28 @@
+{
+  "name": "arithmetic",
+  "source": "{ Operator precedence and associativity. }\na = 2 + 3 * 4\nb = (2 + 3) * 4\nc = 2 ^ 3 ^ 2\nd = -2 ^ 2\ne = 10 / 2 / 5\nf = 2 - 3 - 4\n",
+  "expect": {
+    "variables": {
+      "a": 14.0,
+      "b": 20.0,
+      "c": 512.0,
+      "d": -4.0,
+      "e": 1.0,
+      "f": -5.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e",
+      "f": "f"
+    },
+    "block_count": 6,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

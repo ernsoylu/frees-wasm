@@ -1,0 +1,3 @@
+{ The reference case named in ../frEES/CLAUDE.md's Continuous Verification rule. }
+x^2 + y^3 = 77
+x/y = 1.23456

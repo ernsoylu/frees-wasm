@@ -1,0 +1,24 @@
+{
+  "name": "mixed_blocks",
+  "source": "{ Sequential feed-in, then a simultaneous pair, then a sequential tail. }\nk = 4\np + q = k\np - q = 1\nr = p * q\n",
+  "expect": {
+    "variables": {
+      "k": 4.0,
+      "p": 2.5,
+      "q": 1.5,
+      "r": 3.75
+    },
+    "display_names": {
+      "k": "k",
+      "p": "p",
+      "q": "q",
+      "r": "r"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

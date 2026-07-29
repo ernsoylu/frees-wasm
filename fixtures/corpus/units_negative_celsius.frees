@@ -1,0 +1,2 @@
+{ The unary-sign folding trap: -10 [C] is 263.15 K, not -(10 degC). }
+T = -10 [C]

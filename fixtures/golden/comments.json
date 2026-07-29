@@ -1,0 +1,22 @@
+{
+  "name": "comments",
+  "source": "{ A brace comment }\na = 1  { trailing brace comment }\n\"a quote comment\"\nb = 2  // a line comment\nc = a + b\n",
+  "expect": {
+    "variables": {
+      "a": 1.0,
+      "b": 2.0,
+      "c": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

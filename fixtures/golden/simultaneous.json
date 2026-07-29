@@ -1,0 +1,20 @@
+{
+  "name": "simultaneous",
+  "source": "{ A genuine 2x2 simultaneous block - neither equation solves alone. }\nu + v = 10\nu - v = 2\n",
+  "expect": {
+    "variables": {
+      "u": 6.0,
+      "v": 4.0
+    },
+    "display_names": {
+      "u": "u",
+      "v": "v"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,2 @@
+{ One equation, two unknowns - must fail with a degrees-of-freedom error. }
+m + n = 5

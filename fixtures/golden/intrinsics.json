@@ -1,0 +1,32 @@
+{
+  "name": "intrinsics",
+  "source": "{ Elementary intrinsics with known values. }\na = sqrt(16)\nb = abs(-3.5)\nc = exp(0)\nd = ln(1)\ne = min(3, 7)\nf = max(3, 7)\ng = sin(0)\nh = cos(0)\n",
+  "expect": {
+    "variables": {
+      "a": 4.0,
+      "b": 3.5,
+      "c": 1.0,
+      "d": 0.0,
+      "e": 3.0,
+      "f": 7.0,
+      "g": 0.0,
+      "h": 1.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e",
+      "f": "f",
+      "g": "g",
+      "h": "h"
+    },
+    "block_count": 8,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

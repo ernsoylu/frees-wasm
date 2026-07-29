@@ -1,0 +1,18 @@
+{
+  "name": "units_negative_celsius",
+  "source": "{ The unary-sign folding trap: -10 [C] is 263.15 K, not -(10 degC). }\nT = -10 [C]\n",
+  "expect": {
+    "variables": {
+      "T": 263.15
+    },
+    "display_names": {
+      "t": "T"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

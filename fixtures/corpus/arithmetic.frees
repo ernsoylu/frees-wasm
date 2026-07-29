@@ -1,0 +1,7 @@
+{ Operator precedence and associativity. }
+a = 2 + 3 * 4
+b = (2 + 3) * 4
+c = 2 ^ 3 ^ 2
+d = -2 ^ 2
+e = 10 / 2 / 5
+f = 2 - 3 - 4

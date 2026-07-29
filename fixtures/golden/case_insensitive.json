@@ -1,0 +1,22 @@
+{
+  "name": "case_insensitive",
+  "source": "{ Variable names are case-insensitive: these are all one variable. }\nTin = 300\nT_out = TIN * 2\nresult = t_Out + tin\n",
+  "expect": {
+    "variables": {
+      "T_out": 600.0,
+      "Tin": 300.0,
+      "result": 900.0
+    },
+    "display_names": {
+      "result": "result",
+      "t_out": "T_out",
+      "tin": "Tin"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

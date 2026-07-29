@@ -1,0 +1,3 @@
+{ Temperature scales carry an additive offset. }
+T1 = 25 [C]
+T2 = 32 [F]

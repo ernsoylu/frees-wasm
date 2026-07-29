@@ -1,0 +1,11 @@
+[package]
+name = "frees-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Headless frees engine: solve documents and replay the parity corpus."
+
+[dependencies]
+frees-core = { workspace = true }
+serde_json = { workspace = true }

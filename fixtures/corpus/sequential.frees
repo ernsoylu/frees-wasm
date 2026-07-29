@@ -1,0 +1,4 @@
+{ Three scalar blocks that must solve in dependency order, not source order. }
+c = b + 1
+b = a * 3
+a = 2

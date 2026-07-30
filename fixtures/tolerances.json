@@ -1,0 +1,65 @@
+{
+  "_README": [
+    "Per-fixture numeric tolerances for tests/parity.rs. Every fixture not named",
+    "here is compared at the default 1e-9 relative / 1e-12 absolute.",
+    "",
+    "This file exists for exactly one reason, and it is not convenience.",
+    "docs/decisions/0001-property-backend.md chose precomputed (P,h) tables as",
+    "this build's real-fluid property source, and measured their error against",
+    "native CoolProp at 1e-7..1e-4 relative. No table-backed engine can pass a",
+    "1e-9 gate on a document that calls a real-fluid property function -- the",
+    "gap is physics-of-the-artifact, not a bug to be found. D1 named the two",
+    "honest ways out: a per-fixture tolerance, or shipping coolprop.wasm as the",
+    "accuracy path. This is the first.",
+    "",
+    "AND THE ORACLE IS NOT COOLPROP EITHER, for one specific query shape.",
+    "props/PropertyFunctions.java routes output T, Dmass or Smass at the input",
+    "pair (P, Hmass) through its own PhTableRegistry -- a SaturationSplitTable",
+    "built at run time on a 256/96/48 grid and gated at 1e-4 relative. Only",
+    "those calls; (P,T), (P,s), (P,x) and (T,x) all fall through to the native",
+    "library and the goldens for them ARE bit-exact CoolProp. Measured against",
+    "direct CoolProp 8.0.0 on the sample band D1 uses: the Java runtime table is",
+    "off by up to 7.9e-5 (Water Dmass, n=499) and 7.6e-5 (R134a Dmass, n=1991).",
+    "The shipped 512/144/72 .phtab is 2-7x CLOSER to CoolProp than that, so on",
+    "10 of the 15 intercepted water states in props_realfluid_water_states this",
+    "port is nearer the physics than the golden it is graded against. A gap here",
+    "is therefore |512-grid - 256-grid|, the sum of two interpolation errors --",
+    "which is why the numbers below exceed the single-table error D1 measured.",
+    "",
+    "Rules for adding an entry:",
+    "  * `relative` must be the *measured* error with a little headroom, never a",
+    "    round number chosen to make a test pass. Record what was measured in",
+    "    `measured`.",
+    "  * `reason` must say which mechanism produces the error, so a future",
+    "    session can tell a table artifact from a regression.",
+    "  * An entry whose fixture passes at the default 1e-9 makes the parity test",
+    "    FAIL. Dead tolerances do not accumulate here."
+  ],
+  "fixtures": {
+    "rankine-cycle": {
+      "relative": 1e-5,
+      "measured": 6.406e-7,
+      "reason": "Every state comes from the (P,h) split table: Enthalpy(Water,P,x), Enthalpy/Entropy(Water,P,T) by inverse bisection on the tabulated surface, Enthalpy(Water,P,s) likewise. D1 measured this document's thirteen states at <= 6.6e-5 against CoolProp 8.0.0."
+    },
+    "rankine-cycle-2": {
+      "relative": 1e-5,
+      "measured": 6.423e-7,
+      "reason": "Same mechanism as rankine-cycle: an all-table steam cycle with (P,x), (P,T) and (P,s) inputs."
+    },
+    "refrigeration-vcr": {
+      "relative": 1e-5,
+      "measured": 1.528e-6,
+      "reason": "R134a vapour-compression cycle. Adds P_sat(R134a, T=..) -- the (T,x) saturation-line query form -- to the (P,x)/(P,s)/(P,h) set. D1 measured (T,x) at 2.5e-6 for R134a."
+    },
+    "props_realfluid_water_states": {
+      "relative": 2e-4,
+      "measured": 7.195e-5,
+      "reason": "Water through every input pair the backend serves. The worst variable is d1_rank = Density(Water, P=10 kPa, h=h_f) -- saturated-liquid density on the v_f line at f32, which the D1 error report names as this build's worst document state (6.585e-5 against CoolProp). 15 of the 44 variables here are (P,h)->T/Dmass/Smass and their goldens are the Java's own 256-grid table, not CoolProp; on 10 of those 15 this port is closer to CoolProp than the golden. Verified three-way against direct CoolProp 8.0.0."
+    },
+    "props_realfluid_r134a_states": {
+      "relative": 1e-5,
+      "measured": 1.879e-6,
+      "reason": "R134a through the same input-pair matrix plus a superheat sweep toward the served ceiling (dh_vapor_max = 132.7 kJ/kg). Worst variable is d_pt = Density(R134a, P=1.2 MPa, T=333.15) -- a (P,T) inverse bisection on the tabulated surface, which has no Java counterpart. 24 of 42 variables are intercepted by the Java's runtime table; on 10 of those this port is closer to direct CoolProp than the golden."
+    }
+  }
+}

@@ -1327,7 +1327,218 @@ pub const INTRINSICS: &[Intrinsic] = &[
         let branch = string_arg(n, &args[3])?;
         cf_beta_oblique(n, m1, theta, k, &branch)
     }),
+    // ----- Phase 5: cubic equation of state (SRK / PR) --------------------
+    // `Evaluator.evalCall`: eos_*(fluid$, model$, T, P, phase$), except
+    // eos_pressure(fluid$, model$, T, v) and eos_psat(fluid$, model$, T).
+    // Independent of CoolProp — pure `props::cubiceos`.
+    lazy!("eos_z", Arity::Exact(5), |n, args, env| eos_tp(
+        n,
+        args,
+        env,
+        crate::props::cubiceos::z
+    )),
+    lazy!("eos_volume", Arity::Exact(5), |n, args, env| eos_tp(
+        n,
+        args,
+        env,
+        crate::props::cubiceos::volume
+    )),
+    lazy!("eos_density", Arity::Exact(5), |n, args, env| eos_tp(
+        n,
+        args,
+        env,
+        crate::props::cubiceos::density
+    )),
+    lazy!("eos_enthalpy", Arity::Exact(5), |n, args, env| eos_tp(
+        n,
+        args,
+        env,
+        crate::props::cubiceos::enthalpy
+    )),
+    lazy!("eos_entropy", Arity::Exact(5), |n, args, env| eos_tp(
+        n,
+        args,
+        env,
+        crate::props::cubiceos::entropy
+    )),
+    lazy!("eos_pressure", Arity::Exact(4), |n, args, env| {
+        let fluid = string_arg(n, &args[0])?;
+        let model = string_arg(n, &args[1])?;
+        let t = eval_in(&args[2], env)?;
+        let v = eval_in(&args[3], env)?;
+        crate::props::cubiceos::pressure(&fluid, &model, t, v)
+    }),
+    lazy!("eos_psat", Arity::Exact(3), |n, args, env| {
+        let fluid = string_arg(n, &args[0])?;
+        let model = string_arg(n, &args[1])?;
+        let t = eval_in(&args[2], env)?;
+        crate::props::cubiceos::saturation_pressure(&fluid, &model, t)
+    }),
+    // ----- Phase 5: combustion thermochemistry (NASA-7 / IdealGas) --------
+    lazy!("adiabaticflametemp", Arity::Exact(3), flame_temp),
+    lazy!("adiabaticflametemperature", Arity::Exact(3), flame_temp),
+    lazy!("flametemp", Arity::Exact(3), flame_temp),
+    // Ideal-gas mixture properties from a 'species:amount, ...' string.
+    lazy!("mix_mw", Arity::Exact(1), |n, args, _env| {
+        crate::props::thermochem::mixture_molar_mass(&string_arg(n, &args[0])?)
+    }),
+    lazy!("mix_molarmass", Arity::Exact(1), |n, args, _env| {
+        crate::props::thermochem::mixture_molar_mass(&string_arg(n, &args[0])?)
+    }),
+    lazy!("mix_cp", Arity::Exact(2), |n, args, env| {
+        let comp = string_arg(n, &args[0])?;
+        crate::props::thermochem::mixture_cp(&comp, eval_in(&args[1], env)?)
+    }),
+    lazy!("mix_enthalpy", Arity::Exact(2), |n, args, env| {
+        let comp = string_arg(n, &args[0])?;
+        crate::props::thermochem::mixture_enthalpy(&comp, eval_in(&args[1], env)?)
+    }),
+    lazy!("mix_entropy", Arity::Exact(3), |n, args, env| {
+        let comp = string_arg(n, &args[0])?;
+        let t = eval_in(&args[1], env)?;
+        let p = eval_in(&args[2], env)?;
+        crate::props::thermochem::mixture_entropy(&comp, t, p)
+    }),
+    lazy!("mix_viscosity", Arity::Exact(2), |n, args, env| {
+        let comp = string_arg(n, &args[0])?;
+        crate::props::transport::mixture_viscosity(&comp, eval_in(&args[1], env)?)
+    }),
+    lazy!("mix_conductivity", Arity::Exact(2), |n, args, env| {
+        let comp = string_arg(n, &args[0])?;
+        crate::props::transport::mixture_conductivity(&comp, eval_in(&args[1], env)?)
+    }),
+    // Combustion-product chemical equilibrium (dissociation).
+    lazy!("eq_molefraction", Arity::Exact(5), |n, args, env| {
+        let fuel = string_arg(n, &args[0])?;
+        let phi = eval_in(&args[1], env)?;
+        let t = eval_in(&args[2], env)?;
+        let p = eval_in(&args[3], env)?;
+        let species = string_arg(n, &args[4])?;
+        crate::props::equilibrium::mole_fraction(&fuel, phi, t, p, &species)
+    }),
+    lazy!("adiabaticflametempeq", Arity::Exact(4), flame_temp_eq),
+    lazy!("flametemp_eq", Arity::Exact(4), flame_temp_eq),
+    // ----- Phase 5: HX correlations that query the fluid backend ----------
+    // `HxCorrelations.*`, whose CoolProp calls resolve through
+    // `props::propfun::InstalledFluids` — same aliases, same backend, same
+    // honest refusal when no backend is installed.
+    lazy!("htc_1phase", Arity::Exact(6), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<5>(n, args, env)?;
+        crate::props::hxcorr::htc_1phase(&FLUID_BACKEND, &fluid, a[0], a[1], a[2], a[3], a[4])
+    }),
+    lazy!("htc_evap", Arity::Exact(6), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<5>(n, args, env)?;
+        crate::props::hxcorr::htc_evap(&FLUID_BACKEND, &fluid, a[0], a[1], a[2], a[3], a[4])
+    }),
+    lazy!("htc_cond", Arity::Exact(6), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<5>(n, args, env)?;
+        crate::props::hxcorr::htc_cond(&FLUID_BACKEND, &fluid, a[0], a[1], a[2], a[3], a[4])
+    }),
+    lazy!("htc_extair", Arity::Exact(6), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<5>(n, args, env)?;
+        crate::props::hxcorr::htc_ext_air(&FLUID_BACKEND, &fluid, a[0], a[1], a[2], a[3], a[4])
+    }),
+    lazy!("dp_1phase", Arity::Exact(7), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<6>(n, args, env)?;
+        crate::props::hxcorr::dp_1phase(&FLUID_BACKEND, &fluid, a[0], a[1], a[2], a[3], a[4], a[5])
+    }),
+    lazy!("dp_2phase", Arity::Exact(7), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<6>(n, args, env)?;
+        crate::props::hxcorr::dp_2phase(&FLUID_BACKEND, &fluid, a[0], a[1], a[2], a[3], a[4], a[5])
+    }),
+    lazy!("dp_mueller_steinhagen", Arity::Exact(7), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<6>(n, args, env)?;
+        crate::props::hxcorr::dp_mueller_steinhagen(
+            &FLUID_BACKEND,
+            &fluid,
+            a[0],
+            a[1],
+            a[2],
+            a[3],
+            a[4],
+            a[5],
+        )
+    }),
+    lazy!("dp_ms", Arity::Exact(7), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<6>(n, args, env)?;
+        crate::props::hxcorr::dp_mueller_steinhagen(
+            &FLUID_BACKEND,
+            &fluid,
+            a[0],
+            a[1],
+            a[2],
+            a[3],
+            a[4],
+            a[5],
+        )
+    }),
+    lazy!("dp_2phase_avg", Arity::Exact(9), |n, args, env| {
+        let (fluid, a) = fluid_and_values::<8>(n, args, env)?;
+        crate::props::hxcorr::dp_2phase_avg(
+            &FLUID_BACKEND,
+            &fluid,
+            a[0],
+            a[1],
+            a[2],
+            a[3],
+            a[4],
+            a[5],
+            a[6],
+            a[7],
+        )
+    }),
 ];
+
+/// The heat-exchanger correlations' view of the installed property backend.
+const FLUID_BACKEND: crate::props::propfun::InstalledFluids =
+    crate::props::propfun::InstalledFluids;
+
+/// `f(fluid$, model$, T, P, phase$)` — the shared shape of five `eos_*` arms.
+fn eos_tp<'a>(
+    name: &str,
+    args: &'a [Expr],
+    env: &'a Env<'a>,
+    f: fn(&str, &str, f64, f64, &str) -> Result<f64>,
+) -> Result<f64> {
+    let fluid = string_arg(name, &args[0])?;
+    let model = string_arg(name, &args[1])?;
+    let t = eval_in(&args[2], env)?;
+    let p = eval_in(&args[3], env)?;
+    let phase = string_arg(name, &args[4])?;
+    f(&fluid, &model, t, p, &phase)
+}
+
+/// `AdiabaticFlameTemp(fuel$, phi, T_react)`.
+fn flame_temp<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let fuel = string_arg(name, &args[0])?;
+    let phi = eval_in(&args[1], env)?;
+    let t_react = eval_in(&args[2], env)?;
+    crate::props::thermochem::adiabatic_flame_temp(&fuel, phi, t_react)
+}
+
+/// `AdiabaticFlameTempEq(fuel$, phi, T_react, P)`.
+fn flame_temp_eq<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let fuel = string_arg(name, &args[0])?;
+    let phi = eval_in(&args[1], env)?;
+    let t_react = eval_in(&args[2], env)?;
+    let p = eval_in(&args[3], env)?;
+    crate::props::equilibrium::adiabatic_flame_temp(&fuel, phi, t_react, p)
+}
+
+/// A leading `fluid$` string argument followed by exactly `N` numeric ones —
+/// the shape every `htc_*` / `dp_*` correlation takes.
+fn fluid_and_values<'a, const N: usize>(
+    name: &str,
+    args: &'a [Expr],
+    env: &'a Env<'a>,
+) -> Result<(String, [f64; N])> {
+    let fluid = string_arg(name, &args[0])?;
+    let mut out = [0.0f64; N];
+    for (i, slot) in out.iter_mut().enumerate() {
+        *slot = eval_in(&args[i + 1], env)?;
+    }
+    Ok((fluid, out))
+}
 
 fn registry() -> &'static HashMap<&'static str, &'static Intrinsic> {
     static REGISTRY: OnceLock<HashMap<&'static str, &'static Intrinsic>> = OnceLock::new();
@@ -1428,48 +1639,18 @@ const UNPORTED: &[(&str, &str)] = &[
     ("pidtune", "control systems"),
     // (The whole Bessel family — J/Y/I/K, fixed- and arbitrary-order, both
     // spellings — is implemented above.)
-    // Property backends still waiting on their data-table ports
-    ("eos_z", "cubic EOS"),
-    ("eos_volume", "cubic EOS"),
-    ("eos_density", "cubic EOS"),
-    ("eos_pressure", "cubic EOS"),
-    ("eos_enthalpy", "cubic EOS"),
-    ("eos_entropy", "cubic EOS"),
-    ("eos_psat", "cubic EOS"),
-    // Combustion thermochemistry (NASA-7 data tables not yet ported)
-    ("adiabaticflametemp", "combustion"),
-    ("adiabaticflametemperature", "combustion"),
-    ("adiabaticflametempeq", "combustion"),
-    ("flametemp", "combustion"),
-    ("flametemp_eq", "combustion"),
-    // Ideal-gas mixture properties (NASA-7 data tables not yet ported)
-    ("mix_mw", "fluid-property mixture backend"),
-    ("mix_molarmass", "fluid-property mixture backend"),
-    ("mix_cp", "fluid-property mixture backend"),
-    ("mix_enthalpy", "fluid-property mixture backend"),
-    ("mix_entropy", "fluid-property mixture backend"),
-    ("mix_viscosity", "fluid-property mixture backend"),
-    ("mix_conductivity", "fluid-property mixture backend"),
-    ("eq_molefraction", "fluid-property equilibrium backend"),
-    // HX correlations that query CoolProp for fluid states
-    ("htc_1phase", "fluid-property (CoolProp) correlation"),
-    ("htc_evap", "fluid-property (CoolProp) correlation"),
-    ("htc_cond", "fluid-property (CoolProp) correlation"),
-    ("htc_extair", "fluid-property (CoolProp) correlation"),
-    ("dp_1phase", "fluid-property (CoolProp) correlation"),
-    ("dp_2phase", "fluid-property (CoolProp) correlation"),
-    (
-        "dp_mueller_steinhagen",
-        "fluid-property (CoolProp) correlation",
-    ),
-    ("dp_ms", "fluid-property (CoolProp) correlation"),
-    ("dp_2phase_avg", "fluid-property (CoolProp) correlation"),
+    //
+    // Phase 5 emptied this section: the seven `eos_*` arms, the five
+    // `AdiabaticFlameTemp*` spellings, the seven `mix_*` arms,
+    // `eq_molefraction` and the nine `htc_*`/`dp_*` correlations are all
+    // registered above and dispatch into `crate::props`.
 ];
 
 /// The family `name` belongs to, if it is a known-but-unported Java arm.
 fn unported_family(name: &str) -> Option<&'static str> {
-    // Every synthetic call the Java parser generates carries a `$` (prop$…,
-    // proc$…, eigen$…, series$…). One rule covers all of them.
+    // The synthetic families this port still refuses wholesale. `prop$…` is
+    // *not* one of them any more (Phase 5) — nor are `det$`/`qr$`/`chol$`/
+    // `expm$`/`svd$`/`proc$`/`fft$`/… , which `eval_synthetic` dispatches.
     if name.contains('$') {
         return Some("synthetic property / procedure / matrix / control-systems call");
     }
@@ -1970,6 +2151,25 @@ fn eval_interp2_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Resu
 fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
     let parts: Vec<&str> = function.split('$').collect();
     match parts[0] {
+        // prop$<output>$<fluid>$<ind1>$<ind2>(values…): the fluid-property call
+        // `parser::expr::build_property_call` emits for
+        // `Enthalpy(R134a, T=T1, x=1)`, and the chemistry form
+        // `prop$molarmass('C8H18')` from `build_chem_call`.
+        //
+        // Port of `Evaluator.evalProperty`: string-literal arguments are the
+        // case-preserved *tokens* (fluid / formula / mode), everything else is
+        // evaluated to a number, and the two lists keep their own order.
+        "prop" => {
+            let mut values = Vec::with_capacity(args.len());
+            let mut tokens = Vec::new();
+            for arg in args {
+                match arg {
+                    Expr::Str(s) => tokens.push(s.clone()),
+                    other => values.push(eval_in(other, env)?),
+                }
+            }
+            crate::props::propfun::evaluate_with_tokens(function, &values, &tokens)
+        }
         // proc$<name>$<k>: the per-output call `procedures::flatten_calls`
         // emits for `CALL p(ins : outs)` — and, because the parser desugars
         // `FUNCTION [a, b] = f(x)` into a `ProcedureDef`, for the multi-output
@@ -5540,8 +5740,7 @@ mod tests {
             ("odevalue", "ODE results"),
             ("det", "matrices"),
             ("bode", "control systems"),
-            ("eos_z", "cubic EOS"),
-            ("adiabaticflametemp", "combustion"),
+            ("lqr", "control systems"),
         ] {
             let message = err(&Expr::call(name, vec![n(1.0)]));
             assert!(
@@ -5552,17 +5751,118 @@ mod tests {
         }
     }
 
+    /// The self-consistency invariant this table has broken twice: a name may
+    /// be **either** registered **or** listed as unported, never both. A stale
+    /// `UNPORTED` row shadows nothing (the registry is consulted first), so the
+    /// only symptom would be a lie in the language reference.
+    #[test]
+    fn no_registered_intrinsic_is_also_listed_as_unported() {
+        let stale: Vec<&str> = UNPORTED
+            .iter()
+            .map(|(name, _)| *name)
+            .filter(|name| lookup_intrinsic(name).is_some())
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "registered but listed unported: {stale:?}"
+        );
+    }
+
+    /// Every intrinsic Phase 5 wired must actually be reachable by name — the
+    /// mirror image of the test above, so deleting a registration without
+    /// deleting its claim fails loudly.
+    #[test]
+    fn phase_five_property_intrinsics_are_all_registered() {
+        for name in [
+            "eos_z",
+            "eos_volume",
+            "eos_density",
+            "eos_pressure",
+            "eos_enthalpy",
+            "eos_entropy",
+            "eos_psat",
+            "adiabaticflametemp",
+            "adiabaticflametemperature",
+            "flametemp",
+            "adiabaticflametempeq",
+            "flametemp_eq",
+            "mix_mw",
+            "mix_molarmass",
+            "mix_cp",
+            "mix_enthalpy",
+            "mix_entropy",
+            "mix_viscosity",
+            "mix_conductivity",
+            "eq_molefraction",
+            "htc_1phase",
+            "htc_evap",
+            "htc_cond",
+            "htc_extair",
+            "dp_1phase",
+            "dp_2phase",
+            "dp_mueller_steinhagen",
+            "dp_ms",
+            "dp_2phase_avg",
+        ] {
+            assert!(lookup_intrinsic(name).is_some(), "{name} is not registered");
+        }
+    }
+
     #[test]
     fn synthetic_dollar_calls_are_refused_as_a_family() {
         // `det$`/`qr$`/`chol$`/`expm$`/`svd$` are deliberately *not* in this
         // list any more: they route into `crate::linalg`, exactly as the Java
         // `Evaluator.evalCall` routes them into `core.LinearAlgebra`. See
-        // `linear_algebra_synthetics_are_dispatched`.
-        for name in ["prop$enthalpy$water$t$p", "eigen$val$1$3", "series$0$2$2"] {
+        // `linear_algebra_synthetics_are_dispatched`. `prop$…` left the list in
+        // Phase 5 — see `property_synthetics_are_dispatched`.
+        for name in ["eigen$val$1$3", "series$0$2$2"] {
             let message = err(&Expr::call(name, vec![n(1.0)]));
             assert!(message.contains("not yet supported"), "{name}: {message}");
             assert!(message.contains("synthetic"), "{name}: {message}");
         }
+    }
+
+    /// `prop$…` reaches `props::propfun`, which is what makes every fluid,
+    /// solid-material and chemistry function in the language reachable.
+    #[test]
+    fn property_synthetics_are_dispatched() {
+        // A solid material: no property backend needed, so this is a value.
+        let k = ev(&Expr::call("prop$k_", vec![Expr::Str("Aluminum".into())]));
+        assert_eq!(k, crate::props::solids::lookup("Aluminum", "k_").unwrap());
+        // Chemistry: MolarMass('C8H18') = 0.11423 kg/mol.
+        let m = ev(&Expr::call(
+            "prop$molarmass",
+            vec![Expr::Str("C8H18".into())],
+        ));
+        assert!((m - 0.11423).abs() < 1e-4, "{m}");
+        // An ideal gas resolves without any backend at all.
+        let h = ev(&Expr::call("prop$enthalpy$n2$t", vec![n(500.0)]));
+        assert!(h.is_finite() && h > 0.0, "{h}");
+        // A real fluid with no backend installed is refused *by state*, not
+        // with the old blanket "not yet supported: prop$…".
+        crate::props::propfun::test_without_backend(|| {
+            let msg = err(&Expr::call(
+                "prop$enthalpy$water$t$p",
+                vec![n(300.0), n(101325.0)],
+            ));
+            assert!(msg.contains("Water"), "{msg}");
+            assert!(msg.contains("T=300"), "{msg}");
+            assert!(!msg.contains("not yet supported"), "{msg}");
+        });
+        // With the tables this build links, the same call answers — within the
+        // error D1 measured. Oracle (CoolProp 8.0.0, tools/golden-dumper):
+        // Enthalpy(Water, T=300 [K], P=101325 [Pa]) = 112654.89965464505.
+        crate::props::propfun::test_with_builtin_tables(|| {
+            let h = ev(&Expr::call(
+                "prop$enthalpy$water$t$p",
+                vec![n(300.0), n(101325.0)],
+            ));
+            let rel = (h - 112_654.899_654_645_05).abs() / 112_654.899_654_645_05;
+            assert!(rel < 1e-4, "h = {h}, rel = {rel:e}");
+        });
+        // Malformed / unknown outputs still refuse.
+        let msg = err(&Expr::call("prop$bogus$water$t$p", vec![n(1.0), n(2.0)]));
+        assert!(msg.contains("Unknown property function: bogus"), "{msg}");
     }
 
     /// `parser::expand` emits `det$<n>` for any `det(A)` with `n > 3` (the
@@ -5625,20 +5925,52 @@ mod tests {
         );
     }
 
+    /// The correlations that genuinely need a real-fluid backend now dispatch
+    /// and fail **at the missing property**, naming it — not by refusing the
+    /// function. `mix_*` and `eq_molefraction` do not need one at all: they are
+    /// NASA-7 / ideal-gas math and answer outright.
     #[test]
-    fn coolprop_backed_correlations_are_refused_as_a_family() {
-        for name in [
+    fn coolprop_backed_correlations_dispatch_and_name_what_they_cannot_reach() {
+        // Aluminium-tube water loop: the correlation resolves the fluid alias,
+        // then asks for viscosity — which nothing can serve here.
+        let message = err(&Expr::call(
             "htc_1phase",
-            "htc_evap",
-            "dp_2phase",
-            "dp_ms",
+            vec![
+                Expr::Str("Water".into()),
+                n(1e5),
+                n(320.0),
+                n(0.1),
+                n(0.01),
+                n(1e-4),
+            ],
+        ));
+        assert!(message.contains("Water"), "{message}");
+        assert!(
+            // no backend at all / a backend that declines the input pair / a
+            // (P,h) table asked for a transport property it does not store.
+            message.contains("none is installed")
+                || message.contains("not tabulated")
+                || message.contains("needs a full property backend"),
+            "{message}"
+        );
+        assert!(!message.contains("not yet supported"), "{message}");
+
+        // Ideal-gas mixture properties need no backend and must answer.
+        let mw = ev(&Expr::call(
+            "mix_mw",
+            vec![Expr::Str("N2:0.79,O2:0.21".into())],
+        ));
+        assert!((mw - 0.028_85).abs() < 5e-4, "{mw}");
+        let cp = ev(&Expr::call(
             "mix_cp",
-            "eq_molefraction",
-        ] {
-            let message = err(&Expr::call(name, vec![n(1.0)]));
-            assert!(message.contains("not yet supported"), "{name}: {message}");
-            assert!(message.contains("fluid-property"), "{name}: {message}");
-        }
+            vec![Expr::Str("N2:0.79,O2:0.21".into()), n(300.0)],
+        ));
+        assert!(cp > 900.0 && cp < 1100.0, "{cp}");
+        let mu = ev(&Expr::call(
+            "mix_viscosity",
+            vec![Expr::Str("N2:0.79,O2:0.21".into()), n(300.0)],
+        ));
+        assert!(mu > 1e-5 && mu < 3e-5, "{mu}");
     }
 
     #[test]
@@ -6508,8 +6840,9 @@ mod tests {
 
     #[test]
     fn unported_synthetic_families_still_refuse_honestly() {
-        // `det$` moved out of this list when `crate::linalg` was wired in.
-        for name in ["prop$enthalpy$r134a$t$x", "eigen$val$0$2", "series$0$2$2"] {
+        // `det$` left this list when `crate::linalg` was wired in; `prop$` left
+        // it in Phase 5 when `crate::props::propfun` was.
+        for name in ["eigen$val$0$2", "series$0$2$2"] {
             let msg = err(&Expr::call(name, vec![n(1.0)]));
             assert!(msg.contains("not yet supported"), "{name}: {msg}");
         }

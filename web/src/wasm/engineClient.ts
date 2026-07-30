@@ -6,7 +6,13 @@
 // that dies (script load failure, OOM trap) rejects everything in flight and
 // is dropped, so the next call spawns a fresh one instead of hanging forever.
 
-import type { CheckResponse, LanguageReference, SolveResponse } from '../api'
+import type {
+  CheckResponse,
+  DiagramResponse,
+  LanguageReference,
+  PsychartResponse,
+  SolveResponse,
+} from '../api'
 import type { EngineRequest, EngineResponse } from './engine.worker'
 
 interface Pending {
@@ -88,4 +94,49 @@ export async function wasmReference(): Promise<LanguageReference> {
 /** The engine crate's semver, for the About dialog / worker handshake. */
 export function wasmVersion(): Promise<string> {
   return call('version', [])
+}
+
+/** `GET /api/plot/fluids`. `available` is false and the list empty when the
+ *  engine has no real-fluid property backend — the Java controller's own
+ *  `CoolProp.isAvailable() ? plotFluids() : List.of()` branch. */
+export async function wasmFluids(): Promise<{
+  available: boolean
+  fluids: string[]
+  backend: string
+}> {
+  return JSON.parse(await call('fluids', [])) as {
+    available: boolean
+    fluids: string[]
+    backend: string
+  }
+}
+
+/** The wasm plot endpoints return `{error}` for a failure rather than throwing
+ *  (the boundary's rule: document problems are data). The plot call sites want
+ *  a rejected promise, so the error body becomes one here. */
+function unwrapPlot<T>(payload: string): T {
+  const parsed = JSON.parse(payload) as T & { error?: string }
+  if (typeof parsed.error === 'string') throw new Error(parsed.error)
+  return parsed
+}
+
+/** `POST /api/plot/propplot` — saturation dome, isolines and markers. */
+export async function wasmPropertyDiagram(
+  fluid: string,
+  kind: string,
+): Promise<DiagramResponse> {
+  return unwrapPlot<DiagramResponse>(
+    await call('propertyDiagram', [fluid, kind]),
+  )
+}
+
+/** `POST /api/plot/psychart` — the psychrometric chart. */
+export async function wasmPsychrometricChart(
+  pressure: number,
+  tMin: number,
+  tMax: number,
+): Promise<PsychartResponse> {
+  return unwrapPlot<PsychartResponse>(
+    await call('psychrometricChart', [JSON.stringify({ pressure, tMin, tMax })]),
+  )
 }

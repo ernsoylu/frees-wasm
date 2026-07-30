@@ -34,11 +34,17 @@ use serde_json::{json, Map, Value};
 use wasm_bindgen::prelude::*;
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
-/// Rust backtrace instead of `unreachable executed`.
+/// Rust backtrace instead of `unreachable executed`, and decode the linked
+/// property tables so the very first `fluids()` call already sees them.
+///
+/// `frees_core` also installs them lazily from `solve`/`check`, so the module is
+/// correct without this; doing it at start-up moves the one-off ~2 ms decode off
+/// the first solve and out of the fluid-list round trip.
 #[wasm_bindgen(start)]
 pub fn start() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
+    frees_core::props::tables::install_builtin_once();
 }
 
 /// Engine version, for the worker handshake and the About dialog.
@@ -682,13 +688,146 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Property plots — GET /api/plot/fluids, POST /api/plot/propplot,
+//                  POST /api/plot/psychart  (`PlotController.java`)
+// ---------------------------------------------------------------------------
+
+/// `GET /api/plot/fluids` — `{available, fluids[]}`.
+///
+/// `PlotController.fluids()` returns
+/// `CoolProp.isAvailable() ? plotFluids() : List.of()`, so a build with no
+/// real-fluid backend reports an empty list and `available: false`. The
+/// frontend already renders that state ("no fluids available") — it is the
+/// truth, not a stub.
+///
+/// **One deliberate narrowing**: the list is `plot_fluids_available()`, not
+/// `plot_fluids()`. The Java's list is every fluid CoolProp knows, because
+/// CoolProp serves every one of them; this build's tabulated backend serves two,
+/// and a picker offering thirty-six would fail on thirty-four. A backend that
+/// serves everything gets the Java list back verbatim.
+#[wasm_bindgen]
+pub fn fluids() -> String {
+    frees_core::props::tables::install_builtin_once();
+    let available = frees_core::props::propfun::is_available();
+    let names: Vec<&str> = frees_core::props::propfun::plot_fluids_available();
+    json!({
+        "available": available,
+        "fluids": names,
+        // Not in the Java (which never needed to explain itself, having the
+        // library loaded): what this build's property backend actually is.
+        "backend": frees_core::props::propfun::backend_description(),
+    })
+    .to_string()
+}
+
+/// `POST /api/plot/propplot` — the saturation dome, isolines and markers for
+/// one fluid, in the `DiagramResponse` shape `api.ts` declares.
+///
+/// Failure is **data**, never a trap: `{"error": "…"}` mirrors the Java
+/// controller's `badRequest(ErrorResponse)` body, and `engineClient` turns it
+/// into the rejected promise `PlotCard` already catches.
+#[wasm_bindgen]
+pub fn property_diagram(fluid: &str, kind: &str) -> String {
+    frees_core::props::tables::install_builtin_once();
+    if fluid.trim().is_empty() {
+        return json!({"error": "A fluid name is required"}).to_string();
+    }
+    // A document spelling ("water", "R134a") resolves to the canonical CoolProp
+    // name; an already-canonical name passes through unchanged.
+    let canonical = frees_core::props::propfun::resolve_fluid(&fluid.to_lowercase())
+        .unwrap_or_else(|_| fluid.to_string());
+    match frees_core::props::diagrams::generate(&canonical, kind) {
+        Ok(diagram) => diagram_json(&diagram).to_string(),
+        Err(e) => json!({ "error": e.to_string() }).to_string(),
+    }
+}
+
+/// `POST /api/plot/psychart` — the psychrometric chart.
+///
+/// `request_json` is `{"pressure": …, "tMin": …, "tMax": …}`; any field may be
+/// absent or `null`, which selects the Java default (1 atm, 0–50 °C).
+#[wasm_bindgen]
+pub fn psychrometric_chart(request_json: &str) -> String {
+    #[derive(Debug, Default, Deserialize)]
+    #[serde(default, rename_all = "camelCase")]
+    struct PsychartRequest {
+        pressure: Option<f64>,
+        t_min: Option<f64>,
+        t_max: Option<f64>,
+    }
+
+    let request: PsychartRequest = if request_json.trim().is_empty() {
+        PsychartRequest::default()
+    } else {
+        match serde_json::from_str(request_json) {
+            Ok(parsed) => parsed,
+            Err(e) => return json!({ "error": format!("Malformed request: {e}") }).to_string(),
+        }
+    };
+    match frees_core::props::psychro::generate(request.pressure, request.t_min, request.t_max) {
+        Ok(chart) => json!({
+            "pressure": chart.pressure,
+            "tMin": chart.t_min,
+            "tMax": chart.t_max,
+            "curves": chart.curves.iter().map(curve_json).collect::<Vec<Value>>(),
+        })
+        .to_string(),
+        Err(e) => json!({ "error": e.to_string() }).to_string(),
+    }
+}
+
+fn diagram_json(diagram: &frees_core::props::diagrams::Diagram) -> Value {
+    json!({
+        "fluid": diagram.fluid,
+        "kind": diagram.kind,
+        "xProperty": diagram.x_property,
+        "yProperty": diagram.y_property,
+        "xLog": diagram.x_log,
+        "yLog": diagram.y_log,
+        "dome": diagram.dome.iter().map(curve_json).collect::<Vec<Value>>(),
+        "isolines": diagram.isolines.iter().map(curve_json).collect::<Vec<Value>>(),
+        "markers": diagram.markers.iter().map(|m| json!({
+            "label": m.label,
+            "x": finite_or_null(m.x),
+            "y": finite_or_null(m.y),
+        })).collect::<Vec<Value>>(),
+    })
+}
+
+/// A curve with its gaps intact. `None` becomes JSON `null`, which is exactly
+/// what Plotly reads as a line break — the mechanism that lets a partial
+/// property backend draw an honestly broken curve.
+fn curve_json(curve: &frees_core::props::diagrams::Curve) -> Value {
+    json!({
+        "family": curve.family,
+        "label": curve.label,
+        "x": curve.x.iter().map(|v| point_json(*v)).collect::<Vec<Value>>(),
+        "y": curve.y.iter().map(|v| point_json(*v)).collect::<Vec<Value>>(),
+    })
+}
+
+fn point_json(value: Option<f64>) -> Value {
+    value.map_or(Value::Null, finite_or_null)
+}
+
+/// `serde_json` cannot represent NaN/Inf, and silently turning one into `0`
+/// would be a fabricated data point. Both become `null`, the same gap a
+/// declined lookup produces.
+fn finite_or_null(value: f64) -> Value {
+    serde_json::Number::from_f64(value).map_or(Value::Null, Value::Number)
+}
+
+// ---------------------------------------------------------------------------
 // Tests — every assertion here is about the *wire shape*: the exact camelCase
 // keys and JSON types `web/src/api.ts` declares.
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
-    use super::{check, placeholders, reference, signature_of, solve, version};
+    use super::{
+        check, fluids, placeholders, property_diagram, psychrometric_chart, reference,
+        signature_of, solve, version,
+    };
     use serde_json::Value;
 
     fn parsed(payload: &str) -> Value {
@@ -1144,5 +1283,286 @@ mod tests {
         assert_eq!(signature_of("noop", Arity::AtLeast(0)), "noop(...)");
         // Past the alphabet the placeholders keep going without colliding.
         assert!(placeholders(27).ends_with("z, x27"));
+    }
+
+    // ── Property plots (PlotController) ──────────────────────────────────────
+
+    /// The property backend is process-global (it mirrors the Java's single
+    /// loaded `CoolProp.LIB`), so every test that reads or swaps it holds this.
+    static PROPERTY_BACKEND: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn backend_guard() -> std::sync::MutexGuard<'static, ()> {
+        PROPERTY_BACKEND.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// `GET /api/plot/fluids`. This build ships no real-fluid backend, so the
+    /// Java's own `CoolProp.isAvailable() ? plotFluids() : List.of()` branch
+    /// says `available:false` with an empty list — which is exactly what
+    /// `api.ts` documents the old backend returned in the same situation.
+    #[test]
+    fn the_fluid_list_reports_availability_honestly() {
+        let _guard = backend_guard();
+        let payload = parsed(&fluids());
+        assert_key(&payload, "available", Value::is_boolean);
+        assert_key(&payload, "fluids", Value::is_array);
+        assert_key(&payload, "backend", Value::is_string);
+        let available = payload["available"].as_bool().expect("boolean");
+        let names = payload["fluids"].as_array().expect("array");
+        assert_eq!(
+            available,
+            !names.is_empty(),
+            "the list and the flag must agree: {payload}"
+        );
+        assert!(names.iter().all(Value::is_string), "{payload}");
+        if !available {
+            assert!(
+                payload["backend"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("none"),
+                "{payload}"
+            );
+        }
+    }
+
+    /// A property diagram for a fluid this build cannot serve is a *data*
+    /// failure, not a trap: the `{"error": …}` body the Java controller returns
+    /// as 400.
+    ///
+    /// The fluid used to be Water and the reason used to be "no backend at
+    /// all". Since Phase 5 links the generated tables, `property_diagram` always
+    /// has a backend; the honest un-servable case is now a fluid outside the two
+    /// that are tabulated. The error must still name it.
+    #[test]
+    fn a_property_diagram_for_an_untabulated_fluid_is_an_error_body() {
+        let _guard = backend_guard();
+        let payload = parsed(&property_diagram("Ammonia", "T-s"));
+        assert_key(&payload, "error", Value::is_string);
+        let message = payload["error"].as_str().expect("string");
+        assert!(message.contains("Ammonia"), "{message}");
+    }
+
+    /// The linked tables are a *real* diagram source, not just a non-error:
+    /// water's T–s dome has to come back with finite numbers on it.
+    #[test]
+    fn the_linked_tables_draw_a_water_dome_with_real_numbers_on_it() {
+        let _guard = backend_guard();
+        frees_core::props::tables::install_builtin_once();
+        let payload = parsed(&property_diagram("Water", "T-s"));
+        assert!(payload.get("error").is_none(), "{payload}");
+        let dome = payload["dome"][0].clone();
+        let ys: Vec<Option<f64>> = serde_json::from_value(dome["y"].clone()).expect("y array");
+        let finite: Vec<f64> = ys.iter().flatten().copied().collect();
+        assert!(
+            finite.len() > 100,
+            "the dome should be mostly drawable, got {} of {} points",
+            finite.len(),
+            ys.len()
+        );
+        // T–s: the y axis is temperature, and water's dome lives between the
+        // triple point and the critical point.
+        let lo = finite.iter().cloned().fold(f64::INFINITY, f64::min);
+        let hi = finite.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        assert!(lo > 250.0 && hi < 648.0, "dome T range {lo}..{hi}");
+        // And the fluid list only offers what can actually be drawn.
+        let listed = parsed(&fluids());
+        let names: Vec<String> =
+            serde_json::from_value(listed["fluids"].clone()).expect("fluids array");
+        assert_eq!(names, ["R134a", "Water"], "{listed}");
+        assert_eq!(listed["available"], Value::Bool(true));
+    }
+
+    /// The end-to-end proof that the plot path is *wired*, not just shaped: with
+    /// a property backend installed, `fluids()` publishes the real list and
+    /// `property_diagram()` returns a chart with real numbers in it.
+    ///
+    /// The backend here is a closed-form stand-in, not physics — the point is
+    /// the plumbing (engine table -> diagram generator -> JSON -> `api.ts`),
+    /// which is exactly the part a missing CoolProp cannot exercise.
+    #[test]
+    fn with_a_backend_installed_the_fluid_list_and_a_diagram_both_carry_real_data() {
+        use frees_core::props::propfun::{self, RealFluid};
+        use frees_core::FreesError;
+        use std::sync::Arc;
+
+        struct Toy;
+        impl RealFluid for Toy {
+            fn props1_si(&self, _fluid: &str, param: &str) -> Result<f64, FreesError> {
+                match param {
+                    "Ttriple" => Ok(280.0),
+                    "Tcrit" => Ok(500.0),
+                    "ptriple" => Ok(1.0e4),
+                    "pcrit" => Ok(4.0e6),
+                    other => Err(FreesError::property(format!("no {other}"))),
+                }
+            }
+            fn props_si(
+                &self,
+                output: &str,
+                name1: &str,
+                value1: f64,
+                name2: &str,
+                value2: f64,
+                _fluid: &str,
+            ) -> Result<f64, FreesError> {
+                let mut t = f64::NAN;
+                let mut p = f64::NAN;
+                let mut q = f64::NAN;
+                for (k, v) in [(name1, value1), (name2, value2)] {
+                    match k {
+                        "T" => t = v,
+                        "P" => p = v,
+                        "Q" => q = v,
+                        "S" => t = (v / 1000.0).exp(),
+                        "D" => p = v * 300.0,
+                        _ => {}
+                    }
+                }
+                if q.is_finite() {
+                    if t.is_finite() {
+                        p = 1.0e5 * ((t - 300.0) / 30.0).exp();
+                    } else if p.is_finite() {
+                        t = 300.0 + 30.0 * (p / 1.0e5).ln();
+                    }
+                }
+                if !t.is_finite() || !p.is_finite() {
+                    return Err(FreesError::property("toy: underdetermined".to_string()));
+                }
+                Ok(match output {
+                    "T" => t,
+                    "P" => p,
+                    "Smass" | "S" => 1000.0 * t.ln(),
+                    "Hmass" | "H" => 1000.0 * t,
+                    "Dmass" | "D" => p / (287.0 * t),
+                    other => return Err(FreesError::property(format!("toy: no {other}"))),
+                })
+            }
+        }
+
+        let _guard = backend_guard();
+        let previous = propfun::install(Arc::new(Toy));
+
+        let list = parsed(&fluids());
+        let diagram = parsed(&property_diagram("water", "T-s"));
+
+        match previous {
+            Some(p) => {
+                propfun::install(p);
+            }
+            None => {
+                propfun::uninstall();
+            }
+        }
+
+        // The fluid list is now the real plotFluids() surface.
+        assert_eq!(list["available"], true);
+        let names: Vec<&str> = list["fluids"]
+            .as_array()
+            .expect("array")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert!(names.contains(&"Water"), "{list}");
+        assert!(names.contains(&"R134a"), "{list}");
+        assert!(!names.contains(&"HumidAir"), "{list}");
+
+        // The diagram is a chart, not an error body — and the document spelling
+        // "water" resolved to the canonical "Water".
+        assert!(diagram.get("error").is_none(), "{diagram}");
+        assert_eq!(diagram["fluid"], "Water");
+        assert_eq!(diagram["kind"], "TS");
+        let dome = diagram["dome"].as_array().expect("array");
+        assert_eq!(dome.len(), 1);
+        let xs = dome[0]["x"].as_array().expect("array");
+        let ys = dome[0]["y"].as_array().expect("array");
+        assert_eq!(xs.len(), ys.len());
+        assert_eq!(xs.len(), 400, "both dome branches");
+        assert!(
+            xs.iter().filter(|v| v.is_number()).count() > 300,
+            "most dome points must be real numbers: {}",
+            dome[0]
+        );
+        // Quality lines and isobars are present with real points.
+        let families: std::collections::BTreeSet<&str> = diagram["isolines"]
+            .as_array()
+            .expect("array")
+            .iter()
+            .filter_map(|c| c["family"].as_str())
+            .collect();
+        assert!(families.contains("quality"), "{families:?}");
+        assert!(families.contains("isobar"), "{families:?}");
+        assert_eq!(diagram["markers"][0]["label"], "Critical point");
+        assert!(diagram["markers"][0]["x"].is_number(), "{diagram}");
+    }
+
+    #[test]
+    fn a_property_diagram_validates_its_inputs_before_the_backend() {
+        let blank = parsed(&property_diagram("   ", "T-s"));
+        assert_eq!(blank["error"], "A fluid name is required");
+        let kind = parsed(&property_diagram("Water", "q-w"));
+        assert!(
+            kind["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("Unknown diagram type 'q-w'"),
+            "{kind}"
+        );
+    }
+
+    /// The psychrometric chart is generated whatever the backend can do; with
+    /// none, every point is a JSON `null` gap. The shape must still be exactly
+    /// `PsychartResponse`, because the chart component parses it either way.
+    #[test]
+    fn the_psychrometric_chart_has_the_psychart_response_shape() {
+        let payload = parsed(&psychrometric_chart("{}"));
+        assert_key(&payload, "pressure", Value::is_number);
+        assert_key(&payload, "tMin", Value::is_number);
+        assert_key(&payload, "tMax", Value::is_number);
+        assert_key(&payload, "curves", Value::is_array);
+        assert_eq!(payload["pressure"], 101_325.0);
+        let curves = payload["curves"].as_array().expect("array");
+        assert!(!curves.is_empty(), "{payload}");
+        for curve in curves {
+            assert_key(curve, "family", Value::is_string);
+            assert_key(curve, "label", Value::is_string);
+            assert_key(curve, "x", Value::is_array);
+            assert_key(curve, "y", Value::is_array);
+            let xs = curve["x"].as_array().expect("array");
+            let ys = curve["y"].as_array().expect("array");
+            assert_eq!(xs.len(), ys.len(), "{curve}");
+            // Every element is a number or an explicit null — never a string,
+            // never a fabricated 0.
+            assert!(
+                xs.iter().chain(ys).all(|v| v.is_number() || v.is_null()),
+                "{curve}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_psychrometric_chart_accepts_an_explicit_window_and_refuses_a_bad_one() {
+        let payload = parsed(&psychrometric_chart(
+            r#"{"pressure": 90000, "tMin": 283.15, "tMax": 303.15}"#,
+        ));
+        assert_eq!(payload["pressure"], 90_000.0);
+        assert_eq!(payload["tMin"], 283.15);
+        let bad = parsed(&psychrometric_chart(r#"{"pressure": 500}"#));
+        assert!(
+            bad["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("pressure > 1 kPa"),
+            "{bad}"
+        );
+        let malformed = parsed(&psychrometric_chart("{not json"));
+        assert!(
+            malformed["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("Malformed request"),
+            "{malformed}"
+        );
+        // An empty body is the all-defaults chart, like an absent request body.
+        assert_eq!(parsed(&psychrometric_chart(""))["pressure"], 101_325.0);
     }
 }

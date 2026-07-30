@@ -1,0 +1,50 @@
+{
+  "name": "twophase-lockhart-martinelli",
+  "source": "// Lockhart-Martinelli / Chisholm two-phase pressure-drop multiplier\n{ R134a-like saturated properties at moderate pressure. X_tt is the turbulent-\n  turbulent Martinelli parameter; phi_l^2 multiplies the liquid-alone drop. }\nrho_l = 1187.5\nrho_g = 25.75\nmu_l = 0.000185\nmu_g = 0.0000117\n\nx = 0.35\nXtt = lm_martinelli_tt(x, rho_l, rho_g, mu_l, mu_g)\nphi2_tt = lm_phi2(Xtt, 20)\nphi2_lt = lm_phi2(Xtt, 12)\nphi2_tl = lm_phi2(Xtt, 10)\nphi2_ll = lm_phi2(Xtt, 5)\n\nxlow = 0.02\nXtt_low = lm_martinelli_tt(xlow, rho_l, rho_g, mu_l, mu_g)\nphi2_low = lm_phi2(Xtt_low, 20)\n\nxhigh = 0.95\nXtt_high = lm_martinelli_tt(xhigh, rho_l, rho_g, mu_l, mu_g)\nphi2_high = lm_phi2(Xtt_high, 20)\n\nphi2_unit = lm_phi2(1, 20)\n",
+  "expect": {
+    "variables": {
+      "Xtt": 0.3387904621342631,
+      "Xtt_high": 0.013711726857004686,
+      "Xtt_low": 6.443871423588654,
+      "mu_g": 1.17E-5,
+      "mu_l": 1.85E-4,
+      "phi2_high": 6778.43038569912,
+      "phi2_ll": 24.470781632765032,
+      "phi2_low": 4.1278070103493,
+      "phi2_lt": 45.132520324882904,
+      "phi2_tl": 39.229166412849224,
+      "phi2_tt": 68.74593597301762,
+      "phi2_unit": 22.0,
+      "rho_g": 25.75,
+      "rho_l": 1187.5,
+      "x": 0.35,
+      "xhigh": 0.95,
+      "xlow": 0.02
+    },
+    "display_names": {
+      "mu_g": "mu_g",
+      "mu_l": "mu_l",
+      "phi2_high": "phi2_high",
+      "phi2_ll": "phi2_ll",
+      "phi2_low": "phi2_low",
+      "phi2_lt": "phi2_lt",
+      "phi2_tl": "phi2_tl",
+      "phi2_tt": "phi2_tt",
+      "phi2_unit": "phi2_unit",
+      "rho_g": "rho_g",
+      "rho_l": "rho_l",
+      "x": "x",
+      "xhigh": "xhigh",
+      "xlow": "xlow",
+      "xtt": "Xtt",
+      "xtt_high": "Xtt_high",
+      "xtt_low": "Xtt_low"
+    },
+    "block_count": 17,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,100 @@
+{ Compressible flow driven THROUGH the sonic point and ACROSS a normal shock.
+  M = 1 exactly is the branch-flip for A/A*, Fanno, Rayleigh and the shock
+  relations; the Java guards are requireMach !(m > 0) and requireSupersonic
+  !(m >= 1), both NaN-rejecting negations that must stay negated. }
+
+{ --- isentropic through M = 1 --- }
+t0_09    = isen_t0_t(0.9, 1.4)
+t0_0999  = isen_t0_t(0.999999999, 1.4)
+t0_1     = isen_t0_t(1, 1.4)
+t0_1001  = isen_t0_t(1.000000001, 1.4)
+t0_11    = isen_t0_t(1.1, 1.4)
+p0_1     = isen_p0_p(1, 1.4)
+r0_1     = isen_rho0_rho(1, 1.4)
+aa_09    = isen_a_astar(0.9, 1.4)
+aa_0999  = isen_a_astar(0.999999999, 1.4)
+aa_1     = isen_a_astar(1, 1.4)
+aa_1001  = isen_a_astar(1.000000001, 1.4)
+aa_11    = isen_a_astar(1.1, 1.4)
+aa_5     = isen_a_astar(5, 1.4)
+aa_tiny  = isen_a_astar(0.000001, 1.4)
+aa_50    = isen_a_astar(50, 1.4)
+
+{ --- A/A* inversion on both branches, including the exact ratio == 1 short-circuit }
+m_sub_1     = mach_a_astar(1, 1.4, 'subsonic')
+m_sup_1     = mach_a_astar(1, 1.4, 'supersonic')
+m_sub_1p001 = mach_a_astar(1.000001, 1.4, 'subsonic')
+m_sup_1p001 = mach_a_astar(1.000001, 1.4, 'supersonic')
+m_sub_2     = mach_a_astar(2, 1.4, 'sub')
+m_sup_2     = mach_a_astar(2, 1.4, 'sup')
+m_sub_10    = mach_a_astar(10, 1.4, 'subsonic')
+m_sup_10    = mach_a_astar(10, 1.4, 'supersonic')
+m_sup_big   = mach_a_astar(1000, 1.4, 'supersonic')
+
+{ --- normal shock at exactly M1 = 1 (degenerate: everything is 1) and just above }
+ms_1        = mach_shock(1, 1.4)
+ms_1p       = mach_shock(1.000000001, 1.4)
+ms_11       = mach_shock(1.1, 1.4)
+ms_2        = mach_shock(2, 1.4)
+ms_5        = mach_shock(5, 1.4)
+ms_20       = mach_shock(20, 1.4)
+ms_limit    = mach_shock(1000000, 1.4)
+p21_1       = p2_p1_shock(1, 1.4)
+p21_2       = p2_p1_shock(2, 1.4)
+p21_20      = p2_p1_shock(20, 1.4)
+r21_1       = rho2_rho1_shock(1, 1.4)
+r21_2       = rho2_rho1_shock(2, 1.4)
+r21_limit   = rho2_rho1_shock(1000000, 1.4)
+t21_1       = t2_t1_shock(1, 1.4)
+t21_2       = t2_t1_shock(2, 1.4)
+p021_1      = p02_p01_shock(1, 1.4)
+p021_2      = p02_p01_shock(2, 1.4)
+p021_10     = p02_p01_shock(10, 1.4)
+
+{ --- Fanno and Rayleigh through the sonic point --- }
+fan_t_099  = fanno_t_tstar(0.99, 1.4)
+fan_t_1    = fanno_t_tstar(1, 1.4)
+fan_t_101  = fanno_t_tstar(1.01, 1.4)
+fan_p_1    = fanno_p_pstar(1, 1.4)
+fan_p0_1   = fanno_p0_p0star(1, 1.4)
+fan_fld_1  = fanno_fld(1, 1.4)
+fan_fld_09 = fanno_fld(0.9, 1.4)
+fan_fld_11 = fanno_fld(1.1, 1.4)
+fan_fld_tiny = fanno_fld(0.001, 1.4)
+ray_t0_1   = rayleigh_t0_t0star(1, 1.4)
+ray_t0_05  = rayleigh_t0_t0star(0.5, 1.4)
+ray_t_1    = rayleigh_t_tstar(1, 1.4)
+ray_t_max  = rayleigh_t_tstar(0.8451542547285166, 1.4)
+ray_p_1    = rayleigh_p_pstar(1, 1.4)
+ray_p0_1   = rayleigh_p0_p0star(1, 1.4)
+
+{ --- Prandtl-Meyer through M = 1 and its inversion --- }
+pm_1       = prandtl_meyer(1, 1.4)
+pm_1p      = prandtl_meyer(1.000000001, 1.4)
+pm_2       = prandtl_meyer(2, 1.4)
+pm_10      = prandtl_meyer(10, 1.4)
+pm_max     = prandtl_meyer(100000, 1.4)
+mu_1       = machangle(1)
+mu_2       = machangle(2)
+m_pm_0     = mach_prandtlmeyer(0, 1.4)
+m_pm_small = mach_prandtlmeyer(1e-9, 1.4)
+m_pm_mid   = mach_prandtlmeyer(0.5, 1.4)
+
+{ --- oblique shock deflection at the sonic and detachment edges --- }
+th_ob_1    = theta_oblique(2, 0.5235987755982988, 1.4)
+th_ob_mach = theta_oblique(2, 0.5235987755982988, 1.4)
+th_norm    = theta_oblique(2, 1.5707963267948966, 1.4)
+
+{ --- different k values: monatomic, steam, near-1 --- }
+t0_k167    = isen_t0_t(1, 1.6666666666666667)
+t0_k133    = isen_t0_t(1, 1.33)
+t0_k101    = isen_t0_t(1, 1.01)
+aa_k101    = isen_a_astar(2, 1.01)
+ms_k167    = mach_shock(2, 1.6666666666666667)
+
+{ --- oblique beta inversion, both branches, right at detachment --- }
+b_weak_10   = beta_oblique(2, 0.17453292519943295, 1.4, 'weak')
+b_strong_10 = beta_oblique(2, 0.17453292519943295, 1.4, 'strong')
+b_weak_tiny = beta_oblique(2, 1e-9, 1.4, 'weak')
+b_weak_m5   = beta_oblique(5, 0.5235987755982988, 1.4, 'weak')
+b_strong_m5 = beta_oblique(5, 0.5235987755982988, 1.4, 'strong')

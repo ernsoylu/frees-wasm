@@ -1,7 +1,9 @@
 // Module worker hosting the frees WASM engine off the UI thread.
 //
 // Protocol (see engineClient.ts, the only sender):
-//   request  {id, method: 'solve' | 'check' | 'reference' | 'version', args: string[]}
+//   request  {id, method: 'solve' | 'check' | 'reference' | 'version' |
+//                     'fluids' | 'propertyDiagram' | 'psychrometricChart',
+//             args: string[]}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
 // `result` is the raw JSON string the wasm boundary emits (a REST-shaped
@@ -13,11 +15,26 @@
 // returns every *document* problem as data; this dispatch wraps the rest
 // (init failure, unknown method, an unexpected trap) in {ok: false}.
 
-import init, { check, reference, solve, version } from './pkg/frees_wasm.js'
+import init, {
+  check,
+  fluids,
+  property_diagram,
+  psychrometric_chart,
+  reference,
+  solve,
+  version,
+} from './pkg/frees_wasm.js'
 
 export interface EngineRequest {
   id: number
-  method: 'solve' | 'check' | 'reference' | 'version'
+  method:
+    | 'solve'
+    | 'check'
+    | 'reference'
+    | 'version'
+    | 'fluids'
+    | 'propertyDiagram'
+    | 'psychrometricChart'
   args: string[]
 }
 
@@ -57,6 +74,15 @@ ctx.onmessage = async (event: MessageEvent<EngineRequest>) => {
         break
       case 'version':
         result = version()
+        break
+      case 'fluids':
+        result = fluids()
+        break
+      case 'propertyDiagram':
+        result = property_diagram(args[0] ?? '', args[1] ?? '')
+        break
+      case 'psychrometricChart':
+        result = psychrometric_chart(args[0] ?? '')
         break
       default:
         throw new Error(`Unknown engine method: ${String(method)}`)

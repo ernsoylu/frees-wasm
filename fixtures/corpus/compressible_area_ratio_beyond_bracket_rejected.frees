@@ -1,0 +1,4 @@
+// error probe: the inverse relations' fixed brackets are a hard ceiling
+{ A/A* > 1.4555e6 is past M = 50, the top of the supersonic bracket, so
+  bisection reports an unbracketed target instead of a wrong root. }
+r = mach_A_Astar(10000000, 1.4, 'supersonic')

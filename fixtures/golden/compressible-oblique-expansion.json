@@ -1,0 +1,54 @@
+{
+  "name": "compressible-oblique-expansion",
+  "source": "// Prandtl-Meyer expansion and oblique-shock theta-beta-M\n{ Angles are in radians. The Prandtl-Meyer function and its inverse, the Mach\n  angle, and both roots of the theta-beta-M relation for a 20 deg wedge. }\nk = 1.4\nM1 = 2.6\n\nnu = prandtlmeyer(M1, k)\nnu2 = prandtl_meyer(M1, k)\nMnu = mach_prandtlmeyer(nu, k)\nMnu0 = mach_prandtlmeyer(0.0, k)\nmu = machangle(M1)\nmu1 = machangle(1.0)\n\ntheta = 20 * pi# / 180\nbeta_weak = beta_oblique(M1, theta, k, 'weak')\nbeta_strong = beta_oblique(M1, theta, k, 'strong')\ntheta_weak = theta_oblique(M1, beta_weak, k)\ntheta_strong = theta_oblique(M1, beta_strong, k)\n\nM2n_weak = M2_shock(M1 * sin(beta_weak), k)\nM2_weak = M2n_weak / sin(beta_weak - theta)\n\nkmono = 1.6666666666666667\nnu_mono = prandtlmeyer(3.4, kmono)\nMnu_mono = mach_prandtlmeyer(nu_mono, kmono)\nbeta_mono = beta_oblique(3.4, 0.35, kmono, 'weak')\n",
+  "expect": {
+    "variables": {
+      "M1": 2.6,
+      "M2_weak": 1.7198779132133066,
+      "M2n_weak": 0.6337225562379606,
+      "Mnu": 2.60000000000045,
+      "Mnu0": 1.0,
+      "Mnu_mono": 3.3999999999962345,
+      "beta_mono": 0.6699558813315369,
+      "beta_strong": 1.4071758877295204,
+      "beta_weak": 0.7264279972824406,
+      "k": 1.4,
+      "kmono": 1.6666666666666667,
+      "mu": 0.3947911196997615,
+      "mu1": 1.5707963267948966,
+      "nu": 0.722823009502086,
+      "nu2": 0.722823009502086,
+      "nu_mono": 0.7659129021731661,
+      "theta": 0.3490658503988659,
+      "theta_strong": 0.34906585039933663,
+      "theta_weak": 0.34906585039876925
+    },
+    "display_names": {
+      "beta_mono": "beta_mono",
+      "beta_strong": "beta_strong",
+      "beta_weak": "beta_weak",
+      "k": "k",
+      "kmono": "kmono",
+      "m1": "M1",
+      "m2_weak": "M2_weak",
+      "m2n_weak": "M2n_weak",
+      "mnu": "Mnu",
+      "mnu0": "Mnu0",
+      "mnu_mono": "Mnu_mono",
+      "mu": "mu",
+      "mu1": "mu1",
+      "nu": "nu",
+      "nu2": "nu2",
+      "nu_mono": "nu_mono",
+      "theta": "theta",
+      "theta_strong": "theta_strong",
+      "theta_weak": "theta_weak"
+    },
+    "block_count": 19,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

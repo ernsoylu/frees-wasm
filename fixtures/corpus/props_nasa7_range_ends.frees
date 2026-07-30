@@ -1,0 +1,38 @@
+{ NASA-7 at and beyond the declared range ends. Java clamps nothing: tRanges[0] and
+  tRanges[2] are advisory, so extrapolation is silent in both engines and must agree
+  digit for digit. N2 is [300, 1000, 5000]; O2/CO2/H2O/... are [200, 1000, 3500];
+  one species is [200, 1000, 6000]. Probe the ends, past the ends, and absurdly past. }
+cp_n2_300      = mix_cp('N2:1', 300)
+cp_n2_5000     = mix_cp('N2:1', 5000)
+cp_n2_5001     = mix_cp('N2:1', 5001)
+cp_n2_20000    = mix_cp('N2:1', 20000)
+cp_n2_299      = mix_cp('N2:1', 299)
+cp_n2_100      = mix_cp('N2:1', 100)
+cp_n2_1        = mix_cp('N2:1', 1)
+
+cp_o2_200      = mix_cp('O2:1', 200)
+cp_o2_3500     = mix_cp('O2:1', 3500)
+cp_o2_3501     = mix_cp('O2:1', 3501)
+cp_o2_50       = mix_cp('O2:1', 50)
+
+cp_co2_200     = mix_cp('CO2:1', 200)
+cp_co2_3500    = mix_cp('CO2:1', 3500)
+cp_co2_8000    = mix_cp('CO2:1', 8000)
+
+h_n2_5000      = mix_enthalpy('N2:1', 5000)
+h_n2_100       = mix_enthalpy('N2:1', 100)
+h_o2_3500      = mix_enthalpy('O2:1', 3500)
+h_co2_8000     = mix_enthalpy('CO2:1', 8000)
+h_h2_200       = mix_enthalpy('H2:1', 200)
+
+s_n2_5000      = mix_entropy('N2:1', 5000, 101325)
+s_n2_100       = mix_entropy('N2:1', 100, 101325)
+s_o2_3500      = mix_entropy('O2:1', 3500, 101325)
+s_lowp         = mix_entropy('N2:1', 400, 1)
+s_highp        = mix_entropy('N2:1', 400, 1e9)
+s_pref         = mix_entropy('N2:1', 400, 101325)
+
+mw_n2          = mix_mw('N2:1')
+mw_c2h2        = mix_mw('C2H2:1')
+mw_argon_alias = mix_mw('Argon:1')
+mw_ar          = mix_mw('AR:1')

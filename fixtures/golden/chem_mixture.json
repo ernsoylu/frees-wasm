@@ -1,0 +1,44 @@
+{
+  "name": "chem_mixture",
+  "source": "// Ideal-gas mixture thermochemistry on the unified NASA-7 / JANAF accessor.\n// Oracle target: props/Thermochemistry.java (+ props/NasaThermo.java)\nmw_air   = mix_mw('N2:0.79, O2:0.21')\nmw_alias = mix_molarmass('N2:3.76, O2:1')\nmw_prod  = mix_mw('CO2:1, H2O:2, N2:7.52')\nmw_fuel  = mix_mw('C8H18:1, N2:1')\n\ncp_air   = mix_cp('N2:0.79, O2:0.21', 300)\ncp_hot   = mix_cp('N2:0.79, O2:0.21', 1500)\ncp_prod  = mix_cp('CO2:1, H2O:2, N2:7.52', 1200)\ncp_mixed = mix_cp('C8H18:1, O2:12.5', 400)\n\nh_air    = mix_enthalpy('N2:0.79, O2:0.21', 300)\nh_prod   = mix_enthalpy('CO2:1, H2O:2, N2:7.52', 1200)\nh_fuel   = mix_enthalpy('CH3OH:1', 400)\n\ns_air    = mix_entropy('N2:0.79, O2:0.21', 300, 101325)\ns_prod   = mix_entropy('CO2:1, H2O:2, N2:7.52', 1200, 500000)\ns_dup    = mix_entropy('N2:1, O2:1, N2:2', 400, 101325)\n",
+  "expect": {
+    "variables": {
+      "cp_air": 1010.0686132802725,
+      "cp_hot": 1219.28063110914,
+      "cp_mixed": 1197.0404663188153,
+      "cp_prod": 1367.5099199898423,
+      "h_air": 1907.6015934784157,
+      "h_fuel": -6126305.066901012,
+      "h_prod": -1899450.837209106,
+      "mw_air": 0.028850640000000004,
+      "mw_alias": 0.028850974789915967,
+      "mw_fuel": 0.0711225,
+      "mw_prod": 0.027633486692015208,
+      "s_air": 6891.678273429128,
+      "s_dup": 7177.239268819747,
+      "s_prod": 8426.775924376185
+    },
+    "display_names": {
+      "cp_air": "cp_air",
+      "cp_hot": "cp_hot",
+      "cp_mixed": "cp_mixed",
+      "cp_prod": "cp_prod",
+      "h_air": "h_air",
+      "h_fuel": "h_fuel",
+      "h_prod": "h_prod",
+      "mw_air": "mw_air",
+      "mw_alias": "mw_alias",
+      "mw_fuel": "mw_fuel",
+      "mw_prod": "mw_prod",
+      "s_air": "s_air",
+      "s_dup": "s_dup",
+      "s_prod": "s_prod"
+    },
+    "block_count": 14,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

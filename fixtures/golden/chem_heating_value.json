@@ -1,0 +1,48 @@
+{
+  "name": "chem_heating_value",
+  "source": "// Chemistry: HeatingValue (LHV / HHV) and StoichAFR.\n// Oracle target: props/Combustion.heatingValue, props/Combustion.stoichAFR\nlhv_ch4    = HeatingValue(CH4, 'LHV')\nhhv_ch4    = HeatingValue(CH4, 'HHV')\nlhv_c8h18  = HeatingValue(C8H18, 'LHV')\nhhv_c8h18  = HeatingValue(C8H18, 'HHV')\nlhv_c2h5oh = HeatingValue(C2H5OH, 'LHV')\nhhv_c2h5oh = HeatingValue(C2H5OH, 'HHV')\nlhv_h2     = HeatingValue(H2, 'LHV')\nhhv_h2     = HeatingValue(H2, 'HHV')\nlhv_c3h8   = HeatingValue(C3H8, 'LHV')\nlhv_ch3oh  = HeatingValue(CH3OH, 'HHV')\n\nafr_ch4    = StoichAFR(CH4)\nafr_c8h18  = StoichAFR(C8H18)\nafr_c2h5oh = StoichAFR(C2H5OH)\nafr_h2     = StoichAFR(H2)\nafr_c12h26 = StoichAFR(C12H26)\n\n{ CO2 is tabulated but already fully oxidised: dH is zero, so the heating\n  value is -0.0. Recorded because it is a real quirk of the Java formula. }\nlhv_co2 = HeatingValue(CO2, 'LHV')\n",
+  "expect": {
+    "variables": {
+      "afr_c12h26": 14.914675237759774,
+      "afr_c2h5oh": 8.942751959017993,
+      "afr_c8h18": 15.027299705861754,
+      "afr_ch4": 17.119975067007417,
+      "afr_h2": 34.05949404761905,
+      "hhv_c2h5oh": 3.058933339121752E7,
+      "hhv_c8h18": 4.825425449961482E7,
+      "hhv_ch4": 5.549647821479773E7,
+      "hhv_h2": 1.4178075396825397E8,
+      "lhv_c2h5oh": 2.7723414877683472E7,
+      "lhv_c3h8": 4.635213279814953E7,
+      "lhv_c8h18": 4.478683731353736E7,
+      "lhv_ch3oh": 2.383996005243118E7,
+      "lhv_ch4": 5.000997319703297E7,
+      "lhv_co2": 0.0,
+      "lhv_h2": 1.1995039682539682E8
+    },
+    "display_names": {
+      "afr_c12h26": "afr_c12h26",
+      "afr_c2h5oh": "afr_c2h5oh",
+      "afr_c8h18": "afr_c8h18",
+      "afr_ch4": "afr_ch4",
+      "afr_h2": "afr_h2",
+      "hhv_c2h5oh": "hhv_c2h5oh",
+      "hhv_c8h18": "hhv_c8h18",
+      "hhv_ch4": "hhv_ch4",
+      "hhv_h2": "hhv_h2",
+      "lhv_c2h5oh": "lhv_c2h5oh",
+      "lhv_c3h8": "lhv_c3h8",
+      "lhv_c8h18": "lhv_c8h18",
+      "lhv_ch3oh": "lhv_ch3oh",
+      "lhv_ch4": "lhv_ch4",
+      "lhv_co2": "lhv_co2",
+      "lhv_h2": "lhv_h2"
+    },
+    "block_count": 16,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

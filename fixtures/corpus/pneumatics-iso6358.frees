@@ -1,0 +1,20 @@
+// ISO 6358 pneumatic restriction: choked, subsonic and no-flow branches
+{ A sonic conductance C and critical pressure ratio b characterise the valve.
+  Supply is 6 bar gauge (700 kPa absolute) at 20 C. }
+C = 0.0000000085
+b = 0.35
+Pup = 700000 [Pa]
+Tup = 293.15 [K]
+
+mdot_choked = iso6358(C, b, Pup, Tup, 100000 [Pa])
+mdot_atchoke = iso6358(C, b, Pup, Tup, 245000 [Pa])
+mdot_sub = iso6358(C, b, Pup, Tup, 500000 [Pa])
+mdot_nearclosed = iso6358(C, b, Pup, Tup, 699000 [Pa])
+mdot_equal = iso6358(C, b, Pup, Tup, Pup)
+mdot_reverse = iso6358(C, b, Pup, Tup, 900000 [Pa])
+
+mdot_hot = iso6358(C, b, Pup, 400 [K], 100000 [Pa])
+mdot_b0 = iso6358(C, 0, Pup, Tup, 500000 [Pa])
+mdot_zeroC = iso6358(0, b, Pup, Tup, 100000 [Pa])
+mdot_badP = iso6358(C, b, -100, Tup, 50000 [Pa])
+mdot_badT = iso6358(C, b, Pup, -5, 50000 [Pa])

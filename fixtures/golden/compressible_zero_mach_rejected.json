@@ -1,0 +1,17 @@
+{
+  "name": "compressible_zero_mach_rejected",
+  "source": "// error probe: Mach must be > 0\nr = T0_T(0.0, 1.4)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Compressible-flow: Mach number must be > 0, got 0.0."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

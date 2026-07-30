@@ -1,0 +1,17 @@
+{
+  "name": "compressible_prandtl_meyer_beyond_bracket_rejected",
+  "source": "// error probe: Prandtl-Meyer angles the bracket cannot reach\n{ nu_max = 2.2768531636906952 rad for k = 1.4, but nu(M) only reaches\n  nu_max - 5/M, so the bracket's M = 1e4 tops out 5e-4 rad short. An angle\n  closer than that passes the range check and then fails in bisection. }\nr = mach_prandtlmeyer(2.276852163690695, 1.4)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Compressible-flow: target is outside the solvable range for the requested branch."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

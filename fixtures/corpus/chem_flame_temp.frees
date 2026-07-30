@@ -1,0 +1,13 @@
+// Constant-pressure adiabatic flame temperature, frozen products (no
+// dissociation), fuel CxHyOz in air at equivalence ratio phi <= 1.
+// Oracle target: props/Thermochemistry.adiabaticFlameTemp
+T_ch4_st    = AdiabaticFlameTemp('CH4', 1.0, 298.15)
+T_ch4_lean  = AdiabaticFlameTemp('CH4', 0.6, 298.15)
+T_ch4_preh  = AdiabaticFlameTemp('CH4', 1.0, 600)
+T_c3h8_st   = AdiabaticFlameTemp('C3H8', 1.0, 298.15)
+T_c8h18_st  = AdiabaticFlameTemp('C8H18', 1.0, 298.15)
+T_h2_st     = AdiabaticFlameTemp('H2', 1.0, 298.15)
+T_c2h5oh    = AdiabaticFlameTemp('C2H5OH', 1.0, 298.15)
+T_ch3oh     = AdiabaticFlameTemp('CH3OH', 0.8, 298.15)
+T_alias     = AdiabaticFlameTemperature('CH4', 1.0, 298.15)
+T_short     = FlameTemp('C2H4', 1.0, 298.15)

@@ -1,0 +1,25 @@
+// Isentropic ideal-gas flow relations
+{ Stagnation and area ratios for air (k = 1.4) at a subsonic and a supersonic
+  Mach number, plus both branches of the A/A* inverse. Ratios dimensionless. }
+k = 1.4
+Msub = 0.5
+Msup = 2.5
+
+T0T_sub = T0_T(Msub, k)
+P0P_sub = P0_P(Msub, k)
+R0R_sub = rho0_rho(Msub, k)
+AAs_sub = A_Astar(Msub, k)
+
+T0T_sup = isen_T0_T(Msup, k)
+P0P_sup = isen_P0_P(Msup, k)
+R0R_sup = isen_rho0_rho(Msup, k)
+AAs_sup = isen_A_Astar(Msup, k)
+
+Mback_sub = mach_A_Astar(AAs_sub, k, 'subsonic')
+Mback_sup = mach_A_Astar(AAs_sup, k, 'supersonic')
+Msonic = mach_A_Astar(1.0, k, 'sup')
+
+kmono = 1.6666666666666667
+T0T_mono = T0_T(1.2, kmono)
+P0P_mono = P0_P(1.2, kmono)
+AAs_mono = A_Astar(0.3, kmono)

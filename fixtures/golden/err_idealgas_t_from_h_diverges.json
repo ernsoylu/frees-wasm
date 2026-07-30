@@ -1,0 +1,17 @@
+{
+  "name": "err_idealgas_t_from_h_diverges",
+  "source": "{ Ideal-gas Temperature(h=...) target above h(20000 K): the safeguarded Newton\n  clamps at the upper bound forever and must report non-convergence. }\nx = Temperature(N2, h=5000000)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Ideal-gas temperature lookup did not converge."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

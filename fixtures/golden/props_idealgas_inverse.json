@@ -1,0 +1,40 @@
+{
+  "name": "props_idealgas_inverse",
+  "source": "{ IdealGas.temperatureFrom: safeguarded Newton, start T=1000, 100 iterations,\n  Math.clamp(t - step, 10, 20000) every step, converged when |step| < 1e-9*max(t,1).\n  The clamp is the interesting part: an unreachable target pins T at a bound and the\n  loop keeps running against the RAW (unclamped) step, so the exit path differs from\n  a naive port. Probe both bounds and normal inversions, plus the (s, P) form whose\n  slope is cp/T. }\nt_h_cold   = Temperature(N2, h=-100000)\nt_h_mid    = Temperature(N2, h=0)\nt_h_warm   = Temperature(N2, h=800000)\nt_h_co2    = Temperature(CO2, h=-8000000)\nt_h_co2_2  = Temperature(CO2, h=-7000000)\nt_h_h2o    = Temperature(H2O, h=-12000000)\nt_h_ch4    = Temperature(CH4, h=-4000000)\n\nt_sp_1     = Temperature(N2, s=7000, P=101325)\nt_sp_2     = Temperature(N2, s=6800, P=101325)\nt_sp_3     = Temperature(N2, s=7500, P=500000)\nt_sp_co2   = Temperature(CO2, s=5500, P=101325)\nt_sp_lowp  = Temperature(N2, s=7000, P=1000)\n",
+  "expect": {
+    "variables": {
+      "t_h_ch4": 548.8154943739323,
+      "t_h_co2": 1145.988962835369,
+      "t_h_co2_2": 1898.5169928440832,
+      "t_h_cold": 201.45896789787616,
+      "t_h_h2o": 990.367840389998,
+      "t_h_mid": 298.15,
+      "t_h_warm": 1028.5973324042982,
+      "t_sp_1": 347.7146614047314,
+      "t_sp_2": 286.8618215445294,
+      "t_sp_3": 859.5144057499087,
+      "t_sp_co2": 586.2148516258067,
+      "t_sp_lowp": 92.12580904308619
+    },
+    "display_names": {
+      "t_h_ch4": "t_h_ch4",
+      "t_h_co2": "t_h_co2",
+      "t_h_co2_2": "t_h_co2_2",
+      "t_h_cold": "t_h_cold",
+      "t_h_h2o": "t_h_h2o",
+      "t_h_mid": "t_h_mid",
+      "t_h_warm": "t_h_warm",
+      "t_sp_1": "t_sp_1",
+      "t_sp_2": "t_sp_2",
+      "t_sp_3": "t_sp_3",
+      "t_sp_co2": "t_sp_co2",
+      "t_sp_lowp": "t_sp_lowp"
+    },
+    "block_count": 12,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

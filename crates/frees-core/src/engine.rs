@@ -416,6 +416,7 @@ pub fn solve_with(
     settings: &SolverSettings,
     overrides: &[VariableOverride],
 ) -> std::result::Result<Solution, SolveFailure> {
+    crate::props::tables::install_builtin_once();
     let mut doc = parse_document(source)?;
     reject_unsupported(&doc.statements)?;
 
@@ -607,6 +608,7 @@ pub fn check(source: &str) -> Result<CheckReport> {
 /// guesses. They are still *validated*, so a caller preparing a solve gets the
 /// same early `Err` surface from both entry points.
 pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckReport> {
+    crate::props::tables::install_builtin_once();
     for o in overrides {
         override_spec(o)?;
     }

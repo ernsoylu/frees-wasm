@@ -1,0 +1,17 @@
+{
+  "name": "pneumatics_iso6358_bad_b_rejected",
+  "source": "// error probe: critical pressure ratio must be in [0, 1)\nr = iso6358(0.00000001, 1.0, 700000, 293.15, 100000)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: iso6358: critical pressure ratio b must be in [0, 1)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

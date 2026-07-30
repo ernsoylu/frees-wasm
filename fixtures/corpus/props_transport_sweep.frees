@@ -1,0 +1,47 @@
+{ Chapman-Enskog / Neufeld transport across a wide temperature range and through
+  the NASA-7 cp switchover (conductivity calls molarCp, so 1000 K is a seam here
+  too). Wilke's mixing rule is O(n^2) in the composition, so a mixture with many
+  components is the sensitive case. }
+mu_n2_200   = mix_viscosity('N2:1', 200)
+mu_n2_300   = mix_viscosity('N2:1', 300)
+mu_n2_1000  = mix_viscosity('N2:1', 1000)
+mu_n2_1000p = mix_viscosity('N2:1', 1000.000000001)
+mu_n2_2000  = mix_viscosity('N2:1', 2000)
+mu_n2_4000  = mix_viscosity('N2:1', 4000)
+mu_n2_50    = mix_viscosity('N2:1', 50)
+mu_n2_1     = mix_viscosity('N2:1', 1)
+
+k_n2_200    = mix_conductivity('N2:1', 200)
+k_n2_1000   = mix_conductivity('N2:1', 1000)
+k_n2_1000p  = mix_conductivity('N2:1', 1000.000000001)
+k_n2_2000   = mix_conductivity('N2:1', 2000)
+k_n2_1      = mix_conductivity('N2:1', 1)
+
+mu_air      = mix_viscosity('N2:0.79, O2:0.21', 300)
+mu_air_hot  = mix_viscosity('N2:0.79, O2:0.21', 1500)
+k_air       = mix_conductivity('N2:0.79, O2:0.21', 300)
+k_air_hot   = mix_conductivity('N2:0.79, O2:0.21', 1500)
+
+mu_prod     = mix_viscosity('CO2:1, H2O:2, N2:7.52', 1200)
+k_prod      = mix_conductivity('CO2:1, H2O:2, N2:7.52', 1200)
+mu_prod_c   = mix_viscosity('CO2:1, H2O:2, N2:7.52, O2:0.5, CO:0.1, H2:0.05, OH:0.02', 2200)
+k_prod_c    = mix_conductivity('CO2:1, H2O:2, N2:7.52, O2:0.5, CO:0.1, H2:0.05, OH:0.02', 2200)
+
+mu_ch4      = mix_viscosity('CH4:1', 400)
+mu_h2       = mix_viscosity('H2:1', 400)
+mu_ar       = mix_viscosity('AR:1', 400)
+mu_co2      = mix_viscosity('CO2:1', 400)
+k_ch4       = mix_conductivity('CH4:1', 400)
+k_h2        = mix_conductivity('H2:1', 400)
+k_ar        = mix_conductivity('AR:1', 400)
+
+{ heavily asymmetric mixture: Wilke phi_ij is worst when molar masses differ by 20x }
+mu_h2_ar    = mix_viscosity('H2:0.5, AR:0.5', 300)
+k_h2_ar     = mix_conductivity('H2:0.5, AR:0.5', 300)
+mu_h2_trace = mix_viscosity('H2:0.999999, AR:0.000001', 300)
+mu_ar_trace = mix_viscosity('H2:0.000001, AR:0.999999', 300)
+mu_zero_amt = mix_viscosity('H2:1, AR:0', 300)
+
+{ Duplicate species must merge, not double-count (LinkedHashMap.merge) }
+mu_dup      = mix_viscosity('N2:0.5, O2:0.21, N2:0.29', 300)
+mu_dup_ref  = mix_viscosity('N2:0.79, O2:0.21', 300)

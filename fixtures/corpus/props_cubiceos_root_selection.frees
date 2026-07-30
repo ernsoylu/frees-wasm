@@ -1,0 +1,81 @@
+{ Cubic EOS root selection: liquid root, vapour root, and the neighbourhood of the
+  critical point where the discriminant of the depressed cubic changes sign and the
+  three-real-root branch collapses to one. Java realCubicRoots switches on disc > 0
+  (one real root, cbrt form) vs disc <= 0 (trigonometric form), and z() then picks
+  max(Z) above bB for vapour / min(Z) above bB for liquid. Right at Tc, Pc the two
+  branches must agree with the oracle bit-for-bit in the branch TAKEN, not just the
+  value. CO2: Tc = 304.13 K, Pc = 7377300 Pa. }
+
+{ --- well inside the two-phase region: three distinct real roots --- }
+zl_co2_sub   = eos_z('co2', 'PR', 250, 1.5e6, 'liquid')
+zv_co2_sub   = eos_z('co2', 'PR', 250, 1.5e6, 'vapor')
+zl_co2_srk   = eos_z('co2', 'SRK', 250, 1.5e6, 'liquid')
+zv_co2_srk   = eos_z('co2', 'SRK', 250, 1.5e6, 'vapor')
+zl_h2o       = eos_z('water', 'PR', 400, 2e5, 'liquid')
+zv_h2o       = eos_z('water', 'PR', 400, 2e5, 'vapor')
+zl_nh3       = eos_z('ammonia', 'SRK', 300, 5e5, 'liquid')
+zv_nh3       = eos_z('ammonia', 'SRK', 300, 5e5, 'vapor')
+zl_c3h8      = eos_z('propane', 'PR', 300, 5e5, 'liquid')
+zv_c3h8      = eos_z('propane', 'PR', 300, 5e5, 'vapor')
+
+{ --- marching up to the critical point along the critical isobar --- }
+z_co2_290   = eos_z('co2', 'PR', 290, 7377300, 'vapor')
+z_co2_300   = eos_z('co2', 'PR', 300, 7377300, 'vapor')
+z_co2_304   = eos_z('co2', 'PR', 304, 7377300, 'vapor')
+z_co2_30413 = eos_z('co2', 'PR', 304.13, 7377300, 'vapor')
+z_co2_3042  = eos_z('co2', 'PR', 304.2, 7377300, 'vapor')
+z_co2_305   = eos_z('co2', 'PR', 305, 7377300, 'vapor')
+z_co2_310   = eos_z('co2', 'PR', 310, 7377300, 'vapor')
+zl_co2_290  = eos_z('co2', 'PR', 290, 7377300, 'liquid')
+zl_co2_304  = eos_z('co2', 'PR', 304, 7377300, 'liquid')
+zl_co2_3041 = eos_z('co2', 'PR', 304.13, 7377300, 'liquid')
+zl_co2_305  = eos_z('co2', 'PR', 305, 7377300, 'liquid')
+
+{ --- exactly at (Tc, Pc): PR gives Zc = 0.3074, SRK 1/3 --- }
+z_crit_pr   = eos_z('co2', 'PR', 304.13, 7377300, 'vapor')
+z_crit_srk  = eos_z('co2', 'SRK', 304.13, 7377300, 'vapor')
+z_crit_pr_l = eos_z('co2', 'PR', 304.13, 7377300, 'liquid')
+z_crit_srk_l = eos_z('co2', 'SRK', 304.13, 7377300, 'liquid')
+z_crit_h2o  = eos_z('water', 'PR', 647.096, 22064000, 'vapor')
+z_crit_n2   = eos_z('nitrogen', 'PR', 126.19, 3395800, 'vapor')
+
+{ --- supercritical: single real root, both phase words must give the same number }
+z_sc_v      = eos_z('co2', 'PR', 400, 2e7, 'vapor')
+z_sc_l      = eos_z('co2', 'PR', 400, 2e7, 'liquid')
+z_sc_v2     = eos_z('co2', 'SRK', 500, 5e7, 'vapor')
+z_sc_l2     = eos_z('co2', 'SRK', 500, 5e7, 'liquid')
+
+{ --- ideal-gas limit: Z -> 1 --- }
+z_ideal     = eos_z('nitrogen', 'PR', 1000, 1, 'vapor')
+z_ideal_srk = eos_z('nitrogen', 'SRK', 1000, 1, 'vapor')
+
+{ --- derived properties on both roots --- }
+v_liq       = eos_volume('co2', 'PR', 250, 1.5e6, 'liquid')
+v_vap       = eos_volume('co2', 'PR', 250, 1.5e6, 'vapor')
+rho_liq     = eos_density('co2', 'PR', 250, 1.5e6, 'liquid')
+rho_vap     = eos_density('co2', 'PR', 250, 1.5e6, 'vapor')
+h_liq       = eos_enthalpy('co2', 'PR', 250, 1.5e6, 'liquid')
+h_vap       = eos_enthalpy('co2', 'PR', 250, 1.5e6, 'vapor')
+s_liq       = eos_entropy('co2', 'PR', 250, 1.5e6, 'liquid')
+s_vap       = eos_entropy('co2', 'PR', 250, 1.5e6, 'vapor')
+h_crit      = eos_enthalpy('co2', 'PR', 304.13, 7377300, 'vapor')
+s_crit      = eos_entropy('co2', 'PR', 304.13, 7377300, 'vapor')
+
+{ --- pressure from molar volume, both branches --- }
+p_from_vl   = eos_pressure('co2', 'PR', 250, 5e-5)
+p_from_vv   = eos_pressure('co2', 'PR', 250, 1.2e-3)
+p_from_vmid = eos_pressure('co2', 'PR', 250, 2e-4)
+
+{ --- saturation pressure: successive substitution, up against Tc --- }
+psat_co2_250 = eos_psat('co2', 'PR', 250)
+psat_co2_300 = eos_psat('co2', 'PR', 300)
+psat_co2_304 = eos_psat('co2', 'PR', 304)
+psat_co2_30412 = eos_psat('co2', 'PR', 304.12)
+psat_h2o_373 = eos_psat('water', 'PR', 373.15)
+psat_h2o_600 = eos_psat('water', 'PR', 600)
+psat_h2o_647 = eos_psat('water', 'PR', 647.09)
+psat_n2_100  = eos_psat('nitrogen', 'PR', 100)
+psat_n2_126  = eos_psat('nitrogen', 'SRK', 126.18)
+psat_nh3_400 = eos_psat('ammonia', 'SRK', 400)
+psat_but_420 = eos_psat('nbutane', 'PR', 420)
+psat_low     = eos_psat('water', 'PR', 280)

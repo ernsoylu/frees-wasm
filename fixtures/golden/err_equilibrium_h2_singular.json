@@ -1,0 +1,17 @@
+{
+  "name": "err_equilibrium_h2_singular",
+  "source": "{ H2 fuel has no carbon, so the 8x8 equilibrium Jacobian is structurally singular.\n  Both engines must refuse; the Java surfaces SingularMatrixException. }\nx = eq_molefraction('H2', 1.0, 2400, 101325, 'OH')\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SingularMatrixException",
+      "message": "matrix is singular"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

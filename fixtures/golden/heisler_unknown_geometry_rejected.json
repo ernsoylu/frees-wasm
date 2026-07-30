@@ -1,0 +1,17 @@
+{
+  "name": "heisler_unknown_geometry_rejected",
+  "source": "x = heisler_temp('cone', 1.0, 0.5, 0.5)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Heisler geometry must be 'wall', 'cylinder' or 'sphere', got 'cone'."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

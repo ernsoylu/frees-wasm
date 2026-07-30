@@ -1,0 +1,58 @@
+{
+  "name": "chem_idealgas",
+  "source": "// Ideal-gas properties by spelled chemical formula (JANAF cubic cp fits).\n// Oracle target: props/IdealGas.java\nh_n2    = Enthalpy(N2, T=500)\nh_co2   = Enthalpy(CO2, T=1000)\nh_h2o   = Enthalpy(H2O, T=800)\nh_ch4   = Enthalpy(CH4, T=298.15)\nh_c8h18 = Enthalpy(C8H18, T=600)\n\nu_n2    = IntEnergy(N2, T=500)\nu_co2   = IntEnergy(CO2, T=1000)\n\ncp_n2   = Cp(N2, T=500)\ncp_co2  = Cp(CO2, T=1500)\ncp_h2   = SpecHeat(H2, T=300)\ncv_n2   = Cv(N2, T=500)\ncv_o2   = Cv(O2, T=1200)\n\ns_n2    = Entropy(N2, T=500, P=101325)\ns_co2   = Entropy(CO2, T=1000, P=200000)\ns_pt    = Entropy(O2, P=50000, T=700)\ng_co2   = Gibbs(CO2, T=1000, P=101325)\n\nv_n2    = Volume(N2, T=300, P=101325)\nrho_co2 = Density(CO2, T=350, P=250000)\nz_n2    = Compressibility(N2, T=300, P=101325)\n\nt_from_h = Temperature(CO2, h=-8000000)\nt_from_sp = Temperature(N2, s=7000, P=101325)\n",
+  "expect": {
+    "variables": {
+      "cp_co2": 1327.2068847989096,
+      "cp_h2": 14321.413293650794,
+      "cp_n2": 1062.921679220362,
+      "cv_n2": 766.1144825616677,
+      "cv_o2": 855.3228538391824,
+      "g_co2": -1.4300134611725716E7,
+      "h_c8h18": -1140075.014271301,
+      "h_ch4": -4665586.236988095,
+      "h_co2": -8183557.9454096295,
+      "h_h2o": -1.2420991616341382E7,
+      "h_n2": 211795.14292401896,
+      "rho_co2": 3.780848580150037,
+      "s_co2": 5988.112649457983,
+      "s_n2": 7381.970763459769,
+      "s_pt": 7421.198347199499,
+      "t_from_h": 1145.988962835369,
+      "t_from_sp": 347.7146614047314,
+      "u_co2": -8372480.008577093,
+      "u_n2": 63391.54459467188,
+      "v_n2": 0.8787777843336616,
+      "z_n2": 1.0
+    },
+    "display_names": {
+      "cp_co2": "cp_co2",
+      "cp_h2": "cp_h2",
+      "cp_n2": "cp_n2",
+      "cv_n2": "cv_n2",
+      "cv_o2": "cv_o2",
+      "g_co2": "g_co2",
+      "h_c8h18": "h_c8h18",
+      "h_ch4": "h_ch4",
+      "h_co2": "h_co2",
+      "h_h2o": "h_h2o",
+      "h_n2": "h_n2",
+      "rho_co2": "rho_co2",
+      "s_co2": "s_co2",
+      "s_n2": "s_n2",
+      "s_pt": "s_pt",
+      "t_from_h": "t_from_h",
+      "t_from_sp": "t_from_sp",
+      "u_co2": "u_co2",
+      "u_n2": "u_n2",
+      "v_n2": "v_n2",
+      "z_n2": "z_n2"
+    },
+    "block_count": 21,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

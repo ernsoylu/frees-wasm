@@ -1,0 +1,2 @@
+{ crossflow-both-unmixed NTU inversion above the bisection bracket's reach. }
+x = hx_ntu('crossflowbothunmixed', 0.99999, 0.5)

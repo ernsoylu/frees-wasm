@@ -124,6 +124,32 @@ fixtures/corpus + fixtures/golden   204 promoted (was 161)
 fixtures/corpus-pending             36 staged, 0 promotable this pass
 ```
 
+> **Superseded 2026-07-30 by Phase 5.** The corpus is now **268 promoted / 29
+> pending**; the live breakdown is in
+> [`docs/status-phase5.md`](status-phase5.md#pending-29-replayed-document-by-document).
+> The table below is kept as the Phase-4 record. What changed:
+>
+> * **Eleven documents promoted out of this table.** The three CoolProp fluid
+>   documents `rankine-cycle`, `rankine-cycle-2` and `refrigeration-vcr` now
+>   solve against the linked `(P,h)` tables, and all five "property / material
+>   kernels" documents (`adiabatic-flame-temp`, `cubic-eos-properties`,
+>   `karman-rocket`, `material-conduction`, `multi-objective-beam`) plus three
+>   more promoted with the Phase-5 intrinsics. That row is **closed**.
+> * **The tolerance question this table raised is answered.** The "no
+>   table-backed engine can pass a `1e-9` gate" problem is resolved by
+>   `fixtures/tolerances.json` — a per-fixture *relative* tolerance with a
+>   recorded measurement, a stated mechanism, and two guards that fail the gate
+>   if the entry is stale or unnecessary. Five fixtures use it. See
+>   [`docs/status-phase5.md`](status-phase5.md#parity-tolerance--the-gate-change-and-its-guards)
+>   and `fixtures/README.md`.
+> * **The remaining CoolProp documents moved to a different blocker.**
+>   `ev-battery-cooling-pid`, `ev-thermal-management` and `pressure-cooker` are
+>   now refused at `COMPONENT instantiation` (Phase 6) rather than at properties;
+>   `state-tables-multifluid` at `STATE TABLE`. Only `thermo-compliance` and the
+>   new `hx-correlations-fluid` still wait on Phase-5 work, specifically the
+>   transport properties (`Viscosity`, `Conductivity`, `Cp`, `Z`) the `(P,h)`
+>   tables do not store.
+
 ### Promoted this pass (3)
 
 | Fixture | Why it is new |
@@ -143,11 +169,11 @@ at `corpus-pending/golden`, then deleted). The parity test was not weakened.
 
 | # | Group | Blocked on | Documents |
 |---|---|---|---|
-| 8 | **CoolProp-poisoned — no usable golden** | The Java oracle refused these with `IllegalStateException: The CoolProp native library is not available` on this machine. Rust also refuses, so a naive comparison scores them **green** — the harness maps unrecognised Java exception types to "any Rust error". Promoting them would bake a missing `.so` into the gate and turn it red the day someone installs CoolProp. Regenerate with `COOLPROP_LIBRARY` set (Phase 5). | `ev-battery-cooling-pid`, `ev-thermal-management`, `pressure-cooker`, `rankine-cycle`, `rankine-cycle-2`, `refrigeration-vcr`, `state-tables-multifluid`, `thermo-compliance` |
+| 8 | ~~**CoolProp-poisoned — no usable golden**~~ **De-poisoned 2026-07-30; now blocked on engine features only.** ~~**Partly closed 2026-07-30 (Phase 5)**~~ — three promoted, four moved to Phase 6/7/8 blockers, one still on Phase 5 | `tools/golden-dumper/run.sh` now exports `COOLPROP_LIBRARY` itself, and all eight goldens were regenerated against CoolProp 8.0.0 — **all eight now carry real values** (`rankine-cycle` `eta_th = 0.39119716208990235`, `refrigeration-vcr` `COP = 3.223576728376346`, …), and the only files that changed were those eight. **Phase 5 promoted `rankine-cycle`, `rankine-cycle-2` and `refrigeration-vcr`** against the linked `(P,h)` tables (worst 6.4e-07, 6.4e-07, 1.5e-06 vs. the oracle) at a declared tolerance. `thermo-compliance` still needs `CompressibilityFactor` and transport properties; the other four are now refused at `COMPONENT`/`STATE TABLE`. | `ev-battery-cooling-pid`, `ev-thermal-management`, `pressure-cooker`, ~~`rankine-cycle`~~, ~~`rankine-cycle-2`~~, ~~`refrigeration-vcr`~~, `state-tables-multifluid`, `thermo-compliance` |
 | 6 | **Phase-9 control-systems CALLs** | `lqr`, `lqe`, `c2d`, `routh`, `residue`, `tf2ss` — refused by name from `UNPORTED_CALL_INTRINSICS` | `controller-design-lqr-pid`, `estimator-gramian-balreal`, `digital-control-c2d`, `routh-stability`, `inverse-laplace-residue`, `multi-output-destructuring` |
 | 5 | **PLOT blocks** | Block type the engine refuses (Phase 7) | `control-analysis-report`, `cruise-control`, `nichols-chart`, `root-locus-analysis`, `step-impulse-response` |
 | 5 | **DYNAMIC (ODE/DAE) blocks** | Block type the engine refuses (Phase 8) | `damped-oscillator-ode`, `engine-cycle-wiebe`, `newton-cooling-transient`, `sounding-rocket-trajectory`, `transient-heat-rod` |
-| 5 | **Property / material kernels** | `AdiabaticFlameTemp`, `eos_z`, `MolarMass`, `k_()`, `E_()` (Phase 5) | `adiabatic-flame-temp`, `cubic-eos-properties`, `karman-rocket`, `material-conduction`, `multi-objective-beam` |
+| 5 | ~~**Property / material kernels**~~ **Closed 2026-07-30 (Phase 5)** — all five promoted | `AdiabaticFlameTemp`, `eos_z`, `MolarMass`, `k_()`, `E_()` all landed in `props/`; every one of these five is now in `fixtures/corpus/` | ~~`adiabatic-flame-temp`~~, ~~`cubic-eos-properties`~~, ~~`karman-rocket`~~, ~~`material-conduction`~~, ~~`multi-objective-beam`~~ |
 | 3 | **PARAMETRIC blocks** | Error fixtures where the classifications still disagree: Java raises `SolverException` (underspecified when solved directly, since these are swept from the Tables tab); Rust raises `ParseException` (block type unsupported). Both refuse — but the gate compares classification. | `damped-oscillator`, `driving-cycle-energy`, `projectile-trajectory` |
 | 1 | **SYMBOLIC / CAS** | Symja replacement undecided (Phase 9) | `partial-fractions` |
 | 1 | **String variables** | `geom$ = 'wall'` — string-typed variables not ported | `heisler-transient` |
@@ -157,6 +183,50 @@ at `corpus-pending/golden`, then deleted). The parity test was not weakened.
 **36 total.** The nine that a naive replay scores green (the CoolProp eight plus
 the rank-deficient one) are exactly the nine the previous status doc already
 flagged as deliberately withheld. Nothing regressed and nothing newly unblocked.
+
+#### Update 2026-07-30 — the CoolProp eight, re-run against the real library
+
+The dumper's missing `COOLPROP_LIBRARY` is fixed and
+`fixtures/corpus-pending/golden/` was regenerated in full (36 documents, 33
+solved / 3 errored). Exactly the eight fluid documents changed; the other 28
+goldens are byte-identical, so nothing else moved under the fixtures.
+
+The trap the old row described is gone — a replay can no longer score these
+green by matching "library missing" against "Rust refuses". What each one now
+waits on:
+
+| Document | Now blocked on | Phase-5 outcome (2026-07-30) |
+|---|---|---|
+| `rankine-cycle` | Phase-5 property functions only — `Enthalpy/Entropy/Volume` with `(P,x)`, `(P,T)`, `(P,s)` inputs. The **closest to promotable of the eight.** | **Promoted.** Worst variable `eta_th`, 6.41e-07 vs. the oracle. |
+| `rankine-cycle-2` | Same as above. | **Promoted.** `eta_th`, 6.42e-07. |
+| `refrigeration-vcr` | Same, plus `P_sat(fluid, T=…)`. R134a rather than water. | **Promoted.** `cop`, 1.53e-06. `P_sat` is served by inverting the tabulated saturation line. |
+| `thermo-compliance` | `CompressibilityFactor`, `Volume`, `T_crit`, `P_crit` (Phase 5) + `StagnationTemp`/`StagnationPres` (compressible flow, Phase 5). | Still pending. `T_crit`/`P_crit` and the compressible functions landed; **`CompressibilityFactor` did not** — the `(P,h)` tables do not store `Z`. |
+| `state-tables-multifluid` | Phase-5 properties **and** the `STATE TABLE … FLUID = … END` block type. | Still pending, now refused at `STATE TABLE`. |
+| `ev-battery-cooling-pid` | Phase-5 properties + `TABLE` blocks + `DYNAMIC (method = ode23s)` (Phase 8) + the component library. | Still pending, now refused at `COMPONENT instantiation` (Phase 6). |
+| `pressure-cooker` | Phase-5 two-phase properties + `DYNAMIC (method = ida)` (Phase 8) + ~9 component types incl. `BoilingVessel`. | Still pending, now refused at `COMPONENT instantiation`. |
+| `ev-thermal-management` | Phase-5 two-phase R1234yf **and incompressible `EG50`** + ~20 component types. The furthest out. | Still pending, now refused at `COMPONENT instantiation`. Also still needs R1234yf and `EG50` tables, neither of which this build ships. |
+
+**A tolerance question these eight now raise.** ~~`tests/parity.rs` compares
+variables at `1e-9` relative…~~ **Answered 2026-07-30 (Phase 5).** The problem
+statement below was correct and is preserved; the resolution is
+`fixtures/tolerances.json` — a per-fixture *relative* tolerance carrying the
+measured error and the mechanism that causes it, guarded so a stale or
+unnecessary entry fails the gate. Five fixtures use it. `display_names`,
+`block_count` and the error classification remain exact for all 268. The
+original text:
+
+> `tests/parity.rs` compares variables at `1e-9` relative. The regenerated
+> goldens hold full-accuracy CoolProp values, and the browser build has no
+> CoolProp — D1 lands on precomputed tables, whose measured error is
+> `~1e-5…1e-4` relative (`docs/decisions/0001-property-backend.md`). **No
+> table-backed engine can pass a `1e-9` gate on these documents.** Promoting any
+> of the eight therefore needs a decision first: a per-fixture tolerance in the
+> harness, or shipping `coolprop.wasm` as the accuracy path. Flagged, not
+> silently resolved.
+
+The second option — `coolprop.wasm` as the accuracy path — is **still open** and
+is the only route that restores `1e-9` on those five. See
+[`docs/status-phase5.md`](status-phase5.md#what-phase-5-did-not-deliver), item 2.
 
 ---
 

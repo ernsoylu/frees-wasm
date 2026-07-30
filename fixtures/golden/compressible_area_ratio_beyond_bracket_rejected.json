@@ -1,0 +1,17 @@
+{
+  "name": "compressible_area_ratio_beyond_bracket_rejected",
+  "source": "// error probe: the inverse relations' fixed brackets are a hard ceiling\n{ A/A* > 1.4555e6 is past M = 50, the top of the supersonic bracket, so\n  bisection reports an unbracketed target instead of a wrong root. }\nr = mach_A_Astar(10000000, 1.4, 'supersonic')\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Compressible-flow: target is outside the solvable range for the requested branch."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

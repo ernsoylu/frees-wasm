@@ -1,0 +1,20 @@
+{
+  "_comment": "Cubic-EOS fluid parameters for the SRK/PR backend (props/CubicEos.java). Tc [K], Pc [Pa], omega [-], M [kg/kmol]; cp0 = a+bT+cT^2+dT^3 ideal-gas molar heat capacity [J/mol-K] (== kJ/kmol-K). Critical data and cp0 coefficients from standard property references.",
+  "fluids": {
+    "nitrogen":       {"Tc": 126.19,  "Pc": 3395800.0,  "omega": 0.0372, "M": 28.013, "cp": [28.90, -1.571e-3, 0.8081e-5, -2.873e-9]},
+    "oxygen":         {"Tc": 154.58,  "Pc": 5043000.0,  "omega": 0.0222, "M": 31.999, "cp": [25.48,  1.520e-2, -0.7155e-5, 1.312e-9]},
+    "carbondioxide":  {"Tc": 304.13,  "Pc": 7377300.0,  "omega": 0.2239, "M": 44.010, "cp": [22.26,  5.981e-2, -3.501e-5, 7.469e-9]},
+    "methane":        {"Tc": 190.56,  "Pc": 4599200.0,  "omega": 0.0114, "M": 16.043, "cp": [19.89,  5.024e-2,  1.269e-5, -11.01e-9]},
+    "ethane":         {"Tc": 305.32,  "Pc": 4872200.0,  "omega": 0.0995, "M": 30.070, "cp": [6.900,  17.27e-2, -6.406e-5, 7.285e-9]},
+    "propane":        {"Tc": 369.89,  "Pc": 4251200.0,  "omega": 0.1521, "M": 44.097, "cp": [-4.04,  30.48e-2, -15.72e-5, 31.74e-9]},
+    "nbutane":        {"Tc": 425.13,  "Pc": 3796000.0,  "omega": 0.2002, "M": 58.123, "cp": [3.96,   37.15e-2, -18.34e-5, 35.00e-9]},
+    "water":          {"Tc": 647.096, "Pc": 22064000.0, "omega": 0.3443, "M": 18.015, "cp": [32.24,  0.1923e-2, 1.055e-5, -3.595e-9]},
+    "ammonia":        {"Tc": 405.40,  "Pc": 11333000.0, "omega": 0.2526, "M": 17.031, "cp": [27.568, 2.5630e-2, 0.99072e-5, -6.6909e-9]}
+  },
+  "aliases": {
+    "n2": "nitrogen", "o2": "oxygen", "co2": "carbondioxide", "r744": "carbondioxide",
+    "ch4": "methane", "c2h6": "ethane", "c3h8": "propane", "r290": "propane",
+    "c4h10": "nbutane", "n-butane": "nbutane", "butane": "nbutane", "r600": "nbutane",
+    "h2o": "water", "steam": "water", "nh3": "ammonia", "r717": "ammonia"
+  }
+}

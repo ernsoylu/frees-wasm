@@ -1,0 +1,2 @@
+// error probe: A/A* must be >= 1
+r = mach_A_Astar(0.5, 1.4, 'subsonic')

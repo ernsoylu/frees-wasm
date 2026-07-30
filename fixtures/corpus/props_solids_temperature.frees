@@ -1,0 +1,48 @@
+{ SolidProperties spot-checks with the OPTIONAL temperature argument, which the
+  existing probe never exercises. Only k_ and c_ take the linear slope about 300 K,
+  only the nine sloped metals have one, and rho_/E_/nu_ ignore T entirely. Absurd
+  temperatures are extrapolated without a guard -- k_(Copper, T=10000) is negative in
+  the reference and must stay negative. }
+k_al_300   = k_(Aluminum, T=300)
+k_al_400   = k_(Aluminum, T=400)
+k_al_250   = k_(Aluminum, T=250)
+k_al_0     = k_(Aluminum, T=0)
+k_al_10000 = k_(Aluminum, T=10000)
+c_al_400   = c_(Aluminum, T=400)
+c_al_0     = c_(Aluminum, T=0)
+rho_al_400 = rho_(Aluminum, T=400)
+e_al_400   = E_(Aluminum, T=400)
+nu_al_400  = nu_(Aluminum, T=400)
+
+k_cu_400   = k_(Copper, T=400)
+k_cu_10000 = k_(Copper, T=10000)
+c_cu_400   = c_(Copper, T=400)
+k_steel_600 = k_(Steel, T=600)
+c_steel_600 = c_(Steel, T=600)
+k_cs_600   = k_(CarbonSteel, T=600)
+k_fe_600   = k_(Iron, T=600)
+c_fe_600   = c_(Iron, T=600)
+k_ni_600   = k_(Nickel, T=600)
+c_ni_600   = c_(Nickel, T=600)
+k_ti_600   = k_(Titanium, T=600)
+c_ti_600   = c_(Titanium, T=600)
+k_w_600    = k_(Tungsten, T=600)
+c_w_600    = c_(Tungsten, T=600)
+
+{ materials with NO slope: the temperature argument must be ignored exactly }
+k_ss_600   = k_(StainlessSteel, T=600)
+k_ss_300   = k_(StainlessSteel, T=300)
+k_brass_900 = k_(Brass, T=900)
+k_gold_900 = k_(Gold, T=900)
+k_conc_900 = k_(Concrete, T=900)
+k_glass_900 = k_(Glass, T=900)
+k_brick_900 = k_(Brick, T=900)
+k_wood_900 = k_(Wood, T=900)
+k_ice_900  = k_(Ice, T=900)
+c_ice_900  = c_(Ice, T=900)
+k_zn_900   = k_(Zinc, T=900)
+k_mg_900   = k_(Magnesium, T=900)
+k_pb_900   = k_(Lead, T=900)
+k_ag_900   = k_(Silver, T=900)
+k_bronze_900 = k_(Bronze, T=900)
+k_oak_900  = k_(Oak, T=900)

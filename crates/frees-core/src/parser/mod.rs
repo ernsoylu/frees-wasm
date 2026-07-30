@@ -100,6 +100,11 @@ pub struct Cursor<'a> {
     /// port of the `AstBuilder`'s own `displayNames` field. First spelling
     /// wins (`putIfAbsent`).
     display_names: BTreeMap<String, String>,
+    /// The lowercase key of every display name a registration actually
+    /// *inserted*, in order. Lets a caller ask "did the region I just parsed
+    /// introduce this spelling?" without cloning the map — see
+    /// [`Cursor::display_name_mark`].
+    inserted_order: Vec<String>,
 }
 
 impl<'a> Cursor<'a> {
@@ -109,6 +114,7 @@ impl<'a> Cursor<'a> {
             pos: 0,
             source,
             display_names: BTreeMap::new(),
+            inserted_order: Vec::new(),
         }
     }
 
@@ -121,9 +127,38 @@ impl<'a> Cursor<'a> {
     /// tokens, so the re-parse re-registers the identical spelling and
     /// first-wins makes the second attempt a no-op.
     pub fn record_display_name(&mut self, original: &str) {
-        self.display_names
-            .entry(original.to_ascii_lowercase())
-            .or_insert_with(|| original.to_string());
+        let key = original.to_ascii_lowercase();
+        if let std::collections::btree_map::Entry::Vacant(slot) =
+            self.display_names.entry(key.clone())
+        {
+            slot.insert(original.to_string());
+            self.inserted_order.push(key);
+        }
+    }
+
+    /// A mark in the registration log, for [`Cursor::forget_display_name_if_new`].
+    pub fn display_name_mark(&self) -> usize {
+        self.inserted_order.len()
+    }
+
+    /// Undoes the registration of `original` **only if it was first inserted
+    /// after `mark`**.
+    ///
+    /// The one caller is `parser::expr::parse_call_atom`: an argument that
+    /// turns out to be a fluid/material/formula *token* is parsed as an
+    /// expression first, which registers it like a variable, but the Java
+    /// grammar has a dedicated token rule there so `AstBuilder.visitVarAtom`
+    /// never sees it and `ParseResult.displayNames` gets no entry. The `mark`
+    /// guard preserves the Java's first-wins semantics: a document that used
+    /// `Steel` as a variable *before* writing `k_(Steel)` keeps the variable's
+    /// spelling.
+    pub fn forget_display_name_if_new(&mut self, original: &str, mark: usize) {
+        let key = original.to_ascii_lowercase();
+        let Some(at) = self.inserted_order[mark..].iter().position(|k| *k == key) else {
+            return;
+        };
+        self.inserted_order.remove(mark + at);
+        self.display_names.remove(&key);
     }
 
     /// The accumulated map, consumed at the end of `parse_document`.

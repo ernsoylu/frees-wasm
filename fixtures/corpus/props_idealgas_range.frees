@@ -1,0 +1,57 @@
+{ IdealGas (JANAF cubic fits) across the full temperature range and at the
+  awkward edges. R_U is the TRUNCATED 8.31446 in the Java, not 8.314462618, so a
+  "corrected" constant shows up in the 7th digit of every mass-basis output.
+  volume/density deliberately do NOT call requirePositiveTemperature in the Java --
+  probe that too. Every alias species is exercised once. }
+h_n2_1     = Enthalpy(N2, T=1)
+h_n2_100   = Enthalpy(N2, T=100)
+h_n2_298   = Enthalpy(N2, T=298.15)
+h_n2_1000  = Enthalpy(N2, T=1000)
+h_n2_3000  = Enthalpy(N2, T=3000)
+h_n2_20000 = Enthalpy(N2, T=20000)
+
+cp_n2_1    = Cp(N2, T=1)
+cp_n2_3000 = Cp(N2, T=3000)
+cv_n2_3000 = Cv(N2, T=3000)
+u_n2_3000  = IntEnergy(N2, T=3000)
+
+s_n2_1     = Entropy(N2, T=1, P=101325)
+s_n2_pref  = Entropy(N2, T=298.15, P=101325)
+s_n2_lowp  = Entropy(N2, T=500, P=1)
+s_n2_highp = Entropy(N2, T=500, P=1e9)
+g_n2       = Gibbs(N2, T=1500, P=101325)
+
+{ volume/density have no positive-T guard in the reference: negative T is a
+  silently negative specific volume, and it must stay that way. }
+v_neg      = Volume(N2, T=-5, P=101325)
+rho_neg    = Density(N2, T=-5, P=101325)
+v_tiny_p   = Volume(N2, T=300, P=1e-8)
+z_any      = Compressibility(N2, T=-999, P=1e-30)
+z_alias    = CompressibilityFactor(CO2, T=5000, P=1e8)
+
+{ every species in the table, one property each }
+h_o2    = Enthalpy(O2, T=1200)
+h_co2   = Enthalpy(CO2, T=1200)
+h_co    = Enthalpy(CO, T=1200)
+h_h2o   = Enthalpy(H2O, T=1200)
+h_h2    = Enthalpy(H2, T=1200)
+h_ch4   = Enthalpy(CH4, T=1200)
+h_c2h6  = Enthalpy(C2H6, T=1200)
+h_c3h8  = Enthalpy(C3H8, T=1200)
+h_c4h10 = Enthalpy(C4H10, T=1200)
+h_c2h4  = Enthalpy(C2H4, T=1200)
+h_c2h2  = Enthalpy(C2H2, T=1200)
+h_so2   = Enthalpy(SO2, T=1200)
+h_no    = Enthalpy(NO, T=1200)
+h_no2   = Enthalpy(NO2, T=1200)
+h_n2o   = Enthalpy(N2O, T=1200)
+h_oh    = Enthalpy(OH, T=1200)
+h_hat   = Enthalpy(H, T=1200)
+h_oat   = Enthalpy(O, T=1200)
+h_nat   = Enthalpy(N, T=1200)
+h_c8h18 = Enthalpy(C8H18, T=1200)
+h_c12h26 = Enthalpy(C12H26, T=1200)
+h_ch3oh = Enthalpy(CH3OH, T=1200)
+h_ch4o  = Enthalpy(CH4O, T=1200)
+h_c2h5oh = Enthalpy(C2H5OH, T=1200)
+h_c2h6o = Enthalpy(C2H6O, T=1200)

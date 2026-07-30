@@ -1,0 +1,2 @@
+// error probe: deflection exceeds the maximum, the shock detaches
+r = beta_oblique(1.5, 0.6, 1.4, 'weak')

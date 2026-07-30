@@ -1,0 +1,17 @@
+{
+  "name": "err_equilibrium_h2_flametemp",
+  "source": "{ H2 fuel: the equilibrium product pool has no carbon, so the 8x8 Jacobian is\n  structurally singular and the equilibrium flame temperature cannot be found. }\nx = AdiabaticFlameTempEq('H2', 1.0, 298.15, 101325)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SingularMatrixException",
+      "message": "matrix is singular"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

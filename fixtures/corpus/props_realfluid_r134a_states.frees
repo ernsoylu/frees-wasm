@@ -1,0 +1,53 @@
+{ Real-fluid R134a: the same input-pair matrix, at the vapour-compression states
+  the pending fixtures reach plus a superheat sweep that walks toward the served
+  ceiling (dh_vapor_max = 132.7 kJ/kg above h_g). }
+t_2ph   = Temperature(R134a, P=200000, h=300000)
+d_2ph   = Density(R134a, P=200000, h=300000)
+s_2ph   = Entropy(R134a, P=200000, h=300000)
+x_2ph   = Quality(R134a, P=200000, h=300000)
+u_2ph   = IntEnergy(R134a, P=200000, h=300000)
+
+t_vap   = Temperature(R134a, P=200000, h=420000)
+d_vap   = Density(R134a, P=200000, h=420000)
+s_vap   = Entropy(R134a, P=200000, h=420000)
+
+t_liq   = Temperature(R134a, P=1200000, h=250000)
+d_liq   = Density(R134a, P=1200000, h=250000)
+s_liq   = Entropy(R134a, P=1200000, h=250000)
+
+h_pt_v  = Enthalpy(R134a, P=1200000, T=333.15)
+h_pt_l  = Enthalpy(R134a, P=1200000, T=300)
+d_pt    = Density(R134a, P=1200000, T=333.15)
+h_ps    = Enthalpy(R134a, P=1016593.02212064, s=1725)
+t_ps    = Temperature(R134a, P=1016593.02212064, s=1725)
+
+hf_p    = Enthalpy(R134a, P=200000, x=0)
+hg_p    = Enthalpy(R134a, P=200000, x=1)
+tsat_p  = Temperature(R134a, P=200000, x=0)
+sf_p    = Entropy(R134a, P=200000, x=0)
+sg_p    = Entropy(R134a, P=200000, x=1)
+df_p    = Density(R134a, P=200000, x=0)
+dg_p    = Density(R134a, P=200000, x=1)
+hf_t    = Enthalpy(R134a, T=263.15, x=0)
+hg_t    = Enthalpy(R134a, T=263.15, x=1)
+p_t_x   = Pressure(R134a, T=263.15, x=1)
+p_t_x0  = Pressure(R134a, T=313.15, x=0)
+
+{ the five vcr states the D1 error report names }
+t_h1    = Temperature(R134a, P=200603.30747267744, h=392664.91356786405)
+d_h1    = Density(R134a, P=200603.30747267744, h=392664.91356786405)
+s_h1    = Entropy(R134a, P=200603.30747267744, h=392664.91356786405)
+t_h2s   = Temperature(R134a, P=1016593.02212064, h=426479.692738112)
+s_h2s   = Entropy(R134a, P=1016593.02212064, h=426479.692738112)
+t_h2    = Temperature(R134a, P=1016593.02212064, h=434933.387530674)
+d_h2    = Density(R134a, P=1016593.02212064, h=434933.387530674)
+t_h3    = Temperature(R134a, P=1016593.02212064, h=256409.2445573684)
+d_h3    = Density(R134a, P=1016593.02212064, h=256409.2445573684)
+t_h4    = Temperature(R134a, P=200603.30747267744, h=256409.2445573684)
+s_h4    = Entropy(R134a, P=200603.30747267744, h=256409.2445573684)
+
+{ superheat sweep toward the served ceiling }
+t_sh_10  = Temperature(R134a, P=200000, h=400000)
+t_sh_40  = Temperature(R134a, P=200000, h=430000)
+t_sh_80  = Temperature(R134a, P=200000, h=470000)
+t_sh_120 = Temperature(R134a, P=200000, h=510000)

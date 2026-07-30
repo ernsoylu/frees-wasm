@@ -7,15 +7,29 @@ biggest mistake. Instead both engines run the **same corpus** and are compared.
 ```
 fixtures/corpus/*.frees   the documents (hand-authored + harvested)
 fixtures/golden/*.json    what the Java engine produced for each
+fixtures/proptables/      generated CoolProp property tables (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
+tools/table-gen/          the Java side that generates fixtures/proptables
 ```
+
+`proptables/` is the odd one out: it holds **inputs to the Rust engine**, not
+expected outputs. The `.phtab` files are the browser build's real-fluid property
+backend (decision D1, `docs/decisions/0001-property-backend.md`); their format
+and the measured tabulation error are documented in `tools/table-gen/README.md`.
+They are regenerated with `tools/table-gen/run.sh`, never edited.
 
 ## Regenerating
 
 ```bash
 tools/golden-dumper/run.sh                    # corpus -> golden
 tools/golden-dumper/run.sh <corpus> <out>     # explicit paths
+tools/table-gen/run.sh                        # -> fixtures/proptables
 ```
+
+**`golden-dumper/run.sh` regenerates every `.frees` in the directory it is
+pointed at.** Running it over `corpus-pending/corpus` while another change is
+mid-flight will mint goldens for documents that are not ready for one. Point it
+at an explicit output directory and diff before keeping the result.
 
 `classpath.sh` locates the newest `core-*.jar` under
 `../frEES/backend/core/build/libs/` and assembles the dependency classpath from
@@ -62,10 +76,33 @@ unspecified and differ between the JVM and Rust's libm.
 
 | Field | Rule |
 |---|---|
-| `variables` | relative tolerance `1e-9`; absolute `1e-12` near zero |
+| `variables` | relative tolerance `1e-9`; absolute `1e-12` near zero. A named fixture may declare a looser *relative* tolerance in `fixtures/tolerances.json` — see below |
 | `display_names` | exact |
 | `block_count` | exact — a different blocking is a real divergence |
 | `error` | `type` exact; `message` **not** compared verbatim (see below) |
+
+### `fixtures/tolerances.json` — the one relaxation, and its guards
+
+Decision D1 resolves real-fluid properties from precomputed `(P,h)` tables whose
+measured error against native CoolProp is `1e-7…1e-4` relative, while the
+goldens hold values the native library produced. **No table-backed engine can
+pass a `1e-9` gate on a document that calls a real-fluid property function** —
+the gap is a property of the artifact, not a bug waiting to be found. D1 named
+two honest ways out (a per-fixture tolerance, or shipping `coolprop.wasm` as the
+accuracy path); this is the first.
+
+It relaxes the *numeric* tolerance for a named fixture and nothing else —
+`display_names`, `block_count` and the error classification are still exact for
+every fixture in the corpus, and every fixture not named there is still held to
+`1e-9`. Two guards stop it becoming a place to hide failures:
+
+* a fixture named there but absent from `fixtures/golden/` **fails the gate**;
+* a fixture named there that **passes at the default** fails too, so a tolerance
+  that is no longer needed cannot sit in the file pretending it is.
+
+Each entry must record the *measured* error and a `reason` naming the mechanism
+that produces it. The parity test prints which fixtures used a declared
+tolerance on every run.
 
 Error *messages* are not compared literally. The Java engine emits long,
 domain-specific guidance ("A common cause: an element chain with no constitutive
@@ -137,10 +174,27 @@ document that starts passing because someone fixed the engine is the point.
 > error" and will report the CoolProp eight as passing. Delete the copy
 > afterwards. **Never relax `tests/parity.rs` to make something pass.**
 >
-> Last full re-check: **2026-07-30, Phase 4 close — 36 staged, 0 promotable.**
-> The only nine that scored green were the eight CoolProp-poisoned goldens and
-> the rank-deficient `solver_singular_linear_cycle`, all deliberately withheld
-> (see below).
+> Last full re-check: **2026-07-30, Phase 5 property dispatch — 51 staged, 19
+> promoted, 32 remain.** Wiring `props::*` into `eval.rs` (every `prop$…`
+> synthetic, the seven `eos_*`, the five `AdiabaticFlameTemp*` spellings, the
+> seven `mix_*`, `eq_molefraction`, the nine `htc_*`/`dp_*`) unblocked
+> `adiabatic-flame-temp`, `chem_equilibrium`, `chem_errors`, `chem_flame_temp`,
+> `chem_heating_value`, `chem_idealgas`, `chem_mixture`, `chem_molar_mass`,
+> `chem_nasa7`, `cubic-eos-properties`, `eos-cubic-spot-probe`,
+> `eos-cubic-sweep`, `gas-transport-mixture`, `karman-rocket`,
+> `material-conduction`, `multi-objective-beam`, `solid-materials`,
+> `solid_absent_property_rejected` and `solid_unknown_material_rejected`.
+> Seven of those needed one further fix: a fluid/material/formula **token**
+> (`MolarMass(C8H18)`, `k_(Steel)`, `Enthalpy(CO2, T=…)`) was being registered
+> as a display name, because the Rust parser reaches it through `parse_expr`
+> while the Java grammar has a dedicated token rule. `parse_call_atom` now
+> un-registers it, first-wins-preserving (`Cursor::forget_display_name_if_new`).
+>
+> The previous re-check's nine green-scoring holds are down to one: the eight
+> CoolProp goldens now fail honestly (`… needs a real-fluid property backend and
+> none is installed`), because `prop$` dispatch reaches a real call instead of
+> refusing the family. Only the rank-deficient `solver_singular_linear_cycle`
+> is still a deliberate withhold.
 
 ```bash
 tools/golden-dumper/run.sh fixtures/corpus-pending/corpus fixtures/corpus-pending/golden
@@ -270,6 +324,7 @@ batch value.
 | `driving-cycle-energy` | PARAMETRIC blocks (Java instead reports underspecified) | no — `SolverException` |
 | `engine-cycle-wiebe` | DYNAMIC (ODE/DAE) blocks | yes |
 | `estimator-gramian-balreal` | control-systems CALL: `lqe` | yes |
+| `gas-transport-mixture` | `eval.rs` to dispatch `mix_viscosity` / `mix_conductivity` into `props::transport` (the physics is ported and unit-tested against these very numbers; only the registry arm is missing) | yes |
 | `ev-battery-cooling-pid` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
 | `ev-thermal-management` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
 | `heisler-transient` | string variables (`name$ = 'text'`) | yes |

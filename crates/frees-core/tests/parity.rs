@@ -14,8 +14,21 @@
 //! * `block_count` — exact. A different blocking is a real divergence.
 //! * `error` — the *classification* must agree (both solve, or both fail with
 //!   the equivalent error type). Messages are not compared verbatim.
+//!
+//! # Per-fixture tolerance
+//!
+//! `fixtures/tolerances.json` may relax the *numeric* tolerance for a named
+//! fixture, and nothing else. It exists because this build resolves real-fluid
+//! properties from precomputed tables whose measured error is `1e-7…1e-4`
+//! (decision D1) while the goldens hold full-accuracy CoolProp values — a gap no
+//! table-backed engine can close, and one that must not be hidden by loosening
+//! the gate for everybody. Two guards keep it honest:
+//!
+//! * a fixture named there but **absent** from `fixtures/golden/` fails;
+//! * a fixture named there that **passes at the default** fails, so a tolerance
+//!   that is no longer needed cannot sit in the file pretending it is.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -26,6 +39,48 @@ const ABS_TOL: f64 = 1e-12;
 
 fn golden_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/golden")
+}
+
+fn tolerance_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/tolerances.json")
+}
+
+/// Declared relative tolerance per fixture stem, from `fixtures/tolerances.json`.
+fn declared_tolerances() -> BTreeMap<String, f64> {
+    let path = tolerance_path();
+    let raw = match fs::read_to_string(&path) {
+        Ok(raw) => raw,
+        // Absent is legitimate: it means every fixture is held to the default.
+        Err(_) => return BTreeMap::new(),
+    };
+    let doc: serde_json::Value = serde_json::from_str(&raw)
+        .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()));
+    doc["fixtures"]
+        .as_object()
+        .unwrap_or_else(|| panic!("{} needs a `fixtures` object", path.display()))
+        .iter()
+        .map(|(name, entry)| {
+            let rel = entry["relative"].as_f64().unwrap_or_else(|| {
+                panic!(
+                    "{}: fixture `{name}` needs a numeric `relative`",
+                    path.display()
+                )
+            });
+            assert!(
+                entry["reason"].as_str().is_some_and(|r| r.len() > 40),
+                "{}: fixture `{name}` needs a `reason` that says which mechanism \
+                 produces the error, not a placeholder",
+                path.display()
+            );
+            assert!(
+                rel > REL_TOL && rel < 1e-2,
+                "{}: fixture `{name}` declares {rel:e}, which is either tighter than \
+                 the default or loose enough to hide a real divergence",
+                path.display()
+            );
+            (name.clone(), rel)
+        })
+        .collect()
 }
 
 /// `Double.toString` output, or `"NaN"` / `"Infinity"` / `"-Infinity"` strings.
@@ -42,7 +97,20 @@ fn as_f64(v: &serde_json::Value) -> f64 {
     }
 }
 
-fn close(actual: f64, expected: f64) -> bool {
+/// Relative difference, `0.0` when both are NaN or exactly equal (which covers
+/// the infinities).
+fn rel_diff(actual: f64, expected: f64) -> f64 {
+    if (actual.is_nan() && expected.is_nan()) || actual == expected {
+        return 0.0;
+    }
+    let diff = (actual - expected).abs();
+    if diff <= ABS_TOL {
+        return 0.0;
+    }
+    diff / expected.abs().max(actual.abs()).max(f64::MIN_POSITIVE)
+}
+
+fn close(actual: f64, expected: f64, rel_tol: f64) -> bool {
     if actual.is_nan() && expected.is_nan() {
         return true;
     }
@@ -50,7 +118,7 @@ fn close(actual: f64, expected: f64) -> bool {
         return true; // covers infinities and exact hits
     }
     let diff = (actual - expected).abs();
-    diff <= ABS_TOL || diff <= REL_TOL * expected.abs().max(actual.abs())
+    diff <= ABS_TOL || diff <= rel_tol * expected.abs().max(actual.abs())
 }
 
 /// Map a golden `error.type` (a Java exception simple name) to the Rust error
@@ -71,12 +139,18 @@ struct Failure {
     detail: String,
 }
 
-fn replay(path: &Path, failures: &mut Vec<Failure>) {
+fn replay(
+    path: &Path,
+    tolerances: &BTreeMap<String, f64>,
+    used: &mut BTreeSet<String>,
+    failures: &mut Vec<Failure>,
+) {
     let name = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("?")
         .to_string();
+    let rel_tol = tolerances.get(&name).copied().unwrap_or(REL_TOL);
     let raw = fs::read_to_string(path).expect("fixture readable");
     let fixture: serde_json::Value = serde_json::from_str(&raw).expect("fixture is valid JSON");
 
@@ -110,14 +184,31 @@ fn replay(path: &Path, failures: &mut Vec<Failure>) {
                 .map(|(k, v)| (k.to_ascii_lowercase(), as_f64(v)))
                 .collect();
 
+            let mut worst = 0.0f64;
             for (var, &expected) in &golden_vars {
                 match solution.values.get(var) {
                     None => fail(format!("missing variable `{var}` (expected {expected})")),
-                    Some(&actual) if !close(actual, expected) => fail(format!(
-                        "`{var}` = {actual} but Java got {expected} (diff {})",
-                        (actual - expected).abs()
-                    )),
-                    _ => {}
+                    Some(&actual) => {
+                        worst = worst.max(rel_diff(actual, expected));
+                        if !close(actual, expected, rel_tol) {
+                            fail(format!(
+                                "`{var}` = {actual} but Java got {expected} (rel {:e}, \
+                                 tolerance {rel_tol:e})",
+                                rel_diff(actual, expected)
+                            ));
+                        }
+                    }
+                }
+            }
+            if tolerances.contains_key(&name) {
+                if worst <= REL_TOL {
+                    fail(format!(
+                        "fixtures/tolerances.json relaxes this fixture to {rel_tol:e}, but it \
+                         matches the oracle to {worst:e} — at or under the {REL_TOL:e} default. \
+                         Delete the entry rather than leaving a dead tolerance in the file."
+                    ));
+                } else {
+                    used.insert(name.clone());
                 }
             }
             for var in solution.values.keys() {
@@ -188,9 +279,27 @@ fn golden_corpus_parity() {
         dir.display()
     );
 
+    let tolerances = declared_tolerances();
+    let mut used = BTreeSet::new();
     let mut failures = Vec::new();
     for path in &paths {
-        replay(path, &mut failures);
+        replay(path, &tolerances, &mut used, &mut failures);
+    }
+
+    // A tolerance for a fixture that is not in the corpus is a stale entry, and
+    // the "dead tolerance" guard above cannot see it — nothing replays it.
+    for name in tolerances.keys() {
+        if !paths
+            .iter()
+            .any(|p| p.file_stem().and_then(|s| s.to_str()) == Some(name.as_str()))
+        {
+            failures.push(Failure {
+                fixture: name.clone(),
+                detail: "declared in fixtures/tolerances.json but has no fixture in \
+                         fixtures/golden/"
+                    .to_string(),
+            });
+        }
     }
 
     if !failures.is_empty() {
@@ -209,5 +318,10 @@ fn golden_corpus_parity() {
         panic!("{report}");
     }
 
-    println!("parity: {} fixtures match the Java oracle", paths.len());
+    println!(
+        "parity: {} fixtures match the Java oracle ({} at a declared table tolerance: {})",
+        paths.len(),
+        used.len(),
+        used.iter().cloned().collect::<Vec<_>>().join(", ")
+    );
 }

@@ -1,0 +1,62 @@
+{
+  "name": "flow-resistance-duct",
+  "source": "// Darcy friction factor, Reynolds number and minor losses\n{ Water in a 50 mm commercial-steel pipe. The friction factor is exercised in\n  the laminar branch, the linearly blended transition band and the Colebrook\n  turbulent branch, smooth and rough. }\nrho = 998.0\nmu = 0.001002\nD = 0.05\neps = 0.000045\nepsD = eps / D\n\nV = 1.5\nRe = reynolds(rho, V, D, mu)\nRe_rev = re_number(rho, -V, D, mu)\nf_turb = friction_factor(Re, epsD)\nf_turb_smooth = darcy_friction(Re, 0)\n\nRe_lam = reynolds(rho, 0.02, D, mu)\nf_lam = friction_factor(Re_lam, epsD)\nf_lam_exact = 64 / Re_lam\n\nf_trans = friction_factor(3000, epsD)\nf_at2300 = friction_factor(2300, epsD)\nf_at4000 = friction_factor(4000, epsD)\nf_zero = friction_factor(0, epsD)\nf_neg = friction_factor(-25, epsD)\nf_veryrough = friction_factor(1000000, 0.05)\nf_highRe = friction_factor(100000000, epsD)\n\ndP_elbow = minor_loss(0.9, rho, V)\ndP_exit = minor_loss(1, rho, V)\ndP_rev = minor_loss(0.9, rho, -V)\n",
+  "expect": {
+    "variables": {
+      "D": 0.05,
+      "Re": 74700.59880239521,
+      "Re_lam": 996.0079840319362,
+      "Re_rev": 74700.59880239521,
+      "V": 1.5,
+      "dP_elbow": 1010.4750000000001,
+      "dP_exit": 1122.75,
+      "dP_rev": 1010.4750000000001,
+      "eps": 4.5E-5,
+      "epsD": 9.0E-4,
+      "f_at2300": 0.02782608695652174,
+      "f_at4000": 0.04081110969437615,
+      "f_highRe": 0.01914482199270445,
+      "f_lam": 0.0642565130260521,
+      "f_lam_exact": 0.0642565130260521,
+      "f_neg": 6.4E7,
+      "f_trans": 0.029353594187880375,
+      "f_turb": 0.022536655459594476,
+      "f_turb_smooth": 0.01913498275123008,
+      "f_veryrough": 0.07157375385985786,
+      "f_zero": 6.4E7,
+      "mu": 0.001002,
+      "rho": 998.0
+    },
+    "display_names": {
+      "d": "D",
+      "dp_elbow": "dP_elbow",
+      "dp_exit": "dP_exit",
+      "dp_rev": "dP_rev",
+      "eps": "eps",
+      "epsd": "epsD",
+      "f_at2300": "f_at2300",
+      "f_at4000": "f_at4000",
+      "f_highre": "f_highRe",
+      "f_lam": "f_lam",
+      "f_lam_exact": "f_lam_exact",
+      "f_neg": "f_neg",
+      "f_trans": "f_trans",
+      "f_turb": "f_turb",
+      "f_turb_smooth": "f_turb_smooth",
+      "f_veryrough": "f_veryrough",
+      "f_zero": "f_zero",
+      "mu": "mu",
+      "re": "Re",
+      "re_lam": "Re_lam",
+      "re_rev": "Re_rev",
+      "rho": "rho",
+      "v": "V"
+    },
+    "block_count": 23,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

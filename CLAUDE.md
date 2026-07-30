@@ -4,37 +4,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phases 0–4 are implemented** — the Phase-3 wasm boundary is wired and Phase 4
+**Phases 0–5 are implemented** — the Phase-3 wasm boundary is wired, Phase 4
 (differentiator, matrix, complex, procedural, tables, integrals, kernels, latex,
-solver retry ladder) is complete. A Rust workspace ports the frees engine to
-WebAssembly. **1,341 tests** green, including a **204/204** golden-corpus parity
-replay against the real Java engine; wasm 1147.7 KiB raw / 436.1 KiB gzipped
-(budget 2048 KiB). Solve, check and the language reference all run in-browser
-with **zero `/api/` traffic**. Phase 5 (properties/CoolProp) is next.
+solver retry ladder) is complete, and Phase 5 ports `props/` in full and gives
+the browser a **working real-fluid property backend**. A Rust workspace ports the
+frees engine to WebAssembly. **1,710 tests** green, including a **268/268**
+golden-corpus parity replay against the real Java engine; wasm 1866.6 KiB raw /
+973.6 KiB gzipped (budget 2048 KiB — **91 % used**). Solve, check, real-fluid
+properties, property diagrams and the language reference all run in-browser with
+**zero `/api/` traffic**. Phase 6 (component/connect layer) is next.
 
 | Document | Contents |
 |---|---|
-| [`docs/status-phase4.md`](docs/status-phase4.md) | **Read first.** What Phase 4 delivers per area, the true gate numbers, fixture counts, and the honest ranked list of what it did *not* deliver |
-| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date), plus the Phase 0–3 inventory |
+| [`docs/status-phase5.md`](docs/status-phase5.md) | **Read first.** What Phase 5 delivers per area, the measured table-vs-CoolProp error, the true gate numbers, fixture counts, and the honest ranked list of what it did *not* deliver |
+| [`docs/status-phase4.md`](docs/status-phase4.md) | Phase 4 per area; its pending-fixture table is annotated with what Phase 5 closed |
+| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12), plus the Phase 0–3 inventory |
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
-| [`docs/decisions/`](docs/decisions/) | D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP) |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus, golden fixtures, tolerance policy, oracle-established ground truths |
+| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP) |
+| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus, golden fixtures, tolerance policy (incl. `fixtures/tolerances.json`), oracle-established ground truths |
 
 ## Build and test
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 204 documents)
+                                       # (--release: the replay solves 268 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
+cargo test -p frees-core --test props_robustness   # the property-surface fuzz
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
 cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
 cargo fmt --all --check                                 # CI gate
 wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
 tools/golden-dumper/run.sh             # regenerate golden fixtures from the Java oracle
+tools/table-gen/run.sh                 # regenerate fixtures/proptables from native CoolProp
 ```
+
+> **The oracle has CoolProp.** `tools/golden-dumper/run.sh` exports
+> `COOLPROP_LIBRARY` itself (the 12.4 MB `libCoolProp.so` vendored in
+> `../frEES/backend/core/native/`), so every real-fluid property call can be
+> checked against ground truth instead of guessed. Verified:
+> `h = Enthalpy(Water, T=300 [K], P=101325 [Pa])` → `112654.89965464505`.
 
 > **`rtk` condenses these commands' output.** `cargo test` comes back as a
 > one-line summary with no per-suite results, and clippy/fmt warnings are
@@ -48,7 +59,16 @@ tools/golden-dumper/run.sh             # regenerate golden fixtures from the Jav
 - `crates/frees-wasm` — thin wasm-bindgen boundary (JSON-string in/out)
 - `crates/frees-cli` — headless solve/check for the parity harness
 - `tools/golden-dumper` — Java program run against the frEES core jar to emit `fixtures/golden/`
+- `tools/table-gen` — Java program run against native CoolProp to emit `fixtures/proptables/*.phtab`
 - `fixtures/` — parity corpus + golden results; grow it per `fixtures/README.md`
+
+The property backend is **linked into the binary**: `crates/frees-core/src/props/data/*.phtab`
+are copies of `fixtures/proptables/*.phtab`, `include_bytes!`d by
+`props/tables.rs` and installed on the first `solve`/`check`. Regenerating the
+tables means copying them across as well as into `fixtures/`. They are 526 KB of
+the wasm bundle's 1866.6 KiB — see
+[`docs/status-phase5.md`](docs/status-phase5.md#what-phase-5-did-not-deliver)
+item 1 before adding a third fluid.
 
 Contract files (`ast.rs`, `token.rs`, `diag.rs`, `parser/mod.rs`, `units/quantity.rs`)
 define fixed interfaces; change them deliberately, not incidentally. Unsupported

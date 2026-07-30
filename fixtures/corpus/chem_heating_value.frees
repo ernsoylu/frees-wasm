@@ -1,0 +1,22 @@
+// Chemistry: HeatingValue (LHV / HHV) and StoichAFR.
+// Oracle target: props/Combustion.heatingValue, props/Combustion.stoichAFR
+lhv_ch4    = HeatingValue(CH4, 'LHV')
+hhv_ch4    = HeatingValue(CH4, 'HHV')
+lhv_c8h18  = HeatingValue(C8H18, 'LHV')
+hhv_c8h18  = HeatingValue(C8H18, 'HHV')
+lhv_c2h5oh = HeatingValue(C2H5OH, 'LHV')
+hhv_c2h5oh = HeatingValue(C2H5OH, 'HHV')
+lhv_h2     = HeatingValue(H2, 'LHV')
+hhv_h2     = HeatingValue(H2, 'HHV')
+lhv_c3h8   = HeatingValue(C3H8, 'LHV')
+lhv_ch3oh  = HeatingValue(CH3OH, 'HHV')
+
+afr_ch4    = StoichAFR(CH4)
+afr_c8h18  = StoichAFR(C8H18)
+afr_c2h5oh = StoichAFR(C2H5OH)
+afr_h2     = StoichAFR(H2)
+afr_c12h26 = StoichAFR(C12H26)
+
+{ CO2 is tabulated but already fully oxidised: dH is zero, so the heating
+  value is -0.0. Recorded because it is a real quirk of the Java formula. }
+lhv_co2 = HeatingValue(CO2, 'LHV')

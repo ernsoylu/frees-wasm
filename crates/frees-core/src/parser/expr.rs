@@ -852,15 +852,41 @@ fn parse_call_atom(c: &mut Cursor<'_>, name: String) -> Result<Expr> {
     let span = c.span();
     c.advance(); // IDENT
     c.expect(&TokenKind::LParen)?;
+    // Which spellings were already registered *before* this call's arguments
+    // were parsed. `Enthalpy(CO2, T=…)` and `MolarMass(C8H18)` reach
+    // `parse_expr` for their first argument, which builds an `Expr.Var` and
+    // registers `CO2` / `C8H18` as a display name — but the Java grammar has a
+    // dedicated `fluidName` / chem-token rule, so `AstBuilder.visitVarAtom`
+    // never runs on it and `ParseResult.displayNames` has no such entry. The
+    // token is discarded a few lines below (baked into the `prop$…` name, or
+    // turned into an `Expr::Str`), so its registration is undone here.
+    //
+    // Undone only when the argument list *introduced* it: a document that uses
+    // `Steel` as a variable before writing `k_(Steel)` keeps the variable's
+    // spelling, which is what the Java's first-wins `putIfAbsent` produces.
+    let mark = c.display_name_mark();
     let args = parse_arg_list(c)?;
     c.expect(&TokenKind::RParen)?;
 
     if args.iter().any(|a| a.name.is_some()) {
-        return build_property_call(&name, args, span);
+        // A property call consumes only its first (positional) argument as a
+        // token; the indicator values stay real expressions.
+        let token = args.first().map(|a| unquote(&a.raw).to_string());
+        let call = build_property_call(&name, args, span)?;
+        if let Some(token) = token {
+            c.forget_display_name_if_new(&token, mark);
+        }
+        return Ok(call);
     }
     let lower = name.to_ascii_lowercase();
     if CHEM_FUNCS.contains(&lower.as_str()) {
-        return build_chem_call(&lower, args);
+        // A chem call consumes *every* argument as a token.
+        let tokens: Vec<String> = args.iter().map(|a| unquote(&a.raw).to_string()).collect();
+        let call = build_chem_call(&lower, args)?;
+        for token in &tokens {
+            c.forget_display_name_if_new(token, mark);
+        }
+        return Ok(call);
     }
     if lower == "convert" {
         return build_convert(args, span);

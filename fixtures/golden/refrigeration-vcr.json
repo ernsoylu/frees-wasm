@@ -2,13 +2,40 @@
   "name": "refrigeration-vcr",
   "source": "// Vapor-Compression Refrigeration (R134a)\n{ Ideal VCR cycle. Real-refrigerant properties from CoolProp. }\nT_evap = 263.15 [K]      { -10 C }\nT_cond = 313.15 [K]      { 40 C }\neta_comp = 0.80\n\nP1 = P_sat(R134a, T=T_evap)\nh1 = Enthalpy(R134a, T=T_evap, x=1)  { saturated vapor leaving evaporator }\ns1 = Entropy(R134a, T=T_evap, x=1)\n\nP2 = P_sat(R134a, T=T_cond)\nh2s = Enthalpy(R134a, P=P2, s=s1)\nh2 = h1 + (h2s - h1) / eta_comp\n\nh3 = Enthalpy(R134a, P=P2, x=0)      { saturated liquid leaving condenser }\nh4 = h3                              { throttle is isenthalpic }\n\nq_L = h1 - h4            { refrigeration effect }\nw_c = h2 - h1\nCOP = q_L / w_c\n",
   "expect": {
-    "variables": {},
-    "display_names": {},
-    "block_count": 0,
-    "error": {
-      "type": "IllegalStateException",
-      "message": "The CoolProp native library is not available. Set the COOLPROP_LIBRARY environment variable to the path of libCoolProp.so to enable fluid property functions."
-    }
+    "variables": {
+      "COP": 3.223576728376346,
+      "P1": 200603.30747267744,
+      "P2": 1016593.02212064,
+      "T_cond": 313.15,
+      "T_evap": 263.15,
+      "eta_comp": 0.8,
+      "h1": 392664.91356786405,
+      "h2": 434933.387530674,
+      "h2s": 426479.692738112,
+      "h3": 256409.2445573684,
+      "h4": 256409.2445573684,
+      "q_L": 136255.66901049565,
+      "s1": 1733.3507972613968,
+      "w_c": 42268.47396280995
+    },
+    "display_names": {
+      "cop": "COP",
+      "eta_comp": "eta_comp",
+      "h1": "h1",
+      "h2": "h2",
+      "h2s": "h2s",
+      "h3": "h3",
+      "h4": "h4",
+      "p1": "P1",
+      "p2": "P2",
+      "q_l": "q_L",
+      "s1": "s1",
+      "t_cond": "T_cond",
+      "t_evap": "T_evap",
+      "w_c": "w_c"
+    },
+    "block_count": 14,
+    "error": null
   },
   "oracle": {
     "engine": "frEES backend/core (Java)",

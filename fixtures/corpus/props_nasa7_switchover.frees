@@ -1,0 +1,39 @@
+{ NASA-7 two-range switchover. Java NasaThermo.coeffsFor: t <= tRanges[1] ? low : high,
+  and every species in the mechanism has tRanges[1] = 1000 K exactly. The adversarial
+  point is the boundary itself: 1000 must use LOW, 1000+eps must use HIGH, and the
+  two ranges are NOT continuous for every species, so a flipped comparison shows up. }
+cp_n2_below   = mix_cp('N2:1', 999.9999999)
+cp_n2_at      = mix_cp('N2:1', 1000)
+cp_n2_above   = mix_cp('N2:1', 1000.0000001)
+cp_n2_jump    = mix_cp('N2:1', 1000.5)
+
+cp_o2_at      = mix_cp('O2:1', 1000)
+cp_o2_above   = mix_cp('O2:1', 1000.000000001)
+cp_co2_at     = mix_cp('CO2:1', 1000)
+cp_co2_above  = mix_cp('CO2:1', 1000.000000001)
+cp_h2o_at     = mix_cp('H2O:1', 1000)
+cp_h2o_above  = mix_cp('H2O:1', 1000.000000001)
+cp_ch4_at     = mix_cp('CH4:1', 1000)
+cp_ch4_above  = mix_cp('CH4:1', 1000.000000001)
+cp_oh_at      = mix_cp('OH:1', 1000)
+cp_oh_above   = mix_cp('OH:1', 1000.000000001)
+cp_h_at       = mix_cp('H:1', 1000)
+cp_h_above    = mix_cp('H:1', 1000.000000001)
+cp_ar_at      = mix_cp('AR:1', 1000)
+cp_ar_above   = mix_cp('AR:1', 1000.000000001)
+
+h_n2_at       = mix_enthalpy('N2:1', 1000)
+h_n2_above    = mix_enthalpy('N2:1', 1000.000000001)
+h_co2_at      = mix_enthalpy('CO2:1', 1000)
+h_co2_above   = mix_enthalpy('CO2:1', 1000.000000001)
+h_h2o_at      = mix_enthalpy('H2O:1', 1000)
+h_h2o_above   = mix_enthalpy('H2O:1', 1000.000000001)
+h_c2h6_at     = mix_enthalpy('C2H6:1', 1000)
+h_c2h6_above  = mix_enthalpy('C2H6:1', 1000.000000001)
+
+s_n2_at       = mix_entropy('N2:1', 1000, 101325)
+s_n2_above    = mix_entropy('N2:1', 1000.000000001, 101325)
+s_co2_at      = mix_entropy('CO2:1', 1000, 101325)
+s_co2_above   = mix_entropy('CO2:1', 1000.000000001, 101325)
+s_c3h8_at     = mix_entropy('C3H8:1', 1000, 101325)
+s_c3h8_above  = mix_entropy('C3H8:1', 1000.000000001, 101325)

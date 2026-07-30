@@ -1,0 +1,42 @@
+{
+  "name": "chem_molar_mass",
+  "source": "// Chemistry: MolarMass over the periodic table, the formula parser and the\n// ideal-gas species table.\n// Oracle target: props/PeriodicTable.java, props/ChemicalFormula.java,\n//                props/Combustion.molarMass, props/IdealGas.molarMassOf\n{ Tabulated ideal-gas species win over the formula parser. }\nm_ch4   = MolarMass(CH4)\nm_co2   = MolarMass(CO2)\nm_n2    = MolarMass(N2)\nm_o2    = MolarMass(O2)\nm_h2o   = MolarMass(H2O)\nm_c8h18 = MolarMass(C8H18)\n\n{ Formula parser: nested parentheses, multipliers, repeated elements. }\nm_caoh2   = MolarMass('Ca(OH)2')\nm_al2so43 = MolarMass('Al2(SO4)3')\nm_kno3    = MolarMass(KNO3)\nm_c6h12o6 = MolarMass(C6H12O6)\nm_feso47  = MolarMass('FeSO4(H2O)7')\nm_u       = MolarMass(U)\nm_hgcl2   = MolarMass(HgCl2)\n",
+  "expect": {
+    "variables": {
+      "m_al2so43": 0.34213107600000003,
+      "m_c6h12o6": 0.180156,
+      "m_c8h18": 0.114231,
+      "m_caoh2": 0.07409200000000002,
+      "m_ch4": 0.016042999999999998,
+      "m_co2": 0.04401,
+      "m_feso47": 0.27800600000000003,
+      "m_h2o": 0.018015,
+      "m_hgcl2": 0.271492,
+      "m_kno3": 0.1011023,
+      "m_n2": 0.028013000000000003,
+      "m_o2": 0.031999,
+      "m_u": 0.23802890999999998
+    },
+    "display_names": {
+      "m_al2so43": "m_al2so43",
+      "m_c6h12o6": "m_c6h12o6",
+      "m_c8h18": "m_c8h18",
+      "m_caoh2": "m_caoh2",
+      "m_ch4": "m_ch4",
+      "m_co2": "m_co2",
+      "m_feso47": "m_feso47",
+      "m_h2o": "m_h2o",
+      "m_hgcl2": "m_hgcl2",
+      "m_kno3": "m_kno3",
+      "m_n2": "m_n2",
+      "m_o2": "m_o2",
+      "m_u": "m_u"
+    },
+    "block_count": 13,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

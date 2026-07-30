@@ -1,0 +1,17 @@
+{
+  "name": "compressible_oblique_detached_rejected",
+  "source": "// error probe: deflection exceeds the maximum, the shock detaches\nr = beta_oblique(1.5, 0.6, 1.4, 'weak')\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Compressible-flow: deflection theta=0.6000 rad exceeds the maximum 0.2114 rad for M1=1.5, k=1.4 (shock detaches)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

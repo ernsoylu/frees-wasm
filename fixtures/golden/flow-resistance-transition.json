@@ -1,0 +1,48 @@
+{
+  "name": "flow-resistance-transition",
+  "source": "// The 2300-4000 transition band of the Darcy friction factor\n{ The band is a linear blend between the laminar 64/Re at the local Re and\n  Colebrook evaluated at Re = 4000. Because the laminar term keeps falling\n  while the blend weight rises, f dips below its Re = 2300 value before\n  climbing to the turbulent value - it is continuous but NOT monotone. }\nepsD = 0.0009\n\nf2300 = friction_factor(2300, epsD)\nf2400 = friction_factor(2400, epsD)\nf2600 = friction_factor(2600, epsD)\nf2800 = friction_factor(2800, epsD)\nf3000 = friction_factor(3000, epsD)\nf3500 = friction_factor(3500, epsD)\nf3900 = friction_factor(3900, epsD)\nf3999 = friction_factor(3999.999, epsD)\nf4000 = friction_factor(4000, epsD)\nf4001 = friction_factor(4000.001, epsD)\n\nf2300_smooth = friction_factor(2300, 0)\nf3000_smooth = friction_factor(3000, 0)\nf4000_smooth = friction_factor(4000, 0)\nf2000_rough = friction_factor(2000, 0.05)\nf3000_rough = friction_factor(3000, 0.05)\n",
+  "expect": {
+    "variables": {
+      "epsD": 9.0E-4,
+      "f2000_rough": 0.032,
+      "f2300": 0.02782608695652174,
+      "f2300_smooth": 0.02782608695652174,
+      "f2400": 0.027498692727120168,
+      "f2600": 0.027473453746971358,
+      "f2800": 0.028137721338682063,
+      "f3000": 0.029353594187880375,
+      "f3000_rough": 0.04424948103281862,
+      "f3000_smooth": 0.028981319513109293,
+      "f3500": 0.034185993397710904,
+      "f3900": 0.03937576538354558,
+      "f3999": 0.04081109509960809,
+      "f4000": 0.04081110969437615,
+      "f4000_smooth": 0.03990701405564638,
+      "f4001": 0.040811106838558514
+    },
+    "display_names": {
+      "epsd": "epsD",
+      "f2000_rough": "f2000_rough",
+      "f2300": "f2300",
+      "f2300_smooth": "f2300_smooth",
+      "f2400": "f2400",
+      "f2600": "f2600",
+      "f2800": "f2800",
+      "f3000": "f3000",
+      "f3000_rough": "f3000_rough",
+      "f3000_smooth": "f3000_smooth",
+      "f3500": "f3500",
+      "f3900": "f3900",
+      "f3999": "f3999",
+      "f4000": "f4000",
+      "f4000_smooth": "f4000_smooth",
+      "f4001": "f4001"
+    },
+    "block_count": 16,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,19 @@
+{ IdealGas.temperatureFrom: safeguarded Newton, start T=1000, 100 iterations,
+  Math.clamp(t - step, 10, 20000) every step, converged when |step| < 1e-9*max(t,1).
+  The clamp is the interesting part: an unreachable target pins T at a bound and the
+  loop keeps running against the RAW (unclamped) step, so the exit path differs from
+  a naive port. Probe both bounds and normal inversions, plus the (s, P) form whose
+  slope is cp/T. }
+t_h_cold   = Temperature(N2, h=-100000)
+t_h_mid    = Temperature(N2, h=0)
+t_h_warm   = Temperature(N2, h=800000)
+t_h_co2    = Temperature(CO2, h=-8000000)
+t_h_co2_2  = Temperature(CO2, h=-7000000)
+t_h_h2o    = Temperature(H2O, h=-12000000)
+t_h_ch4    = Temperature(CH4, h=-4000000)
+
+t_sp_1     = Temperature(N2, s=7000, P=101325)
+t_sp_2     = Temperature(N2, s=6800, P=101325)
+t_sp_3     = Temperature(N2, s=7500, P=500000)
+t_sp_co2   = Temperature(CO2, s=5500, P=101325)
+t_sp_lowp  = Temperature(N2, s=7000, P=1000)

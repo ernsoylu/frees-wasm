@@ -1,0 +1,2 @@
+// error probe: k must be > 1
+r = T0_T(2.0, 1.0)

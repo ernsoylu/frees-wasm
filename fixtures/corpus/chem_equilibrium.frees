@@ -1,0 +1,23 @@
+// Combustion-product chemical equilibrium with dissociation (Kp method,
+// 8-species pool solved by damped Newton in log-moles).
+// Oracle target: props/Equilibrium.java
+x_co2 = eq_molefraction('CH4', 1.0, 2300, 101325, 'CO2')
+x_co  = eq_molefraction('CH4', 1.0, 2300, 101325, 'CO')
+x_h2o = eq_molefraction('CH4', 1.0, 2300, 101325, 'H2O')
+x_h2  = eq_molefraction('CH4', 1.0, 2300, 101325, 'H2')
+x_oh  = eq_molefraction('CH4', 1.0, 2300, 101325, 'OH')
+x_h   = eq_molefraction('CH4', 1.0, 2300, 101325, 'H')
+x_o   = eq_molefraction('CH4', 1.0, 2300, 101325, 'O')
+x_o2  = eq_molefraction('CH4', 1.0, 2300, 101325, 'O2')
+x_n2  = eq_molefraction('CH4', 1.0, 2300, 101325, 'N2')
+
+x_rich_co = eq_molefraction('CH4', 1.2, 2200, 101325, 'CO')
+x_lean_o2 = eq_molefraction('CH4', 0.7, 1900, 101325, 'O2')
+x_hp_co   = eq_molefraction('C3H8', 1.0, 2400, 2000000, 'CO')
+x_c8_oh   = eq_molefraction('C8H18', 1.0, 2400, 101325, 'OH')
+
+T_eq_ch4   = AdiabaticFlameTempEq('CH4', 1.0, 298.15, 101325)
+T_eq_lean  = AdiabaticFlameTempEq('CH4', 0.8, 298.15, 101325)
+T_eq_rich  = AdiabaticFlameTempEq('CH4', 1.1, 298.15, 101325)
+T_eq_c3h8  = AdiabaticFlameTempEq('C3H8', 1.0, 298.15, 101325)
+T_eq_alias = FlameTemp_eq('CH4', 1.0, 298.15, 500000)

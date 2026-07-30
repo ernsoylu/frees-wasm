@@ -1,0 +1,56 @@
+{
+  "name": "compressible-normal-shock",
+  "source": "// Normal-shock relations across a stationary shock\n{ Downstream state 2 from upstream Mach M1 for air and for a monatomic gas.\n  All five ratios plus the sonic limit M1 = 1 where the shock vanishes. }\nk = 1.4\nM1 = 3.0\n\nM2 = M2_shock(M1, k)\nM2b = mach_shock(M1, k)\nP21 = P2_P1_shock(M1, k)\nT21 = T2_T1_shock(M1, k)\nR21 = rho2_rho1_shock(M1, k)\nP0201 = P02_P01_shock(M1, k)\n\nMone = 1.0\nM2_one = M2_shock(Mone, k)\nP21_one = P2_P1_shock(Mone, k)\nT21_one = T2_T1_shock(Mone, k)\nR21_one = rho2_rho1_shock(Mone, k)\nP0201_one = P02_P01_shock(Mone, k)\n\nkmono = 1.6666666666666667\nM2_mono = M2_shock(4.5, kmono)\nP21_mono = P2_P1_shock(4.5, kmono)\nT21_mono = T2_T1_shock(4.5, kmono)\nR21_mono = rho2_rho1_shock(4.5, kmono)\nP0201_mono = P02_P01_shock(4.5, kmono)\n",
+  "expect": {
+    "variables": {
+      "M1": 3.0,
+      "M2": 0.4751909633114914,
+      "M2_mono": 0.4815809376431411,
+      "M2_one": 1.0,
+      "M2b": 0.4751909633114914,
+      "Mone": 1.0,
+      "P0201": 0.32834388819073684,
+      "P0201_mono": 0.18055876235036986,
+      "P0201_one": 1.0,
+      "P21": 10.333333333333332,
+      "P21_mono": 25.062499999999996,
+      "P21_one": 1.0,
+      "R21": 3.857142857142857,
+      "R21_mono": 3.4838709677419355,
+      "R21_one": 1.0,
+      "T21": 2.6790123456790123,
+      "T21_mono": 7.19386574074074,
+      "T21_one": 1.0,
+      "k": 1.4,
+      "kmono": 1.6666666666666667
+    },
+    "display_names": {
+      "k": "k",
+      "kmono": "kmono",
+      "m1": "M1",
+      "m2": "M2",
+      "m2_mono": "M2_mono",
+      "m2_one": "M2_one",
+      "m2b": "M2b",
+      "mone": "Mone",
+      "p0201": "P0201",
+      "p0201_mono": "P0201_mono",
+      "p0201_one": "P0201_one",
+      "p21": "P21",
+      "p21_mono": "P21_mono",
+      "p21_one": "P21_one",
+      "r21": "R21",
+      "r21_mono": "R21_mono",
+      "r21_one": "R21_one",
+      "t21": "T21",
+      "t21_mono": "T21_mono",
+      "t21_one": "T21_one"
+    },
+    "block_count": 20,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

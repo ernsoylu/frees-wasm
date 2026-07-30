@@ -1,0 +1,17 @@
+{
+  "name": "solid_unknown_material_rejected",
+  "source": "x = k_(Unobtainium)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Unknown material 'Unobtainium'. Known materials: aluminium, aluminum, brass, brick, bronze, carbonsteel, concrete, copper, glass, gold, ice, iron, lead, magnesium, nickel, oak, silver, stainlesssteel, steel, titanium, tungsten, wood, zinc"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

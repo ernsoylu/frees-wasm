@@ -1,0 +1,46 @@
+{
+  "name": "pneumatics-iso6358",
+  "source": "// ISO 6358 pneumatic restriction: choked, subsonic and no-flow branches\n{ A sonic conductance C and critical pressure ratio b characterise the valve.\n  Supply is 6 bar gauge (700 kPa absolute) at 20 C. }\nC = 0.0000000085\nb = 0.35\nPup = 700000 [Pa]\nTup = 293.15 [K]\n\nmdot_choked = iso6358(C, b, Pup, Tup, 100000 [Pa])\nmdot_atchoke = iso6358(C, b, Pup, Tup, 245000 [Pa])\nmdot_sub = iso6358(C, b, Pup, Tup, 500000 [Pa])\nmdot_nearclosed = iso6358(C, b, Pup, Tup, 699000 [Pa])\nmdot_equal = iso6358(C, b, Pup, Tup, Pup)\nmdot_reverse = iso6358(C, b, Pup, Tup, 900000 [Pa])\n\nmdot_hot = iso6358(C, b, Pup, 400 [K], 100000 [Pa])\nmdot_b0 = iso6358(C, 0, Pup, Tup, 500000 [Pa])\nmdot_zeroC = iso6358(0, b, Pup, Tup, 100000 [Pa])\nmdot_badP = iso6358(C, b, -100, Tup, 50000 [Pa])\nmdot_badT = iso6358(C, b, Pup, -5, 50000 [Pa])\n",
+  "expect": {
+    "variables": {
+      "C": 8.5E-9,
+      "Pup": 700000.0,
+      "Tup": 293.15,
+      "b": 0.35,
+      "mdot_atchoke": 0.00705075,
+      "mdot_b0": 0.004934497086836713,
+      "mdot_badP": 0.0,
+      "mdot_badT": 0.0,
+      "mdot_choked": 0.00705075,
+      "mdot_equal": 0.0,
+      "mdot_hot": 0.006036014434448213,
+      "mdot_nearclosed": 4.672032562787972E-4,
+      "mdot_reverse": 0.0,
+      "mdot_sub": 0.005839398199417552,
+      "mdot_zeroC": 0.0
+    },
+    "display_names": {
+      "b": "b",
+      "c": "C",
+      "mdot_atchoke": "mdot_atchoke",
+      "mdot_b0": "mdot_b0",
+      "mdot_badp": "mdot_badP",
+      "mdot_badt": "mdot_badT",
+      "mdot_choked": "mdot_choked",
+      "mdot_equal": "mdot_equal",
+      "mdot_hot": "mdot_hot",
+      "mdot_nearclosed": "mdot_nearclosed",
+      "mdot_reverse": "mdot_reverse",
+      "mdot_sub": "mdot_sub",
+      "mdot_zeroc": "mdot_zeroC",
+      "pup": "Pup",
+      "tup": "Tup"
+    },
+    "block_count": 15,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

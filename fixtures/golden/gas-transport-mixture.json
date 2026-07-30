@@ -1,0 +1,56 @@
+{
+  "name": "gas-transport-mixture",
+  "source": "// Ideal-gas transport properties from kinetic theory\n{ Chapman-Enskog viscosity with the Neufeld collision integral, the Eucken\n  conductivity, and Wilke / Mason-Saxena mixing. Composition is the same\n  'species:amount' string the mix_* functions take. }\nT = 300 [K]\nThot = 1200 [K]\n\nmu_n2 = mix_viscosity('N2:1', T)\nk_n2 = mix_conductivity('N2:1', T)\nmu_o2 = mix_viscosity('O2:1', T)\nk_o2 = mix_conductivity('O2:1', T)\nmu_co2 = mix_viscosity('CO2:1', T)\nk_co2 = mix_conductivity('CO2:1', T)\nmu_h2o = mix_viscosity('H2O:1', T)\nk_h2o = mix_conductivity('H2O:1', T)\nmu_ch4 = mix_viscosity('CH4:1', T)\nk_ch4 = mix_conductivity('CH4:1', T)\nmu_ar = mix_viscosity('AR:1', T)\nk_ar = mix_conductivity('AR:1', T)\n\nmu_air = mix_viscosity('N2:0.79, O2:0.21', T)\nk_air = mix_conductivity('N2:0.79, O2:0.21', T)\nmu_air_hot = mix_viscosity('N2:0.79, O2:0.21', Thot)\nk_air_hot = mix_conductivity('N2:0.79, O2:0.21', Thot)\n\nmu_flue = mix_viscosity('CO2:0.10, H2O:0.18, N2:0.72', Thot)\nk_flue = mix_conductivity('CO2:0.10, H2O:0.18, N2:0.72', Thot)\n",
+  "expect": {
+    "variables": {
+      "T": 300.0,
+      "Thot": 1200.0,
+      "k_air": 0.025512742570156198,
+      "k_air_hot": 0.07436134990350689,
+      "k_ar": 0.018054433985502615,
+      "k_ch4": 0.03294042246316525,
+      "k_co2": 0.016306013818816707,
+      "k_flue": 0.08446605811716318,
+      "k_h2o": 0.03164978574312276,
+      "k_n2": 0.025465639325001448,
+      "k_o2": 0.025656321233996724,
+      "mu_air": 1.861838941354871E-5,
+      "mu_air_hot": 4.820581368536363E-5,
+      "mu_ar": 2.313201504380884E-5,
+      "mu_ch4": 1.1450093612533707E-5,
+      "mu_co2": 1.5072441159712493E-5,
+      "mu_flue": 4.735262847373853E-5,
+      "mu_h2o": 1.296151365644123E-5,
+      "mu_n2": 1.8075004765988316E-5,
+      "mu_o2": 2.0636682929874117E-5
+    },
+    "display_names": {
+      "k_air": "k_air",
+      "k_air_hot": "k_air_hot",
+      "k_ar": "k_ar",
+      "k_ch4": "k_ch4",
+      "k_co2": "k_co2",
+      "k_flue": "k_flue",
+      "k_h2o": "k_h2o",
+      "k_n2": "k_n2",
+      "k_o2": "k_o2",
+      "mu_air": "mu_air",
+      "mu_air_hot": "mu_air_hot",
+      "mu_ar": "mu_ar",
+      "mu_ch4": "mu_ch4",
+      "mu_co2": "mu_co2",
+      "mu_flue": "mu_flue",
+      "mu_h2o": "mu_h2o",
+      "mu_n2": "mu_n2",
+      "mu_o2": "mu_o2",
+      "t": "T",
+      "thot": "Thot"
+    },
+    "block_count": 20,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,59 @@
+{ Chemical equilibrium: the 8x8 damped-Newton dissociation solve, swept over
+  equivalence ratio, temperature and pressure. This is the single most iteration-
+  sensitive kernel in the whole property layer -- any difference in damping,
+  initial guess or convergence test shows up here first, and nowhere else.
+  Every species of the product pool is read at each of the three phi values. }
+x_co2_lean  = eq_molefraction('CH4', 0.6, 2000, 101325, 'CO2')
+x_co_lean   = eq_molefraction('CH4', 0.6, 2000, 101325, 'CO')
+x_h2o_lean  = eq_molefraction('CH4', 0.6, 2000, 101325, 'H2O')
+x_h2_lean   = eq_molefraction('CH4', 0.6, 2000, 101325, 'H2')
+x_oh_lean   = eq_molefraction('CH4', 0.6, 2000, 101325, 'OH')
+x_h_lean    = eq_molefraction('CH4', 0.6, 2000, 101325, 'H')
+x_o_lean    = eq_molefraction('CH4', 0.6, 2000, 101325, 'O')
+x_o2_lean   = eq_molefraction('CH4', 0.6, 2000, 101325, 'O2')
+x_n2_lean   = eq_molefraction('CH4', 0.6, 2000, 101325, 'N2')
+
+x_co2_st    = eq_molefraction('CH4', 1.0, 2200, 101325, 'CO2')
+x_co_st     = eq_molefraction('CH4', 1.0, 2200, 101325, 'CO')
+x_h2o_st    = eq_molefraction('CH4', 1.0, 2200, 101325, 'H2O')
+x_h2_st     = eq_molefraction('CH4', 1.0, 2200, 101325, 'H2')
+x_oh_st     = eq_molefraction('CH4', 1.0, 2200, 101325, 'OH')
+x_h_st      = eq_molefraction('CH4', 1.0, 2200, 101325, 'H')
+x_o_st      = eq_molefraction('CH4', 1.0, 2200, 101325, 'O')
+x_o2_st     = eq_molefraction('CH4', 1.0, 2200, 101325, 'O2')
+x_n2_st     = eq_molefraction('CH4', 1.0, 2200, 101325, 'N2')
+
+x_co2_rich  = eq_molefraction('CH4', 1.3, 2200, 101325, 'CO2')
+x_co_rich   = eq_molefraction('CH4', 1.3, 2200, 101325, 'CO')
+x_h2o_rich  = eq_molefraction('CH4', 1.3, 2200, 101325, 'H2O')
+x_h2_rich   = eq_molefraction('CH4', 1.3, 2200, 101325, 'H2')
+x_oh_rich   = eq_molefraction('CH4', 1.3, 2200, 101325, 'OH')
+x_o2_rich   = eq_molefraction('CH4', 1.3, 2200, 101325, 'O2')
+
+{ temperature sweep: dissociation switches on somewhere around 1800-2000 K }
+x_co_1200   = eq_molefraction('CH4', 1.0, 1200, 101325, 'CO')
+x_co_1600   = eq_molefraction('CH4', 1.0, 1600, 101325, 'CO')
+x_co_2000   = eq_molefraction('CH4', 1.0, 2000, 101325, 'CO')
+x_co_2400   = eq_molefraction('CH4', 1.0, 2400, 101325, 'CO')
+x_co_2800   = eq_molefraction('CH4', 1.0, 2800, 101325, 'CO')
+x_co_3200   = eq_molefraction('CH4', 1.0, 3200, 101325, 'CO')
+x_oh_3200   = eq_molefraction('CH4', 1.0, 3200, 101325, 'OH')
+x_h_3200    = eq_molefraction('CH4', 1.0, 3200, 101325, 'H')
+
+{ pressure sweep at fixed T: Le Chatelier suppresses dissociation with P }
+x_co_p01    = eq_molefraction('CH4', 1.0, 2600, 10132.5, 'CO')
+x_co_p1     = eq_molefraction('CH4', 1.0, 2600, 101325, 'CO')
+x_co_p10    = eq_molefraction('CH4', 1.0, 2600, 1013250, 'CO')
+x_co_p50    = eq_molefraction('CH4', 1.0, 2600, 5066250, 'CO')
+
+{ other fuels }
+x_co2_c8    = eq_molefraction('C8H18', 1.0, 2300, 101325, 'CO2')
+x_co_c3     = eq_molefraction('C3H8', 1.0, 2300, 101325, 'CO')
+
+{ equilibrium flame temperature (secant, bracketed 1000..3200, clamp to 3500) }
+taf_ch4_1   = AdiabaticFlameTempEq('CH4', 1.0, 298.15, 101325)
+taf_ch4_08  = AdiabaticFlameTempEq('CH4', 0.8, 298.15, 101325)
+taf_ch4_12  = AdiabaticFlameTempEq('CH4', 1.2, 298.15, 101325)
+taf_ch4_10p = AdiabaticFlameTempEq('CH4', 1.0, 298.15, 1013250)
+taf_c8_1    = AdiabaticFlameTempEq('C8H18', 1.0, 298.15, 101325)
+taf_alias   = FlameTemp_Eq('CH4', 1.0, 298.15, 101325)

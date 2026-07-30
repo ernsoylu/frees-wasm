@@ -1,0 +1,52 @@
+{
+  "name": "compressible-isentropic",
+  "source": "// Isentropic ideal-gas flow relations\n{ Stagnation and area ratios for air (k = 1.4) at a subsonic and a supersonic\n  Mach number, plus both branches of the A/A* inverse. Ratios dimensionless. }\nk = 1.4\nMsub = 0.5\nMsup = 2.5\n\nT0T_sub = T0_T(Msub, k)\nP0P_sub = P0_P(Msub, k)\nR0R_sub = rho0_rho(Msub, k)\nAAs_sub = A_Astar(Msub, k)\n\nT0T_sup = isen_T0_T(Msup, k)\nP0P_sup = isen_P0_P(Msup, k)\nR0R_sup = isen_rho0_rho(Msup, k)\nAAs_sup = isen_A_Astar(Msup, k)\n\nMback_sub = mach_A_Astar(AAs_sub, k, 'subsonic')\nMback_sup = mach_A_Astar(AAs_sup, k, 'supersonic')\nMsonic = mach_A_Astar(1.0, k, 'sup')\n\nkmono = 1.6666666666666667\nT0T_mono = T0_T(1.2, kmono)\nP0P_mono = P0_P(1.2, kmono)\nAAs_mono = A_Astar(0.3, kmono)\n",
+  "expect": {
+    "variables": {
+      "AAs_mono": 1.9891874999999992,
+      "AAs_sub": 1.3398437500000004,
+      "AAs_sup": 2.636718750000001,
+      "Mback_sub": 0.5000000000003306,
+      "Mback_sup": 2.499999999999659,
+      "Msonic": 1.0,
+      "Msub": 0.5,
+      "Msup": 2.5,
+      "P0P_mono": 2.664736609273044,
+      "P0P_sub": 1.1862126380443982,
+      "P0P_sup": 17.085937500000007,
+      "R0R_sub": 1.129726321947046,
+      "R0R_sup": 7.593750000000003,
+      "T0T_mono": 1.48,
+      "T0T_sub": 1.05,
+      "T0T_sup": 2.25,
+      "k": 1.4,
+      "kmono": 1.6666666666666667
+    },
+    "display_names": {
+      "aas_mono": "AAs_mono",
+      "aas_sub": "AAs_sub",
+      "aas_sup": "AAs_sup",
+      "k": "k",
+      "kmono": "kmono",
+      "mback_sub": "Mback_sub",
+      "mback_sup": "Mback_sup",
+      "msonic": "Msonic",
+      "msub": "Msub",
+      "msup": "Msup",
+      "p0p_mono": "P0P_mono",
+      "p0p_sub": "P0P_sub",
+      "p0p_sup": "P0P_sup",
+      "r0r_sub": "R0R_sub",
+      "r0r_sup": "R0R_sup",
+      "t0t_mono": "T0T_mono",
+      "t0t_sub": "T0T_sub",
+      "t0t_sup": "T0T_sup"
+    },
+    "block_count": 18,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "chem_errors",
+  "source": "// Error classification for the chemistry layer: a non-combustible formula has\n// no oxygen demand, so StoichAFR must refuse it.\n// Oracle target: props/Combustion.stoichAFR\nafr = StoichAFR(CO2)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "FormulaException",
+      "message": "'CO2' requires no oxidizer (non-combustible)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,5 @@
+// error probe: Prandtl-Meyer angles the bracket cannot reach
+{ nu_max = 2.2768531636906952 rad for k = 1.4, but nu(M) only reaches
+  nu_max - 5/M, so the bracket's M = 1e4 tops out 5e-4 rad short. An angle
+  closer than that passes the range check and then fails in bisection. }
+r = mach_prandtlmeyer(2.276852163690695, 1.4)

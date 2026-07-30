@@ -1,0 +1,52 @@
+{
+  "name": "chem_equilibrium",
+  "source": "// Combustion-product chemical equilibrium with dissociation (Kp method,\n// 8-species pool solved by damped Newton in log-moles).\n// Oracle target: props/Equilibrium.java\nx_co2 = eq_molefraction('CH4', 1.0, 2300, 101325, 'CO2')\nx_co  = eq_molefraction('CH4', 1.0, 2300, 101325, 'CO')\nx_h2o = eq_molefraction('CH4', 1.0, 2300, 101325, 'H2O')\nx_h2  = eq_molefraction('CH4', 1.0, 2300, 101325, 'H2')\nx_oh  = eq_molefraction('CH4', 1.0, 2300, 101325, 'OH')\nx_h   = eq_molefraction('CH4', 1.0, 2300, 101325, 'H')\nx_o   = eq_molefraction('CH4', 1.0, 2300, 101325, 'O')\nx_o2  = eq_molefraction('CH4', 1.0, 2300, 101325, 'O2')\nx_n2  = eq_molefraction('CH4', 1.0, 2300, 101325, 'N2')\n\nx_rich_co = eq_molefraction('CH4', 1.2, 2200, 101325, 'CO')\nx_lean_o2 = eq_molefraction('CH4', 0.7, 1900, 101325, 'O2')\nx_hp_co   = eq_molefraction('C3H8', 1.0, 2400, 2000000, 'CO')\nx_c8_oh   = eq_molefraction('C8H18', 1.0, 2400, 101325, 'OH')\n\nT_eq_ch4   = AdiabaticFlameTempEq('CH4', 1.0, 298.15, 101325)\nT_eq_lean  = AdiabaticFlameTempEq('CH4', 0.8, 298.15, 101325)\nT_eq_rich  = AdiabaticFlameTempEq('CH4', 1.1, 298.15, 101325)\nT_eq_c3h8  = AdiabaticFlameTempEq('C3H8', 1.0, 298.15, 101325)\nT_eq_alias = FlameTemp_eq('CH4', 1.0, 298.15, 500000)\n",
+  "expect": {
+    "variables": {
+      "T_eq_alias": 2261.550039179287,
+      "T_eq_c3h8": 2272.4099682439996,
+      "T_eq_ch4": 2230.292091923241,
+      "T_eq_lean": 2001.9976259686528,
+      "T_eq_rich": 2212.6514623070216,
+      "x_c8_oh": 0.005703051245840133,
+      "x_co": 0.011525237150430006,
+      "x_co2": 0.08260327980405986,
+      "x_h": 6.51158320879988E-4,
+      "x_h2": 0.004519297199981506,
+      "x_h2o": 0.18131047630958524,
+      "x_hp_co": 0.007867232242811982,
+      "x_lean_o2": 0.05850465444233417,
+      "x_n2": 0.7078464474977637,
+      "x_o": 4.130502068286622E-4,
+      "x_o2": 0.006927691032524978,
+      "x_oh": 0.004203362477945942,
+      "x_rich_co": 0.045722641312221375
+    },
+    "display_names": {
+      "t_eq_alias": "T_eq_alias",
+      "t_eq_c3h8": "T_eq_c3h8",
+      "t_eq_ch4": "T_eq_ch4",
+      "t_eq_lean": "T_eq_lean",
+      "t_eq_rich": "T_eq_rich",
+      "x_c8_oh": "x_c8_oh",
+      "x_co": "x_co",
+      "x_co2": "x_co2",
+      "x_h": "x_h",
+      "x_h2": "x_h2",
+      "x_h2o": "x_h2o",
+      "x_hp_co": "x_hp_co",
+      "x_lean_o2": "x_lean_o2",
+      "x_n2": "x_n2",
+      "x_o": "x_o",
+      "x_o2": "x_o2",
+      "x_oh": "x_oh",
+      "x_rich_co": "x_rich_co"
+    },
+    "block_count": 18,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

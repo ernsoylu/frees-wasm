@@ -2,7 +2,8 @@
 
 > **Historical.** This document records the state at the end of Phase 1–3 and
 > is kept for its divergence ledger (below), which is maintained. For the
-> current state read [`docs/status-phase4.md`](status-phase4.md) first.
+> current state read [`docs/status-phase5.md`](status-phase5.md) first, then
+> [`docs/status-phase4.md`](status-phase4.md).
 
 **Date:** 2026-07-30 · Workspace at the time: 644 tests green, clippy
 `-D warnings` clean, `cargo fmt` clean, wasm release bundle **397 KiB raw /
@@ -34,7 +35,10 @@ From the adversarial verification pass (25 findings; 11 fixed during the pass).
 Items 1–8 as originally recorded; **five are now closed** — struck through with
 the date and the reason, never silently deleted. Phase 4 closed items 1, 2 and
 3; see [`docs/status-phase4.md`](status-phase4.md) for the full Phase-4 ledger,
-including divergences that phase *opened* and did not close.
+including divergences that phase *opened* and did not close. Phase 5 closed
+none of items 1–8 and **opened four of its own (9–12)**, recorded below with the
+same rules; the full Phase-5 ledger is
+[`docs/status-phase5.md`](status-phase5.md#what-phase-5-did-not-deliver).
 
 1. ~~**No symbolic-Jacobian path**~~ **Closed 2026-07-30 (Phase 4)**:
    `differentiator.rs` ports `Differentiator`, `engine.rs` pre-differentiates
@@ -69,6 +73,45 @@ including divergences that phase *opened* and did not close.
    `eval.rs::five_argument_if_refuses_a_nan_comparison_where_java_falls_through`.
 8. **`x = x`** reports solvable and returns the default guess — Java parity
    (both engines do this); recorded for visibility.
+
+### Opened by Phase 5 (2026-07-30)
+
+9. **Real-fluid properties come from precomputed tables, not CoolProp.** The
+   engine answers `Enthalpy`/`Entropy`/`Density`/`Volume`/`Temperature`/`Q` and
+   the four critical/triple constants for **water and R134a only**, from the
+   `FRPHTAB1` artifacts `tools/table-gen` generates offline (decision D1). The
+   measured error against CoolProp 8.0.0 is `1e-7…2e-4` relative; on the
+   promoted fluid documents it is `6.4e-07…7.2e-05`. Transport properties,
+   `Cpmass`/`Cvmass`, `Z`, speed of sound, Prandtl, surface tension, humid air,
+   supercritical states, mixtures, incompressibles and all 34 other CoolProp
+   fluids are **refused by name**, never approximated. **Open and structural** —
+   closing it means shipping `coolprop.wasm` (D1 option A, still available).
+10. **Five parity fixtures compare at a declared tolerance, not `1e-9`.** A
+    direct consequence of 9: no table-backed engine can match full-accuracy
+    CoolProp goldens at `1e-9`. `fixtures/tolerances.json` relaxes the *numeric*
+    tolerance for `rankine-cycle`, `rankine-cycle-2`, `refrigeration-vcr`,
+    `props_realfluid_water_states` and `props_realfluid_r134a_states`, each with
+    its measured error and mechanism; `display_names`, `block_count` and error
+    classification stay exact for all 268. Guarded: a stale or unnecessary entry
+    fails the gate. **Open**; closed by the same move as 9.
+11. **`plot_fluids()` is narrowed to what the backend can serve.** The Java
+    returns all 36 canonical CoolProp names because CoolProp serves all 36;
+    `GET /api/plot/fluids` here returns the intersection with
+    `RealFluid::served_fluids()`, so the picker shows two. **Deliberate** — a
+    list that fails on thirty-four of its entries is worse than a short one — and
+    self-closing: a backend that serves everything returns `None` and gets the
+    Java list back verbatim.
+12. **The liquid-piece coordinate diverges from `SaturationSplitTable.java`.**
+    The Java measures subcooling as `h_f(P) − h` capped at one depth valid at
+    every served pressure — a cap set by the thinnest sliver, at low pressure —
+    and falls through to a native call for anything outside it, which this port
+    cannot. The shipped tables use a **normalized** depth
+    `(h_f − h)/(h_f − h_cold)` instead, which follows the sliver at every
+    pressure at identical byte cost and turns `rankine-cycle`'s 8 MPa pump-exit
+    state from an uncovered miss into a `4.2e-06` hit. **Deliberate and
+    additive**: both modes are implemented, the mode is a header flag, and
+    `SaturationSplitTable::build` — the line-for-line port of the Java
+    constructor — still produces the absolute one and nothing else.
 
 Full detail: workflow output `wk1ueuu8a` findings list.
 

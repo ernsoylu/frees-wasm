@@ -1,0 +1,47 @@
+{ ISA atmosphere at the layer boundary. The reference models only TWO layers --
+  troposphere 0..11000 m and an isothermal lower stratosphere above -- and the
+  branch is `alt <= H_TROPO`, so 11000.0 itself takes the TROPOSPHERE formula.
+  P_TROPO is a static-initialiser constant computed from that same power law, so
+  the two branches meet continuously only if both are transcribed exactly.
+  Probe both sides of 11000 at the last representable steps, plus below sea level
+  and far above the modelled ceiling where the reference happily extrapolates. }
+t_m1000   = isa_t(-1000)
+t_0       = isa_t(0)
+t_1       = isa_t(1)
+t_5000    = isa_t(5000)
+t_10999   = isa_t(10999.999999999)
+t_11000   = isa_t(11000)
+t_11000p  = isa_t(11000.000000001)
+t_11001   = isa_t(11001)
+t_20000   = isa_t(20000)
+t_86000   = isa_t(86000)
+t_1e6     = isa_t(1000000)
+
+p_m1000   = isa_p(-1000)
+p_0       = isa_p(0)
+p_5000    = isa_p(5000)
+p_10999   = isa_p(10999.999999999)
+p_11000   = isa_p(11000)
+p_11000p  = isa_p(11000.000000001)
+p_11001   = isa_p(11001)
+p_20000   = isa_p(20000)
+p_32000   = isa_p(32000)
+p_47000   = isa_p(47000)
+p_51000   = isa_p(51000)
+p_71000   = isa_p(71000)
+p_84852   = isa_p(84852)
+p_1e6     = isa_p(1000000)
+
+r_m1000   = isa_rho(-1000)
+r_0       = isa_rho(0)
+r_10999   = isa_rho(10999.999999999)
+r_11000   = isa_rho(11000)
+r_11000p  = isa_rho(11000.000000001)
+r_20000   = isa_rho(20000)
+r_84852   = isa_rho(84852)
+
+{ continuity check across the seam, computed inside the engine so both sides
+  see the same rounding }
+dt_seam   = isa_t(11000.000000001) - isa_t(11000)
+dp_seam   = isa_p(11000.000000001) - isa_p(11000)
+dr_seam   = isa_rho(11000.000000001) - isa_rho(11000)

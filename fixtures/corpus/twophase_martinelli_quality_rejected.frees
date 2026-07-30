@@ -1,0 +1,2 @@
+// error probe: quality must be in (0, 1)
+r = lm_martinelli_tt(1.0, 1000, 20, 0.0002, 0.00001)

@@ -1,0 +1,4 @@
+// Error classification for the chemistry layer: a non-combustible formula has
+// no oxygen demand, so StoichAFR must refuse it.
+// Oracle target: props/Combustion.stoichAFR
+afr = StoichAFR(CO2)

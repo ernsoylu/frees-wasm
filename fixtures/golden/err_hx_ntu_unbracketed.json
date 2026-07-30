@@ -1,0 +1,17 @@
+{
+  "name": "err_hx_ntu_unbracketed",
+  "source": "{ crossflow-both-unmixed NTU inversion above the bisection bracket's reach. }\nx = hx_ntu('crossflowbothunmixed', 0.99999, 0.5)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Heat exchanger: requested effectiveness is out of the solvable NTU range."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

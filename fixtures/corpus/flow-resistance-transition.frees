@@ -1,0 +1,23 @@
+// The 2300-4000 transition band of the Darcy friction factor
+{ The band is a linear blend between the laminar 64/Re at the local Re and
+  Colebrook evaluated at Re = 4000. Because the laminar term keeps falling
+  while the blend weight rises, f dips below its Re = 2300 value before
+  climbing to the turbulent value - it is continuous but NOT monotone. }
+epsD = 0.0009
+
+f2300 = friction_factor(2300, epsD)
+f2400 = friction_factor(2400, epsD)
+f2600 = friction_factor(2600, epsD)
+f2800 = friction_factor(2800, epsD)
+f3000 = friction_factor(3000, epsD)
+f3500 = friction_factor(3500, epsD)
+f3900 = friction_factor(3900, epsD)
+f3999 = friction_factor(3999.999, epsD)
+f4000 = friction_factor(4000, epsD)
+f4001 = friction_factor(4000.001, epsD)
+
+f2300_smooth = friction_factor(2300, 0)
+f3000_smooth = friction_factor(3000, 0)
+f4000_smooth = friction_factor(4000, 0)
+f2000_rough = friction_factor(2000, 0.05)
+f3000_rough = friction_factor(3000, 0.05)

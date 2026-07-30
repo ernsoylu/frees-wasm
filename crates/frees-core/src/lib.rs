@@ -36,6 +36,7 @@ pub mod lexer;
 pub mod linalg;
 pub mod parser;
 pub mod procedures;
+pub mod props;
 pub mod signal;
 pub mod solver;
 pub mod statistics;

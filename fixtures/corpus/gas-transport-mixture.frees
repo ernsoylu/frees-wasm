@@ -1,0 +1,27 @@
+// Ideal-gas transport properties from kinetic theory
+{ Chapman-Enskog viscosity with the Neufeld collision integral, the Eucken
+  conductivity, and Wilke / Mason-Saxena mixing. Composition is the same
+  'species:amount' string the mix_* functions take. }
+T = 300 [K]
+Thot = 1200 [K]
+
+mu_n2 = mix_viscosity('N2:1', T)
+k_n2 = mix_conductivity('N2:1', T)
+mu_o2 = mix_viscosity('O2:1', T)
+k_o2 = mix_conductivity('O2:1', T)
+mu_co2 = mix_viscosity('CO2:1', T)
+k_co2 = mix_conductivity('CO2:1', T)
+mu_h2o = mix_viscosity('H2O:1', T)
+k_h2o = mix_conductivity('H2O:1', T)
+mu_ch4 = mix_viscosity('CH4:1', T)
+k_ch4 = mix_conductivity('CH4:1', T)
+mu_ar = mix_viscosity('AR:1', T)
+k_ar = mix_conductivity('AR:1', T)
+
+mu_air = mix_viscosity('N2:0.79, O2:0.21', T)
+k_air = mix_conductivity('N2:0.79, O2:0.21', T)
+mu_air_hot = mix_viscosity('N2:0.79, O2:0.21', Thot)
+k_air_hot = mix_conductivity('N2:0.79, O2:0.21', Thot)
+
+mu_flue = mix_viscosity('CO2:0.10, H2O:0.18, N2:0.72', Thot)
+k_flue = mix_conductivity('CO2:0.10, H2O:0.18, N2:0.72', Thot)

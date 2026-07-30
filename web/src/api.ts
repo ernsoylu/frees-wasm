@@ -7,7 +7,14 @@
 // rejection naming the gap — so nothing in this module hits the network
 // anymore. runCompute/pollJob stay exported for the day a hybrid remote path
 // returns.
-import { wasmCheck, wasmReference, wasmSolve } from './wasm/engineClient'
+import {
+  wasmCheck,
+  wasmFluids,
+  wasmPropertyDiagram,
+  wasmPsychrometricChart,
+  wasmReference,
+  wasmSolve,
+} from './wasm/engineClient'
 
 export interface VariableResult {
   name: string
@@ -773,12 +780,24 @@ export interface PsychartResponse {
   curves: DiagramCurve[]
 }
 
-/** Fluid properties (CoolProp) are not in the browser engine yet. Consumed at
- *  boot (App.tsx, PlotTab, HelpPage) — the empty list is exactly what the old
- *  path returned when the backend had no CoolProp, and the UI already renders
- *  that state ("no fluids available"). */
+/** `GET /api/plot/fluids`, read from the engine's own fluid table.
+ *
+ *  The list is the canonical CoolProp names `PropertyFunctions.plotFluids()`
+ *  publishes — but, exactly like the Java controller, it is **empty unless the
+ *  engine has a real-fluid property backend installed**, because offering a
+ *  fluid whose properties cannot be evaluated is worse than offering none. The
+ *  UI already renders the empty state ("no fluids available").
+ *
+ *  Never rejects: the three call sites (App.tsx, PlotTab, HelpPage) consume it
+ *  at boot with bare `.then()`, so an engine-infrastructure failure resolves to
+ *  the empty list rather than surfacing as an unhandled rejection. */
 export async function getFluids(): Promise<string[]> {
-  return []
+  try {
+    const response = await wasmFluids()
+    return response.available ? (response.fluids ?? []) : []
+  } catch {
+    return []
+  }
 }
 
 export interface UnitInfo {
@@ -835,23 +854,36 @@ export async function getReference(): Promise<LanguageReference> {
   }
 }
 
-/** Property diagrams need CoolProp, not ported yet — rejects; the PlotCard
- *  catch shows the message in the card's error state. */
+/** `POST /api/plot/propplot` — the saturation dome, quality lines and isolines
+ *  for one fluid, generated in-engine by `props::diagrams`.
+ *
+ *  Rejects with the engine's own message when the diagram cannot be built —
+ *  most often "no real-fluid property backend is installed", which names the
+ *  fluid it could not reach. The PlotCard catch shows it in the card's error
+ *  state, so the failure is visible and specific rather than a blank chart.
+ *
+ *  Points the backend declines arrive as `null` in `x`/`y`, which Plotly draws
+ *  as a line break. A partial backend therefore produces a visibly incomplete
+ *  curve, never an interpolated one. */
 export async function getPropertyDiagram(
-  _fluid: string,
-  _type: string,
+  fluid: string,
+  type: string,
 ): Promise<DiagramResponse> {
-  throw new Error(NOT_IN_BROWSER_ENGINE)
+  return wasmPropertyDiagram(fluid, type)
 }
 
-/** Psychrometric charts need CoolProp's humid-air model, not ported yet —
- *  rejects; the PlotCard catch shows the message in the card's error state. */
+/** `POST /api/plot/psychart` — the psychrometric chart, generated in-engine by
+ *  `props::psychro`.
+ *
+ *  Same gap contract as `getPropertyDiagram`: every point HAPropsSI cannot
+ *  serve is `null`. Rejects only for a bad window (pressure <= 1 kPa,
+ *  tMax <= tMin), which is the Java's own guard. */
 export async function getPsychrometricChart(
-  _pressure: number,
-  _tMin: number,
-  _tMax: number,
+  pressure: number,
+  tMin: number,
+  tMax: number,
 ): Promise<PsychartResponse> {
-  throw new Error(NOT_IN_BROWSER_ENGINE)
+  return wasmPsychrometricChart(pressure, tMin, tMax)
 }
 
 /** Vector export used the backend's FOP transcoder — rejects; the PlotCard

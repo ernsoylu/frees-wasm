@@ -1,23 +1,67 @@
-// Heat Exchanger — Effectiveness-NTU Method
-{ Counterflow water-to-water exchanger rated with the effectiveness-NTU method. }
-mdot_h = 2.0 [kg/s]
-cp_h = 4180 [J/kg-K]
-mdot_c = 1.5 [kg/s]
-cp_c = 4180 [J/kg-K]
-Th_in = 360 [K]
-Tc_in = 290 [K]
-UA = 12000 [W/K]
+{ HeatExchanger: effectiveness-NTU for every arrangement. }
+cf_a = hx_effectiveness('counterflow', 1.5, 0.6)
+cf_b = hx_effectiveness('counterflow', 0.25, 0.95)
+cf_c = hx_effectiveness('counterflow', 3.0, 1.0)
+cf_d = hx_effectiveness('counterflow', 3.0, 0.99999999995)
+cf_e = hx_effectiveness('counterflow', 3.0, 0.999999999)
+cf_f = hx_effectiveness('counterflow', 2.0, 0)
+cf_g = hx_effectiveness('counterflow', 0, 0.5)
+cf_h = hx_effectiveness('counterflow', 12.0, 0.3)
 
-C_h = mdot_h * cp_h
-C_c = mdot_c * cp_c
-C_min = min(C_h, C_c)
-C_max = max(C_h, C_c)
-Cr = C_min / C_max
-NTU = UA / C_min
+pf_a = hx_effectiveness('parallelflow', 1.5, 0.6)
+pf_b = hx_effectiveness('parallel', 0.4, 0.2)
+pf_c = hx_effectiveness('cocurrent', 5.0, 1.0)
+pf_d = hx_effectiveness('coflow', 2.0, 0)
 
-eps = hx_effectiveness('counterflow', NTU, Cr)
-Q_max = C_min * (Th_in - Tc_in)
-Q = eps * Q_max
-Th_out = Th_in - Q / C_h
-Tc_out = Tc_in + Q / C_c
-dTlm = LMTD(Th_in - Tc_out, Th_out - Tc_in)
+xbu_a = hx_effectiveness('crossflow', 1.5, 0.6)
+xbu_b = hx_effectiveness('crossflowbothunmixed', 0.3, 0.1)
+xbu_c = hx_effectiveness('crossbothunmixed', 4.0, 1.0)
+xbu_d = hx_effectiveness('crossflowunmixed', 0.05, 0.75)
+xbu_e = hx_effectiveness('bothunmixed', 8.0, 0.45)
+
+xmax_a = hx_effectiveness('crossflowcmaxmixed', 1.5, 0.6)
+xmax_b = hx_effectiveness('cmaxmixed', 0.8, 0.25)
+xmax_c = hx_effectiveness('crossflowcminunmixed', 6.0, 1.0)
+
+xmin_a = hx_effectiveness('crossflowcminmixed', 1.5, 0.6)
+xmin_b = hx_effectiveness('cminmixed', 0.8, 0.25)
+xmin_c = hx_effectiveness('crossflowcmaxunmixed', 6.0, 1.0)
+
+st_a = hx_effectiveness('shelltube', 1.5, 0.6)
+st_b = hx_effectiveness('shellandtube', 0.7, 0.35)
+st_c = hx_effectiveness('shell', 4.0, 1.0)
+st_d = hx_effectiveness('shellandtube1', 2.5, 0.5)
+st_e = hx_effectiveness('shelltube1', 0.2, 0.9)
+
+{ Alias resolution ignores case, spaces and punctuation. }
+al_a = hx_epsilon('Counter-Flow', 1.5, 0.6)
+al_b = hx_epsilon('COUNTER FLOW', 1.5, 0.6)
+al_c = hx_epsilon('countercurrent', 1.5, 0.6)
+al_d = hx_epsilon('Shell & Tube', 1.5, 0.6)
+al_e = hx_epsilon('Cross Flow', 1.5, 0.6)
+
+{ Inverse NTU(eps, Cr). }
+n_cf_a = hx_ntu('counterflow', 0.6726995772651676, 0.6)
+n_cf_b = hx_ntu('counterflow', 0.75, 1.0)
+n_cf_c = hx_ntu('counterflow', 0.5, 0)
+n_pf_a = hx_ntu('parallelflow', 0.5, 0.6)
+n_xbu_a = hx_ntu('crossflow', 0.6401932091181524, 0.6)
+n_xbu_b = hx_ntu('crossflow', 0.2, 0.9)
+n_xbu_c = hx_ntu('bothunmixed', 0.95, 0.25)
+n_xmax_a = hx_ntu('cmaxmixed', 0.6, 0.6)
+n_xmin_a = hx_ntu('cminmixed', 0.6, 0.6)
+n_st_a = hx_ntu('shelltube', 0.6, 0.6)
+n_st_b = hx_ntu('shelltube', 0.4, 0.2)
+
+{ LMTD and fin efficiency. }
+lm_a = lmtd(50, 20)
+lm_b = lmtd(30, 30)
+lm_c = lmtd(30, 30.00000000000001)
+lm_d = lmtd(1e-3, 500)
+fe_a = fin_efficiency(0)
+fe_b = fin_efficiency(1e-9)
+fe_c = fin_efficiency(1e-8)
+fe_d = fin_efficiency(0.5)
+fe_e = fin_efficiency(1)
+fe_f = fin_efficiency(3.5)
+fe_g = fin_efficiency(50)

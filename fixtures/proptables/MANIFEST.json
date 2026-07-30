@@ -1,0 +1,84 @@
+{
+  "liquid_coord": "normalized",
+  "coolprop_version": "8.0.0",
+  "generated_by": "tools/table-gen",
+  "tables": [
+    {
+      "fluid": "Water",
+      "file": "water.phtab",
+      "bytes": 269152,
+      "sha256": "20861dd385e267752270be11ae25011665c43a309f46fbb5814c482ac0ad6e96",
+      "element_type": "f32",
+      "coolprop_version": "8.0.0",
+      "n_sat": 512,
+      "n_p": 144,
+      "n_dh": 72,
+      "outputs": [
+        "T",
+        "Dmass",
+        "Smass"
+      ],
+      "liquid_coord": "normalized",
+      "liquid_piece": true,
+      "backfilled_nodes": 0,
+      "coolprop_calls": 66305,
+      "bounds": {
+        "p_min": 2206.3999999997754,
+        "p_max": 1.6547999999998316E7,
+        "p_serve_max": 1.57205999999984E7,
+        "p_liquid_min": 2206.4003386458517,
+        "dh_vapor_max": 741444.3255648692,
+        "dh_liquid_max": 0.9,
+        "h_top": 3627001.2784054102,
+        "t_low": 274.16,
+        "t_sat_min": 292.2091064453125,
+        "t_sat_max": 623.2415771484375,
+        "p_crit": 2.2063999999997754E7,
+        "t_crit": 647.0959999999873,
+        "p_triple": 611.6548008968684,
+        "t_triple": 273.16
+      },
+      "cross_check_vs_reference_max_rel": 0.0
+    },
+    {
+      "fluid": "R134a",
+      "file": "r134a.phtab",
+      "bytes": 269152,
+      "sha256": "bd35f7e6eee672d8187db0863de436eeb5d21fc8071d684b4b30404619005596",
+      "element_type": "f32",
+      "coolprop_version": "8.0.0",
+      "n_sat": 512,
+      "n_p": 144,
+      "n_dh": 72,
+      "outputs": [
+        "T",
+        "Dmass",
+        "Smass"
+      ],
+      "liquid_coord": "normalized",
+      "liquid_piece": true,
+      "backfilled_nodes": 0,
+      "coolprop_calls": 66305,
+      "bounds": {
+        "p_min": 467.47654627438743,
+        "p_max": 3044457.2803432997,
+        "p_serve_max": 2892234.4163261345,
+        "p_liquid_min": 743.4797105634987,
+        "dh_vapor_max": 132742.23206190453,
+        "dh_liquid_max": 0.9,
+        "h_top": 576530.3689576717,
+        "t_low": 170.85,
+        "t_sat_min": 171.49388122558594,
+        "t_sat_max": 360.06298828125,
+        "p_crit": 4059276.3737910665,
+        "t_crit": 374.2119665849513,
+        "p_triple": 389.56378856198955,
+        "t_triple": 169.85
+      },
+      "cross_check_vs_reference_max_rel": 0.0
+    }
+  ],
+  "element_type": "f32",
+  "format": "FRPHTAB1",
+  "format_version": 1
+}

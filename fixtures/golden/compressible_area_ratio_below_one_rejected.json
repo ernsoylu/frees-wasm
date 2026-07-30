@@ -1,0 +1,17 @@
+{
+  "name": "compressible_area_ratio_below_one_rejected",
+  "source": "// error probe: A/A* must be >= 1\nr = mach_A_Astar(0.5, 1.4, 'subsonic')\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Compressible-flow: A/A* must be >= 1, got 0.5."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,20 @@
+// Chemistry: MolarMass over the periodic table, the formula parser and the
+// ideal-gas species table.
+// Oracle target: props/PeriodicTable.java, props/ChemicalFormula.java,
+//                props/Combustion.molarMass, props/IdealGas.molarMassOf
+{ Tabulated ideal-gas species win over the formula parser. }
+m_ch4   = MolarMass(CH4)
+m_co2   = MolarMass(CO2)
+m_n2    = MolarMass(N2)
+m_o2    = MolarMass(O2)
+m_h2o   = MolarMass(H2O)
+m_c8h18 = MolarMass(C8H18)
+
+{ Formula parser: nested parentheses, multipliers, repeated elements. }
+m_caoh2   = MolarMass('Ca(OH)2')
+m_al2so43 = MolarMass('Al2(SO4)3')
+m_kno3    = MolarMass(KNO3)
+m_c6h12o6 = MolarMass(C6H12O6)
+m_feso47  = MolarMass('FeSO4(H2O)7')
+m_u       = MolarMass(U)
+m_hgcl2   = MolarMass(HgCl2)

@@ -1,0 +1,2 @@
+// error probe: critical pressure ratio must be in [0, 1)
+r = iso6358(0.00000001, 1.0, 700000, 293.15, 100000)

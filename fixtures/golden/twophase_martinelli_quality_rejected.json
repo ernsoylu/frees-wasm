@@ -1,0 +1,17 @@
+{
+  "name": "twophase_martinelli_quality_rejected",
+  "source": "// error probe: quality must be in (0, 1)\nr = lm_martinelli_tt(1.0, 1000, 20, 0.0002, 0.00001)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: lm_martinelli_tt: quality x must be in (0, 1)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

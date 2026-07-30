@@ -1,0 +1,17 @@
+{
+  "name": "hx_unknown_arrangement_rejected",
+  "source": "x = hx_effectiveness('spiral', 1.0, 0.5)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Heat exchanger: unknown flow arrangement 'spiral'. Use one of counterflow, parallelflow, crossflow_both_unmixed, crossflow_cmax_mixed, crossflow_cmin_mixed, shell&tube."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

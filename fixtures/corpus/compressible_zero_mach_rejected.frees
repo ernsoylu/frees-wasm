@@ -1,0 +1,2 @@
+// error probe: Mach must be > 0
+r = T0_T(0.0, 1.4)

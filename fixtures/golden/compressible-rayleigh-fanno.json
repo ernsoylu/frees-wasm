@@ -1,0 +1,62 @@
+{
+  "name": "compressible-rayleigh-fanno",
+  "source": "// Rayleigh (heat addition) and Fanno (friction) duct flow\n{ Sonic-reference ratios for air at a subsonic and a supersonic station, plus\n  the Fanno friction parameter 4 f Lmax / D. All dimensionless. }\nk = 1.4\nMsub = 0.4\nMsup = 2.2\n\nRT0_sub = rayleigh_T0_T0star(Msub, k)\nRT_sub = rayleigh_T_Tstar(Msub, k)\nRP_sub = rayleigh_P_Pstar(Msub, k)\nRP0_sub = rayleigh_P0_P0star(Msub, k)\n\nRT0_sup = rayleigh_T0_T0star(Msup, k)\nRT_sup = rayleigh_T_Tstar(Msup, k)\nRP_sup = rayleigh_P_Pstar(Msup, k)\nRP0_sup = rayleigh_P0_P0star(Msup, k)\n\nFT_sub = fanno_T_Tstar(Msub, k)\nFP_sub = fanno_P_Pstar(Msub, k)\nFP0_sub = fanno_P0_P0star(Msub, k)\nFLD_sub = fanno_fld(Msub, k)\n\nFT_sup = fanno_T_Tstar(Msup, k)\nFP_sup = fanno_P_Pstar(Msup, k)\nFP0_sup = fanno_P0_P0star(Msup, k)\nFLD_sup = fanno_fld(Msup, k)\n\nRT0_one = rayleigh_T0_T0star(1.0, k)\nFLD_one = fanno_fld(1.0, k)\nFLD_mono = fanno_fld(0.25, 1.6666666666666667)\nRP0_mono = rayleigh_P0_P0star(3.1, 1.6666666666666667)\n",
+  "expect": {
+    "variables": {
+      "FLD_mono": 6.9955792504074115,
+      "FLD_one": 0.0,
+      "FLD_sub": 2.3084926508453765,
+      "FLD_sup": 0.3609098177991814,
+      "FP0_sub": 1.5901400000000003,
+      "FP0_sup": 2.0049745454545462,
+      "FP_sub": 2.69581933008596,
+      "FP_sup": 0.35494036792865014,
+      "FT_sub": 1.1627906976744184,
+      "FT_sup": 0.6097560975609756,
+      "Msub": 0.4,
+      "Msup": 2.2,
+      "RP0_mono": 2.7652345766157995,
+      "RP0_sub": 1.1565766050531407,
+      "RP0_sup": 1.7434458294048771,
+      "RP_sub": 1.9607843137254901,
+      "RP_sup": 0.30864197530864196,
+      "RT0_one": 1.0,
+      "RT0_sub": 0.5290272971933873,
+      "RT0_sup": 0.7561347355586039,
+      "RT_sub": 0.6151480199923106,
+      "RT_sup": 0.46105776558451456,
+      "k": 1.4
+    },
+    "display_names": {
+      "fld_mono": "FLD_mono",
+      "fld_one": "FLD_one",
+      "fld_sub": "FLD_sub",
+      "fld_sup": "FLD_sup",
+      "fp0_sub": "FP0_sub",
+      "fp0_sup": "FP0_sup",
+      "fp_sub": "FP_sub",
+      "fp_sup": "FP_sup",
+      "ft_sub": "FT_sub",
+      "ft_sup": "FT_sup",
+      "k": "k",
+      "msub": "Msub",
+      "msup": "Msup",
+      "rp0_mono": "RP0_mono",
+      "rp0_sub": "RP0_sub",
+      "rp0_sup": "RP0_sup",
+      "rp_sub": "RP_sub",
+      "rp_sup": "RP_sup",
+      "rt0_one": "RT0_one",
+      "rt0_sub": "RT0_sub",
+      "rt0_sup": "RT0_sup",
+      "rt_sub": "RT_sub",
+      "rt_sup": "RT_sup"
+    },
+    "block_count": 23,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

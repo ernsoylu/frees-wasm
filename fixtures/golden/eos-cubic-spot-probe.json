@@ -1,0 +1,42 @@
+{
+  "name": "eos-cubic-spot-probe",
+  "source": "// Cubic EOS — spot probe across every entry point\n{ Exercises all seven eos_* intrinsics, both models, and the alias route\n  (r717 -> ammonia). Ground truth is the Java engine via tools/golden-dumper\n  with CoolProp loaded; the cubic backend itself needs no CoolProp. }\nz_co2_pr = eos_z('co2', 'PR', 320, 4e6, 'vapor')\nz_co2_srk = eos_z('co2', 'SRK', 320, 4e6, 'vapor')\nz_n2_pr = eos_z('nitrogen', 'PR', 400, 1e5, 'vapor')\nv_co2_pr = eos_volume('co2', 'PR', 320, 5e6, 'vapor')\nrho_co2_pr = eos_density('co2', 'PR', 350, 5e6, 'vapor')\nh_co2_pr = eos_enthalpy('co2', 'PR', 350, 1e6, 'vapor')\ns_co2_pr = eos_entropy('co2', 'PR', 350, 1e6, 'vapor')\np_from_v = eos_pressure('co2', 'PR', 320, 0.011)\npsat_prop = eos_psat('propane', 'PR', 300)\npsat_water_srk = eos_psat('water', 'SRK', 400)\nzl_prop = eos_z('propane', 'PR', 300, 1e6, 'liquid')\nh_nh3 = eos_enthalpy('ammonia', 'SRK', 300, 5e5, 'vapor')\ns_nh3 = eos_entropy('r717', 'SRK', 300, 5e5, 'vapor')\n",
+  "expect": {
+    "variables": {
+      "h_co2_pr": 37694.99149193417,
+      "h_nh3": -12826.058838730052,
+      "p_from_v": 4344014.539635953,
+      "psat_prop": 997556.2469315403,
+      "psat_water_srk": 233890.4225849489,
+      "rho_co2_pr": 91.19221675969554,
+      "s_co2_pr": -310.5748308656568,
+      "s_nh3": -809.5159048504212,
+      "v_co2_pr": 0.0091181030578959,
+      "z_co2_pr": 0.8087901683055375,
+      "z_co2_srk": 0.8269502014519656,
+      "z_n2_pr": 1.0001348038033382,
+      "zl_prop": 0.03475700877057791
+    },
+    "display_names": {
+      "h_co2_pr": "h_co2_pr",
+      "h_nh3": "h_nh3",
+      "p_from_v": "p_from_v",
+      "psat_prop": "psat_prop",
+      "psat_water_srk": "psat_water_srk",
+      "rho_co2_pr": "rho_co2_pr",
+      "s_co2_pr": "s_co2_pr",
+      "s_nh3": "s_nh3",
+      "v_co2_pr": "v_co2_pr",
+      "z_co2_pr": "z_co2_pr",
+      "z_co2_srk": "z_co2_srk",
+      "z_n2_pr": "z_n2_pr",
+      "zl_prop": "zl_prop"
+    },
+    "block_count": 13,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

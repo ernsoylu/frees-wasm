@@ -1,0 +1,3 @@
+{ Ideal-gas Temperature(h=...) target above h(20000 K): the safeguarded Newton
+  clamps at the upper bound forever and must report non-convergence. }
+x = Temperature(N2, h=5000000)

@@ -1,0 +1,17 @@
+{
+  "name": "hx_unreachable_effectiveness_rejected",
+  "source": "x = hx_ntu('parallelflow', 0.9, 0.6)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values. Last property error: Heat exchanger: effectiveness 0.9000 is unreachable for this arrangement at Cr=0.6000 (limit 0.6250 as NTU->inf)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

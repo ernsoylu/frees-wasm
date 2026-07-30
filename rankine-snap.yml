@@ -1,0 +1,251 @@
+- generic [ref=e1]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "Expand sidebar" [ref=e9] [cursor=pointer]
+        - button "Editor" [ref=e15] [cursor=pointer]
+        - button "Tables windows" [ref=e22] [cursor=pointer]
+        - button "Plots windows" [ref=e27] [cursor=pointer]
+        - button "Graph Digitizer — extract curves from chart images" [ref=e32] [cursor=pointer]
+        - button "Schematic — auto-rendered component network" [ref=e40] [cursor=pointer]
+        - button "Whiteboard windows" [ref=e48] [cursor=pointer]
+        - button "Spreadsheet windows" [ref=e56] [cursor=pointer]
+        - button "Analyzer windows" [ref=e60] [cursor=pointer]
+        - button "Terminal — REPL evaluated against the workspace" [ref=e65] [cursor=pointer]
+      - generic [ref=e70]:
+        - button "Window layout presets" [ref=e71] [cursor=pointer]
+        - button "Min/Max (optimization)" [ref=e79] [cursor=pointer]
+        - button "Curve Fit (least squares)" [ref=e88] [cursor=pointer]
+        - button "PID Tuner (auto-tune P/PI/PID gains)" [ref=e95] [cursor=pointer]
+        - button "Preferences" [ref=e102] [cursor=pointer]
+        - button "About" [ref=e108] [cursor=pointer]
+        - button "Switch to light mode" [ref=e114] [cursor=pointer]
+        - link "Help" [ref=e120] [cursor=pointer]:
+          - /url: /help
+    - generic [ref=e125]:
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - heading "frees" [level=3] [ref=e128]
+          - button "File" [ref=e129] [cursor=pointer]
+          - button "Functions" [ref=e139] [cursor=pointer]
+          - button "Tools" [ref=e150] [cursor=pointer]
+          - button "Open command palette" [ref=e161] [cursor=pointer]
+          - button "Rename project (currently untitled.frees)" [ref=e166] [cursor=pointer]:
+            - paragraph [ref=e167]: untitled.frees
+        - generic [ref=e171]:
+          - button "Status details" [ref=e487] [cursor=pointer]:
+            - generic [ref=e488]: Solved
+          - button "Check" [ref=e173] [cursor=pointer]
+          - group [ref=e180]:
+            - button "Solve" [ref=e181] [cursor=pointer]
+            - button "Solve options" [ref=e187] [cursor=pointer]
+      - generic [ref=e199]:
+        - generic [ref=e206]:
+          - region "Editor" [ref=e213]:
+            - tablist [ref=e216]:
+              - tab "Editor Close" [selected] [ref=e217] [cursor=pointer]:
+                - generic [ref=e219]:
+                  - generic [ref=e224]: Editor
+                  - button "Close" [ref=e225]
+            - tabpanel "Editor Close" [ref=e230]:
+              - generic [ref=e250]:
+                - generic [ref=e492]:
+                  - generic [ref=e493]: "1"
+                  - generic [ref=e494]: "2"
+                  - generic [ref=e495]: "3"
+                  - generic [ref=e496]: "4"
+                  - generic [ref=e497]: "5"
+                  - generic [ref=e498]: "6"
+                  - generic [ref=e499]: "7"
+                  - generic [ref=e500]: "8"
+                  - generic [ref=e501]: "9"
+                  - generic [ref=e502]: "10"
+                  - generic [ref=e503]: "11"
+                  - generic [ref=e504]: "12"
+                  - generic [ref=e505]: "13"
+                  - generic [ref=e506]: "14"
+                  - generic [ref=e507]: "15"
+                  - generic [ref=e508]: "16"
+                  - generic [ref=e509]: "17"
+                  - generic [ref=e510]: "18"
+                  - generic [ref=e511]: "19"
+                  - generic [ref=e512]: "20"
+                  - generic [ref=e513]: "21"
+                  - generic [ref=e514]: "22"
+                  - generic [ref=e515]: "23"
+                  - generic [ref=e516]: "24"
+                  - generic [ref=e517]: "25"
+                - textbox [ref=e287]:
+                  - generic [ref=e288]: // Rankine Cycle (Steam)
+                  - generic [ref=e319]: "{ Ideal steam Rankine cycle using CoolProp water properties. }"
+                  - generic [ref=e464]: P_boiler = 8000 [kPa]
+                  - generic [ref=e465]: P_cond = 10 [kPa]
+                  - generic [ref=e467]: "{ State 1: saturated liquid leaving the condenser }"
+                  - generic [ref=e468]: h1 = Enthalpy(Water, P=P_cond, x=0)
+                  - generic [ref=e469]: v1 = Volume(Water, P=P_cond, x=0)
+                  - generic [ref=e471]: "{ Pump (state 1 -> 2) }"
+                  - generic [ref=e472]: w_pump = v1 * (P_boiler - P_cond)
+                  - generic [ref=e473]: h2 = h1 + w_pump
+                  - generic [ref=e475]: "{ State 3: boiler exit (superheated) }"
+                  - generic [ref=e476]: h3 = Enthalpy(Water, P=P_boiler, T=480 [C])
+                  - generic [ref=e477]: s3 = Entropy(Water, P=P_boiler, T=480 [C])
+                  - generic [ref=e479]: "{ State 4: turbine exit (isentropic, s4 = s3) }"
+                  - generic [ref=e480]: h4 = Enthalpy(Water, P=P_cond, s=s3)
+                  - generic [ref=e482]: "{ Performance }"
+                  - generic [ref=e483]: q_in = h3 - h2
+                  - generic [ref=e484]: w_turb = h3 - h4
+                  - generic [ref=e485]: eta_th = (w_turb - w_pump) / q_in
+          - status [ref=e320]: Variable Explorer opened
+          - alert [ref=e321]
+        - region "Variable Explorer" [ref=e323]:
+          - tablist [ref=e326]:
+            - tab "Inspector" [ref=e327] [cursor=pointer]
+            - tab "Variable Explorer Close" [selected] [ref=e334] [cursor=pointer]:
+              - generic [ref=e336]:
+                - generic [ref=e340]: Variable Explorer
+                - button "Close" [ref=e341]
+          - tabpanel "Variable Explorer Close" [ref=e346]:
+            - generic [ref=e350]:
+              - button [ref=e520] [cursor=pointer]:
+                - generic [ref=e525]:
+                  - paragraph [ref=e526]: Diagnostics
+                  - paragraph [ref=e527]: 12 eqns · 12 blocks · 17 iters · max residual 0
+              - generic [ref=e351]:
+                - generic [ref=e352]:
+                  - paragraph [ref=e357]: Variable Explorer
+                  - generic [ref=e528]: "12"
+                - generic [ref=e358]:
+                  - textbox "Filter workspace variables" [ref=e365]:
+                    - /placeholder: Filter variables…
+                  - button "Export to Spreadsheet" [ref=e530] [cursor=pointer]
+                  - button "Edit" [ref=e366] [cursor=pointer]
+              - table [ref=e540]:
+                - rowgroup [ref=e541]:
+                  - row [ref=e542]:
+                    - columnheader "Name" [ref=e543]
+                    - columnheader "Value" [ref=e544]
+                    - columnheader "Type" [ref=e545]
+                    - columnheader "Units" [ref=e546]
+                    - columnheader "Uncertainty" [ref=e547]
+                - rowgroup [ref=e548]:
+                  - row [ref=e549]:
+                    - cell "eta_th" [ref=e550]
+                    - cell "0.39119741" [ref=e552]
+                    - cell [ref=e553]:
+                      - paragraph [ref=e554]: Scalar
+                    - cell "-" [ref=e555]
+                    - cell "—" [ref=e556]
+                  - row [ref=e557]:
+                    - cell "h1" [ref=e558]
+                    - cell "191805.93" [ref=e560]
+                    - cell [ref=e561]:
+                      - paragraph [ref=e562]: Scalar
+                    - cell "J/kg" [ref=e563]
+                    - cell "—" [ref=e564]
+                  - row [ref=e565]:
+                    - cell "h2" [ref=e566]
+                    - cell "199878" [ref=e568]
+                    - cell [ref=e569]:
+                      - paragraph [ref=e570]: Scalar
+                    - cell "J/kg" [ref=e571]
+                    - cell "—" [ref=e572]
+                  - row [ref=e573]:
+                    - cell "h3" [ref=e574]
+                    - cell "3349644.8" [ref=e576]
+                    - cell [ref=e577]:
+                      - paragraph [ref=e578]: Scalar
+                    - cell "J/kg" [ref=e579]
+                    - cell "—" [ref=e580]
+                  - row [ref=e581]:
+                    - cell "h4" [ref=e582]
+                    - cell "2109392.1" [ref=e584]
+                    - cell [ref=e585]:
+                      - paragraph [ref=e586]: Scalar
+                    - cell "J/kg" [ref=e587]
+                    - cell "—" [ref=e588]
+                  - row [ref=e589]:
+                    - cell [ref=e590]:
+                      - generic [ref=e591]:
+                        - button "Pin P_boiler to a slider" [ref=e592] [cursor=pointer]
+                        - text: P_boiler
+                    - cell "8000000" [ref=e598]
+                    - cell [ref=e599]:
+                      - paragraph [ref=e600]: Scalar
+                    - cell "Pa" [ref=e601]
+                    - cell "—" [ref=e602]
+                  - row [ref=e603]:
+                    - cell [ref=e604]:
+                      - generic [ref=e605]:
+                        - button "Pin P_cond to a slider" [ref=e606] [cursor=pointer]
+                        - text: P_cond
+                    - cell "10000" [ref=e612]
+                    - cell [ref=e613]:
+                      - paragraph [ref=e614]: Scalar
+                    - cell "Pa" [ref=e615]
+                    - cell "—" [ref=e616]
+                  - row [ref=e617]:
+                    - cell "q_in" [ref=e618]
+                    - cell "3149766.8" [ref=e620]
+                    - cell [ref=e621]:
+                      - paragraph [ref=e622]: Scalar
+                    - cell "J/kg" [ref=e623]
+                    - cell "—" [ref=e624]
+                  - row [ref=e625]:
+                    - cell "s3" [ref=e626]
+                    - cell "6661.2607" [ref=e628]
+                    - cell [ref=e629]:
+                      - paragraph [ref=e630]: Scalar
+                    - cell "J/kg-K" [ref=e631]
+                    - cell "—" [ref=e632]
+                  - row [ref=e633]:
+                    - cell "v1" [ref=e634]
+                    - cell "0.0010102711" [ref=e636]
+                    - cell [ref=e637]:
+                      - paragraph [ref=e638]: Scalar
+                    - cell "m^3/kg" [ref=e639]
+                    - cell "—" [ref=e640]
+                  - row [ref=e641]:
+                    - cell "w_pump" [ref=e642]
+                    - cell "8072.0665" [ref=e644]
+                    - cell [ref=e645]:
+                      - paragraph [ref=e646]: Scalar
+                    - cell "J/kg" [ref=e647]
+                    - cell "—" [ref=e648]
+                  - row [ref=e649]:
+                    - cell "w_turb" [ref=e650]
+                    - cell "1240252.7" [ref=e652]
+                    - cell [ref=e653]:
+                      - paragraph [ref=e654]: Scalar
+                    - cell "J/kg" [ref=e655]
+                    - cell "—" [ref=e656]
+  - dialog [ref=e375]:
+    - banner [ref=e376]:
+      - heading "Welcome to frees" [level=2] [ref=e377]
+      - button [active] [ref=e378] [cursor=pointer]
+    - generic [ref=e382]:
+      - paragraph [ref=e383]:
+        - text: frees is a
+        - strong [ref=e384]: declarative equation solver
+        - text: "for engineers: write equations in any order, mark nothing as input or output — F4 checks the system is well-posed, F2 finds the unknowns. Units, real-fluid properties, uncertainty propagation and an acausal component library are built in."
+      - generic [ref=e385]:
+        - generic [ref=e387]:
+          - paragraph [ref=e392]: Solve the loaded example
+          - paragraph [ref=e393]: A complete EV thermal-management system is already in the editor — two coupled coolant loops, real fluids, sized heat exchangers. Watch it solve.
+          - button "Solve it" [ref=e394] [cursor=pointer]
+        - generic [ref=e398]:
+          - paragraph [ref=e406]: Start from a worked example
+          - paragraph [ref=e407]: "Dozens of ready-to-solve models: power cycles, refrigeration, heat transfer, controls, dynamics, component networks."
+          - button "Browse examples" [ref=e408] [cursor=pointer]
+        - generic [ref=e412]:
+          - paragraph [ref=e418]: Learn the basics
+          - paragraph [ref=e419]: "Seven short steps: your first solve, thinking declaratively, units and Check, tables and plots, the REPL, components."
+          - link "Open the guide" [ref=e420] [cursor=pointer]:
+            - /url: /help#gs-first-solve
+        - generic [ref=e424]:
+          - paragraph [ref=e430]: Why trust the numbers
+          - paragraph [ref=e431]: Every commit runs a validation suite of problems with independently derived answers — closed forms and public standards, not faith.
+          - link "See the verification suite" [ref=e432] [cursor=pointer]:
+            - /url: /help#verification
+      - generic [ref=e435]:
+        - paragraph [ref=e436]: F4 Check · F2 Solve · Ctrl+K commands · F1 help on the symbol under the cursor
+        - paragraph [ref=e437]: "Reopen anytime: Ctrl+K → “Getting Started”"

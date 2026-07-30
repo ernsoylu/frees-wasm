@@ -1,0 +1,67 @@
+{ Real-fluid water through EVERY input pair and every output the table backend
+  serves, at states the shipped table covers. The Java answers these from its OWN
+  PhTableRegistry (256/96/48, built at run time) whenever the output is T, Dmass
+  or Smass and the inputs are (P, Hmass) -- everything else in here is a direct
+  CoolProp call. So this document measures two different things at once and both
+  matter. }
+
+{ --- (P, h): the tabulated pair, all three tabulated outputs --- }
+t_2ph   = Temperature(Water, P=101325, h=1500000)
+d_2ph   = Density(Water, P=101325, h=1500000)
+s_2ph   = Entropy(Water, P=101325, h=1500000)
+v_2ph   = Volume(Water, P=101325, h=1500000)
+u_2ph   = IntEnergy(Water, P=101325, h=1500000)
+x_2ph   = Quality(Water, P=101325, h=1500000)
+
+t_vap   = Temperature(Water, P=101325, h=2800000)
+d_vap   = Density(Water, P=101325, h=2800000)
+s_vap   = Entropy(Water, P=101325, h=2800000)
+u_vap   = IntEnergy(Water, P=101325, h=2800000)
+
+t_liq   = Temperature(Water, P=101325, h=200000)
+d_liq   = Density(Water, P=101325, h=200000)
+s_liq   = Entropy(Water, P=101325, h=200000)
+u_liq   = IntEnergy(Water, P=101325, h=200000)
+
+{ --- (P, T): the inverse form, no Java counterpart in the port --- }
+h_pt_liq = Enthalpy(Water, P=101325, T=300)
+h_pt_l2  = Enthalpy(Water, P=8000000, T=320)
+h_pt_vap = Enthalpy(Water, P=101325, T=500)
+h_pt_v2  = Enthalpy(Water, P=8000000, T=753.15)
+d_pt     = Density(Water, P=101325, T=300)
+s_pt     = Entropy(Water, P=101325, T=300)
+
+{ --- (P, s): the second inverse form --- }
+h_ps_liq = Enthalpy(Water, P=8000000, s=649)
+h_ps_vap = Enthalpy(Water, P=101325, s=7500)
+t_ps     = Temperature(Water, P=101325, s=7500)
+
+{ --- (P, x) and (T, x): the saturation lines --- }
+hf_p     = Enthalpy(Water, P=10000, x=0)
+hg_p     = Enthalpy(Water, P=10000, x=1)
+tsat_p   = Temperature(Water, P=10000, x=0)
+sf_p     = Entropy(Water, P=10000, x=0)
+sg_p     = Entropy(Water, P=10000, x=1)
+df_p     = Density(Water, P=10000, x=0)
+dg_p     = Density(Water, P=10000, x=1)
+h_mid    = Enthalpy(Water, P=10000, x=0.5)
+h_x03    = Enthalpy(Water, P=800000, x=0.3)
+hf_t     = Enthalpy(Water, T=373.15, x=0)
+hg_t     = Enthalpy(Water, T=373.15, x=1)
+p_t_x    = Pressure(Water, T=373.15, x=0)
+p_t_x1   = Pressure(Water, T=450, x=1)
+
+{ --- the rankine-cycle states D1 calls out by name --- }
+h1_rank  = Enthalpy(Water, P=10000, x=0)
+t1_rank  = Temperature(Water, P=10000, h=191805.94455889906)
+d1_rank  = Density(Water, P=10000, h=191805.94455889906)
+s1_rank  = Entropy(Water, P=10000, h=191805.94455889906)
+t2_rank  = Temperature(Water, P=8000000, h=199878.01103600737)
+d2_rank  = Density(Water, P=8000000, h=199878.01103600737)
+s2_rank  = Entropy(Water, P=8000000, h=199878.01103600737)
+t3_rank  = Temperature(Water, P=8000000, h=3349645.1659218343)
+d3_rank  = Density(Water, P=8000000, h=3349645.1659218343)
+s3_rank  = Entropy(Water, P=8000000, h=3349645.1659218343)
+t4_rank  = Temperature(Water, P=10000, h=2109393.1272094045)
+d4_rank  = Density(Water, P=10000, h=2109393.1272094045)
+s4_rank  = Entropy(Water, P=10000, h=2109393.1272094045)

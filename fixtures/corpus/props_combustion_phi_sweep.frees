@@ -1,0 +1,45 @@
+{ Adiabatic flame temperature (frozen products, Thermochemistry) swept over the
+  whole legal equivalence-ratio range plus the reactant-temperature clamp.
+  Java: Newton from T=2000, Math.clamp(t-step, tReact, 6000), exit when
+  |tNext - t| < 1e-6, 100 iterations, else throw. Very lean phi drives the
+  balance toward tReact (lower clamp); the guards at phi<=0 and phi>1 must
+  classify identically. }
+ch4_phi_005 = AdiabaticFlameTemp('CH4', 0.05, 298.15)
+ch4_phi_01  = AdiabaticFlameTemp('CH4', 0.1, 298.15)
+ch4_phi_02  = AdiabaticFlameTemp('CH4', 0.2, 298.15)
+ch4_phi_04  = AdiabaticFlameTemp('CH4', 0.4, 298.15)
+ch4_phi_06  = AdiabaticFlameTemp('CH4', 0.6, 298.15)
+ch4_phi_08  = AdiabaticFlameTemp('CH4', 0.8, 298.15)
+ch4_phi_09  = AdiabaticFlameTemp('CH4', 0.9, 298.15)
+ch4_phi_099 = AdiabaticFlameTemp('CH4', 0.99, 298.15)
+ch4_phi_1   = AdiabaticFlameTemp('CH4', 1.0, 298.15)
+
+c8_phi_05   = AdiabaticFlameTemp('C8H18', 0.5, 298.15)
+c8_phi_1    = AdiabaticFlameTemp('C8H18', 1.0, 298.15)
+c3_phi_07   = AdiabaticFlameTemp('C3H8', 0.7, 298.15)
+c3_phi_1    = AdiabaticFlameTemp('C3H8', 1.0, 298.15)
+h2_phi_1    = AdiabaticFlameTemp('H2', 1.0, 298.15)
+meoh_phi_1  = AdiabaticFlameTemp('CH3OH', 1.0, 298.15)
+etoh_phi_1  = AdiabaticFlameTemp('C2H5OH', 1.0, 298.15)
+c2h2_phi_1  = AdiabaticFlameTemp('C2H2', 1.0, 298.15)
+
+{ preheated reactants and a cold-clamp case }
+ch4_hot     = AdiabaticFlameTemp('CH4', 1.0, 700)
+ch4_hotter  = AdiabaticFlameTemp('CH4', 1.0, 1200)
+ch4_verylean_hot = AdiabaticFlameTemp('CH4', 0.01, 900)
+ch4_cold    = AdiabaticFlameTemp('CH4', 1.0, 200)
+ch4_alias   = AdiabaticFlameTemperature('CH4', 0.8, 298.15)
+ch4_alias2  = FlameTemp('CH4', 0.8, 298.15)
+
+{ combustion helpers at the same conditions }
+afr_ch4     = StoichAFR('CH4')
+afr_c8h18   = StoichAFR('C8H18')
+afr_ch3oh   = StoichAFR('CH3OH')
+lhv_ch4     = HeatingValue('CH4', 'LHV')
+hhv_ch4     = HeatingValue('CH4', 'HHV')
+lhv_c8h18   = HeatingValue('C8H18', 'LHV')
+hhv_c8h18   = HeatingValue('C8H18', 'HHV')
+lhv_h2      = HeatingValue('H2', 'LHV')
+hhv_h2      = HeatingValue('H2', 'HHV')
+mm_ch4      = MolarMass('CH4')
+mm_c8h18    = MolarMass('C8H18')

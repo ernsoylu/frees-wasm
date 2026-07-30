@@ -1,0 +1,24 @@
+// Lockhart-Martinelli / Chisholm two-phase pressure-drop multiplier
+{ R134a-like saturated properties at moderate pressure. X_tt is the turbulent-
+  turbulent Martinelli parameter; phi_l^2 multiplies the liquid-alone drop. }
+rho_l = 1187.5
+rho_g = 25.75
+mu_l = 0.000185
+mu_g = 0.0000117
+
+x = 0.35
+Xtt = lm_martinelli_tt(x, rho_l, rho_g, mu_l, mu_g)
+phi2_tt = lm_phi2(Xtt, 20)
+phi2_lt = lm_phi2(Xtt, 12)
+phi2_tl = lm_phi2(Xtt, 10)
+phi2_ll = lm_phi2(Xtt, 5)
+
+xlow = 0.02
+Xtt_low = lm_martinelli_tt(xlow, rho_l, rho_g, mu_l, mu_g)
+phi2_low = lm_phi2(Xtt_low, 20)
+
+xhigh = 0.95
+Xtt_high = lm_martinelli_tt(xhigh, rho_l, rho_g, mu_l, mu_g)
+phi2_high = lm_phi2(Xtt_high, 20)
+
+phi2_unit = lm_phi2(1, 20)

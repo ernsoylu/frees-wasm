@@ -1,0 +1,83 @@
+{ HxCorrelations: the fluid-free correlations and geometry identities. }
+zu_a = nu_zukauskas(20000, 0.71)
+zu_b = nu_zukauskas(0.2, 5.0)
+zu_c = nu_zukauskas(1, 1)
+
+cb_a = nu_colburn(0.008, 1200, 0.71)
+cb_b = nu_colburn(0.02, 500, 7.0)
+
+cc_a = nu_churchill_chu(1e8, 0.71)
+cc_b = nu_churchill_chu(1e4, 7.0)
+cc_c = nu_churchill_chu(0, 0.71)
+cc_d = nu_churchill_chu(-5, 0.71)
+
+bl_a = nu_blend(12.0, 30.0)
+bl_b = nu_blend(0, 5)
+
+dh_a = hx_dh(0.02, 4.0, 1.5)
+ac_a = hx_aconv(0.02, 1.5, 0.003)
+sg_a = hx_sigma(0.02, 0.08)
+es_a = hx_eta_surf(3.0, 4.0, 0.85)
+
+dcc_a = dp_compact_core(12.0, 1.18, 1.05, 1.11, 0.45, 0.02, 60.0, 0.35, 0.25)
+dcc_b = dp_compact_core(30.0, 1.2, 1.2, 1.2, 1.0, 0.005, 100.0, 0.0, 0.0)
+
+tb_a = nu_tubebank('inline', 50, 0.71)
+tb_b = nu_tubebank('staggered', 50, 0.71)
+tb_c = nu_tubebank('inline', 500, 0.71)
+tb_d = nu_tubebank('staggered', 500, 0.71)
+tb_e = nu_tubebank('inline', 20000, 0.71)
+tb_f = nu_tubebank('staggered', 20000, 0.71)
+tb_g = nu_tubebank('inline', 300000, 0.71)
+tb_h = nu_tubebank('staggered', 300000, 0.71)
+tb_i = nu_tubebank('Stag', 500000, 0.71)
+tb_j = nu_tubebank('anything', 0.01, 0.71)
+
+hp_a = nu_hilpert(0.1, 0.71)
+hp_b = nu_hilpert(2, 0.71)
+hp_c = nu_hilpert(20, 0.71)
+hp_d = nu_hilpert(2000, 0.71)
+hp_e = nu_hilpert(20000, 0.71)
+hp_f = nu_hilpert(200000, 0.71)
+
+pl_a = nu_plate(2000, 4.0, 30)
+pl_b = nu_plate(2000, 4.0, 45)
+pl_c = nu_plate(2000, 4.0, 60)
+pl_d = nu_plate(2000, 4.0, 10)
+pl_e = nu_plate(2000, 4.0, 90)
+pl_f = nu_plate(0.5, 4.0, 45)
+
+fl_a = hx_fin_len(0.025, 0.0001, 500, 0.002)
+ad_a = hx_area_direct(0.5, 30, 0.002, 0.025, 0.0001)
+ai_a = hx_area_indirect(0.5, 30, 0.1234)
+
+dg_a = dp_gravity(1000, 20, 0.8, 3.0, 90)
+dg_b = dp_gravity(1000, 20, 0.8, 3.0, 30)
+dg_c = dp_gravity(1000, 20, 0.0, 3.0, -45)
+
+mf_a = mass_flux(0.05, 0.002)
+
+jf_a = j_fin('plain', 1000)
+jf_b = j_fin('wavy', 1000)
+jf_c = j_fin('louvered', 1000)
+jf_d = j_fin('offset', 1000)
+jf_e = j_fin('OFFSET', 1000)
+jf_f = j_fin('unknown', 1000)
+jf_g = j_fin('plain', 0.5)
+
+ff_a = f_fin('plain', 1000)
+ff_b = f_fin('wavy', 1000)
+ff_c = f_fin('louvered', 1000)
+ff_d = f_fin('offset', 1000)
+ff_e = f_fin('Wavy', 1000)
+ff_f = f_fin('unknown', 1000)
+ff_g = f_fin('plain', 0.5)
+
+gw_a = nu_gungor_winterton(120, 0.5, 0)
+gw_b = nu_gungor_winterton(120, 0.5, 1e-4)
+gw_c = nu_gungor_winterton(120, 1e-9, 0)
+gw_d = nu_gungor_winterton(120, 0.5, -1)
+
+tv_a = nu_traviss(20000, 3.0, 0.5)
+tv_b = nu_traviss(0.5, 3.0, 0.5)
+tv_c = nu_traviss(20000, 3.0, 1e-9)

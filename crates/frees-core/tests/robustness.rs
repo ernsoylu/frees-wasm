@@ -222,9 +222,12 @@ fn nested_for_blocks_are_bounded_too() {
     let message = parse_err(&src);
     assert!(message.contains("nested more than"), "{message}");
 
-    // A realistic amount of nesting still works.
-    let ok = "FOR i = 1 TO 2\nFOR j = 1 TO 2\nFOR k = 1 TO 2\na = 5\nEND\nEND\nEND\nb = a + 1";
-    assert_eq!(solved(ok).get("b"), Some(&6.0));
+    // A realistic amount of nesting still works. (The body must use every
+    // loop index: FOR unrolls one equation per iteration, so a constant body
+    // would be the same equation stated eight times — correctly refused.)
+    let ok = "FOR i = 1 TO 2\nFOR j = 1 TO 2\nFOR k = 1 TO 2\na[i, j, k] = i * j * k\n\
+              END\nEND\nEND\nb = a[1, 1, 1] + a[2, 2, 2]";
+    assert_eq!(solved(ok).get("b"), Some(&9.0));
 }
 
 #[test]

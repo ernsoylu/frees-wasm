@@ -300,29 +300,32 @@ fn a_guess_directive_rescues_a_stiff_exponential() {
     );
 }
 
-/// Bounds narrow the starting point. `newton_solve` has no bounds parameter, so
-/// they are a seeding hint and a post-hoc check, not a constraint — and the
-/// engine says so rather than quietly returning an out-of-range answer.
+/// Bounds are enforced during iteration (the Java `NewtonSolver` clamps every
+/// line-search candidate, damped candidate and Jacobian probe into `[lo, hi]`):
+/// they pick the root inside the box, and a document whose equations force a
+/// value outside the box *fails* — through the whole retry ladder — rather
+/// than quietly returning an out-of-range answer. (Formerly ranked divergence
+/// #3 in `docs/status-phase1.md`: "Bounds are advisory". They no longer are.)
 #[test]
-fn guess_bounds_seed_the_start_and_are_reported_when_violated() {
+fn guess_bounds_are_enforced_during_iteration() {
     // The bounds pick the negative root of x^2 = 9.
     let inside = solved("GUESS x = -2 [-5, 0]\nx ^ 2 = 9\n");
     assert_near(get(&inside, "x"), -3.0);
     assert!(inside.diagnostics.is_empty(), "{:?}", inside.diagnostics);
 
-    // Here the equations force a value the bounds forbid.
-    let outside = solved("GUESS x = 0.5 [0, 1]\nx = 5\n");
-    assert_near(get(&outside, "x"), 5.0);
-    let warnings: Vec<&str> = outside
-        .diagnostics
-        .iter()
-        .filter(|d| d.severity == Severity::Warning)
-        .map(|d| d.message.as_str())
-        .collect();
-    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    // Here the equations force a value the bounds forbid: the Java engine
+    // fails this document (the iterate can never leave [0, 1]), and so do we.
+    let failure = solve("GUESS x = 0.5 [0, 1]\nx = 5\n", &SolverSettings::default())
+        .expect_err("x = 5 is unreachable inside [0, 1]");
+    assert_eq!(failure.failed_block_index, Some(0));
     assert!(
-        warnings[0].contains("outside the GUESS bounds"),
-        "{warnings:?}"
+        failure.partial.is_some(),
+        "ladder exhaustion must still carry partial diagnostics"
+    );
+    let message = failure.to_string_message();
+    assert!(
+        message.contains("stalled") || message.contains("Constrained"),
+        "{message}"
     );
 }
 
@@ -453,10 +456,12 @@ fn an_unsupported_component_block_is_refused_by_name() {
 
 #[test]
 fn every_unported_block_form_is_refused_by_its_own_name() {
+    // FUNCTION/PROCEDURE/MODULE/TABLE parse into `Document::defs` since the
+    // Phase-4 procedural pass and are no longer refused here.
     for (source, construct) in [
-        ("PROCEDURE mix(a, b : c)\nEND\n", "PROCEDURE"),
-        ("FUNCTION f(x)\n  f = x\nEND\n", "FUNCTION"),
-        ("MODULE m(a : b)\nEND\n", "MODULE"),
+        ("PLOT 'speed'\n  kind = xy\nEND\n", "PLOT"),
+        ("DYNAMIC d(method = ode45)\n  der = 1\nEND\n", "DYNAMIC"),
+        ("LINEARIZE plant(block = w)\n  INPUT q\nEND\n", "LINEARIZE"),
         ("PARAMETRIC table\nEND\n", "PARAMETRIC"),
         ("COMPONENT c\nEND\n", "COMPONENT"),
     ] {
@@ -490,15 +495,25 @@ fn check_refuses_an_unsupported_construct_too() {
     assert_eq!(report.error_line, Some(1));
 }
 
-/// `CALL` parses (it is a `Statement`, not a block) but needs the procedure
-/// flattener. It must be refused, not silently dropped — dropping it would
-/// change the degrees of freedom.
+/// `CALL` parses (it is a `Statement`, not a block) and flattens through the
+/// Phase-4 procedure flattener. A CALL to a name no definition declares must
+/// be refused with the Java `flattenCallProc` message, not silently dropped —
+/// dropping it would change the degrees of freedom.
 #[test]
 fn a_call_statement_is_refused_rather_than_dropped() {
     let err = failed("CALL mix(1, 2 : y)\nx = y + 1\n");
     let text = message(&err);
-    assert!(text.contains("mix"), "{text}");
-    assert!(text.contains("not supported"), "{text}");
+    assert!(
+        text.contains("Unknown PROCEDURE or MODULE: 'mix'"),
+        "{text}"
+    );
+
+    // A CALL naming an intrinsic the port has not reached keeps the explicit
+    // not-yet-supported refusal.
+    let err = failed("[a, b] = tf2ss(num, den)\nnum = 1\nden = 2\n");
+    let text = message(&err);
+    assert!(text.contains("tf2ss"), "{text}");
+    assert!(text.contains("not yet supported"), "{text}");
 }
 
 // ---------------------------------------------------------------------------
@@ -719,13 +734,18 @@ fn a_realistic_document_solves_end_to_end() {
     assert_eq!(report.unknown_count, 7);
 }
 
-/// A `FOR` body is flattened into the same equation system.
+/// A `FOR` body is flattened into the same equation system — one equation per
+/// iteration with the loop variable substituted (the Java
+/// `EquationParser.flatten` rule; a body not using the index would correctly
+/// be refused as the same equation stated N times).
 #[test]
 fn for_bodies_are_flattened_into_the_system() {
-    let solution = solved("FOR i = 1 TO 3\n  a = 5\nEND\nb = a * 2\n");
-    assert_near(get(&solution, "a"), 5.0);
-    assert_near(get(&solution, "b"), 10.0);
-    assert_eq!(solution.blocks.len(), 2);
+    let solution = solved("FOR i = 1 TO 3\n  a[i] = 5 * i\nEND\nb = a[3] * 2\n");
+    assert_near(get(&solution, "a[1]"), 5.0);
+    assert_near(get(&solution, "a[2]"), 10.0);
+    assert_near(get(&solution, "a[3]"), 15.0);
+    assert_near(get(&solution, "b"), 30.0);
+    assert_eq!(solution.blocks.len(), 4);
 }
 
 /// Solving is deterministic: identical input, identical output, every time.
@@ -1063,10 +1083,14 @@ fn text_bounds_merge_with_an_override_guess_and_clamp_it() {
 
 /// Override values pass through their declared unit into SI, the
 /// `VariableInfoDto.toSpec` conversion: bounds written in Celsius become
-/// kelvins before the bounds check runs.
+/// kelvins before the solver sees them. With bounds enforced, `T = 500` (K)
+/// against a 0..100 °C box (273.15..373.15 K) cannot solve — and the partial
+/// diagnostics prove the conversion: the failed block's residual is evaluated
+/// at the restored initial guess, which is `DEFAULT_GUESS` clamped onto the
+/// *converted* lower bound 273.15, not onto 0.
 #[test]
 fn override_bounds_convert_through_their_unit() {
-    let solution = solve_with(
+    let failure = solve_with(
         "T = 500\n",
         &SolverSettings::default(),
         &[VariableOverride {
@@ -1077,16 +1101,15 @@ fn override_bounds_convert_through_their_unit() {
             ..VariableOverride::default()
         }],
     )
-    .unwrap();
-    assert_near(get(&solution, "t"), 500.0);
-    // 0..100 C is 273.15..373.15 K, and 500 K is outside it.
-    let warning = solution
-        .diagnostics
-        .iter()
-        .find(|d| d.message.contains("outside the GUESS bounds"))
-        .expect("bounds warning");
-    assert!(warning.message.contains("273.15"), "{}", warning.message);
-    assert!(warning.message.contains("373.15"), "{}", warning.message);
+    .expect_err("500 K is outside 0..100 C");
+    assert_eq!(failure.failed_block_index, Some(0));
+    let partial = failure.partial.as_deref().expect("partial diagnostics");
+    // 273.15 - 500: the clamp landed on the Celsius-converted bound.
+    assert!(
+        (partial.residuals[0].residual - (273.15 - 500.0)).abs() < 1e-9,
+        "{:?}",
+        partial.residuals
+    );
 }
 
 /// A guess passes through a purely multiplicative unit the same way.

@@ -25,12 +25,20 @@
 #![forbid(unsafe_code)]
 
 pub mod ast;
+pub mod curvetable;
 pub mod diag;
+pub mod differentiator;
 pub mod engine;
 pub mod eval;
+pub mod integral;
+pub mod interp2;
 pub mod lexer;
+pub mod linalg;
 pub mod parser;
+pub mod procedures;
+pub mod signal;
 pub mod solver;
+pub mod statistics;
 pub mod token;
 pub mod units;
 

@@ -11,7 +11,11 @@
 //!   unit annotations.
 //! * [`toplevel`] — `program` / `topLevel` / `statement` and the block forms.
 
+pub mod complex;
+pub mod defs;
+pub mod expand;
 pub mod expr;
+pub mod latex;
 pub mod toplevel;
 
 use crate::ast::Statement;
@@ -34,16 +38,19 @@ pub struct GuessDirective {
 
 /// A parsed document.
 ///
-/// Block constructs that the wasm port has not reached yet (`FUNCTION`,
-/// `PROCEDURE`, `MODULE`, `TABLE`, `PARAMETRIC`, `PLOT`, `STATE TABLE`,
-/// `DYNAMIC`, `COMPONENT`, `connect`, `LINEARIZE`) are reported as an explicit
-/// unsupported-construct error rather than being silently skipped — a wrong
-/// answer is worse than a refusal.
+/// Block constructs that the wasm port has not reached yet (`PARAMETRIC`,
+/// `PLOT`, `STATE TABLE`, `DYNAMIC`, `COMPONENT`, `connect`, `LINEARIZE`) are
+/// reported as an explicit unsupported-construct error rather than being
+/// silently skipped — a wrong answer is worse than a refusal. `FUNCTION`,
+/// `PROCEDURE`, `MODULE` and `TABLE` parse into [`Document::defs`] (Phase 4).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Document {
     pub statements: Vec<Statement>,
     pub guesses: Vec<GuessDirective>,
     pub diagnostics: Vec<Diagnostic>,
+    /// `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE` definitions, in
+    /// declaration order.
+    pub defs: defs::Definitions,
 }
 
 impl Document {

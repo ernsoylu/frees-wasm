@@ -1,4 +1,4 @@
-//! Newton's method with a numerical Jacobian and step-halving.
+//! Newton's method with an analytic-first Jacobian, step-halving and bounds.
 //!
 //! Port of `../frEES/backend/core/src/main/java/com/frees/backend/core/NewtonSolver.java`
 //! (832 LOC) and `SolverSettings.java`.
@@ -9,14 +9,23 @@
 //!
 //! 1. tests the residuals against the stop criteria (§ *Convergence* below) and
 //!    returns as soon as they are met;
-//! 2. builds the Jacobian by **finite differences**, one column per unknown,
+//! 2. builds the Jacobian — **analytically first** when the problem supplies
+//!    one ([`NewtonProblem::analytic_jacobian`], the Java
+//!    `NewtonSolver.computeJacobian` → `analyticalJacobian` path; a `None`
+//!    from the source falls back to finite differences *for that iteration*,
+//!    exactly as the Java returns `null` on an evaluation failure) —
+//!    otherwise by **finite differences**, one column per unknown,
 //!    with the parent engine's perturbation rule
 //!    `h = jacobian_epsilon * max(|x_j|, 1)` — relative, with an absolute floor
 //!    of one `jacobian_epsilon` so a variable sitting at zero is still probed.
-//!    A column whose forward probe lands in an invalid (non-finite) region is
-//!    re-probed *backward*, and a column whose difference drowns in
-//!    catastrophic cancellation is re-probed with a widened step (`× 1e4`, up to
-//!    five times per direction), exactly as
+//!    Probes are **range-aware**: a perturbation never leaves the variable's
+//!    `[lo, hi]` box (the probe is clamped and the difference divided by the
+//!    *actual* step taken; a direction pinned at its bound is skipped), so a
+//!    property call is never probed out of range — the Java
+//!    `computeJacobianColumn` §8.5 rule. A column whose forward probe lands in
+//!    an invalid (non-finite) region is re-probed *backward*, and a column
+//!    whose difference drowns in catastrophic cancellation is re-probed with a
+//!    widened step (`× 1e4`, up to five times per direction), exactly as
 //!    `NewtonSolver.computeJacobianColumn` does;
 //! 3. solves `J·Δ = f` by **Gaussian elimination with partial pivoting** after
 //!    column equilibration (each Jacobian column scaled to unit 2-norm, the step
@@ -25,14 +34,20 @@
 //!    conditioned well enough to factor, and is a no-op at the root;
 //! 4. **halves the step** until the residual norm decreases — `x - λ·Δ` with
 //!    `λ = 1, ½, ¼, …`, up to [`SolverSettings::max_step_halvings`] halvings.
-//!    This backtracking line search is what makes the engine robust against a
+//!    **Every candidate is clamped into the per-variable `[lo, hi]` box**
+//!    (Java `backtrackLineSearch`'s `Math.clamp`), so a bounded unknown never
+//!    leaves its range at any point the residual is evaluated. This
+//!    backtracking line search is what makes the engine robust against a
 //!    Newton direction that overshoots (`atan`-like residuals, property calls
 //!    that go invalid past the step);
 //! 5. when neither the full step nor any halved step descends, falls back to a
 //!    **damped (Levenberg–Marquardt) rescue**: solve
 //!    `(JᵀJ + λ·diag(JᵀJ))·δ = Jᵀf`, escalating `λ` from `1e-3` to `1e12` until
 //!    a norm-reducing candidate appears. Small `λ` recovers the Newton step;
-//!    large `λ` gives a short, per-variable-scaled descent step. The rescue also
+//!    large `λ` gives a short, per-variable-scaled descent step. Damped
+//!    candidates are clamped into the `[lo, hi]` box exactly like line-search
+//!    ones (Java `dampedRescue`), and a candidate that cannot move because
+//!    every variable is pinned ends the rescue. The rescue also
 //!    covers the singular/ill-conditioned Jacobian, where the Java original
 //!    falls back to an SVD pseudoinverse (see *Deviations*).
 //!
@@ -74,6 +89,11 @@ pub struct SolverSettings {
     pub max_step_halvings: usize,
     /// Relative perturbation used to build the finite-difference Jacobian.
     pub jacobian_epsilon: f64,
+    /// Complex mode (the Java `SolverSettings.complexMode`): the engine feeds
+    /// this to [`crate::parser::complex::expand_complex`] before blocking.
+    /// Newton itself never reads it — it rides here because the Java record
+    /// carries it and the wire format will want the same knob.
+    pub complex_mode: bool,
 }
 
 impl Default for SolverSettings {
@@ -106,7 +126,42 @@ impl Default for SolverSettings {
             abs_tolerance: 1e-15,
             max_step_halvings: 24,
             jacobian_epsilon: 1e-7,
+            complex_mode: false,
         }
+    }
+}
+
+/// The residual system one Newton solve iterates on, plus its optional
+/// analytic Jacobian — the two callbacks `NewtonSolver.computeJacobian`
+/// chooses between.
+///
+/// Plain closures `FnMut(&[f64], &mut [f64]) -> Result<()>` implement this
+/// automatically (finite differences only), so simple callers and the
+/// existing tests keep their shape.
+pub trait NewtonProblem {
+    /// Write `f(x)` into `out` (`out.len() == x.len()`).
+    fn residual(&mut self, x: &[f64], out: &mut [f64]) -> Result<()>;
+
+    /// The full Jacobian `J[i][j] = ∂f_i/∂x_j` evaluated at `x`, or `None` to
+    /// fall back to finite differences **for this iteration**.
+    ///
+    /// This is the Java `NewtonSolver.analyticalJacobian` contract: the Java
+    /// method returns `null` both when some residual cannot be symbolically
+    /// differentiated at all (a permanent property — the engine then never
+    /// supplies a source) and when a derivative expression fails to evaluate
+    /// at the current point (a per-iteration property — the source returns
+    /// `None` and the solver takes the numerical path just this once).
+    fn analytic_jacobian(&mut self, _x: &[f64]) -> Option<Vec<Vec<f64>>> {
+        None
+    }
+}
+
+impl<F> NewtonProblem for F
+where
+    F: FnMut(&[f64], &mut [f64]) -> Result<()>,
+{
+    fn residual(&mut self, x: &[f64], out: &mut [f64]) -> Result<()> {
+        self(x, out)
     }
 }
 
@@ -144,8 +199,18 @@ const SINGULARITY_RATIO: f64 = 1.0e-11;
 
 /// Solve `residual(x) = 0` in place, starting from `x`.
 ///
-/// `residual` writes `f(x)` into its second argument. The system is square:
-/// `out.len() == x.len()`.
+/// The closure form: finite differences only. To supply an analytic Jacobian
+/// source alongside the residual, implement [`NewtonProblem`] and call
+/// [`newton_solve_problem`] — this function is that one behind the blanket
+/// closure impl.
+///
+/// `bounds` are the per-variable boxes `[lo, hi]`, aligned with `x`; `None`
+/// means unbounded everywhere. When bounds are given the iterate — and
+/// **every point the residual is evaluated at**, line-search candidates,
+/// damped-rescue candidates and finite-difference probes alike — stays inside
+/// the box, reproducing the three `Math.clamp` sites of the Java
+/// `NewtonSolver` (`backtrackLineSearch`, `dampedRescue`,
+/// `computeJacobianColumn`).
 ///
 /// On success `x` holds the solution. On failure `x` holds the last iterate
 /// reached — the Java engine likewise leaves its partially updated values in
@@ -155,15 +220,35 @@ const SINGULARITY_RATIO: f64 = 1.0e-11;
 ///
 /// * the callback's own error, propagated unchanged and immediately;
 /// * [`FreesError::Solver`] when the iteration limit is exhausted, when no step
-///   (full, halved or damped) can reduce the residual, or when the settings are
-///   unusable.
+///   (full, halved or damped) can reduce the residual, when a bounded solve
+///   pins a variable at its bound with the residuals still out of tolerance
+///   (the Java "Constrained solution" diagnosis), or when the settings or
+///   bounds are unusable.
 pub fn newton_solve<F>(
-    mut residual: F,
+    residual: F,
     x: &mut [f64],
     settings: &SolverSettings,
+    bounds: Option<&[(f64, f64)]>,
 ) -> Result<NewtonReport>
 where
     F: FnMut(&[f64], &mut [f64]) -> Result<()>,
+{
+    // The direct `FnMut` bound (rather than `P: NewtonProblem`) is what lets
+    // plain closures infer their higher-ranked argument lifetimes; the
+    // blanket impl turns them into an FD-only problem.
+    newton_solve_problem(residual, x, settings, bounds)
+}
+
+/// [`newton_solve`] for a full [`NewtonProblem`] — the entry the engine uses,
+/// where the analytic-Jacobian source rides along with the residual.
+pub fn newton_solve_problem<P>(
+    mut problem: P,
+    x: &mut [f64],
+    settings: &SolverSettings,
+    bounds: Option<&[(f64, f64)]>,
+) -> Result<NewtonReport>
+where
+    P: NewtonProblem,
 {
     validate(settings)?;
 
@@ -178,8 +263,11 @@ where
         });
     }
 
+    // Java IterationContext: lo/hi arrays from the specs, ±∞ where absent.
+    let (lo, hi) = unpack_bounds(bounds, n)?;
+
     let mut f = vec![f64::NAN; n];
-    eval_residual(&mut residual, x, &mut f)?;
+    eval_residual(&mut problem, x, &mut f)?;
     let mut norm = l2_norm(&f);
 
     // Stand-in for the Java |lhs| of every equation; see the module docs.
@@ -196,7 +284,19 @@ where
             return Ok(success(iteration, &f));
         }
 
-        let jacobian = numerical_jacobian(&mut residual, x, &f, settings)?;
+        // Java NewtonSolver.computeJacobian: analytical first, numerical
+        // fallback. A source that answers `None` (a derivative expression
+        // failing to evaluate at this point) falls back for this iteration
+        // only, exactly like the Java `analyticalJacobian` returning null
+        // from its catch block. The dimension check is defensive — a
+        // malformed matrix must not panic the elimination.
+        let analytic = problem
+            .analytic_jacobian(x)
+            .filter(|j| j.len() == n && j.iter().all(|row| row.len() == n));
+        let jacobian = match analytic {
+            Some(j) => j,
+            None => numerical_jacobian(&mut problem, x, &f, settings, &lo, &hi)?,
+        };
 
         let mut damped = false;
         let accepted: Accepted;
@@ -211,7 +311,17 @@ where
             if creep >= CREEP_WINDOW {
                 return stalled(&f, &scale, settings, iteration, norm, linear_failure);
             }
-            match damped_rescue(&mut residual, &jacobian, x, &f, norm, lambda / 3.0, 1.0)? {
+            match damped_rescue(
+                &mut problem,
+                &jacobian,
+                x,
+                &f,
+                norm,
+                lambda / 3.0,
+                1.0,
+                &lo,
+                &hi,
+            )? {
                 None => return stalled(&f, &scale, settings, iteration, norm, linear_failure),
                 Some(rescue) => {
                     lambda = if rescue.lambda <= LM_LAMBDA_MIN {
@@ -233,7 +343,8 @@ where
             match solve_linear(&jacobian, &f) {
                 Ok(step) => {
                     linear_failure = None;
-                    let search = backtrack_line_search(&mut residual, x, &step, norm, settings)?;
+                    let search =
+                        backtrack_line_search(&mut problem, x, &step, norm, settings, &lo, &hi)?;
                     // Transcribed from the Java rescue condition
                     // `!isFinite(candidateNorm) || candidateNorm >= norm`. The
                     // `>=` is deliberate: it is false when `norm` is NaN, so a
@@ -253,7 +364,7 @@ where
                     // the damped mode does from here can only improve on the
                     // stall the undamped iteration already reached; a
                     // descending undamped iteration is never interfered with.
-                    match damped_rescue(&mut residual, &jacobian, x, &f, norm, 0.0, 1.0)? {
+                    match damped_rescue(&mut problem, &jacobian, x, &f, norm, 0.0, 1.0, &lo, &hi)? {
                         None => {
                             return stalled(&f, &scale, settings, iteration, norm, linear_failure)
                         }
@@ -283,6 +394,17 @@ where
         if !damped && max_change < CHANGE_IN_VARIABLES {
             if within_tolerance(&f, &scale, settings) {
                 return Ok(success(iteration + 1, &f));
+            }
+            // Java NewtonSolver.handleConvergenceOrPinning: an iterate frozen
+            // on a bound with the residuals still out of tolerance is a
+            // *constrained* solution — the bounds, not the guesses, are what
+            // the user must relax.
+            if at_bound(x, &lo, &hi) {
+                return Err(FreesError::solver(
+                    "Constrained solution: a variable is pinned at its lower or upper bound \
+                     and the residuals cannot be reduced further. \
+                     Relax the bounds in the Variable Information window.",
+                ));
             }
             return Err(FreesError::solver(format!(
                 "Newton iteration stalled after {} iteration(s): the iterate stopped moving \
@@ -367,16 +489,56 @@ fn validate(settings: &SolverSettings) -> Result<()> {
     Ok(())
 }
 
+/// Split the caller's bounds into the Java `IterationContext.lo`/`hi` arrays,
+/// rejecting shapes that would poison every clamp: a length mismatch, a NaN
+/// bound, or `lo > hi` (the Java `VariableSpec` constructor refuses those
+/// upstream; this is the same guarantee at the solver's own door).
+fn unpack_bounds(bounds: Option<&[(f64, f64)]>, n: usize) -> Result<(Vec<f64>, Vec<f64>)> {
+    match bounds {
+        None => Ok((vec![f64::NEG_INFINITY; n], vec![f64::INFINITY; n])),
+        Some(pairs) => {
+            if pairs.len() != n {
+                return Err(FreesError::solver(format!(
+                    "internal error: {} bounds for {} unknowns",
+                    pairs.len(),
+                    n
+                )));
+            }
+            let mut lo = Vec::with_capacity(n);
+            let mut hi = Vec::with_capacity(n);
+            for &(l, h) in pairs {
+                if l.is_nan() || h.is_nan() || l > h {
+                    return Err(FreesError::solver(
+                        "Lower bound exceeds upper bound for a variable.",
+                    ));
+                }
+                lo.push(l);
+                hi.push(h);
+            }
+            Ok((lo, hi))
+        }
+    }
+}
+
+/// Java `NewtonSolver.atBound`: any variable sitting exactly on its lower or
+/// upper bound. The finiteness guard is ours: an unbounded variable that
+/// diverged to ±∞ must not read as "pinned at its bound".
+fn at_bound(x: &[f64], lo: &[f64], hi: &[f64]) -> bool {
+    x.iter()
+        .zip(lo.iter().zip(hi))
+        .any(|(&v, (&l, &h))| v.is_finite() && (v == l || v == h))
+}
+
 /// Calls the user residual with a poisoned output buffer, so an entry the
 /// callback forgets to write can never masquerade as a converged residual.
-fn eval_residual<F>(residual: &mut F, x: &[f64], out: &mut [f64]) -> Result<()>
+fn eval_residual<P>(problem: &mut P, x: &[f64], out: &mut [f64]) -> Result<()>
 where
-    F: FnMut(&[f64], &mut [f64]) -> Result<()>,
+    P: NewtonProblem + ?Sized,
 {
     for slot in out.iter_mut() {
         *slot = f64::NAN;
     }
-    residual(x, out)
+    problem.residual(x, out)
 }
 
 /// `|r_i|` measured against the Java rule, with the row scale standing in for
@@ -495,14 +657,16 @@ impl LinearFailure {
 
 /// `J[i][j] = ∂f_i/∂x_j` by finite differences: one full residual sweep per
 /// unknown, plus retries for columns that come back invalid or cancelling.
-fn numerical_jacobian<F>(
-    residual: &mut F,
+fn numerical_jacobian<P>(
+    problem: &mut P,
     x: &[f64],
     base: &[f64],
     settings: &SolverSettings,
+    lo: &[f64],
+    hi: &[f64],
 ) -> Result<Vec<Vec<f64>>>
 where
-    F: FnMut(&[f64], &mut [f64]) -> Result<()>,
+    P: NewtonProblem + ?Sized,
 {
     let n = x.len();
     let mut jacobian = vec![vec![0.0f64; n]; n];
@@ -510,7 +674,7 @@ where
     let mut out = vec![f64::NAN; n];
     for j in 0..n {
         jacobian_column(
-            residual,
+            problem,
             x,
             base,
             &mut jacobian,
@@ -518,6 +682,7 @@ where
             &mut out,
             j,
             settings,
+            (lo[j], hi[j]),
         )?;
     }
     Ok(jacobian)
@@ -528,12 +693,16 @@ where
 /// Probe forward first, then backward; within a direction widen a few times to
 /// escape catastrophic cancellation — but abandon the direction as soon as a
 /// probe lands in an invalid (non-finite) region, because growing the step only
-/// marches further into it. If no informative derivative exists in either
-/// direction the column is left finite (zero: no local sensitivity) so the
-/// linear solve still produces a finite step.
+/// marches further into it. Perturbation is **range-aware** (the Java §8.5
+/// rule): a direction pinned at its bound is skipped outright, every probe is
+/// clamped into `[lo, hi]` — so a property call is never evaluated out of
+/// range — and the difference is divided by the *actual* step taken. If no
+/// informative derivative exists in either direction the column is left finite
+/// (zero: no local sensitivity) so the linear solve still produces a finite
+/// step.
 #[allow(clippy::too_many_arguments)]
-fn jacobian_column<F>(
-    residual: &mut F,
+fn jacobian_column<P>(
+    problem: &mut P,
     x: &[f64],
     base: &[f64],
     jacobian: &mut [Vec<f64>],
@@ -541,9 +710,10 @@ fn jacobian_column<F>(
     out: &mut [f64],
     j: usize,
     settings: &SolverSettings,
+    (lo, hi): (f64, f64),
 ) -> Result<()>
 where
-    F: FnMut(&[f64], &mut [f64]) -> Result<()>,
+    P: NewtonProblem + ?Sized,
 {
     let n = x.len();
     let anchor = x[j];
@@ -551,19 +721,29 @@ where
 
     for direction in 0..2 {
         let sign = if direction == 0 { 1.0 } else { -1.0 };
+        // Java computeJacobianColumn: a direction already pinned at its bound
+        // has nowhere to probe.
+        if sign > 0.0 && anchor >= hi {
+            continue;
+        }
+        if sign < 0.0 && anchor <= lo {
+            continue;
+        }
         let mut h = magnitude;
         for _ in 0..MAX_WIDENINGS {
-            let point = anchor + sign * h;
+            let point = (anchor + sign * h).clamp(lo, hi);
             if !point.is_finite() {
                 break;
             }
             let actual_step = point - anchor;
             if actual_step == 0.0 {
-                break; // the perturbation vanished in rounding
+                // Clamped onto the bound (or the perturbation vanished in
+                // rounding) — this direction is exhausted.
+                break;
             }
 
             probe[j] = point;
-            let call = eval_residual(residual, probe, out);
+            let call = eval_residual(problem, probe, out);
             probe[j] = anchor;
             call?;
 
@@ -738,18 +918,22 @@ fn gauss_solve(
 // ---------------------------------------------------------------------------
 
 /// Backtracking line search: try `x - λ·Δ` for `λ = 1, ½, ¼, …`, stopping at the
-/// first candidate whose residual norm beats `norm`. Returns the last candidate
-/// tried even when none descended — the caller decides what to do with a
-/// non-descending result, exactly as in the Java.
-fn backtrack_line_search<F>(
-    residual: &mut F,
+/// first candidate whose residual norm beats `norm`. Every candidate is
+/// clamped into the `[lo, hi]` box first — the Java `backtrackLineSearch`
+/// `Math.clamp` site — so a bounded unknown is never evaluated out of range.
+/// Returns the last candidate tried even when none descended — the caller
+/// decides what to do with a non-descending result, exactly as in the Java.
+fn backtrack_line_search<P>(
+    problem: &mut P,
     x: &[f64],
     step: &[f64],
     norm: f64,
     settings: &SolverSettings,
+    lo: &[f64],
+    hi: &[f64],
 ) -> Result<Accepted>
 where
-    F: FnMut(&[f64], &mut [f64]) -> Result<()>,
+    P: NewtonProblem + ?Sized,
 {
     let n = x.len();
     let mut lambda = 1.0f64;
@@ -760,11 +944,11 @@ where
     for _ in 0..=settings.max_step_halvings {
         let mut finite_point = true;
         for i in 0..n {
-            candidate[i] = x[i] - lambda * step[i];
+            candidate[i] = (x[i] - lambda * step[i]).clamp(lo[i], hi[i]);
             finite_point &= candidate[i].is_finite();
         }
         if finite_point {
-            eval_residual(residual, &candidate, &mut candidate_residual)?;
+            eval_residual(problem, &candidate, &mut candidate_residual)?;
             candidate_norm = l2_norm(&candidate_residual);
             if candidate_norm.is_finite() && candidate_norm < norm {
                 break;
@@ -791,20 +975,26 @@ where
 /// equations `(JᵀJ + λ·diag(JᵀJ))·δ = Jᵀf` instead, escalating `λ` until a
 /// norm-reducing candidate appears. Diagonal scaling makes the damping
 /// invariant to variable units, the same job column equilibration does for the
-/// undamped path. A candidate is accepted when its norm drops below
+/// undamped path. Candidates are clamped into the `[lo, hi]` box — the Java
+/// `dampedRescue` `Math.clamp` site — and a candidate pinned so hard it cannot
+/// move ends the rescue (`moved`), because shorter steps cannot unpin it.
+/// A candidate is accepted when its norm drops below
 /// `accept_factor · norm`. Returns `None` when no damping achieves that; the
 /// caller then reports the stall.
-fn damped_rescue<F>(
-    residual_fn: &mut F,
+#[allow(clippy::too_many_arguments)]
+fn damped_rescue<P>(
+    problem: &mut P,
     jacobian: &[Vec<f64>],
     x: &[f64],
     residual: &[f64],
     norm: f64,
     previous_lambda: f64,
     accept_factor: f64,
+    lo: &[f64],
+    hi: &[f64],
 ) -> Result<Option<DampedStep>>
 where
-    F: FnMut(&[f64], &mut [f64]) -> Result<()>,
+    P: NewtonProblem + ?Sized,
 {
     let n = x.len();
     let mut jtj = vec![vec![0.0f64; n]; n];
@@ -856,19 +1046,20 @@ where
         let mut moved = false;
         let mut finite_point = true;
         for i in 0..n {
-            candidate[i] = x[i] - delta[i];
+            // Java dampedRescue: Math.clamp(x[i] - delta[i], lo[i], hi[i]).
+            candidate[i] = (x[i] - delta[i]).clamp(lo[i], hi[i]);
             moved |= candidate[i] != x[i];
             finite_point &= candidate[i].is_finite();
         }
         if !moved {
-            return Ok(None); // shorter steps cannot move the iterate at all
+            return Ok(None); // pinned at bounds: shorter steps cannot unpin
         }
         if !finite_point {
             lam *= 10.0;
             continue;
         }
 
-        eval_residual(residual_fn, &candidate, &mut candidate_residual)?;
+        eval_residual(problem, &candidate, &mut candidate_residual)?;
         let candidate_norm = l2_norm(&candidate_residual);
         // A finite norm beats a non-finite one: a damped step that walks the
         // iterate back onto valid ground is progress.
@@ -898,6 +1089,11 @@ mod tests {
         SolverSettings::default()
     }
 
+    /// Unbounded lo/hi arrays for direct calls into the internals.
+    fn unbounded(n: usize) -> (Vec<f64>, Vec<f64>) {
+        (vec![f64::NEG_INFINITY; n], vec![f64::INFINITY; n])
+    }
+
     fn solve<F>(f: F, start: &[f64]) -> (Vec<f64>, Result<NewtonReport>)
     where
         F: FnMut(&[f64], &mut [f64]) -> Result<()>,
@@ -910,7 +1106,7 @@ mod tests {
         F: FnMut(&[f64], &mut [f64]) -> Result<()>,
     {
         let mut x = start.to_vec();
-        let report = newton_solve(f, &mut x, s);
+        let report = newton_solve(f, &mut x, s, None);
         (x, report)
     }
 
@@ -1118,6 +1314,7 @@ mod tests {
             },
             &mut x,
             &settings(),
+            None,
         )
         .expect("must solve");
         assert!(report.converged);
@@ -1154,7 +1351,9 @@ mod tests {
         let full = libm::atan(x[0] - step[0]).abs();
         assert!(full > base, "the full step must not descend");
 
-        let result = backtrack_line_search(&mut f, &x, &step, base.abs(), &settings()).unwrap();
+        let (lo, hi) = unbounded(1);
+        let result =
+            backtrack_line_search(&mut f, &x, &step, base.abs(), &settings(), &lo, &hi).unwrap();
         assert!(result.norm < base.abs());
         // lambda = 1/2 is the first descending step.
         assert!((result.candidate[0] - (2.0 - 0.5 * step[0])).abs() < 1e-12);
@@ -1177,7 +1376,8 @@ mod tests {
                 out[0] = 1.0; // never descends: the search exhausts its budget
                 Ok(())
             };
-            let result = backtrack_line_search(&mut f, &[10.0], &[10.0], 0.5, &s)
+            let (lo, hi) = unbounded(1);
+            let result = backtrack_line_search(&mut f, &[10.0], &[10.0], 0.5, &s, &lo, &hi)
                 .expect("no callback error");
             assert_eq!(
                 lambdas.len(),
@@ -1427,6 +1627,7 @@ mod tests {
             },
             &mut x,
             &settings(),
+            None,
         )
         .expect("already solved");
         assert_eq!(report.iterations, 0);
@@ -1447,6 +1648,7 @@ mod tests {
             },
             &mut x,
             &settings(),
+            None,
         )
         .expect("must solve");
 
@@ -1486,6 +1688,7 @@ mod tests {
             },
             &mut x,
             &s,
+            None,
         );
         assert!(report.is_err());
         assert!(x[0] < 1.0e6, "the iterate must have advanced: {}", x[0]);
@@ -1498,23 +1701,23 @@ mod tests {
     fn settings_are_validated() {
         let mut s = settings();
         s.max_iterations = 0;
-        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s).is_err());
+        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s, None).is_err());
 
         let mut s = settings();
         s.rel_tolerance = 0.0;
-        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s).is_err());
+        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s, None).is_err());
 
         let mut s = settings();
         s.abs_tolerance = -1.0;
-        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s).is_err());
+        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s, None).is_err());
 
         let mut s = settings();
         s.jacobian_epsilon = 0.0;
-        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s).is_err());
+        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s, None).is_err());
 
         let mut s = settings();
         s.jacobian_epsilon = f64::NAN;
-        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s).is_err());
+        assert!(newton_solve(|_x, _o| Ok(()), &mut [1.0], &s, None).is_err());
     }
 
     /// The Java `SolverSettings.DEFAULTS` is `(250, 1e-12, 1e-15, 3600.0)`, and
@@ -1544,6 +1747,8 @@ mod tests {
             s.rel_tolerance
         );
         assert!(s.jacobian_epsilon > 0.0);
+        // Java SolverSettings.DEFAULTS carries complexMode = false.
+        assert!(!s.complex_mode, "complex mode is off by default");
     }
 
     /// Regression for the divergence the default used to carry: with a `1e-9`
@@ -1561,7 +1766,7 @@ mod tests {
         let (oracle_x, oracle_y) = (4.694012391660914, 3.802174371161316);
 
         let mut x = [1.0, 1.0];
-        newton_solve(residual, &mut x, &SolverSettings::default()).expect("must solve");
+        newton_solve(residual, &mut x, &SolverSettings::default(), None).expect("must solve");
         assert!(
             (x[0] - oracle_x).abs() <= 1e-14 && (x[1] - oracle_y).abs() <= 1e-14,
             "default settings must reach the oracle: {x:?}"
@@ -1574,9 +1779,10 @@ mod tests {
             abs_tolerance: 1e-10,
             max_step_halvings: 20,
             jacobian_epsilon: 1e-7,
+            complex_mode: false,
         };
         let mut y = [1.0, 1.0];
-        newton_solve(residual, &mut y, &loose).expect("must solve");
+        newton_solve(residual, &mut y, &loose, None).expect("must solve");
         assert!(
             (y[0] - oracle_x).abs() > 1e-13,
             "a 1e-9 stop criterion should stop short of the oracle: {y:?}"
@@ -1586,7 +1792,7 @@ mod tests {
     #[test]
     fn empty_system_is_trivially_converged() {
         let mut x: [f64; 0] = [];
-        let report = newton_solve(|_x, _out| Ok(()), &mut x, &settings()).unwrap();
+        let report = newton_solve(|_x, _out| Ok(()), &mut x, &settings(), None).unwrap();
         assert_eq!(report.iterations, 0);
         assert!(report.converged);
         assert_eq!(report.residual_norm, 0.0);
@@ -1692,7 +1898,8 @@ mod tests {
         let x = [2.0, 3.0];
         let mut base = vec![0.0; 2];
         f(&x, &mut base).unwrap();
-        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings()).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings(), &lo, &hi).unwrap();
         assert!((jacobian[0][0] - 3.0).abs() < 1e-6, "{jacobian:?}");
         assert!((jacobian[0][1] - 2.0).abs() < 1e-6, "{jacobian:?}");
         assert!((jacobian[1][0] - 1.0).abs() < 1e-6, "{jacobian:?}");
@@ -1714,7 +1921,8 @@ mod tests {
         let x = [0.0];
         let base = vec![0.0];
         let s = settings();
-        let jacobian = numerical_jacobian(&mut f, &x, &base, &s).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &s, &lo, &hi).unwrap();
         assert!((jacobian[0][0] - 3.0).abs() < 1e-9, "{jacobian:?}");
         assert!(
             (probed - s.jacobian_epsilon).abs() < 1e-18,
@@ -1734,7 +1942,8 @@ mod tests {
         let x = [1.0e6];
         let base = vec![3.0e6];
         let s = settings();
-        numerical_jacobian(&mut f, &x, &base, &s).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        numerical_jacobian(&mut f, &x, &base, &s, &lo, &hi).unwrap();
         let expected = 1.0e6 + s.jacobian_epsilon * 1.0e6;
         assert!(
             (probed - expected).abs() < 1e-6,
@@ -1751,7 +1960,8 @@ mod tests {
         };
         let x = [1.0];
         let base = vec![0.5];
-        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings()).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings(), &lo, &hi).unwrap();
         assert!((jacobian[0][0] - 1.0).abs() < 1e-6, "{jacobian:?}");
     }
 
@@ -1765,7 +1975,8 @@ mod tests {
         let x = [4.0, 7.0];
         let mut base = vec![0.0; 2];
         f(&x, &mut base).unwrap();
-        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings()).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings(), &lo, &hi).unwrap();
         assert_eq!(jacobian[0][1], 0.0);
         assert_eq!(jacobian[1][1], 0.0);
         assert!(jacobian[0][0] > 0.9 && jacobian[0][0] < 1.1);
@@ -1800,7 +2011,8 @@ mod tests {
         let mut base = vec![0.0; 2];
         f(&x, &mut base).unwrap();
 
-        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings()).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings(), &lo, &hi).unwrap();
         // Row 0 is recovered exactly ...
         assert!((jacobian[0][0] - 1.0).abs() < 1e-6, "{jacobian:?}");
         assert!((jacobian[0][1] - 1.0).abs() < 1e-6, "{jacobian:?}");
@@ -1823,6 +2035,7 @@ mod tests {
             },
             &mut start,
             &settings(),
+            None,
         );
         match outcome {
             Err(FreesError::Solver { message }) => {
@@ -1846,7 +2059,8 @@ mod tests {
         let x = [1.0];
         let mut base = vec![0.0; 1];
         f(&x, &mut base).unwrap();
-        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings()).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings(), &lo, &hi).unwrap();
         assert_ne!(jacobian[0][0], 0.0, "the widening must find *some* slope");
         assert!(
             jacobian[0][0] > 10.0,
@@ -1863,7 +2077,8 @@ mod tests {
         };
         let x = [1.0];
         let base = vec![1.0];
-        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings()).unwrap();
+        let (lo, hi) = unbounded(x.len());
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &settings(), &lo, &hi).unwrap();
         assert!(jacobian[0][0].is_finite());
         assert_eq!(jacobian[0][0], 0.0);
     }
@@ -1929,7 +2144,9 @@ mod tests {
             Ok(())
         };
         let jacobian = vec![vec![0.0]];
-        let rescue = damped_rescue(&mut f, &jacobian, &[1.0], &[1.0], 1.0, 0.0, 1.0).unwrap();
+        let (lo, hi) = unbounded(1);
+        let rescue =
+            damped_rescue(&mut f, &jacobian, &[1.0], &[1.0], 1.0, 0.0, 1.0, &lo, &hi).unwrap();
         assert!(rescue.is_none());
     }
 
@@ -1942,9 +2159,20 @@ mod tests {
         let x = [2.0];
         let base = libm::atan(2.0);
         let jacobian = vec![vec![1.0 / 5.0]];
-        let rescue = damped_rescue(&mut f, &jacobian, &x, &[base], base.abs(), 0.0, 1.0)
-            .unwrap()
-            .expect("damping must find a descent");
+        let (lo, hi) = unbounded(1);
+        let rescue = damped_rescue(
+            &mut f,
+            &jacobian,
+            &x,
+            &[base],
+            base.abs(),
+            0.0,
+            1.0,
+            &lo,
+            &hi,
+        )
+        .unwrap()
+        .expect("damping must find a descent");
         assert!(rescue.step.norm < base.abs());
         assert!(rescue.lambda >= LM_LAMBDA_MIN);
     }
@@ -1977,5 +2205,320 @@ mod tests {
         assert!(report.converged);
         assert!((libm::exp(x[0]) + x[1] - 3.0).abs() < 1e-8, "x = {x:?}");
         assert!((x[0] + libm::sin(x[1]) - 1.0).abs() < 1e-8, "x = {x:?}");
+    }
+
+    // ---------------- analytic Jacobian (NewtonSolver.computeJacobian) ------
+
+    /// A [`NewtonProblem`] built from two closures — the shape the engine
+    /// hands the solver once the residual and its symbolic derivatives exist.
+    struct AnalyticProblem<R, J> {
+        residual_fn: R,
+        jacobian_fn: J,
+    }
+
+    impl<R, J> NewtonProblem for AnalyticProblem<R, J>
+    where
+        R: FnMut(&[f64], &mut [f64]) -> Result<()>,
+        J: FnMut(&[f64]) -> Option<Vec<Vec<f64>>>,
+    {
+        fn residual(&mut self, x: &[f64], out: &mut [f64]) -> Result<()> {
+            (self.residual_fn)(x, out)
+        }
+        fn analytic_jacobian(&mut self, x: &[f64]) -> Option<Vec<Vec<f64>>> {
+            (self.jacobian_fn)(x)
+        }
+    }
+
+    /// On a smooth system the analytic and finite-difference paths must land on
+    /// the same root — the Java guarantee that switching `computeJacobian`
+    /// paths never changes *what* is solved, only how the direction is built.
+    #[test]
+    fn analytic_and_fd_jacobians_agree_on_a_smooth_system() {
+        let residual = |x: &[f64], out: &mut [f64]| {
+            out[0] = x[0] * x[0] + x[1] * x[1] - 4.0;
+            out[1] = x[1] - x[0];
+            Ok(())
+        };
+
+        let (fd, fd_report) = solve(residual, &[1.5, 0.5]);
+        fd_report.expect("FD path must solve");
+
+        let analytic_calls = std::cell::Cell::new(0usize);
+        let problem = AnalyticProblem {
+            residual_fn: residual,
+            jacobian_fn: |x: &[f64]| {
+                analytic_calls.set(analytic_calls.get() + 1);
+                Some(vec![vec![2.0 * x[0], 2.0 * x[1]], vec![-1.0, 1.0]])
+            },
+        };
+        let mut x = [1.5, 0.5];
+        let report = newton_solve_problem(problem, &mut x, &settings(), None);
+        report.expect("analytic path must solve");
+        assert!(
+            analytic_calls.get() >= 1,
+            "the analytic source was never consulted"
+        );
+
+        let root = std::f64::consts::SQRT_2;
+        assert!(
+            (x[0] - root).abs() < 1e-9 && (x[1] - root).abs() < 1e-9,
+            "x = {x:?}"
+        );
+        assert!(
+            (fd[0] - x[0]).abs() < 1e-8 && (fd[1] - x[1]).abs() < 1e-8,
+            "fd {fd:?} vs analytic {x:?}"
+        );
+    }
+
+    /// The steep exponential: `exp(1e8·(x−1)) + x = 2`, root at x ≈ 1. From
+    /// the start `1 + 1e-7` the finite-difference probe `h ≈ 1e-7` *doubles*
+    /// the exponent, so the measured slope comes back ~2000× too steep, every
+    /// Newton step lands ~2000× short, and 250 iterations cannot walk the
+    /// 1e-7 distance — pure FD stalls out. The exact symbolic derivative
+    /// (what A1's `Differentiator` will feed the engine) converges in a
+    /// handful of iterations. This is the pure-FD-stalls /
+    /// symbolic-converges pair the Java analytic path exists for.
+    #[test]
+    fn analytic_jacobian_solves_a_steep_exponential_where_fd_stalls() {
+        let residual = |v: &[f64], out: &mut [f64]| {
+            out[0] = libm::exp(1.0e8 * (v[0] - 1.0)) + v[0] - 2.0;
+            Ok(())
+        };
+
+        // Pure FD provably fails from this start.
+        let (_, fd_report) = solve(residual, &[1.0 + 1.0e-7]);
+        assert!(
+            fd_report.is_err(),
+            "if FD now solves the steep exponential, tighten this test: {fd_report:?}"
+        );
+
+        // The symbolic derivative 1e8·exp(1e8·(x−1)) + 1 is exact at every
+        // iterate, so each step shrinks the exponent by ~1.
+        let problem = AnalyticProblem {
+            residual_fn: residual,
+            jacobian_fn: |v: &[f64]| {
+                Some(vec![vec![1.0e8 * libm::exp(1.0e8 * (v[0] - 1.0)) + 1.0]])
+            },
+        };
+        let mut x = [1.0 + 1.0e-7];
+        let report = newton_solve_problem(problem, &mut x, &settings(), None)
+            .expect("the symbolic derivative must converge where FD stalls");
+        assert!(report.converged);
+        assert!(
+            report.iterations < 100,
+            "symbolic Newton should be quick here: {}",
+            report.iterations
+        );
+        let r = libm::exp(1.0e8 * (x[0] - 1.0)) + x[0] - 2.0;
+        // The stop criterion is relative to the equation's ~1e8 row scale
+        // (Java |lhs| rule), so the residual floor here is ~1e-4, not 1e-12.
+        assert!(r.abs() < 1e-3, "residual {r} at x = {:.12}", x[0]);
+        assert!((x[0] - 1.0).abs() < 1e-6, "x = {:.12}", x[0]);
+    }
+
+    /// A source that answers `None` (the Java `analyticalJacobian` returning
+    /// null when a derivative fails to evaluate) must fall back to finite
+    /// differences for that iteration and still solve.
+    #[test]
+    fn analytic_none_falls_back_to_fd_per_iteration() {
+        let served = std::cell::Cell::new(0usize);
+        let problem = AnalyticProblem {
+            residual_fn: |x: &[f64], out: &mut [f64]| {
+                out[0] = x[0] * x[0] - 4.0;
+                Ok(())
+            },
+            jacobian_fn: |x: &[f64]| {
+                served.set(served.get() + 1);
+                if served.get() == 1 {
+                    None // first iteration: pretend the derivative failed to evaluate
+                } else {
+                    Some(vec![vec![2.0 * x[0]]])
+                }
+            },
+        };
+        let mut x = [1.0];
+        let report = newton_solve_problem(problem, &mut x, &settings(), None)
+            .expect("mixed analytic/FD iterations must solve");
+        assert!(report.converged);
+        assert!((x[0] - 2.0).abs() < 1e-9, "x = {}", x[0]);
+        assert!(served.get() >= 2, "both paths must have been exercised");
+    }
+
+    /// A malformed analytic matrix (wrong dimensions) must be ignored in favour
+    /// of FD, never fed to the elimination.
+    #[test]
+    fn analytic_jacobian_with_wrong_dimensions_is_ignored() {
+        let problem = AnalyticProblem {
+            residual_fn: |x: &[f64], out: &mut [f64]| {
+                out[0] = x[0] * x[0] - 4.0;
+                Ok(())
+            },
+            jacobian_fn: |_x: &[f64]| Some(vec![vec![1.0, 2.0]]), // 1×2 for a 1×1 system
+        };
+        let mut x = [1.0];
+        let report = newton_solve_problem(problem, &mut x, &settings(), None)
+            .expect("the malformed matrix must be discarded, not fatal");
+        assert!(report.converged);
+        assert!((x[0] - 2.0).abs() < 1e-9, "x = {}", x[0]);
+    }
+
+    // ---------------- bounds (the three Java Math.clamp sites) --------------
+
+    /// Every point the solver evaluates — line-search candidates, damped
+    /// candidates and finite-difference probes — must stay inside `[lo, hi]`.
+    /// The residual closure is the instrument: it records any violation.
+    #[test]
+    fn bounds_confine_every_residual_probe() {
+        let violations = std::cell::RefCell::new(Vec::new());
+        let bounds = [(0.5f64, 4.0f64)];
+        let mut x = [0.6];
+        let report = newton_solve(
+            |x: &[f64], out: &mut [f64]| {
+                if !(0.5..=4.0).contains(&x[0]) {
+                    violations.borrow_mut().push(x[0]);
+                }
+                out[0] = x[0] * x[0] - 4.0;
+                Ok(())
+            },
+            &mut x,
+            &settings(),
+            Some(&bounds),
+        )
+        .expect("must solve inside the box");
+        assert!(report.converged);
+        assert!((x[0] - 2.0).abs() < 1e-9, "x = {}", x[0]);
+        assert!(
+            violations.borrow().is_empty(),
+            "probes left [0.5, 4]: {:?}",
+            violations.borrow()
+        );
+    }
+
+    /// The atan overshoot: the full Newton step from 2.0 lands at −3.5, which
+    /// bounds [−3, 3] must clip. The solve still converges to the root 0 and
+    /// never evaluates outside the box.
+    #[test]
+    fn bounds_clip_an_overshooting_step_and_still_converge() {
+        let violations = std::cell::RefCell::new(Vec::new());
+        let bounds = [(-3.0f64, 3.0f64)];
+        let mut x = [2.0];
+        let report = newton_solve(
+            |x: &[f64], out: &mut [f64]| {
+                if !(-3.0..=3.0).contains(&x[0]) {
+                    violations.borrow_mut().push(x[0]);
+                }
+                out[0] = libm::atan(x[0]);
+                Ok(())
+            },
+            &mut x,
+            &settings(),
+            Some(&bounds),
+        )
+        .expect("must converge inside the box");
+        assert!(report.converged);
+        assert!(x[0].abs() < 1e-8, "x = {}", x[0]);
+        assert!(
+            violations.borrow().is_empty(),
+            "probes left [-3, 3]: {:?}",
+            violations.borrow()
+        );
+    }
+
+    /// A root outside the box cannot be reached: the iterate walks to the
+    /// bound, sticks there, and the solve fails with the iterate still inside
+    /// `[lo, hi]` — never with the out-of-range "solution" the unbounded
+    /// solver would return.
+    #[test]
+    fn a_root_outside_the_bounds_is_a_bounded_failure_not_an_escape() {
+        let bounds = [(0.0f64, 1.0f64)];
+        let mut x = [0.5];
+        let report = newton_solve(
+            |x: &[f64], out: &mut [f64]| {
+                out[0] = x[0] - 5.0;
+                Ok(())
+            },
+            &mut x,
+            &settings(),
+            Some(&bounds),
+        );
+        match report {
+            Err(FreesError::Solver { message }) => {
+                assert!(
+                    message.contains("stalled") || message.contains("Constrained"),
+                    "message = {message}"
+                );
+            }
+            other => panic!("expected a bounded stall, got {other:?}"),
+        }
+        assert!(
+            (0.0..=1.0).contains(&x[0]),
+            "the iterate must end inside the box: {}",
+            x[0]
+        );
+        assert_eq!(x[0], 1.0, "the iterate should sit on the blocking bound");
+    }
+
+    /// The FD Jacobian at a bound probes backward (range-aware perturbation,
+    /// Java computeJacobianColumn): anchored exactly on `hi`, the forward
+    /// direction is pinned and the derivative must come from the backward
+    /// probe — and every probe stays in range.
+    #[test]
+    fn jacobian_probes_respect_the_bounds() {
+        let mut probed: Vec<f64> = Vec::new();
+        let mut f = |x: &[f64], out: &mut [f64]| {
+            probed.push(x[0]);
+            out[0] = 3.0 * x[0] - 1.0;
+            Ok(())
+        };
+        let x = [1.0];
+        let base = vec![2.0];
+        let s = settings();
+        let (lo, hi) = (vec![0.0], vec![1.0]); // anchored exactly on hi
+        let jacobian = numerical_jacobian(&mut f, &x, &base, &s, &lo, &hi).unwrap();
+        assert!((jacobian[0][0] - 3.0).abs() < 1e-6, "{jacobian:?}");
+        assert!(
+            probed.iter().all(|&p| (0.0..=1.0).contains(&p)),
+            "probes left the box: {probed:?}"
+        );
+        assert!(
+            probed.iter().any(|&p| p < 1.0),
+            "the backward probe must have run: {probed:?}"
+        );
+    }
+
+    /// Bounds validation: reversed or NaN bounds and a length mismatch are
+    /// clean errors, not clamp panics.
+    #[test]
+    fn invalid_bounds_are_rejected() {
+        let f = |x: &[f64], out: &mut [f64]| {
+            out[0] = x[0];
+            Ok(())
+        };
+        let reversed = [(2.0f64, 1.0f64)];
+        assert!(newton_solve(f, &mut [1.0], &settings(), Some(&reversed)).is_err());
+        let nan = [(f64::NAN, 1.0f64)];
+        assert!(newton_solve(f, &mut [1.0], &settings(), Some(&nan)).is_err());
+        let short: [(f64, f64); 1] = [(0.0, 1.0)];
+        assert!(newton_solve(f, &mut [1.0, 2.0], &settings(), Some(&short)).is_err());
+    }
+
+    /// A solution sitting exactly on a bound is still a solution — pinning is
+    /// only an error when the residuals cannot be met there.
+    #[test]
+    fn a_root_on_the_bound_itself_still_solves() {
+        let bounds = [(0.0f64, 2.0f64)];
+        let mut x = [0.5];
+        let report = newton_solve(
+            |x: &[f64], out: &mut [f64]| {
+                out[0] = x[0] - 2.0;
+                Ok(())
+            },
+            &mut x,
+            &settings(),
+            Some(&bounds),
+        )
+        .expect("a root on the bound must be accepted");
+        assert!(report.converged);
+        assert_eq!(x[0], 2.0);
     }
 }

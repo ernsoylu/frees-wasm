@@ -2,7 +2,10 @@
 //!
 //! Rules `program`, `topLevel`, `statement`, `statementList`, `forBlock`,
 //! `callStatement`, `multiAssign`, `rangeAssign`, `symbolicDecl`,
-//! `guessDirective`, `equation` from `Frees.g4`.
+//! `guessDirective`, `equation` from `Frees.g4`, plus the definition blocks
+//! `functionDef`, `procedureDef`, `moduleDef`, `tableDef` and the procedural
+//! body rules `procBody`, `procStatement`, `assignment`, `ifStatement`,
+//! `repeatStatement`, `whileStatement`.
 //!
 //! Port of `AstBuilder.buildProgram` / `buildStatement` and friends
 //! (`../frEES/backend/core/src/main/java/com/frees/backend/parser/AstBuilder.java`).
@@ -10,11 +13,32 @@
 //! # What this pass covers
 //!
 //! `topLevel` in the grammar admits eleven block constructs on top of the plain
-//! statement forms. Only `guessDirective` and `statement` are implemented here;
-//! every other leading token produces [`crate::parser::unsupported`] naming the
-//! construct, so a document that uses one fails loudly instead of being
-//! silently mis-parsed (`Document`'s doc comment: "a wrong answer is worse than
-//! a refusal").
+//! statement forms. `guessDirective`, `statement` and the four definition
+//! blocks (`FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`, filling
+//! [`Document::defs`]) are implemented here; every other leading token produces
+//! [`crate::parser::unsupported`] naming the construct, so a document that uses
+//! one fails loudly instead of being silently mis-parsed (`Document`'s doc
+//! comment: "a wrong answer is worse than a refusal").
+//!
+//! # Multi-output `FUNCTION` desugaring
+//!
+//! The grammar allows `FUNCTION [a, b] = f(x) … END`, but the Java
+//! `ProcDef.FunctionDef` record carries no outputs list. Verified against
+//! `AstBuilder.buildFunctionDef`: when `funcOutputs` is present the block is
+//! lowered to a **`ProcedureDef`** whose inputs are the parameter list and
+//! whose outputs are the bracketed names — it reuses the procedure
+//! call/flatten machinery and is consumed with `[p, q] = f(x)` (`multiAssign`,
+//! itself sugar for `CALL f(x : p, q)`). This port mirrors that exactly.
+//!
+//! # Definition name collisions
+//!
+//! Java stores every definition in one `LinkedHashMap` keyed by the lowercase
+//! name (`AstBuilder.buildProgram`), so a later definition of a name replaces
+//! an earlier one **across kinds** (a `MODULE f` shadows an earlier
+//! `FUNCTION f`). [`record_def`] mirrors that by evicting the name from all
+//! four [`Definitions`] lists before inserting. (Java's `LinkedHashMap.put`
+//! keeps the original insertion *slot* while this port re-appends; nothing
+//! consumes the relative order of defs, only name lookups.)
 //!
 //! # Disambiguation
 //!
@@ -57,8 +81,13 @@
 
 use crate::ast::{Equation, Expr, Statement};
 use crate::diag::{FreesError, Result, Span};
+use crate::parser::defs::{
+    Curve, Definitions, FunctionDef, FunctionTableDef, ModuleDef, ProcStatement, ProcedureDef,
+};
+use crate::parser::expr::{parse_bool_expr, parse_unit_annotation};
 use crate::parser::{unsupported, Cursor, Document, GuessDirective};
 use crate::token::{Token, TokenKind};
+use crate::units::UnitRegistry;
 
 /// Canonical prefix for the throwaway "sink" variables backing a discarded
 /// (`~`) output slot of a destructuring call. Port of
@@ -159,15 +188,35 @@ impl<'a> Parser<'a> {
         Ok(doc)
     }
 
-    /// `topLevel`. Only `guessDirective` and `statement` are supported; every
-    /// block form is rejected by [`Parser::statement`].
+    /// `topLevel`. `guessDirective`, the four definition blocks and
+    /// `statement` are supported; every other block form is rejected by
+    /// [`Parser::statement`].
     fn top_level(&mut self, doc: &mut Document) -> Result<()> {
-        if matches!(self.c.peek(), TokenKind::Guess) {
-            let directive = self.guess_directive()?;
-            doc.guesses.push(directive);
-        } else {
-            let statement = self.statement()?;
-            doc.statements.push(statement);
+        match self.c.peek() {
+            TokenKind::Guess => {
+                let directive = self.guess_directive()?;
+                doc.guesses.push(directive);
+            }
+            TokenKind::Function => {
+                let def = self.function_def()?;
+                record_def(&mut doc.defs, def);
+            }
+            TokenKind::Procedure => {
+                let def = self.procedure_def()?;
+                record_def(&mut doc.defs, ParsedDef::Procedure(def));
+            }
+            TokenKind::Module => {
+                let def = self.module_def()?;
+                record_def(&mut doc.defs, ParsedDef::Module(def));
+            }
+            TokenKind::Table => {
+                let def = self.table_def()?;
+                record_def(&mut doc.defs, ParsedDef::Table(def));
+            }
+            _ => {
+                let statement = self.statement()?;
+                doc.statements.push(statement);
+            }
         }
         Ok(())
     }
@@ -200,13 +249,7 @@ impl<'a> Parser<'a> {
     /// `forBlock : FOR IDENT EQ expr TO expr sep statementList sep? END`
     fn for_block(&mut self) -> Result<Statement> {
         let header = self.c.span();
-        if self.block_depth >= MAX_BLOCK_DEPTH {
-            return Err(FreesError::parse_at(
-                format!("blocks are nested more than {MAX_BLOCK_DEPTH} levels deep"),
-                header,
-            ));
-        }
-        self.block_depth += 1;
+        self.enter_block(header)?;
         let result = self.for_block_inner(header);
         self.block_depth -= 1;
         result
@@ -219,17 +262,23 @@ impl<'a> Parser<'a> {
         let start = self.expr()?;
         self.c.expect(&TokenKind::To)?;
         let end = self.expr()?;
-        if !self.c.skip_separators() {
-            return Err(FreesError::parse_at(
-                format!(
-                    "expected a line break or `;` after the FOR header, found {}",
-                    self.c.peek().describe()
-                ),
-                self.c.span(),
-            ));
-        }
+        self.require_sep("after the FOR header")?;
 
         // `statementList sep? END`
+        let body = self.statement_list_until_end(header, "FOR")?;
+        self.c.expect(&TokenKind::End)?;
+
+        Ok(Statement::For {
+            var_name,
+            start,
+            end,
+            body,
+        })
+    }
+
+    /// `statementList sep? END` — the shared body shape of `forBlock` and
+    /// `moduleDef`. Stops **at** the `END` without consuming it.
+    fn statement_list_until_end(&mut self, header: Span, block: &str) -> Result<Vec<Statement>> {
         let mut body = Vec::new();
         loop {
             self.c.skip_separators();
@@ -238,7 +287,7 @@ impl<'a> Parser<'a> {
             }
             if self.c.is_eof() {
                 return Err(FreesError::parse_at(
-                    "unterminated FOR block: expected `END`",
+                    format!("unterminated {block} block: expected `END`"),
                     header,
                 ));
             }
@@ -256,14 +305,7 @@ impl<'a> Parser<'a> {
                 ));
             }
         }
-        self.c.expect(&TokenKind::End)?;
-
-        Ok(Statement::For {
-            var_name,
-            start,
-            end,
-            body,
-        })
+        Ok(body)
     }
 
     /// `callStatement : CALL IDENT LPAREN callArgList COLON callArgList RPAREN`
@@ -504,7 +546,448 @@ impl<'a> Parser<'a> {
         })
     }
 
+    // ── FUNCTION / PROCEDURE / MODULE / TABLE definitions ───────────────────
+
+    /// `functionDef : FUNCTION (LBRACKET funcOutputs RBRACKET EQ)? IDENT
+    ///                LPAREN paramList RPAREN unit? sep procBody END`
+    ///
+    /// Port of `AstBuilder.buildFunctionDef`. The multi-output form is lowered
+    /// to a [`ProcedureDef`] (see the module docs); its unit annotations are
+    /// parsed and discarded exactly as the Java builder ignores them.
+    fn function_def(&mut self) -> Result<ParsedDef> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Function)?;
+
+        // `(LBRACKET funcOutputs RBRACKET EQ)?` — the multi-output header.
+        let outputs = if self.c.eat(&TokenKind::LBracket) {
+            let mut outs = vec![self.c.expect_ident()?.to_ascii_lowercase()];
+            while self.c.eat(&TokenKind::Comma) {
+                outs.push(self.c.expect_ident()?.to_ascii_lowercase());
+            }
+            self.c.expect(&TokenKind::RBracket)?;
+            self.c.expect(&TokenKind::Eq)?;
+            Some(outs)
+        } else {
+            None
+        };
+
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::LParen)?;
+        let (params, param_units) = self.param_list()?;
+        self.c.expect(&TokenKind::RParen)?;
+        let output_unit = si_unit_of(parse_unit_annotation(&mut self.c)?);
+        self.require_sep("after the FUNCTION header")?;
+        let body = self.proc_body(header, "FUNCTION", &[TokenKind::End])?;
+        self.c.expect(&TokenKind::End)?;
+
+        Ok(match outputs {
+            // `FUNCTION [a, b] = f(x)` → ProcedureDef (AstBuilder parity).
+            Some(outputs) => ParsedDef::Procedure(ProcedureDef {
+                name,
+                inputs: params,
+                outputs,
+                body,
+            }),
+            None => ParsedDef::Function(FunctionDef {
+                name,
+                params,
+                body,
+                output_unit,
+                param_units: collapse_units(param_units),
+            }),
+        })
+    }
+
+    /// `procedureDef : PROCEDURE IDENT LPAREN paramList COLON paramList RPAREN
+    ///                 sep procBody END`
+    ///
+    /// Port of `AstBuilder.buildProcedureDef` — parameter units are parsed and
+    /// discarded (`buildParamList` keeps names only).
+    fn procedure_def(&mut self) -> Result<ProcedureDef> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Procedure)?;
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::LParen)?;
+        let (inputs, _) = self.param_list()?;
+        self.c.expect(&TokenKind::Colon)?;
+        let (outputs, _) = self.param_list()?;
+        self.c.expect(&TokenKind::RParen)?;
+        self.require_sep("after the PROCEDURE header")?;
+        let body = self.proc_body(header, "PROCEDURE", &[TokenKind::End])?;
+        self.c.expect(&TokenKind::End)?;
+        Ok(ProcedureDef {
+            name,
+            inputs,
+            outputs,
+            body,
+        })
+    }
+
+    /// `moduleDef : MODULE IDENT LPAREN paramList COLON paramList RPAREN sep
+    ///              statementList sep? END`
+    ///
+    /// Port of `AstBuilder.buildModuleDef`. The body is a **statement** list
+    /// (`=` equations, FOR, …), not a procedural body — flattening grafts the
+    /// equations into the caller's system with namespaced variable names.
+    fn module_def(&mut self) -> Result<ModuleDef> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Module)?;
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::LParen)?;
+        let (inputs, _) = self.param_list()?;
+        self.c.expect(&TokenKind::Colon)?;
+        let (outputs, _) = self.param_list()?;
+        self.c.expect(&TokenKind::RParen)?;
+        self.require_sep("after the MODULE header")?;
+        let body = self.statement_list_until_end(header, "MODULE")?;
+        self.c.expect(&TokenKind::End)?;
+        Ok(ModuleDef {
+            name,
+            inputs,
+            outputs,
+            body,
+        })
+    }
+
+    /// `tableDef : TABLE IDENT LPAREN IDENT unit? (COLON IDENT EQ numberList)?
+    ///             RPAREN unit? tableFlags? sep tableRow (sep tableRow)* sep?
+    ///             END`
+    ///
+    /// Port of `AstBuilder.buildTableDef`: the first body column is the lookup
+    /// argument, each further column one curve; a family declares its
+    /// parameter values in the header. Curves are sorted ascending by x
+    /// exactly as `buildCurves` does, and ragged rows simply omit later
+    /// columns.
+    fn table_def(&mut self) -> Result<FunctionTableDef> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Table)?;
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::LParen)?;
+        let arg_name = self.c.expect_ident()?.to_ascii_lowercase();
+        let arg_unit = si_unit_of(parse_unit_annotation(&mut self.c)?);
+
+        // `(COLON IDENT EQ numberList)?` — the curve-family header.
+        let family = if self.c.eat(&TokenKind::Colon) {
+            let param_name = self.c.expect_ident()?.to_ascii_lowercase();
+            self.c.expect(&TokenKind::Eq)?;
+            let mut values = vec![self.signed_number()?];
+            while self.c.eat(&TokenKind::Comma) {
+                values.push(self.signed_number()?);
+            }
+            Some((param_name, values))
+        } else {
+            None
+        };
+        self.c.expect(&TokenKind::RParen)?;
+        let output_unit = si_unit_of(parse_unit_annotation(&mut self.c)?);
+
+        // `tableFlags : IDENT+` — XLOG/LOGX, YLOG/LOGY (parseTableFlags).
+        let mut x_log = false;
+        let mut y_log = false;
+        while let TokenKind::Ident(flag) = self.c.peek().clone() {
+            let flag_span = self.c.span();
+            self.c.advance();
+            match flag.to_ascii_lowercase().as_str() {
+                "xlog" | "logx" => x_log = true,
+                "ylog" | "logy" => y_log = true,
+                _ => {
+                    return Err(FreesError::parse_at(
+                        format!(
+                            "Unknown TABLE flag '{flag}' in {name}(...). \
+                             Supported flags: XLOG, YLOG."
+                        ),
+                        flag_span,
+                    ))
+                }
+            }
+        }
+        self.require_sep("after the TABLE header")?;
+
+        // `tableRow (sep tableRow)* sep?` — rows of whitespace-separated
+        // signed numbers. At least one row, as the grammar requires; an
+        // immediate `END` falls into `signed_number` and earns the natural
+        // "expected a number, found `END`".
+        let mut rows: Vec<Vec<f64>> = Vec::new();
+        loop {
+            self.c.skip_separators();
+            if matches!(self.c.peek(), TokenKind::End) && !rows.is_empty() {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    "unterminated TABLE block: expected `END`",
+                    header,
+                ));
+            }
+            let mut row = vec![self.signed_number()?];
+            while matches!(
+                self.c.peek(),
+                TokenKind::Number { .. } | TokenKind::Plus | TokenKind::Minus
+            ) {
+                row.push(self.signed_number()?);
+            }
+            rows.push(row);
+            if !self.c.peek().is_separator() && !matches!(self.c.peek(), TokenKind::End) {
+                return Err(FreesError::parse_at(
+                    format!(
+                        "expected end of statement, found {}",
+                        self.c.peek().describe()
+                    ),
+                    self.c.span(),
+                ));
+            }
+        }
+        self.c.expect(&TokenKind::End)?;
+
+        // Read every row as [x, y1, y2, ...]; ragged rows omit later columns.
+        let max_cols = rows.iter().map(Vec::len).max().unwrap_or(0);
+        let curve_count = max_cols.saturating_sub(1).max(1);
+        if let Some((_, values)) = &family {
+            if values.len() != curve_count {
+                return Err(FreesError::parse_at(
+                    format!(
+                        "TABLE {name}: header declares {} curve parameter value(s) \
+                         but the rows have {curve_count} value column(s).",
+                        values.len()
+                    ),
+                    header,
+                ));
+            }
+        }
+
+        // One Curve per value column, each sorted ascending by x
+        // (`buildCurves`; Java's `Double.compare` order — `total_cmp` agrees on
+        // -0.0 < 0.0 and NaN-greatest).
+        let mut curves = Vec::with_capacity(curve_count);
+        for j in 0..curve_count {
+            let mut pts: Vec<(f64, f64)> = rows
+                .iter()
+                .filter(|row| row.len() >= j + 2)
+                .map(|row| (row[0], row[j + 1]))
+                .collect();
+            pts.sort_by(|a, b| a.0.total_cmp(&b.0));
+            curves.push(Curve {
+                param: family.as_ref().map(|(_, values)| values[j]),
+                xs: pts.iter().map(|p| p.0).collect(),
+                ys: pts.iter().map(|p| p.1).collect(),
+            });
+        }
+
+        let mut arg_names = vec![arg_name];
+        let mut arg_units = vec![arg_unit];
+        if let Some((param_name, _)) = &family {
+            arg_names.push(param_name.clone());
+            arg_units.push(None); // family-parameter units are not annotated yet
+        }
+        Ok(FunctionTableDef {
+            name,
+            arg_names,
+            x_log,
+            y_log,
+            curves,
+            output_unit,
+            arg_units: collapse_units(arg_units),
+        })
+    }
+
+    /// `paramList : (IDENT unit? (COMMA IDENT unit?)*)?` — names lowercased,
+    /// units converted to their SI display names aligned with the names
+    /// (`AstBuilder.buildParamList` + `paramUnits`).
+    fn param_list(&mut self) -> Result<(Vec<String>, Vec<Option<String>>)> {
+        let mut names = Vec::new();
+        let mut units = Vec::new();
+        // The list is optional; `)` or `:` closes an empty one.
+        if matches!(self.c.peek(), TokenKind::RParen | TokenKind::Colon) {
+            return Ok((names, units));
+        }
+        loop {
+            names.push(self.c.expect_ident()?.to_ascii_lowercase());
+            units.push(si_unit_of(parse_unit_annotation(&mut self.c)?));
+            if self.c.eat(&TokenKind::Comma) {
+                continue;
+            }
+            break;
+        }
+        Ok((names, units))
+    }
+
+    // ── procedural bodies (inside FUNCTION / PROCEDURE) ─────────────────────
+
+    /// `procBody : (procStatement (sep procStatement)* sep?)?` — collects
+    /// statements until one of `terminators` (`END`, `ELSE`, or `UNTIL`),
+    /// which is left unconsumed.
+    fn proc_body(
+        &mut self,
+        header: Span,
+        block: &str,
+        terminators: &[TokenKind],
+    ) -> Result<Vec<ProcStatement>> {
+        let mut body = Vec::new();
+        loop {
+            self.c.skip_separators();
+            if terminators.contains(self.c.peek()) {
+                break;
+            }
+            if self.c.is_eof() {
+                let expected = match terminators {
+                    [TokenKind::Until] => "`UNTIL`",
+                    _ => "`END`",
+                };
+                return Err(FreesError::parse_at(
+                    format!("unterminated {block} block: expected {expected}"),
+                    header,
+                ));
+            }
+            body.push(self.proc_statement()?);
+            if !self.c.peek().is_separator()
+                && !terminators.contains(self.c.peek())
+                && !self.c.is_eof()
+            {
+                return Err(FreesError::parse_at(
+                    format!(
+                        "expected end of statement, found {}",
+                        self.c.peek().describe()
+                    ),
+                    self.c.span(),
+                ));
+            }
+        }
+        Ok(body)
+    }
+
+    /// `procStatement : forBlock | ifStatement | repeatStatement
+    ///                | whileStatement | assignment | equation`
+    fn proc_statement(&mut self) -> Result<ProcStatement> {
+        match self.c.peek() {
+            TokenKind::If => self.if_statement(),
+            TokenKind::Repeat => self.repeat_statement(),
+            TokenKind::While => self.while_statement(),
+            // The grammar reuses the top-level `forBlock` (whose body is a
+            // *statement* list); `buildProcFor` re-parses it into
+            // ProcStatements, rejecting the forms that have no procedural
+            // meaning. Mirrored by `to_proc_statement`.
+            TokenKind::For => {
+                let header = self.c.span();
+                let statement = self.for_block()?;
+                to_proc_statement(statement, header)
+            }
+            // `assignment : IDENT ASSIGN expr` — two tokens of lookahead
+            // separate it from an equation.
+            TokenKind::Ident(_) if matches!(self.c.peek_at(1), TokenKind::Assign) => {
+                let var_name = self.c.expect_ident()?.to_ascii_lowercase();
+                self.c.expect(&TokenKind::Assign)?;
+                let value = self.expr()?;
+                Ok(ProcStatement::Assign { var_name, value })
+            }
+            _ => {
+                // `equation : expr EQ expr` — an intermediate relation.
+                let start_pos = self.c.pos();
+                let lhs = self.expr()?;
+                self.c.expect(&TokenKind::Eq)?;
+                let rhs = self.expr()?;
+                Ok(ProcStatement::Eq(Equation::new(
+                    lhs,
+                    rhs,
+                    self.text_since(start_pos),
+                )))
+            }
+        }
+    }
+
+    /// `ifStatement : IF boolExpr THEN sep procBody (ELSE sep procBody)? END`
+    fn if_statement(&mut self) -> Result<ProcStatement> {
+        let header = self.c.span();
+        self.enter_block(header)?;
+        let result = self.if_statement_inner(header);
+        self.block_depth -= 1;
+        result
+    }
+
+    fn if_statement_inner(&mut self, header: Span) -> Result<ProcStatement> {
+        self.c.expect(&TokenKind::If)?;
+        let condition = parse_bool_expr(&mut self.c)?;
+        self.c.expect(&TokenKind::Then)?;
+        self.require_sep("after THEN")?;
+        let then_branch = self.proc_body(header, "IF", &[TokenKind::Else, TokenKind::End])?;
+        let else_branch = if self.c.eat(&TokenKind::Else) {
+            self.require_sep("after ELSE")?;
+            self.proc_body(header, "IF", &[TokenKind::End])?
+        } else {
+            Vec::new()
+        };
+        self.c.expect(&TokenKind::End)?;
+        Ok(ProcStatement::IfElse {
+            condition,
+            then_branch,
+            else_branch,
+        })
+    }
+
+    /// `repeatStatement : REPEAT sep procBody UNTIL boolExpr`
+    fn repeat_statement(&mut self) -> Result<ProcStatement> {
+        let header = self.c.span();
+        self.enter_block(header)?;
+        let result = self.repeat_statement_inner(header);
+        self.block_depth -= 1;
+        result
+    }
+
+    fn repeat_statement_inner(&mut self, header: Span) -> Result<ProcStatement> {
+        self.c.expect(&TokenKind::Repeat)?;
+        self.require_sep("after REPEAT")?;
+        let body = self.proc_body(header, "REPEAT", &[TokenKind::Until])?;
+        self.c.expect(&TokenKind::Until)?;
+        let condition = parse_bool_expr(&mut self.c)?;
+        Ok(ProcStatement::RepeatUntil { body, condition })
+    }
+
+    /// `whileStatement : WHILE boolExpr DO sep procBody END`
+    fn while_statement(&mut self) -> Result<ProcStatement> {
+        let header = self.c.span();
+        self.enter_block(header)?;
+        let result = self.while_statement_inner(header);
+        self.block_depth -= 1;
+        result
+    }
+
+    fn while_statement_inner(&mut self, header: Span) -> Result<ProcStatement> {
+        self.c.expect(&TokenKind::While)?;
+        let condition = parse_bool_expr(&mut self.c)?;
+        self.c.expect(&TokenKind::Do)?;
+        self.require_sep("after DO")?;
+        let body = self.proc_body(header, "WHILE", &[TokenKind::End])?;
+        self.c.expect(&TokenKind::End)?;
+        Ok(ProcStatement::While { condition, body })
+    }
+
     // ── shared pieces ───────────────────────────────────────────────────────
+
+    /// Guard a nested block against [`MAX_BLOCK_DEPTH`], charging one level.
+    /// The caller must decrement `block_depth` when its inner parse returns.
+    fn enter_block(&mut self, header: Span) -> Result<()> {
+        if self.block_depth >= MAX_BLOCK_DEPTH {
+            return Err(FreesError::parse_at(
+                format!("blocks are nested more than {MAX_BLOCK_DEPTH} levels deep"),
+                header,
+            ));
+        }
+        self.block_depth += 1;
+        Ok(())
+    }
+
+    /// Require at least one statement separator, with a message naming where.
+    fn require_sep(&mut self, context: &str) -> Result<()> {
+        if !self.c.skip_separators() {
+            return Err(FreesError::parse_at(
+                format!(
+                    "expected a line break or `;` {context}, found {}",
+                    self.c.peek().describe()
+                ),
+                self.c.span(),
+            ));
+        }
+        Ok(())
+    }
 
     /// `signedNumber : (PLUS | MINUS)? NUMBER`
     fn signed_number(&mut self) -> Result<f64> {
@@ -669,13 +1152,10 @@ impl<'a> Parser<'a> {
 // ── free helpers ────────────────────────────────────────────────────────────
 
 /// The block constructs `topLevel` admits that this pass does not implement,
-/// keyed by their leading token.
+/// keyed by their leading token. `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`
+/// parse into [`Document::defs`] and are no longer here.
 fn unsupported_construct(kind: &TokenKind) -> Option<&'static str> {
     Some(match kind {
-        TokenKind::Function => "FUNCTION",
-        TokenKind::Procedure => "PROCEDURE",
-        TokenKind::Module => "MODULE",
-        TokenKind::Table => "TABLE",
         TokenKind::Parametric => "PARAMETRIC",
         TokenKind::StateTable => "STATE TABLE",
         TokenKind::Plot => "PLOT",
@@ -685,6 +1165,98 @@ fn unsupported_construct(kind: &TokenKind) -> Option<&'static str> {
         TokenKind::Connect => "CONNECT",
         _ => return None,
     })
+}
+
+/// A parsed definition on its way into [`Definitions`].
+enum ParsedDef {
+    Function(FunctionDef),
+    Procedure(ProcedureDef),
+    Module(ModuleDef),
+    Table(FunctionTableDef),
+}
+
+/// Insert a definition, evicting any earlier definition of the same name from
+/// **all four** kinds first — the Java `LinkedHashMap<String, ProcDef>` keyed
+/// by lowercase name (`AstBuilder.buildProgram`) makes a later definition
+/// replace an earlier one across kinds. See the module docs.
+fn record_def(defs: &mut Definitions, def: ParsedDef) {
+    let name = match &def {
+        ParsedDef::Function(d) => d.name.clone(),
+        ParsedDef::Procedure(d) => d.name.clone(),
+        ParsedDef::Module(d) => d.name.clone(),
+        ParsedDef::Table(d) => d.name.clone(),
+    };
+    defs.functions.retain(|d| d.name != name);
+    defs.procedures.retain(|d| d.name != name);
+    defs.modules.retain(|d| d.name != name);
+    defs.tables.retain(|d| d.name != name);
+    match def {
+        ParsedDef::Function(d) => defs.functions.push(d),
+        ParsedDef::Procedure(d) => defs.procedures.push(d),
+        ParsedDef::Module(d) => defs.modules.push(d),
+        ParsedDef::Table(d) => defs.tables.push(d),
+    }
+}
+
+/// Convert a top-level [`Statement`] parsed inside a `FOR` body within a
+/// procedural body into the equivalent [`ProcStatement`]. Port of
+/// `AstBuilder.toProcStatement`: equations and nested `FOR` loops convert
+/// recursively; constructs with no procedural meaning are rejected with the
+/// Java messages rather than silently dropped.
+fn to_proc_statement(statement: Statement, span: Span) -> Result<ProcStatement> {
+    match statement {
+        Statement::Eq(eq) => Ok(ProcStatement::Eq(eq)),
+        Statement::For {
+            var_name,
+            start,
+            end,
+            body,
+        } => {
+            let mut converted = Vec::with_capacity(body.len());
+            for inner in body {
+                converted.push(to_proc_statement(inner, span)?);
+            }
+            Ok(ProcStatement::For {
+                var_name,
+                start,
+                end,
+                body: converted,
+            })
+        }
+        Statement::CallProc { name, .. } => Err(FreesError::parse_at(
+            format!(
+                "CALL is not supported inside a FOR loop within a PROCEDURE or \
+                 FUNCTION (offending call: '{name}')."
+            ),
+            span,
+        )),
+        Statement::Symbolic(_) => Err(FreesError::parse_at(
+            "SYMBOLIC declarations are not allowed inside a PROCEDURE or FUNCTION.",
+            span,
+        )),
+    }
+}
+
+/// The SI display name of an optional raw unit annotation, or `None` when the
+/// annotation is absent or does not parse. Port of `AstBuilder.siUnitOf`,
+/// which maps an `UnknownUnitException` to `null` — a bad unit on a
+/// declaration never fails the parse.
+fn si_unit_of(raw: Option<String>) -> Option<String> {
+    let raw = raw?;
+    UnitRegistry::parse_with_offset(&raw)
+        .ok()
+        .map(|quantity| UnitRegistry::si_name(&quantity.dims))
+}
+
+/// `None` when no entry carries a unit — the [`FunctionDef::param_units`] /
+/// [`FunctionTableDef::arg_units`] contract spells an unannotated declaration
+/// as `None` rather than a vector of `None`s.
+fn collapse_units(units: Vec<Option<String>>) -> Option<Vec<Option<String>>> {
+    if units.iter().all(Option::is_none) {
+        None
+    } else {
+        Some(units)
+    }
 }
 
 /// Element count of `start:step:stop`, with the same rejections as
@@ -1656,10 +2228,6 @@ mod tests {
     #[test]
     fn every_unimplemented_block_is_named_in_its_error() {
         let cases = [
-            ("FUNCTION f(x)\n  f := x\nEND", "FUNCTION"),
-            ("PROCEDURE p(x : y)\n  y := x\nEND", "PROCEDURE"),
-            ("MODULE m(x : y)\n  y = x\nEND", "MODULE"),
-            ("TABLE t(x)\n  1 2\nEND", "TABLE"),
             ("PARAMETRIC sweep(a)\n  a = 1:2:3\nEND", "PARAMETRIC"),
             (
                 "STATE TABLE circuit(P1)\n  FLUID = Water\nEND",
@@ -1691,10 +2259,10 @@ mod tests {
 
     #[test]
     fn unsupported_errors_are_anchored_to_the_offending_token() {
-        let src = "x = 1\nMODULE m(a : b)\n  b = a\nEND";
+        let src = "x = 1\nPLOT 'speed'\n  kind = xy\nEND";
         let error = parse(src).unwrap_err();
         let span = error.span().expect("an unsupported error carries a span");
-        assert_eq!(span.slice(src), "MODULE");
+        assert_eq!(span.slice(src), "PLOT");
         assert_eq!(span.line_col(src), (2, 1));
     }
 
@@ -1772,9 +2340,9 @@ END
             vec![Statement::Symbolic(vec!["s".into(), "z".into()])]
         );
 
-        let error = parse_document("MODULE m(a : b)\n  b = a\nEND").unwrap_err();
+        let error = parse_document("PLOT 'x'\n  kind = xy\nEND").unwrap_err();
         assert!(
-            error.to_string().contains("MODULE") && error.to_string().contains("not supported"),
+            error.to_string().contains("PLOT") && error.to_string().contains("not supported"),
             "got: {error}"
         );
 
@@ -1789,5 +2357,329 @@ END
         assert!(is_ignored_sink("~ignored~0"));
         assert!(!is_ignored_sink("ignored0"));
         assert!(!is_ignored_sink("x"));
+    }
+
+    // ── FUNCTION / PROCEDURE / MODULE / TABLE definitions ───────────────────
+    //
+    // These go through `parse_document` (the real expression parser), since
+    // procedural bodies lean on `boolExpr` and the full expression grammar.
+
+    fn ok_real(src: &str) -> Document {
+        parse_document(src).unwrap_or_else(|e| panic!("expected `{src}` to parse, got {e}"))
+    }
+
+    fn err_real(src: &str) -> String {
+        match parse_document(src) {
+            Ok(doc) => panic!("expected `{src}` to fail, got {doc:?}"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_function_parses_into_defs_with_its_body() {
+        let doc = ok_real("FUNCTION Square(x)\n  Square := x * x\nEND\nz = Square(4)");
+        assert_eq!(doc.statements.len(), 1, "the equation after the def");
+        assert_eq!(doc.defs.functions.len(), 1);
+        let f = doc.defs.function("square").expect("registered lowercase");
+        assert_eq!(f.params, vec!["x"]);
+        assert_eq!(f.output_unit, None);
+        assert_eq!(f.param_units, None);
+        assert_eq!(
+            f.body,
+            vec![ProcStatement::Assign {
+                var_name: "square".into(),
+                value: Expr::bin(BinOp::Mul, Expr::var("x"), Expr::var("x")),
+            }]
+        );
+    }
+
+    #[test]
+    fn a_function_body_supports_if_then_else_over_a_bool_condition() {
+        let doc = ok_real("FUNCTION AbsVal(x)\n  IF x >= 0 THEN\n    AbsVal := x\n  ELSE\n    AbsVal := -x\n  END\nEND");
+        let f = doc.defs.function("absval").unwrap();
+        match &f.body[0] {
+            ProcStatement::IfElse {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                assert_eq!(
+                    *condition,
+                    Expr::Compare {
+                        op: crate::ast::CmpOp::Ge,
+                        left: Box::new(Expr::var("x")),
+                        right: Box::new(Expr::num(0.0)),
+                    }
+                );
+                assert_eq!(then_branch.len(), 1);
+                assert_eq!(else_branch.len(), 1);
+            }
+            other => panic!("expected IF, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_if_without_else_has_an_empty_else_branch() {
+        let doc = ok_real("FUNCTION f(x)\n  f := 0\n  IF x > 1 THEN\n    f := 1\n  END\nEND");
+        match &doc.defs.function("f").unwrap().body[1] {
+            ProcStatement::IfElse { else_branch, .. } => assert!(else_branch.is_empty()),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn repeat_until_and_while_do_parse() {
+        let doc = ok_real(
+            "FUNCTION SumN(n)\n  i := 1\n  s := 0\n  REPEAT\n    s := s + i\n    i := i + 1\n  UNTIL i > n\n  SumN := s\nEND",
+        );
+        match &doc.defs.function("sumn").unwrap().body[2] {
+            ProcStatement::RepeatUntil { body, condition } => {
+                assert_eq!(body.len(), 2);
+                assert!(matches!(condition, Expr::Compare { .. }));
+            }
+            other => panic!("expected REPEAT, got {other:?}"),
+        }
+
+        let doc = ok_real(
+            "FUNCTION SumWhile(n)\n  s := 0\n  WHILE s < n DO\n    s := s + 1\n  END\n  SumWhile := s\nEND",
+        );
+        match &doc.defs.function("sumwhile").unwrap().body[1] {
+            ProcStatement::While { body, .. } => assert_eq!(body.len(), 1),
+            other => panic!("expected WHILE, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_bare_equation_in_a_body_is_kept_as_an_eq_statement() {
+        let doc = ok_real("FUNCTION f(x)\n  y = x + 1\n  f := y\nEND");
+        match &doc.defs.function("f").unwrap().body[0] {
+            ProcStatement::Eq(eq) => {
+                assert_eq!(eq.lhs, Expr::var("y"));
+                assert_eq!(eq.source_text, "y = x + 1");
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_for_inside_a_body_reuses_the_statement_grammar_and_converts() {
+        // `nestedForInsideFunctionAccumulatesCorrectly` (oracle): the FOR body
+        // is a statement list (`=`, not `:=`) converted to ProcStatements.
+        let doc = ok_real(
+            "FUNCTION DoubleSum(n)\n  s := 0\n  FOR i = 1 TO n\n    FOR j = 1 TO n\n      s = s + i * j\n    END\n  END\n  DoubleSum := s\nEND",
+        );
+        match &doc.defs.function("doublesum").unwrap().body[1] {
+            ProcStatement::For { var_name, body, .. } => {
+                assert_eq!(var_name, "i");
+                match &body[0] {
+                    ProcStatement::For { var_name, body, .. } => {
+                        assert_eq!(var_name, "j");
+                        assert!(matches!(&body[0], ProcStatement::Eq(_)));
+                    }
+                    other => panic!("expected nested FOR, got {other:?}"),
+                }
+            }
+            other => panic!("expected FOR, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn call_inside_a_for_within_a_body_is_rejected_by_name() {
+        // Oracle: `callInsideProcedureForIsRejectedNotSilentlyDropped`.
+        let message = err_real(
+            "FUNCTION Bad(n)\n  FOR i = 1 TO n\n    CALL pole(i, i : a, b)\n  END\n  Bad := 1\nEND",
+        );
+        assert!(
+            message.contains("CALL") && message.contains("'pole'"),
+            "got: {message}"
+        );
+    }
+
+    #[test]
+    fn symbolic_inside_a_for_within_a_body_is_rejected() {
+        let message =
+            err_real("FUNCTION Bad(n)\n  FOR i = 1 TO n\n    SYMBOLIC s\n  END\n  Bad := 1\nEND");
+        assert!(message.contains("SYMBOLIC"), "got: {message}");
+    }
+
+    #[test]
+    fn function_units_convert_to_si_display_names() {
+        // `FUNCTION f(v [km/h], m) [kW]` — kW grounds to W, km/h to m/s;
+        // unknown units map to None exactly like `siUnitOf`.
+        let doc = ok_real("FUNCTION f(v [km/h], m) [kW]\n  f := v * m\nEND");
+        let f = doc.defs.function("f").unwrap();
+        assert_eq!(f.output_unit.as_deref(), Some("W"));
+        assert_eq!(
+            f.param_units,
+            Some(vec![Some("m/s".to_string()), None]),
+            "aligned to the parameter list"
+        );
+
+        let doc = ok_real("FUNCTION g(x [zorp])\n  g := x\nEND");
+        assert_eq!(doc.defs.function("g").unwrap().param_units, None);
+    }
+
+    #[test]
+    fn a_multi_output_function_desugars_to_a_procedure() {
+        // AstBuilder.buildFunctionDef: `FUNCTION [q, r] = DivMod(a, b)` becomes
+        // a ProcedureDef (the FunctionDef record has no outputs field).
+        let doc =
+            ok_real("FUNCTION [q, r] = DivMod(a, b)\n  q := trunc(a / b)\n  r := a - q * b\nEND");
+        assert!(doc.defs.functions.is_empty());
+        let p = doc.defs.procedure("divmod").expect("lowered to PROCEDURE");
+        assert_eq!(p.inputs, vec!["a", "b"]);
+        assert_eq!(p.outputs, vec!["q", "r"]);
+        assert_eq!(p.body.len(), 2);
+    }
+
+    #[test]
+    fn a_procedure_parses_with_inputs_and_outputs_split() {
+        let doc = ok_real("PROCEDURE Swap(a, b : c, d)\n  c := b\n  d := a\nEND");
+        let p = doc.defs.procedure("swap").unwrap();
+        assert_eq!(p.inputs, vec!["a", "b"]);
+        assert_eq!(p.outputs, vec!["c", "d"]);
+        assert_eq!(p.body.len(), 2);
+        // Either side of the colon may be empty, and bodies may be empty.
+        let doc = ok_real("PROCEDURE p( : y)\nEND");
+        let p = doc.defs.procedure("p").unwrap();
+        assert!(p.inputs.is_empty() && p.outputs == vec!["y"] && p.body.is_empty());
+    }
+
+    #[test]
+    fn a_module_body_is_a_statement_list() {
+        let doc = ok_real("MODULE Linear(m, b : y)\n  y = m * x_int + b\n  x_int = 3\nEND");
+        let m = doc.defs.module("linear").unwrap();
+        assert_eq!(m.inputs, vec!["m", "b"]);
+        assert_eq!(m.outputs, vec!["y"]);
+        assert_eq!(m.body.len(), 2);
+        assert!(matches!(&m.body[0], Statement::Eq(_)));
+    }
+
+    #[test]
+    fn a_1d_table_parses_rows_into_one_curve_sorted_by_x() {
+        // Rows deliberately out of order: buildCurves sorts ascending by x.
+        let doc = ok_real("TABLE friction(Re)\n  4000 0.04\n  2000 0.049\n  10000 0.031\nEND");
+        let t = doc.defs.table("friction").unwrap();
+        assert_eq!(t.arg_names, vec!["re"]);
+        assert!(!t.x_log && !t.y_log);
+        assert_eq!(t.curves.len(), 1);
+        assert_eq!(t.curves[0].param, None);
+        assert_eq!(t.curves[0].xs, vec![2000.0, 4000.0, 10000.0]);
+        assert_eq!(t.curves[0].ys, vec![0.049, 0.04, 0.031]);
+        assert_eq!(t.output_unit, None);
+        assert_eq!(t.arg_units, None);
+    }
+
+    #[test]
+    fn table_rows_take_signed_numbers() {
+        let doc = ok_real("TABLE f(x)\n  -2 4\n  -1 1\n  +1 1\nEND");
+        let t = doc.defs.table("f").unwrap();
+        assert_eq!(t.curves[0].xs, vec![-2.0, -1.0, 1.0]);
+    }
+
+    #[test]
+    fn a_family_table_parses_params_flags_and_units() {
+        let doc =
+            ok_real("TABLE cp(T [C] : P = 100, 200) [kJ/kg-K] XLOG YLOG\n  1 2 3\n  10 4 5\nEND");
+        let t = doc.defs.table("cp").unwrap();
+        assert_eq!(t.arg_names, vec!["t", "p"]);
+        assert!(t.x_log && t.y_log);
+        assert_eq!(t.curves.len(), 2);
+        assert_eq!(t.curves[0].param, Some(100.0));
+        assert_eq!(t.curves[0].xs, vec![1.0, 10.0]);
+        assert_eq!(t.curves[0].ys, vec![2.0, 4.0]);
+        assert_eq!(t.curves[1].param, Some(200.0));
+        assert_eq!(t.curves[1].ys, vec![3.0, 5.0]);
+        // [C] grounds to K; the family parameter's unit slot is None.
+        assert_eq!(
+            t.arg_units,
+            Some(vec![Some("K".to_string()), None]),
+            "argument unit + unannotated family slot"
+        );
+        assert_eq!(t.output_unit.as_deref(), Some("J/kg-K"));
+    }
+
+    #[test]
+    fn ragged_table_rows_omit_later_columns() {
+        // buildCurves: a row shorter than the column count contributes to the
+        // earlier curves only.
+        let doc = ok_real("TABLE cp(T : P = 1, 2)\n  1 10 20\n  2 11\nEND");
+        let t = doc.defs.table("cp").unwrap();
+        assert_eq!(t.curves[0].xs, vec![1.0, 2.0]);
+        assert_eq!(t.curves[0].ys, vec![10.0, 11.0]);
+        assert_eq!(t.curves[1].xs, vec![1.0]);
+        assert_eq!(t.curves[1].ys, vec![20.0]);
+    }
+
+    #[test]
+    fn a_family_count_mismatch_is_rejected_with_the_java_message() {
+        let message = err_real("TABLE cp(T : P = 100, 200, 300)\n  1 2 3\nEND");
+        assert!(
+            message.contains("header declares 3 curve parameter value(s)")
+                && message.contains("2 value column(s)"),
+            "got: {message}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_table_flag_names_the_supported_ones() {
+        let message = err_real("TABLE t(x) SUPERLOG\n  1 2\nEND");
+        assert!(
+            message.contains("Unknown TABLE flag 'SUPERLOG'") && message.contains("XLOG, YLOG"),
+            "got: {message}"
+        );
+    }
+
+    #[test]
+    fn a_table_needs_at_least_one_row() {
+        let message = err_real("TABLE t(x)\nEND");
+        assert!(message.contains("expected a number"), "got: {message}");
+    }
+
+    #[test]
+    fn unterminated_definition_blocks_name_the_missing_end() {
+        assert!(err_real("FUNCTION f(x)\n  f := x\n").contains("unterminated FUNCTION block"));
+        assert!(err_real("PROCEDURE p(x : y)\n  y := x\n").contains("unterminated PROCEDURE"));
+        assert!(err_real("MODULE m(x : y)\n  y = x\n").contains("unterminated MODULE"));
+        assert!(err_real("TABLE t(x)\n  1 2\n").contains("unterminated TABLE"));
+        assert!(err_real("FUNCTION f(x)\n  REPEAT\n    f := 1\n").contains("expected `UNTIL`"));
+    }
+
+    #[test]
+    fn definition_headers_require_a_line_break() {
+        assert!(err_real("FUNCTION f(x) f := x END").contains("after the FUNCTION header"));
+        assert!(err_real("FUNCTION f(x)\n  IF x > 0 THEN f := 1 END\nEND").contains("after THEN"));
+    }
+
+    #[test]
+    fn assignment_is_a_procedural_form_only() {
+        // `:=` at the top level is not a statement; the equation grammar
+        // rejects it where ANTLR would.
+        let message = err_real("x := 1");
+        assert!(message.contains("expected `=`"), "got: {message}");
+    }
+
+    #[test]
+    fn a_later_definition_replaces_an_earlier_one_across_kinds() {
+        // Java keys all defs in one map: MODULE f shadows FUNCTION f.
+        let doc = ok_real(
+            "FUNCTION f(x)\n  f := x\nEND\nMODULE f(a : b)\n  b = a\nEND\nFUNCTION g(x)\n  g := x\nEND\nFUNCTION g(y)\n  g := y + 1\nEND",
+        );
+        assert!(doc.defs.function("f").is_none(), "shadowed by the MODULE");
+        assert!(doc.defs.module("f").is_some());
+        assert_eq!(doc.defs.functions.len(), 1, "g replaced in place");
+        assert_eq!(doc.defs.function("g").unwrap().params, vec!["y"]);
+    }
+
+    #[test]
+    fn definitions_travel_alongside_statements_and_guesses() {
+        let doc = ok_real(
+            "GUESS y = 2\nFUNCTION Half(x)\n  Half := x / 2\nEND\ny = Half(10)\nPROCEDURE p(a : b)\n  b := a\nEND\nCALL p(1 : w)",
+        );
+        assert_eq!(doc.guesses.len(), 1);
+        assert_eq!(doc.statements.len(), 2);
+        assert_eq!(doc.defs.functions.len(), 1);
+        assert_eq!(doc.defs.procedures.len(), 1);
+        assert!(!doc.defs.is_empty());
     }
 }

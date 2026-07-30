@@ -14,22 +14,39 @@
 //!
 //! # The pipeline
 //!
+//! The stage order is the Java order, established by reading
+//! `EquationParser.parseResult` and `EquationSystemSolver.solve`:
+//! `parseResult` lexes/parses, collects `FUNCTION`/`PROCEDURE`/`MODULE`/`TABLE`
+//! definitions, expands components (unported), then **flattens statements** —
+//! `CALL` statements become binding equations and matrix constructs become
+//! scalar equations *at parse time* — and `solve` then applies
+//! `ComplexExpansion.expand` (when complex mode is on) before blocking. Hence:
+//!
 //! 1. **Parse.** [`crate::parser::parse_document`]. A block construct the wasm
-//!    port has not reached yet is an explicit error, never a silent skip.
-//! 2. **Collect equations.** [`crate::parser::Document::equations`] flattens
-//!    `FOR` bodies. Statements that need machinery this port does not have
-//!    (`CALL` into a `PROCEDURE`/`MODULE`, `SYMBOLIC`) are refused by name
-//!    rather than dropped — dropping them would silently change the degrees of
-//!    freedom and produce a confidently wrong answer.
-//! 3. **Seed.** Every unknown starts at [`DEFAULT_GUESS`] (`1.0`, the Java
+//!    port has not reached yet is an explicit error, never a silent skip
+//!    (`SYMBOLIC` is refused here too).
+//! 2. **Flatten CALLs.** [`crate::procedures::flatten_calls`] — the CALL half
+//!    of `EquationParser.flatten`. (Phase-4 stub: refuses CALLs by name.)
+//! 3. **Expand matrices.** [`crate::parser::expand::expand_document`] — the
+//!    matrix half of `EquationParser` (multiAssign, rangeAssign, linear-algebra
+//!    intrinsics). Scalar documents pass through byte-identical.
+//! 4. **Expand complex.** [`crate::parser::complex::expand_complex`] with
+//!    [`SolverSettings::complex_mode`] — `EquationSystemSolver.solve`'s
+//!    `ComplexExpansion.expand` site, *after* parse-time flattening.
+//! 5. **Seed.** Every unknown starts at [`DEFAULT_GUESS`] (`1.0`, the Java
 //!    `EquationSystemSolver.DEFAULT_GUESS`) with bounds `±∞`; in-text `GUESS`
 //!    directives override the guess and narrow the bounds, and the guess is
 //!    clamped into the bounds exactly as `withTextGuesses` does.
-//! 4. **Block.** [`crate::solver::blocker::block_system`] — degrees of freedom,
+//! 6. **Block.** [`crate::solver::blocker::block_system`] — degrees of freedom,
 //!    maximum bipartite matching, Tarjan SCC. The blocks come out in solve
 //!    order.
-//! 5. **Solve.** [`crate::solver::newton::newton_solve`] per block, in that
-//!    order. Values solved by an earlier block are already in the shared scope
+//! 7. **Solve.** [`crate::solver::newton::newton_solve`] per block, in that
+//!    order, inside the Java retry ladder (see `solve_block_with_fallback`
+//!    below): transformed-guess retries, a univariate bracketing rescue, block
+//!    merging, then a best-effort polish pass. Residuals evaluate through
+//!    [`crate::eval::eval_with`] with the document's definitions in context,
+//!    so user `FUNCTION`s and `TABLE`s work the moment their evaluator lands.
+//!    Values solved by an earlier block are already in the shared scope
 //!    when a later block is evaluated, which is what "feed knowns forward"
 //!    means here — a downstream block never re-solves an upstream unknown.
 //!
@@ -62,11 +79,14 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::ast::{Equation, Expr, Statement};
 use crate::diag::{Diagnostic, FreesError, Result};
-use crate::eval::{eval, lookup_constant, Scope};
+use crate::differentiator::differentiate;
+use crate::eval::{eval_with, lookup_constant, EvalContext, Scope};
 use crate::lexer::tokenize;
+use crate::parser::defs::Definitions;
 use crate::parser::{parse_document, Document, GuessDirective};
+use crate::procedures::flatten_calls;
 use crate::solver::blocker::{block_system, unknowns, Block};
-use crate::solver::newton::{newton_solve, SolverSettings};
+use crate::solver::newton::{newton_solve_problem, NewtonProblem, SolverSettings};
 use crate::token::TokenKind;
 use crate::units::registry::UnitRegistry;
 
@@ -392,10 +412,19 @@ pub fn solve_with(
     settings: &SolverSettings,
     overrides: &[VariableOverride],
 ) -> std::result::Result<Solution, SolveFailure> {
-    let doc = parse_document(source)?;
+    let mut doc = parse_document(source)?;
     reject_unsupported(&doc.statements)?;
 
-    let equations: Vec<Equation> = doc.equations().into_iter().cloned().collect();
+    // Pipeline stages 2–4, in the Java order (see the module docs): CALL
+    // flattening happens at parse time in `EquationParser.flatten`, matrix
+    // expansion alongside it, and `ComplexExpansion.expand` runs in
+    // `EquationSystemSolver.solve` after both.
+    let statements = std::mem::take(&mut doc.statements);
+    doc.statements = flatten_calls(statements, &doc.defs)?;
+    let equations = crate::parser::expand::expand_document(&doc)?;
+    let equations = crate::parser::complex::expand_complex(equations, settings.complex_mode)?;
+    let defs = &doc.defs;
+
     let (constants, knowns) = builtin_constants(&equations);
     let report = block_system(&equations, &knowns)?;
 
@@ -414,15 +443,31 @@ pub fn solve_with(
     }
 
     let mut iterations = 0usize;
-    for (index, block) in report.blocks.iter().enumerate() {
-        match solve_block(index, block, &equations, &mut values, settings) {
+    // Blocks a merge rescue already solved (Java solveEquationList's
+    // `skipIndices`).
+    let mut skip: HashSet<usize> = HashSet::new();
+    for index in 0..report.blocks.len() {
+        if skip.contains(&index) {
+            continue;
+        }
+        match solve_block_with_fallback(
+            index,
+            &report.blocks,
+            &equations,
+            &mut values,
+            settings,
+            &specs,
+            defs,
+            &mut skip,
+        ) {
             Ok(block_iterations) => iterations += block_iterations,
             Err(error) => {
                 // The Java `enrichWithPartialResult`: attach the block
                 // structure, every equation's residual at the stalled iterate
                 // (`residuals_at` records NaN where evaluation fails), and
                 // partial stats, so a failure ships diagnostics.
-                let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values);
+                let (residuals, max_residual) =
+                    residuals_at(&equations, &report.blocks, &values, defs);
                 let block_equations = block_equation_texts(&report.blocks, &equations);
                 let display_names = display_names_for(specs.keys(), source);
                 return Err(SolveFailure {
@@ -461,7 +506,7 @@ pub fn solve_with(
         .collect();
 
     let display_names = display_names_for(solved.keys(), source);
-    let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values);
+    let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values, defs);
     let block_equations = block_equation_texts(&report.blocks, &equations);
 
     // Dimensional check + SI unit inference (the Java solve path's
@@ -529,7 +574,43 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         Err(other) => return Err(other),
     };
 
-    let equations: Vec<Equation> = doc.equations().into_iter().cloned().collect();
+    // The same expansion pipeline as `solve_with` (stages 2–4; Java `check`
+    // runs `ComplexExpansion` too — complex mode is off here because the
+    // check entry point carries no settings, exactly like the Java
+    // `check(source)` overload defaulting `complexMode` to false). A failing
+    // pass answers as report data, mirroring the two Java surfaces: a
+    // `ParseException` becomes the 400-with-body syntax report, and anything
+    // else the `catch (SolverException)` not-solvable report with the counts
+    // of the equations as they stood when the pass refused.
+    let expanded = (|| {
+        let mut doc = doc.clone();
+        let statements = std::mem::take(&mut doc.statements);
+        doc.statements = flatten_calls(statements, &doc.defs)?;
+        let equations = crate::parser::expand::expand_document(&doc)?;
+        crate::parser::complex::expand_complex(equations, false)
+    })();
+    let equations: Vec<Equation> = match expanded {
+        Ok(equations) => equations,
+        Err(err @ FreesError::Parse { .. }) => return Ok(syntax_failure_report(source, &err)),
+        Err(err) => {
+            let equations: Vec<Equation> = doc.equations().into_iter().cloned().collect();
+            let (_, knowns) = builtin_constants(&equations);
+            let variables = unknowns(&equations, &knowns);
+            return Ok(CheckReport {
+                solvable: false,
+                equation_count: equations.len(),
+                unknown_count: variables.len(),
+                display_names: display_names_for(variables.iter(), source),
+                variables,
+                message: err.to_string_message(),
+                error_line: None,
+                errors: Vec::new(),
+                inferred_units: BTreeMap::new(),
+                unit_warnings: Vec::new(),
+                diagnostics: doc.diagnostics.clone(),
+            });
+        }
+    };
     let (_, knowns) = builtin_constants(&equations);
     let variables = unknowns(&equations, &knowns);
 
@@ -583,26 +664,21 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
 
 /// Refuse a statement that parses but that the engine cannot honour.
 ///
-/// `Document::equations` walks past `SYMBOLIC` and `CALL` without comment. That
-/// is fine for a structural walk and fatal for a solve: dropping a `CALL` drops
-/// the equations that bind its outputs, so the system silently becomes
-/// underdetermined — or worse, accidentally square. Naming the construct is the
-/// only honest option until the procedure flattener lands.
+/// `Document::equations` walks past `SYMBOLIC` without comment. That is fine
+/// for a structural walk and fatal for a solve: dropping it would silently
+/// change what the document means. `CALL` statements are no longer refused
+/// here — they belong to [`crate::procedures::flatten_calls`] (pipeline stage
+/// 2), whose Phase-4 stub still refuses them by name, so nothing is ever
+/// silently dropped.
 fn reject_unsupported(statements: &[Statement]) -> Result<()> {
     for statement in statements {
         match statement {
-            Statement::Eq(_) => {}
+            Statement::Eq(_) | Statement::CallProc { .. } => {}
             Statement::For { body, .. } => reject_unsupported(body)?,
             Statement::Symbolic(names) => {
                 return Err(FreesError::parse(format!(
                     "`SYMBOLIC` is not supported by the wasm engine yet (declared: {})",
                     names.join(", ")
-                )))
-            }
-            Statement::CallProc { name, .. } => {
-                return Err(FreesError::parse(format!(
-                    "`CALL {name}` is not supported by the wasm engine yet: \
-                     PROCEDURE/MODULE flattening is not ported"
                 )))
             }
         }
@@ -826,6 +902,7 @@ fn residuals_at(
     equations: &[Equation],
     blocks: &[Block],
     values: &Scope,
+    defs: &Definitions,
 ) -> (Vec<EquationResidual>, f64) {
     // Which Tarjan block solved each equation. The blocker assigns every
     // equation of a square system to exactly one block; `unwrap_or(0)` is a
@@ -837,10 +914,14 @@ fn residuals_at(
         }
     }
 
+    let ctx = EvalContext { defs: Some(defs) };
     let mut residuals = Vec::with_capacity(equations.len());
     let mut max_residual = 0.0f64;
     for (index, equation) in equations.iter().enumerate() {
-        let residual = match (eval(&equation.lhs, values), eval(&equation.rhs, values)) {
+        let residual = match (
+            eval_with(&equation.lhs, values, ctx),
+            eval_with(&equation.rhs, values, ctx),
+        ) {
             (Ok(lhs), Ok(rhs)) => lhs - rhs,
             _ => f64::NAN,
         };
@@ -1009,15 +1090,112 @@ fn apply_guess(spec: &mut VarSpec, guess: &GuessDirective) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// The per-block solve, its analytic Jacobian, and the Java retry ladder
+// ---------------------------------------------------------------------------
+
+/// The residual system of one block, evaluated against the shared scope, with
+/// the per-entry symbolic derivatives where the differentiator produced them —
+/// the object handed to [`newton_solve`].
+struct BlockProblem<'a> {
+    names: &'a [String],
+    equations: &'a [&'a Equation],
+    scope: &'a mut Scope,
+    defs: &'a Definitions,
+    /// `derivs[i][j] = ∂(lhs_i − rhs_i)/∂var_j` as an expression; `None`
+    /// entries are structural zeros (equation `i` does not mention `var_j`).
+    /// The whole field is `None` when any *dependent* entry failed to
+    /// differentiate — the Java `analyticalJacobian` returning null, which
+    /// pins the block to finite differences.
+    derivs: Option<Vec<Vec<Option<Expr>>>>,
+}
+
+impl NewtonProblem for BlockProblem<'_> {
+    fn residual(&mut self, x: &[f64], out: &mut [f64]) -> Result<()> {
+        for (name, value) in self.names.iter().zip(x) {
+            self.scope.insert(name.clone(), *value);
+        }
+        match residuals_into(self.equations, self.scope, self.defs, out) {
+            Ok(()) => Ok(()),
+            // An invalid region, not a broken document: hand Newton the
+            // non-finite residual its line search knows how to reject.
+            Err(FreesError::Evaluation { .. }) | Err(FreesError::Property { .. }) => {
+                out.fill(f64::NAN);
+                Ok(())
+            }
+            Err(other) => Err(other),
+        }
+    }
+
+    /// Evaluate the pre-differentiated entries at `x` — the evaluation half of
+    /// the Java `NewtonSolver.analyticalJacobian`. Any evaluation failure
+    /// answers `None`, falling back to finite differences for this iteration
+    /// exactly like the Java `catch` → `return null`.
+    fn analytic_jacobian(&mut self, x: &[f64]) -> Option<Vec<Vec<f64>>> {
+        let derivs = self.derivs.as_ref()?;
+        for (name, value) in self.names.iter().zip(x) {
+            self.scope.insert(name.clone(), *value);
+        }
+        let ctx = EvalContext {
+            defs: Some(self.defs),
+        };
+        let n = self.names.len();
+        let mut jacobian = vec![vec![0.0f64; n]; n];
+        for (i, row) in derivs.iter().enumerate() {
+            for (j, entry) in row.iter().enumerate() {
+                if let Some(expr) = entry {
+                    match eval_with(expr, self.scope, ctx) {
+                        Ok(value) => jacobian[i][j] = value,
+                        Err(_) => return None,
+                    }
+                }
+            }
+        }
+        Some(jacobian)
+    }
+}
+
+/// Pre-differentiate every dependent (equation, variable) pair of a block —
+/// the symbolic half of the Java `NewtonSolver.analyticalJacobian`: residual
+/// `lhs − rhs` differentiated w.r.t. each block variable, entries skipped for
+/// equations that do not mention the variable (they stay structural zeros).
+/// Returns `None` — no analytic source at all — as soon as any dependent
+/// entry cannot be differentiated, the Java all-or-nothing fallback.
+fn analytic_derivatives(
+    block_equations: &[&Equation],
+    variables: &[String],
+) -> Option<Vec<Vec<Option<Expr>>>> {
+    let n = variables.len();
+    let mut derivs: Vec<Vec<Option<Expr>>> = vec![vec![None; n]; n];
+    for (i, equation) in block_equations.iter().enumerate() {
+        let mentioned = equation.variables();
+        let residual_expr = equation.residual();
+        for (j, var) in variables.iter().enumerate() {
+            if !mentioned.contains(var) {
+                continue; // structural zero — Java never differentiates these
+            }
+            {
+                let d = differentiate(&residual_expr, var)?;
+                derivs[i][j] = Some(d)
+            }
+        }
+    }
+    Some(derivs)
+}
+
 /// Solve one block in place, leaving its unknowns' values in `values`.
 ///
-/// Returns the Newton iteration count.
+/// Returns the Newton iteration count. This is one rung's worth of work — the
+/// Java `NewtonSolver.solveBlock`; the ladder around it lives in
+/// [`solve_block_with_fallback`].
 fn solve_block(
     index: usize,
     block: &Block,
     equations: &[Equation],
     values: &mut Scope,
     settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
 ) -> Result<usize> {
     let n = block.variables.len();
     if n == 0 {
@@ -1042,7 +1220,7 @@ fn solve_block(
     // Evaluate once at the initial point so a genuinely broken expression is
     // reported as itself instead of as "did not converge". See the module docs.
     let mut probe = vec![0.0; n];
-    residuals_into(&block_equations, values, &mut probe)
+    residuals_into(&block_equations, values, defs, &mut probe)
         .map_err(|err| annotate(err, index, &block_equations))?;
 
     let mut x: Vec<f64> = block
@@ -1051,28 +1229,29 @@ fn solve_block(
         .map(|name| values.get(name).copied().unwrap_or(DEFAULT_GUESS))
         .collect();
 
+    // Per-variable bounds from the specs — the Java IterationContext lo/hi
+    // arrays, threaded into all three clamp sites inside `newton_solve`.
+    let bounds: Vec<(f64, f64)> = block
+        .variables
+        .iter()
+        .map(|name| {
+            specs
+                .get(name)
+                .map(|spec| (spec.lower, spec.upper))
+                .unwrap_or((f64::NEG_INFINITY, f64::INFINITY))
+        })
+        .collect();
+
     let names = &block.variables;
     let outcome = {
-        let scope = &mut *values;
-        newton_solve(
-            |x: &[f64], out: &mut [f64]| {
-                for (name, value) in names.iter().zip(x) {
-                    scope.insert(name.clone(), *value);
-                }
-                match residuals_into(&block_equations, scope, out) {
-                    Ok(()) => Ok(()),
-                    // An invalid region, not a broken document: hand Newton the
-                    // non-finite residual its line search knows how to reject.
-                    Err(FreesError::Evaluation { .. }) | Err(FreesError::Property { .. }) => {
-                        out.fill(f64::NAN);
-                        Ok(())
-                    }
-                    Err(other) => Err(other),
-                }
-            },
-            &mut x,
-            settings,
-        )
+        let problem = BlockProblem {
+            names,
+            equations: &block_equations,
+            scope: &mut *values,
+            defs,
+            derivs: analytic_derivatives(&block_equations, names),
+        };
+        newton_solve_problem(problem, &mut x, settings, Some(&bounds))
     };
 
     // Write back before propagating: on failure the last iterate is what makes
@@ -1085,12 +1264,549 @@ fn solve_block(
     Ok(report.iterations)
 }
 
-/// `out[k] = lhs_k(x) - rhs_k(x)` for each equation in the block.
-fn residuals_into(equations: &[&Equation], scope: &Scope, out: &mut [f64]) -> Result<()> {
+/// `out[k] = lhs_k(x) - rhs_k(x)` for each equation in the block, evaluated
+/// with the document's definitions in context so user `FUNCTION`s and
+/// `TABLE`s resolve (the Java `Evaluator.eval(expr, values, defs)` triple).
+fn residuals_into(
+    equations: &[&Equation],
+    scope: &Scope,
+    defs: &Definitions,
+    out: &mut [f64],
+) -> Result<()> {
+    let ctx = EvalContext { defs: Some(defs) };
     for (slot, equation) in out.iter_mut().zip(equations) {
-        *slot = eval(&equation.lhs, scope)? - eval(&equation.rhs, scope)?;
+        *slot = eval_with(&equation.lhs, scope, ctx)? - eval_with(&equation.rhs, scope, ctx)?;
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// The retry ladder — port of EquationSystemSolver.solveBlockWithFallback
+// ---------------------------------------------------------------------------
+
+/// Retry attempts cap iterations: healthy Newton converges quickly, and a
+/// generous user limit must not multiply across the whole ladder
+/// (`EquationSystemSolver.MAX_RETRY_ITERATIONS`).
+const MAX_RETRY_ITERATIONS: usize = 500;
+
+/// Relative tolerance for accepting a bracketed root
+/// (`EquationSystemSolver.BRACKET_RESIDUAL_TOL`): `|resid| / max(|lhs|, 1)`.
+const BRACKET_RESIDUAL_TOL: f64 = 1.0e-6;
+
+/// `EquationSystemSolver.retrySettings`: the ladder's retries run with the
+/// user's stop criteria but the iteration budget capped at
+/// [`MAX_RETRY_ITERATIONS`].
+fn retry_settings(settings: &SolverSettings) -> SolverSettings {
+    SolverSettings {
+        max_iterations: settings.max_iterations.min(MAX_RETRY_ITERATIONS),
+        ..*settings
+    }
+}
+
+/// `EquationSystemSolver.polishSettings`: near-zero residual tolerance so the
+/// polisher keeps iterating until the variable change drops below 1e-15
+/// (`newton`'s `CHANGE_IN_VARIABLES`). This is critical for multiple roots,
+/// where residual ≈ error^m drops below tolerance long before the variable
+/// has converged. The Java record is `(50, 1e-30, 1e-15, elapsed, complex)`.
+fn polish_settings(settings: &SolverSettings) -> SolverSettings {
+    SolverSettings {
+        max_iterations: 50,
+        rel_tolerance: 1e-30,
+        // Inert (strictly below every reachable `rel_tolerance * scale`), as
+        // the Java criterion is purely relative.
+        abs_tolerance: 0.0,
+        ..*settings
+    }
+}
+
+/// One alternative start for a failed block —
+/// `EquationSystemSolver.GuessTransform`: a zero guess becomes ±`zero_offset`
+/// (off the invariant manifold), a nonzero guess is rescaled (toward a distant
+/// Newton basin), `conjugate` flips imaginary components (`_i`), and `jitter`
+/// staggers each variable by its position to break exchange symmetries.
+struct GuessTransform {
+    zero_offset: f64,
+    scale: f64,
+    conjugate: bool,
+    jitter: bool,
+}
+
+/// `EquationSystemSolver.buildGuessTransforms`, in the Java order: the 20
+/// uniform transforms (conjugate × scale × zero-offset), then the 6
+/// symmetry-breaking jitter variants.
+fn guess_transforms() -> Vec<GuessTransform> {
+    let mut transforms = Vec::with_capacity(26);
+    for conjugate in [false, true] {
+        for scale in [1.0, 1.0e-2, 1.0e-4, 1.0e2, 1.0e4] {
+            for zero_offset in [1.0, -1.0] {
+                transforms.push(GuessTransform {
+                    zero_offset,
+                    scale,
+                    conjugate,
+                    jitter: false,
+                });
+            }
+        }
+    }
+    // Symmetry-breaking variants last: a system symmetric under a variable
+    // exchange (x <-> y) traps every symmetric iteration on the invariant
+    // manifold (identical Jacobian columns there), and the uniform transforms
+    // above preserve that symmetry. Staggering each variable by its position
+    // in the block is deterministic and leaves the manifold.
+    for scale in [1.0, 1.0e-2, 1.0e2] {
+        for zero_offset in [1.0, -1.0] {
+            transforms.push(GuessTransform {
+                zero_offset,
+                scale,
+                conjugate: false,
+                jitter: true,
+            });
+        }
+    }
+    transforms
+}
+
+/// The initial guess a variable restarts from —
+/// `EquationSystemSolver.initialGuess` without the warm-start map (no warm
+/// starts in this port yet): the spec's guess clamped into its bounds, or
+/// [`DEFAULT_GUESS`].
+fn initial_guess(name: &str, specs: &BTreeMap<String, VarSpec>) -> f64 {
+    specs
+        .get(name)
+        .map(|spec| spec.initial())
+        .unwrap_or(DEFAULT_GUESS)
+}
+
+/// `EquationSystemSolver.applyTransform`: rewrite every block variable's value
+/// from its *initial* guess (not the stalled iterate) through the transform,
+/// clamped into the variable's bounds.
+fn apply_transform(
+    block: &Block,
+    transform: &GuessTransform,
+    values: &mut Scope,
+    specs: &BTreeMap<String, VarSpec>,
+) {
+    for (position, name) in block.variables.iter().enumerate() {
+        let base = initial_guess(name, specs);
+        let mut guess = if base == 0.0 {
+            transform.zero_offset
+        } else {
+            base * transform.scale
+        };
+        if transform.conjugate && name.ends_with("_i") {
+            guess = -guess;
+        }
+        if transform.jitter {
+            // Java: `guess *= 1.0 + 0.07 * ++position` — 1-based stagger.
+            guess *= 1.0 + 0.07 * (position + 1) as f64;
+        }
+        if let Some(spec) = specs.get(name) {
+            guess = guess.clamp(spec.lower, spec.upper);
+        }
+        values.insert(name.clone(), guess);
+    }
+}
+
+/// **Ladder rung 1** — `EquationSystemSolver.retryWithTransformedGuesses`:
+/// retry the failed block alone from each transformed start, with the
+/// iteration-capped retry settings. Returns the iterations of the first
+/// attempt that converges; on total failure restores the block's variables to
+/// their unmodified initial guesses (so later rungs — and the failure
+/// diagnostics — start from the guesses, exactly as the Java does) and
+/// returns `None`.
+#[allow(clippy::too_many_arguments)]
+fn retry_with_transformed_guesses(
+    index: usize,
+    block: &Block,
+    equations: &[Equation],
+    values: &mut Scope,
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
+) -> Option<usize> {
+    let relaxed = retry_settings(settings);
+    for transform in guess_transforms() {
+        apply_transform(block, &transform, values, specs);
+        if let Ok(iterations) = solve_block(index, block, equations, values, &relaxed, specs, defs)
+        {
+            return Some(iterations);
+        }
+    }
+    for name in &block.variables {
+        values.insert(name.clone(), initial_guess(name, specs));
+    }
+    None
+}
+
+/// True if either side of the equation contains a CoolProp `prop$` call —
+/// `EquationSystemSolver.usesPropertyCall`. The recursion mirrors the Java
+/// `exprUsesPropertyCall` exactly: `Call` (name prefix, then arguments),
+/// `BinOp`, `Neg`; every other node answers false.
+fn uses_property_call(equation: &Equation) -> bool {
+    expr_uses_property_call(&equation.lhs) || expr_uses_property_call(&equation.rhs)
+}
+
+fn expr_uses_property_call(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { function, args } => {
+            function.starts_with("prop$") || args.iter().any(expr_uses_property_call)
+        }
+        Expr::BinOp { left, right, .. } => {
+            expr_uses_property_call(left) || expr_uses_property_call(right)
+        }
+        Expr::Neg(operand) => expr_uses_property_call(operand),
+        _ => false,
+    }
+}
+
+/// **Ladder rung 2** — `EquationSystemSolver.tryUnivariateBracketingSolve`:
+/// a bracketing root-find for a one-equation, one-unknown block that Newton
+/// could not solve. Newton needs a non-zero gradient; an implicit property
+/// inversion crossing the two-phase dome is flat there (`dT/dh ≈ 0`) yet the
+/// overall residual is monotonic and sign-changing (§8.7), so a sign-bracketed
+/// bisection crosses the plateau where Newton stalls. Scoped to property
+/// inversions (the `prop$` gate) exactly as the Java is — for ordinary algebra
+/// a bracketing rescue would bypass the user's iteration-limit stop criterion
+/// and could pick a different root than Newton's basin — which makes this rung
+/// inert until CoolProp lands, but ready. The root is committed only if it
+/// drives the residual within [`BRACKET_RESIDUAL_TOL`], so a wrong root can
+/// never be silently accepted. Returns the work done on success, `None` when
+/// no valid bracket/root was found (with the variable restored).
+fn try_univariate_bracketing_solve(
+    block: &Block,
+    equations: &[Equation],
+    values: &mut Scope,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
+) -> Option<usize> {
+    if block.variables.len() != 1 || block.equations.len() != 1 {
+        return None;
+    }
+    let equation = equations.get(block.equations[0])?;
+    if !uses_property_call(equation) {
+        return None;
+    }
+    let name = &block.variables[0];
+    let ctx = EvalContext { defs: Some(defs) };
+    let (lower, upper) = specs
+        .get(name)
+        .map(|spec| (spec.lower, spec.upper))
+        .unwrap_or((f64::NEG_INFINITY, f64::INFINITY));
+
+    let saved = values.get(name).copied().unwrap_or(DEFAULT_GUESS);
+    let x0 = if saved.is_finite() {
+        saved
+    } else {
+        specs
+            .get(name)
+            .map(|spec| spec.guess)
+            .filter(|guess| guess.is_finite())
+            .unwrap_or(1.0)
+    }
+    .clamp(lower, upper);
+
+    // Residual of the single equation with var = x; NaN inside invalid regions.
+    let f = |x: f64, values: &mut Scope| -> f64 {
+        values.insert(name.clone(), x);
+        match (
+            eval_with(&equation.lhs, values, ctx),
+            eval_with(&equation.rhs, values, ctx),
+        ) {
+            (Ok(lhs), Ok(rhs)) => lhs - rhs,
+            _ => f64::NAN,
+        }
+    };
+
+    // Sample x0 plus geometrically growing symmetric offsets (clamped to the
+    // box); keep only finite (in-range) evaluations. (The Java loop also
+    // checks its elapsed-time deadline here; wasm32 has no clock, so the
+    // sample count — ~69 evaluations — is the budget.)
+    let magnitude = x0.abs().max(1.0);
+    let mut samples: Vec<(f64, f64)> = Vec::new();
+    let record = |x: f64, samples: &mut Vec<(f64, f64)>, values: &mut Scope| {
+        if samples.iter().any(|&(seen, _)| seen == x) {
+            return;
+        }
+        let value = f(x, values);
+        if value.is_finite() {
+            samples.push((x, value));
+        }
+    };
+    record(x0, &mut samples, values);
+    let mut multiplier = 0.125;
+    while multiplier <= 1.0e9 {
+        let step = magnitude * multiplier;
+        record((x0 + step).clamp(lower, upper), &mut samples, values);
+        record((x0 - step).clamp(lower, upper), &mut samples, values);
+        multiplier *= 2.0;
+    }
+    samples.sort_by(|a, b| a.0.total_cmp(&b.0));
+
+    // Pick the adjacent finite-sample pair straddling zero whose midpoint is
+    // nearest x0 (bias toward the local root).
+    let mut bracket: Option<(f64, f64)> = None;
+    let mut best_distance = f64::INFINITY;
+    for pair in samples.windows(2) {
+        let (xa, fa) = pair[0];
+        let (xb, fb) = pair[1];
+        if fa * fb < 0.0 {
+            let distance = (0.5 * (xa + xb) - x0).abs();
+            if distance < best_distance {
+                best_distance = distance;
+                bracket = Some((xa, xb));
+            }
+        }
+    }
+    let Some((mut a, mut b)) = bracket else {
+        values.insert(name.clone(), saved);
+        return None;
+    };
+
+    // Bisection on the bracket to a tight relative width.
+    let mut fa = f(a, values);
+    let mut iterations = 0usize;
+    while iterations < 200 {
+        iterations += 1;
+        let c = 0.5 * (a + b);
+        let fc = f(c, values);
+        if !fc.is_finite() {
+            break;
+        }
+        if fc == 0.0 || (b - a) <= 1.0e-12 * c.abs().max(1.0) {
+            a = c;
+            b = c;
+            break;
+        }
+        if fa * fc < 0.0 {
+            b = c;
+        } else {
+            a = c;
+            fa = fc;
+        }
+    }
+
+    // Validate the root against the residual before committing.
+    let root = 0.5 * (a + b);
+    values.insert(name.clone(), root);
+    match (
+        eval_with(&equation.lhs, values, ctx),
+        eval_with(&equation.rhs, values, ctx),
+    ) {
+        (Ok(lhs), Ok(rhs)) => {
+            let residual = lhs - rhs;
+            let scale = lhs.abs().max(1.0);
+            if residual.is_finite() && residual.abs() / scale <= BRACKET_RESIDUAL_TOL {
+                return Some(iterations + 1);
+            }
+            values.insert(name.clone(), saved);
+            None
+        }
+        _ => {
+            values.insert(name.clone(), saved);
+            None
+        }
+    }
+}
+
+/// **Ladder rung 3** — `EquationSystemSolver.tryMergeBidirectional`: merge the
+/// failed block with blocks that share variable dependencies, scanning forward
+/// then backward, skipping blocks a previous merge already solved. Returns the
+/// merged block and the indices it swallowed, or `None` when nothing merges.
+fn try_merge_bidirectional(
+    blocks: &[Block],
+    failed_index: usize,
+    equations: &[Equation],
+    skip: &HashSet<usize>,
+) -> Option<(Block, Vec<usize>)> {
+    let failed = &blocks[failed_index];
+    let mut involved_vars: HashSet<String> = HashSet::new();
+    let mut merged_equations = failed.equations.clone();
+    let mut merged_vars = failed.variables.clone();
+    let mut merged_var_set: HashSet<String> = failed.variables.iter().cloned().collect();
+    for &equation_index in &failed.equations {
+        if let Some(equation) = equations.get(equation_index) {
+            involved_vars.extend(equation.variables());
+        }
+    }
+    let mut merged_indices = Vec::new();
+
+    let consider = |candidate_index: usize,
+                    merged_equations: &mut Vec<usize>,
+                    merged_vars: &mut Vec<String>,
+                    merged_var_set: &mut HashSet<String>,
+                    involved_vars: &mut HashSet<String>,
+                    merged_indices: &mut Vec<usize>| {
+        let candidate = &blocks[candidate_index];
+        if !should_merge(candidate, equations, involved_vars, merged_var_set) {
+            return;
+        }
+        // Java addBlock: absorb the candidate's equations, variables, and
+        // every variable its equations reference.
+        merged_equations.extend(candidate.equations.iter().copied());
+        merged_vars.extend(candidate.variables.iter().cloned());
+        merged_var_set.extend(candidate.variables.iter().cloned());
+        for &equation_index in &candidate.equations {
+            if let Some(equation) = equations.get(equation_index) {
+                involved_vars.extend(equation.variables());
+            }
+        }
+        merged_indices.push(candidate_index);
+    };
+
+    // Scan forward: blocks whose variables are referenced by the merged block,
+    // or whose equations reference merged variables.
+    for candidate_index in failed_index + 1..blocks.len() {
+        if skip.contains(&candidate_index) {
+            continue;
+        }
+        consider(
+            candidate_index,
+            &mut merged_equations,
+            &mut merged_vars,
+            &mut merged_var_set,
+            &mut involved_vars,
+            &mut merged_indices,
+        );
+    }
+    // Scan backward: earlier blocks whose variables the failed block's
+    // equations reference, or that reference our variables.
+    for candidate_index in (0..failed_index).rev() {
+        if skip.contains(&candidate_index) {
+            continue;
+        }
+        consider(
+            candidate_index,
+            &mut merged_equations,
+            &mut merged_vars,
+            &mut merged_var_set,
+            &mut involved_vars,
+            &mut merged_indices,
+        );
+    }
+
+    if merged_indices.is_empty() {
+        return None;
+    }
+    Some((
+        Block {
+            equations: merged_equations,
+            variables: merged_vars,
+        },
+        merged_indices,
+    ))
+}
+
+/// `EquationSystemSolver.shouldMerge`: the candidate determines a variable the
+/// merged block's equations reference, or its equations reference a merged
+/// variable.
+fn should_merge(
+    candidate: &Block,
+    equations: &[Equation],
+    involved_vars: &HashSet<String>,
+    merged_var_set: &HashSet<String>,
+) -> bool {
+    if candidate
+        .variables
+        .iter()
+        .any(|name| involved_vars.contains(name))
+    {
+        return true;
+    }
+    candidate.equations.iter().any(|&equation_index| {
+        equations.get(equation_index).is_some_and(|equation| {
+            equation
+                .variables()
+                .iter()
+                .any(|v| merged_var_set.contains(v))
+        })
+    })
+}
+
+/// Solve one block through the whole Java retry ladder — the port of
+/// `EquationSystemSolver.solveBlockWithFallback`, rung by rung:
+///
+/// 1. the plain Newton solve (`config.newton().solveBlock`);
+/// 2. on failure, **transformed-guess retries** — local and cheap, keeping all
+///    other blocks' solutions intact (`retryWithTransformedGuesses`);
+/// 3. then the **univariate bracketing rescue** for one-unknown property
+///    inversions (`tryUnivariateBracketingSolve`);
+/// 4. then **bidirectional block merging**: re-solve the combined system from
+///    scratch — all merged variables reset to their initial guesses, because
+///    previously solved blocks may carry incorrect values from the
+///    rank-deficient/least-squares path — and mark the swallowed blocks
+///    solved (`tryMergeBidirectional` + `skipIndices`); a merge that itself
+///    fails to converge propagates *its* error, while an impossible merge
+///    rethrows the original one;
+/// 5. finally a best-effort **polish pass** over whatever was solved
+///    (`polishSettings`) — its iterations count only when it converges, and
+///    its failure is ignored (the main solution is still valid), exactly like
+///    the Java `catch (SolverException ignored)`.
+#[allow(clippy::too_many_arguments)]
+fn solve_block_with_fallback(
+    index: usize,
+    blocks: &[Block],
+    equations: &[Equation],
+    values: &mut Scope,
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
+    skip: &mut HashSet<usize>,
+) -> Result<usize> {
+    let block = &blocks[index];
+    let mut actual_solved: Option<Block> = None; // None = the original block
+    let mut iterations = 0usize;
+
+    match solve_block(index, block, equations, values, settings, specs, defs) {
+        Ok(count) => iterations += count,
+        Err(first_error) => {
+            if let Some(count) = retry_with_transformed_guesses(
+                index, block, equations, values, settings, specs, defs,
+            ) {
+                iterations += count;
+            } else if let Some(count) =
+                try_univariate_bracketing_solve(block, equations, values, specs, defs)
+            {
+                iterations += count;
+            } else {
+                let merged = try_merge_bidirectional(blocks, index, equations, skip)
+                    .filter(|(merged, _)| merged.variables.len() > block.variables.len());
+                match merged {
+                    Some((merged, merged_indices)) => {
+                        // Reset ALL variables in the merged block to initial
+                        // guesses: previously solved blocks may have incorrect
+                        // values from the rank-deficient fallback.
+                        for name in &merged.variables {
+                            values.insert(name.clone(), initial_guess(name, specs));
+                        }
+                        // A merge that fails to converge propagates its own
+                        // error (Java: the uncaught `config.newton().solveBlock`
+                        // inside the catch block).
+                        iterations +=
+                            solve_block(index, &merged, equations, values, settings, specs, defs)?;
+                        skip.extend(merged_indices);
+                        actual_solved = Some(merged);
+                    }
+                    None => return Err(first_error),
+                }
+            }
+        }
+    }
+
+    // Polish pass — best-effort; the main solution is still valid if it fails.
+    let polish = polish_settings(settings);
+    let polished_block = actual_solved.as_ref().unwrap_or(block);
+    if let Ok(count) = solve_block(
+        index,
+        polished_block,
+        equations,
+        values,
+        &polish,
+        specs,
+        defs,
+    ) {
+        iterations += count;
+    }
+    Ok(iterations)
 }
 
 /// Prefix a block failure with the equations it came from, quoted verbatim.
@@ -1116,11 +1832,12 @@ fn annotate(err: FreesError, index: usize, equations: &[&Equation]) -> FreesErro
 
 /// Warn about any solved value that left the bounds its `GUESS` declared.
 ///
-/// [`newton_solve`] has no bounds parameter (see its *Deviations*), so bounds
-/// are advisory here: they seed the starting point and are reported afterwards.
-/// Reporting is deliberate — silently returning an out-of-range answer under a
-/// document that asked for a range is the kind of quiet wrongness the parent
-/// engine's "Constrained solution" diagnostic exists to prevent.
+/// Since [`crate::solver::newton::newton_solve`] enforces bounds at every
+/// probe (the three Java
+/// `Math.clamp` sites), a bounded solve can no longer end outside its box and
+/// this warning should be unreachable for bounded variables. It is kept as a
+/// safety net — a future warm-start path, or a spec produced outside
+/// `variable_specs`, must still never return a silently out-of-range answer.
 fn check_bounds(
     specs: &BTreeMap<String, VarSpec>,
     values: &Scope,
@@ -1471,9 +2188,14 @@ mod tests {
 
     #[test]
     fn for_block_bodies_are_flattened_into_the_system() {
-        let solution = solved("FOR i = 1 TO 2\n  a = 5\nEND\nb = a + 1\n");
-        assert_close(value(&solution, "a"), 5.0);
-        assert_close(value(&solution, "b"), 6.0);
+        // `expand_document` unrolls FOR bodies per iteration with the loop
+        // variable substituted (the Java `EquationParser.flatten` rule), so
+        // the body must use the index — a constant body would correctly be
+        // rejected as the same equation stated twice.
+        let solution = solved("FOR i = 1 TO 2\n  a[i] = 5 * i\nEND\nb = a[1] + a[2]\n");
+        assert_close(value(&solution, "a[1]"), 5.0);
+        assert_close(value(&solution, "a[2]"), 10.0);
+        assert_close(value(&solution, "b"), 15.0);
     }
 
     #[test]
@@ -1484,10 +2206,12 @@ mod tests {
 
     #[test]
     fn call_statements_are_refused_rather_than_dropped() {
+        // The refusal comes from the `flatten_calls` pipeline stage: a CALL
+        // to an unknown name is an error naming it (the Java flattenCallProc
+        // behaviour), never a silently dropped statement.
         let err = solve("CALL mix(1, 2 : y)\nx = 1\n", &SolverSettings::default()).unwrap_err();
         let message = err.to_string_message();
         assert!(message.contains("mix"), "{message}");
-        assert!(message.contains("not supported"), "{message}");
     }
 
     #[test]
@@ -1550,18 +2274,27 @@ mod tests {
         );
     }
 
+    /// Bounds are enforced now (the Java `Math.clamp` sites): a document whose
+    /// equations force a value outside its declared box cannot solve — the
+    /// whole retry ladder runs inside the box and exhausts, exactly as the
+    /// Java engine fails this document. (It used to "solve" to 5.0 with a
+    /// warning; that was ranked divergence #3 in `docs/status-phase1.md`.)
     #[test]
-    fn out_of_bounds_results_warn_but_still_solve() {
-        // The equation forces x = 5 while the GUESS declares 0..1.
-        let solution = solved("GUESS x = 0.5 [0, 1]\nx = 5\n");
-        assert_close(value(&solution, "x"), 5.0);
+    fn a_solution_outside_the_guess_bounds_is_a_ladder_exhaustion_failure() {
+        let failure = solve("GUESS x = 0.5 [0, 1]\nx = 5\n", &SolverSettings::default())
+            .expect_err("x = 5 is unreachable inside [0, 1]");
+        assert_eq!(failure.failed_block_index, Some(0));
+        let partial = failure
+            .partial
+            .as_deref()
+            .expect("ladder exhaustion still ships diagnostics");
+        assert_eq!(partial.blocks.len(), 1);
+        assert_eq!(partial.residuals.len(), 1);
+        // The residual is evaluated at the restored initial guess (0.5 - 5).
         assert!(
-            solution
-                .diagnostics
-                .iter()
-                .any(|d| d.message.contains("outside the GUESS bounds")),
+            (partial.residuals[0].residual + 4.5).abs() < 1e-12,
             "{:?}",
-            solution.diagnostics
+            partial.residuals
         );
     }
 }

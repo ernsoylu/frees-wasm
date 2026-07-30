@@ -1048,14 +1048,19 @@ fn component_instantiation_is_detected_rather_than_mis_reported() {
     // expression error.
     assert!(fails("Pump P1(s3, s4)").contains("COMPONENT instantiation"));
     for (src, construct) in [
-        ("FUNCTION f(x)\nEND", "FUNCTION"),
-        ("TABLE cp(T)\nEND", "TABLE"),
+        ("PARAMETRIC sweep(a)\nEND", "PARAMETRIC"),
+        ("PLOT 'x'\nEND", "PLOT"),
         ("STATE TABLE C(P)\nEND", "STATE TABLE"),
         ("DYNAMIC d()\nEND", "DYNAMIC"),
         ("connect(a.b, c)", "CONNECT"),
     ] {
         assert!(fails(src).contains(construct), "`{src}`");
     }
+    // FUNCTION/PROCEDURE/MODULE/TABLE now parse into `Document::defs` — the
+    // Phase-4 procedural pass; their coverage lives in `parser::toplevel` and
+    // `tests/procedural.rs`.
+    assert_eq!(doc("FUNCTION f(x)\n  f := x\nEND").defs.functions.len(), 1);
+    assert_eq!(doc("TABLE cp(T)\n  1 2\nEND").defs.tables.len(), 1);
 }
 
 // ════════════════════════════════════════════════════════════════════════════

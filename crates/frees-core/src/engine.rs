@@ -190,7 +190,9 @@ pub struct SolveFailure {
     pub error: FreesError,
     /// 0-based index of the Tarjan block whose solve gave up.
     pub failed_block_index: Option<usize>,
-    pub partial: Option<PartialDiagnostics>,
+    /// Boxed to keep the `Err` variant small on every `solve` return path
+    /// (`clippy::result_large_err` — the payload is ~180 bytes inline).
+    pub partial: Option<Box<PartialDiagnostics>>,
 }
 
 impl SolveFailure {
@@ -426,7 +428,7 @@ pub fn solve_with(
                 return Err(SolveFailure {
                     error,
                     failed_block_index: Some(index),
-                    partial: Some(PartialDiagnostics {
+                    partial: Some(Box::new(PartialDiagnostics {
                         blocks: report.blocks,
                         block_equations,
                         display_names,
@@ -436,7 +438,7 @@ pub fn solve_with(
                             max_residual,
                             elapsed_ms: None,
                         },
-                    }),
+                    })),
                 });
             }
         }

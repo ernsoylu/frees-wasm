@@ -1,0 +1,5 @@
+{ CALL LinFit fits an OLS line and reports slope, intercept and r2 as scalars.
+  A perfect fit y = 2x: m = 2, b = 0, r2 = 1. Bare vector names auto-resolve. }
+x = [1, 2, 3]
+y = [2, 4, 6]
+CALL LinFit(x, y : m, b, r2)

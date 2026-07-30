@@ -1,0 +1,8 @@
+{ Several kernel CALLs in one document: the flattener must keep the synthetic
+  argument packings independent and the blocker must order them correctly. }
+x = [1, 2, 3, 4]
+y = [1, 3, 5, 7]
+CALL LinFit(x, y : slope, intercept, r2)
+CALL PolyFit(x, y, 1 : c)
+a = [1, 1]
+CALL Convolve(a, a : conv)

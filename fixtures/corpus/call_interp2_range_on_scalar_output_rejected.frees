@@ -1,0 +1,7 @@
+{ Names are case-insensitive, so the scalar output z resolves to the shape of
+  the grid Z and becomes a range. A range is only legal on an assignment LHS or
+  as a function argument, so the document is refused. }
+xs = [0, 1]
+ys = [0, 1]
+Z = [0, 1; 2, 3]
+CALL Interp2(xs[1:2], ys[1:2], Z, 1, 1 : z)

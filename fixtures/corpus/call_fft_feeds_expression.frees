@@ -1,0 +1,6 @@
+{ A kernel CALL output is an ordinary unknown: downstream equations may read it
+  and the blocker orders them after the CALL. }
+re = [1, 2, 3, 4]
+im = [0, 0, 0, 0]
+CALL FFT(re[1:4], im[1:4] : fr[1:4], fi[1:4])
+mag1 = sqrt(fr[1]^2 + fi[1]^2)

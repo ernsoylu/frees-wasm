@@ -1,0 +1,5 @@
+{ The vector kernels are budgeted the same way: the two 7000-long inputs fit,
+  the 2 x 7000 output equations do not. }
+re = linspace(0, 1, 7000)
+im = zeros(7000, 1)
+CALL FFT(re, im : fr, fi)

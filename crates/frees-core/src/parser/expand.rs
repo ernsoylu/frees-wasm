@@ -9,7 +9,10 @@
 //! `SolveLinear`, backslash), the BLAS-style helpers (`axpy`, `scal`, `gemv`,
 //! `gemm`, `ger`, `copy`), the generators (`zeros`, `ones`, `eye`/`identity`,
 //! `diag`, `linspace`), `rangeAssign` arrays, element-wise operators, `FOR`
-//! flattening with loop-variable substitution, and `CALL LUDecompose` with
+//! flattening with loop-variable substitution, and the CALL intrinsics
+//! (`LUDecompose`, `Interp2`, and the Java `LIN_ALG_SIGNAL_STATS_CALLS` set:
+//! `QR`, `Cholesky`, `MatExp`, `SingularValues`, `SVD`, `FFT`, `IFFT`,
+//! `Convolve`, `LinFit`, `PolyFit`) with
 //! `autoSizeCallOutputs`/`padOmittedOutputs`.
 //!
 //! # Architecture (non-negotiable, from the Java engine)
@@ -29,6 +32,13 @@
 //! * `det` of a matrix larger than 3×3 emits a runtime `det$<n>` call whose
 //!   kernel lives in [`crate::linalg`] (the Java `Evaluator` ↔
 //!   `LinearAlgebra` split).
+//! * The dense linear-algebra / signal / statistics CALLs take that second
+//!   route too: each output element is bound to a synthetic `$`-call
+//!   (`qr$q$…`, `chol$l$…`, `expm$…`, `svd$u|smat|v|s$…`, `fft$re|im$…`,
+//!   `ifft$…`, `conv$…`, `linfit$…`, `polyfit$…`, `interp2$…`) carrying the
+//!   whole input row-major, which [`crate::eval`] routes into
+//!   [`crate::linalg`] / [`crate::signal`] / [`crate::statistics`] /
+//!   [`crate::interp2`].
 //!
 //! # The `range` intrinsic
 //!
@@ -291,6 +301,26 @@ impl Flattener<'_> {
             return Err(parse_err(TOO_MANY_EQUATIONS));
         }
         self.out.push(equation);
+        Ok(())
+    }
+
+    /// Same budget as [`Flattener::push`], asserted *before* a batch is built —
+    /// the port of `BoundedEquationList.addAll`, which makes exactly this
+    /// `size() + more.size() > MAX` check.
+    ///
+    /// The kernel flatteners copy the whole input matrix into every equation
+    /// they emit, so an oversized request costs O(equations × entries) memory
+    /// before `push` would ever reject it. The Java holds one shared argument
+    /// list and can afford to discover the limit on insertion; this port cannot,
+    /// so it refuses up front with the identical message.
+    ///
+    /// Callers compute `planned` with saturating arithmetic: `usize` is 32 bits
+    /// on wasm32, and a 10^6 × 1 slice (the `MAX_RANGE_SPAN` ceiling) squares
+    /// past `u32::MAX`.
+    fn reserve(&self, planned: usize) -> Result<()> {
+        if self.out.len() + planned > MAX_GENERATED_EQUATIONS {
+            return Err(parse_err(TOO_MANY_EQUATIONS));
+        }
         Ok(())
     }
 
@@ -916,10 +946,12 @@ impl Flattener<'_> {
 
     /// Port of the matrix slice of `EquationParser.flattenCallProc`:
     /// shape-resolves the arguments, pads omitted trailing outputs with sink
-    /// variables, auto-sizes bare output names, then dispatches. Only
-    /// `LUDecompose` is in the matrix-expansion scope; the remaining Java CALL
-    /// intrinsics are refused by name, and user PROCEDURE/MODULE calls are
-    /// expected to have been flattened upstream (`procedures::flatten_calls`).
+    /// variables, auto-sizes bare output names, then dispatches. In scope here
+    /// are `LUDecompose` and the Java `LIN_ALG_SIGNAL_STATS_CALLS` set; the
+    /// remaining Java CALL intrinsics (the control-systems suite plus the
+    /// eigen/Euler decompositions) are refused by name, and user
+    /// PROCEDURE/MODULE calls are expected to have been flattened upstream
+    /// (`procedures::flatten_calls`).
     fn flatten_call_proc(
         &mut self,
         name: &str,
@@ -940,6 +972,16 @@ impl Flattener<'_> {
         match def_name.as_str() {
             "ludecompose" => self.flatten_lu_decompose(&inputs, &outputs, source, loop_vars),
             "interp2" => self.flatten_interp2(&inputs, &outputs, source, loop_vars),
+            "qr" => self.flatten_qr(&inputs, &outputs, source, loop_vars),
+            "cholesky" => self.flatten_cholesky(&inputs, &outputs, source, loop_vars),
+            "matexp" => self.flatten_mat_exp(&inputs, &outputs, source, loop_vars),
+            "singularvalues" => self.flatten_singular_values(&inputs, &outputs, source, loop_vars),
+            "svd" => self.flatten_svd(&inputs, &outputs, source, loop_vars),
+            "fft" => self.flatten_fft(false, &inputs, &outputs, source, loop_vars),
+            "ifft" => self.flatten_fft(true, &inputs, &outputs, source, loop_vars),
+            "convolve" => self.flatten_convolve(&inputs, &outputs, source, loop_vars),
+            "linfit" => self.flatten_lin_fit(&inputs, &outputs, source, loop_vars),
+            "polyfit" => self.flatten_poly_fit(&inputs, &outputs, source, loop_vars),
             _ if UNPORTED_CALL_INTRINSICS.contains(&def_name.as_str()) => Err(parse_err(format!(
                 "`CALL {def_name}` is not supported by the wasm engine yet"
             ))),
@@ -979,9 +1021,10 @@ impl Flattener<'_> {
     }
 
     /// Expands bare-name CALL outputs into full `1..size` slices, sizing them
-    /// from the inputs exactly as the flattener does. Port of the
-    /// `autoSizeCallOutputs` arms for the intrinsics in the matrix-expansion
-    /// scope (the control-systems arms live with their flatteners).
+    /// from the inputs exactly as the flattener does, so `CALL QR(A : Q, R)`
+    /// needs no restated lengths. Port of the `autoSizeCallOutputs` arms for
+    /// the intrinsics in the matrix-expansion scope; the control-systems arms
+    /// arrive with their flatteners in Phase 9.
     fn auto_size_call_outputs(
         &self,
         def_name: &str,
@@ -992,10 +1035,58 @@ impl Flattener<'_> {
         if !outputs.iter().any(|o| matches!(o, Expr::Var(_))) {
             return Ok(());
         }
-        if def_name == "ludecompose" {
-            let n = self.in_mat_rows(inputs, 0, loop_vars)?;
-            set_mat(outputs, 0, n, n);
-            set_mat(outputs, 1, n, n);
+        // Each arm mirrors the Java statement order: a size is read, the slot it
+        // sizes is written, and only then is the next size read. A failure part
+        // way through therefore leaves the earlier slots already sized, exactly
+        // as the Java `catch (ParseException ignored)` around the switch does.
+        match def_name {
+            "ludecompose" => {
+                let n = self.in_mat_rows(inputs, 0, loop_vars)?;
+                set_mat(outputs, 0, n, n);
+                set_mat(outputs, 1, n, n);
+            }
+            "qr" => {
+                let m = self.in_mat_rows(inputs, 0, loop_vars)?;
+                set_mat(outputs, 0, m, m);
+                set_mat(outputs, 1, m, self.in_mat_cols(inputs, 0, loop_vars)?);
+            }
+            "cholesky" | "matexp" => {
+                let n = self.in_mat_rows(inputs, 0, loop_vars)?;
+                set_mat(outputs, 0, n, n);
+            }
+            "singularvalues" => {
+                let rows = self.in_mat_rows(inputs, 0, loop_vars)?;
+                let cols = self.in_mat_cols(inputs, 0, loop_vars)?;
+                set_vec(outputs, 0, rows.min(cols));
+            }
+            "svd" => {
+                let m = self.in_mat_rows(inputs, 0, loop_vars)?;
+                let n = self.in_mat_cols(inputs, 0, loop_vars)?;
+                let p = m.min(n);
+                set_mat(outputs, 0, m, p);
+                set_mat(outputs, 1, p, p);
+                set_mat(outputs, 2, n, p);
+            }
+            "fft" | "ifft" => {
+                let n = self.in_vec_len(inputs, 0, loop_vars)?;
+                set_vec(outputs, 0, n);
+                set_vec(outputs, 1, n);
+            }
+            "convolve" => {
+                let len = self.in_vec_len(inputs, 0, loop_vars)?
+                    + self.in_vec_len(inputs, 1, loop_vars)?;
+                set_vec(outputs, 0, len - 1);
+            }
+            "polyfit" => {
+                let degree = self.in_scalar_int(inputs, 2, loop_vars)?;
+                // `setVec` no-ops on a non-positive size, so a degree that is
+                // negative (or absurd enough to saturate) simply leaves the
+                // output as written and the flattener reports the real error.
+                let size = usize::try_from(degree.saturating_add(1)).unwrap_or(0);
+                set_vec(outputs, 0, size);
+            }
+            // Scalar-output or value-declared outputs: leave as written.
+            _ => {}
         }
         Ok(())
     }
@@ -1015,6 +1106,42 @@ impl Flattener<'_> {
             }
         }
         Ok(1)
+    }
+
+    /// Columns of an input treated as a matrix (1 for a 1-D slice or a
+    /// scalar). Port of `EquationParser.inMatCols`.
+    fn in_mat_cols(&self, inputs: &[Expr], idx: usize, loop_vars: &Scope) -> Result<usize> {
+        let Some(expr) = inputs.get(idx) else {
+            return Err(parse_err(format!("CALL input {} is missing", idx + 1)));
+        };
+        if let Expr::ArrayAccess { indices, .. } = expr {
+            if indices.len() == 2 {
+                return Ok(self.parse_matrix_info(expr, loop_vars)?.cols);
+            }
+            if indices.len() == 1 {
+                return Ok(1);
+            }
+        }
+        Ok(1)
+    }
+
+    /// Length of an input read as a vector. Port of
+    /// `EquationParser.inVecLen` (which lets `parseVectorInfo`'s own error
+    /// escape for a non-vector input).
+    fn in_vec_len(&self, inputs: &[Expr], idx: usize, loop_vars: &Scope) -> Result<usize> {
+        let Some(expr) = inputs.get(idx) else {
+            return Err(parse_err(format!("CALL input {} is missing", idx + 1)));
+        };
+        Ok(self.parse_vector_info(expr, loop_vars)?.size)
+    }
+
+    /// Compile-time integer input (e.g. a PolyFit degree). Port of
+    /// `EquationParser.inScalarInt`.
+    fn in_scalar_int(&self, inputs: &[Expr], idx: usize, loop_vars: &Scope) -> Result<i64> {
+        let Some(expr) = inputs.get(idx) else {
+            return Err(parse_err(format!("CALL input {} is missing", idx + 1)));
+        };
+        self.const_index(expr, loop_vars)
     }
 
     /// Port of `EquationParser.flattenInterp2`:
@@ -1052,9 +1179,7 @@ impl Flattener<'_> {
         let mut entries = Vec::with_capacity(m + n + m * n + 2);
         entries.extend(x.elements);
         entries.extend(y.elements);
-        for row in &z.elements {
-            entries.extend(row.iter().cloned());
-        }
+        entries.extend(matrix_entries(&z));
         entries.push(xq);
         entries.push(yq);
         let out = self.expand_expr(&outputs[0], loop_vars)?;
@@ -1152,6 +1277,451 @@ impl Flattener<'_> {
             self.push(Equation::new(
                 u.elements[i][j].clone(),
                 Expr::num(0.0),
+                source,
+            ))?;
+        }
+        Ok(())
+    }
+
+    // ── Dense linear algebra / signal / statistics CALLs ─────────────────────
+    //
+    // Port of the Java `LIN_ALG_SIGNAL_STATS_CALLS` half of `flattenCallProc`.
+    // Unlike `SolveLinear`/`Inverse`/`LUDecompose` — which emit *defining*
+    // equations for Newton to solve — these bind each output element to a
+    // synthetic `$`-call that runs the numeric kernel at evaluation time
+    // (`crate::linalg`, `crate::signal`, `crate::statistics`, dispatched by
+    // `eval::eval_synthetic`). Every equation carries the whole input matrix or
+    // vector pair in its argument list, exactly as the Java does, so the
+    // dependency graph sees the real inputs and the solver orders the blocks
+    // correctly.
+
+    /// Port of `EquationParser.flattenQr`: `Q` is m×m, `R` is m×n.
+    fn flatten_qr(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 1 || outputs.len() != 2 {
+            return Err(parse_err(
+                "QR expects 1 input matrix and 2 output matrices, \
+                 e.g. CALL QR(A[1:3,1:3] : Q[1:3,1:3], R[1:3,1:3])",
+            ));
+        }
+        let a = self.parse_matrix_info(&inputs[0], loop_vars)?;
+        let q = self.parse_matrix_info(&outputs[0], loop_vars)?;
+        let r = self.parse_matrix_info(&outputs[1], loop_vars)?;
+        let (m, n) = (a.rows, a.cols);
+        if q.rows != m || q.cols != m {
+            return Err(parse_err(format!(
+                "QR requires Q to be {m}x{m} (m x m for an m x n input)."
+            )));
+        }
+        if r.rows != m || r.cols != n {
+            return Err(parse_err(format!(
+                "QR requires R to match the input shape ({m}x{n})."
+            )));
+        }
+        self.reserve(m.saturating_mul(m).saturating_add(m.saturating_mul(n)))?;
+        let entries = matrix_entries(&a);
+        for i in 0..m {
+            for j in 0..m {
+                self.push(Equation::new(
+                    q.elements[i][j].clone(),
+                    Expr::Call {
+                        function: format!("qr$q${i}${j}${m}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        for i in 0..m {
+            for j in 0..n {
+                self.push(Equation::new(
+                    r.elements[i][j].clone(),
+                    Expr::Call {
+                        function: format!("qr$r${i}${j}${m}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenCholesky`: the lower factor `L` of
+    /// `A = L·Lᵀ`.
+    fn flatten_cholesky(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 1 || outputs.len() != 1 {
+            return Err(parse_err(
+                "Cholesky expects 1 input matrix and 1 output matrix, \
+                 e.g. CALL Cholesky(A[1:3,1:3] : L[1:3,1:3])",
+            ));
+        }
+        let a = self.parse_matrix_info(&inputs[0], loop_vars)?;
+        let l = self.parse_matrix_info(&outputs[0], loop_vars)?;
+        if a.rows != a.cols || l.rows != a.rows || l.cols != a.cols {
+            return Err(parse_err(
+                "Cholesky requires square matrices of identical size.",
+            ));
+        }
+        let n = a.rows;
+        self.reserve(n.saturating_mul(n))?;
+        let entries = matrix_entries(&a);
+        for i in 0..n {
+            for j in 0..n {
+                self.push(Equation::new(
+                    l.elements[i][j].clone(),
+                    Expr::Call {
+                        function: format!("chol$l${i}${j}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenMatExp`: the matrix exponential `e^A`.
+    fn flatten_mat_exp(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 1 || outputs.len() != 1 {
+            return Err(parse_err(
+                "MatExp expects 1 input matrix and 1 output matrix, \
+                 e.g. CALL MatExp(A[1:2,1:2] : E[1:2,1:2])",
+            ));
+        }
+        let a = self.parse_matrix_info(&inputs[0], loop_vars)?;
+        let e = self.parse_matrix_info(&outputs[0], loop_vars)?;
+        if a.rows != a.cols || e.rows != a.rows || e.cols != a.cols {
+            return Err(parse_err(
+                "MatExp requires square matrices of identical size.",
+            ));
+        }
+        let n = a.rows;
+        self.reserve(n.saturating_mul(n))?;
+        let entries = matrix_entries(&a);
+        for i in 0..n {
+            for j in 0..n {
+                self.push(Equation::new(
+                    e.elements[i][j].clone(),
+                    Expr::Call {
+                        function: format!("expm${i}${j}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenSingularValues`: the `min(m, n)`
+    /// singular values, non-increasing.
+    fn flatten_singular_values(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 1 || outputs.len() != 1 {
+            return Err(parse_err(
+                "SingularValues expects 1 input matrix and 1 output vector, \
+                 e.g. CALL SingularValues(A[1:3,1:2] : s[1:2])",
+            ));
+        }
+        let a = self.parse_matrix_info(&inputs[0], loop_vars)?;
+        let s = self.parse_vector_info(&outputs[0], loop_vars)?;
+        let (m, n) = (a.rows, a.cols);
+        if s.size != m.min(n) {
+            return Err(parse_err(format!(
+                "SingularValues requires an output vector of length min(rows, cols) = {}.",
+                m.min(n)
+            )));
+        }
+        self.reserve(s.size)?;
+        let entries = matrix_entries(&a);
+        for k in 0..s.size {
+            self.push(Equation::new(
+                s.elements[k].clone(),
+                Expr::Call {
+                    function: format!("svd$s${k}${m}${n}"),
+                    args: entries.clone(),
+                },
+                source,
+            ))?;
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenSvd`: the thin factorisation
+    /// `A = U·S·Vᵀ` with `U` m×p, `S` p×p and `V` n×p for p = min(m, n).
+    fn flatten_svd(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 1 || outputs.len() != 3 {
+            return Err(parse_err(
+                "SVD expects 1 input matrix and 3 output matrices, e.g. CALL SVD(A : U, S, V)",
+            ));
+        }
+        let a = self.parse_matrix_info(&inputs[0], loop_vars)?;
+        let u = self.parse_matrix_info(&outputs[0], loop_vars)?;
+        let s = self.parse_matrix_info(&outputs[1], loop_vars)?;
+        let v = self.parse_matrix_info(&outputs[2], loop_vars)?;
+        let (m, n) = (a.rows, a.cols);
+        let p = m.min(n);
+        if u.rows != m || u.cols != p || s.rows != p || s.cols != p || v.rows != n || v.cols != p {
+            return Err(parse_err(format!(
+                "SVD of a {m}x{n} matrix requires outputs U ({m}x{p}), S ({p}x{p}), \
+                 and V ({n}x{p})."
+            )));
+        }
+        self.reserve(
+            m.saturating_mul(p)
+                .saturating_add(p.saturating_mul(p))
+                .saturating_add(n.saturating_mul(p)),
+        )?;
+        let entries = matrix_entries(&a);
+        for i in 0..m {
+            for j in 0..p {
+                self.push(Equation::new(
+                    u.elements[i][j].clone(),
+                    Expr::Call {
+                        function: format!("svd$u${i}${j}${m}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        for i in 0..p {
+            for j in 0..p {
+                self.push(Equation::new(
+                    s.elements[i][j].clone(),
+                    Expr::Call {
+                        function: format!("svd$smat${i}${j}${m}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        for i in 0..n {
+            for j in 0..p {
+                self.push(Equation::new(
+                    v.elements[i][j].clone(),
+                    Expr::Call {
+                        function: format!("svd$v${i}${j}${m}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenFft`: the DFT (or its inverse) of the
+    /// complex sequence carried as two equal-length real vectors. The four
+    /// vectors — two in, two out — all have the same length.
+    fn flatten_fft(
+        &mut self,
+        inverse: bool,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        let name = if inverse { "IFFT" } else { "FFT" };
+        if inputs.len() != 2 || outputs.len() != 2 {
+            return Err(parse_err(format!(
+                "{name} expects 2 input vectors (real, imag) and 2 output vectors, \
+                 e.g. CALL {name}(re[1:n], im[1:n] : outRe[1:n], outIm[1:n])"
+            )));
+        }
+        let re = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let im = self.parse_vector_info(&inputs[1], loop_vars)?;
+        let out_re = self.parse_vector_info(&outputs[0], loop_vars)?;
+        let out_im = self.parse_vector_info(&outputs[1], loop_vars)?;
+        let n = re.size;
+        if im.size != n || out_re.size != n || out_im.size != n {
+            return Err(parse_err(format!(
+                "{name} requires all four vectors to have the same length."
+            )));
+        }
+        self.reserve(n.saturating_mul(2))?;
+        let mut entries = Vec::with_capacity(2 * n);
+        entries.extend(re.elements);
+        entries.extend(im.elements);
+        let prefix = if inverse { "ifft" } else { "fft" };
+        for k in 0..n {
+            self.push(Equation::new(
+                out_re.elements[k].clone(),
+                Expr::Call {
+                    function: format!("{prefix}$re${k}${n}"),
+                    args: entries.clone(),
+                },
+                source,
+            ))?;
+            self.push(Equation::new(
+                out_im.elements[k].clone(),
+                Expr::Call {
+                    function: format!("{prefix}$im${k}${n}"),
+                    args: entries.clone(),
+                },
+                source,
+            ))?;
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenConvolve`: the linear convolution of two
+    /// vectors, `m + n - 1` long.
+    fn flatten_convolve(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 2 || outputs.len() != 1 {
+            return Err(parse_err(
+                "Convolve expects 2 input vectors and 1 output vector, \
+                 e.g. CALL Convolve(a[1:m], b[1:n] : c[1:m+n-1])",
+            ));
+        }
+        let a = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let b = self.parse_vector_info(&inputs[1], loop_vars)?;
+        let c = self.parse_vector_info(&outputs[0], loop_vars)?;
+        let (m, n) = (a.size, b.size);
+        if c.size != m + n - 1 {
+            return Err(parse_err(format!(
+                "Convolve requires the output length to be m + n - 1 = {}.",
+                m + n - 1
+            )));
+        }
+        self.reserve(c.size)?;
+        let mut entries = Vec::with_capacity(m + n);
+        entries.extend(a.elements);
+        entries.extend(b.elements);
+        for k in 0..c.size {
+            self.push(Equation::new(
+                c.elements[k].clone(),
+                Expr::Call {
+                    function: format!("conv${k}${m}${n}"),
+                    args: entries.clone(),
+                },
+                source,
+            ))?;
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenLinFit`: the ordinary-least-squares line
+    /// through `(x, y)`, reported as three *scalar* outputs.
+    fn flatten_lin_fit(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 2 || outputs.len() != 3 {
+            return Err(parse_err(
+                "LinFit expects 2 input vectors and 3 outputs (slope, intercept, r2), \
+                 e.g. CALL LinFit(x[1:n], y[1:n] : slope, intercept, r2)",
+            ));
+        }
+        let x = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let y = self.parse_vector_info(&inputs[1], loop_vars)?;
+        let n = x.size;
+        if y.size != n {
+            return Err(parse_err("LinFit requires x and y of equal length."));
+        }
+        let mut entries = Vec::with_capacity(2 * n);
+        entries.extend(x.elements);
+        entries.extend(y.elements);
+        for (k, part) in ["slope", "intercept", "r2"].iter().enumerate() {
+            let out = self.expand_expr(&outputs[k], loop_vars)?;
+            self.push(Equation::new(
+                out,
+                Expr::Call {
+                    function: format!("linfit${part}${n}"),
+                    args: entries.clone(),
+                },
+                source,
+            ))?;
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenPolyFit`: the least-squares polynomial
+    /// coefficients in **ascending** powers, `degree + 1` of them.
+    fn flatten_poly_fit(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 3 || outputs.len() != 1 {
+            return Err(parse_err(
+                "PolyFit expects 2 input vectors and a degree, plus 1 output coefficient \
+                 vector, e.g. CALL PolyFit(x[1:n], y[1:n], 2 : c[1:3])",
+            ));
+        }
+        let x = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let y = self.parse_vector_info(&inputs[1], loop_vars)?;
+        let degree = self.in_scalar_int(inputs, 2, loop_vars)?;
+        let n = x.size;
+        if y.size != n {
+            return Err(parse_err("PolyFit requires x and y of equal length."));
+        }
+        if degree < 0 {
+            return Err(parse_err("PolyFit degree must be >= 0."));
+        }
+        // Saturating so an absurd degree cannot overflow before the length
+        // check rejects it; a real coefficient vector is capped by
+        // `MAX_RANGE_SPAN`, so `degree` is small once the check passes.
+        let wanted = degree.saturating_add(1);
+        let c = self.parse_vector_info(&outputs[0], loop_vars)?;
+        if c.size as i64 != wanted {
+            return Err(parse_err(format!(
+                "PolyFit requires a coefficient vector of length degree + 1 = {wanted}."
+            )));
+        }
+        let degree = degree as usize;
+        self.reserve(degree + 1)?;
+        let mut entries = Vec::with_capacity(2 * n);
+        entries.extend(x.elements);
+        entries.extend(y.elements);
+        for k in 0..=degree {
+            self.push(Equation::new(
+                c.elements[k].clone(),
+                Expr::Call {
+                    function: format!("polyfit${k}${degree}${n}"),
+                    args: entries.clone(),
+                },
                 source,
             ))?;
         }
@@ -2505,6 +3075,28 @@ fn elementwise_dims(
     Ok((l_mat.len(), l_mat[0].len()))
 }
 
+/// A resolved matrix's element expressions flattened row-major — the argument
+/// packing every kernel synthetic expects. Port of
+/// `EquationParser.matrixEntries`.
+fn matrix_entries(m: &MatrixInfo) -> Vec<Expr> {
+    let mut entries = Vec::with_capacity(m.rows * m.cols);
+    for row in &m.elements {
+        entries.extend(row.iter().cloned());
+    }
+    entries
+}
+
+fn set_vec(outputs: &mut [Expr], index: usize, size: usize) {
+    if index < outputs.len() && size > 0 {
+        if let Expr::Var(name) = &outputs[index] {
+            outputs[index] = Expr::ArrayAccess {
+                name: name.clone(),
+                indices: vec![range_one_to(size)],
+            };
+        }
+    }
+}
+
 fn set_mat(outputs: &mut [Expr], index: usize, rows: usize, cols: usize) {
     if index < outputs.len() && rows > 0 && cols > 0 {
         if let Expr::Var(name) = &outputs[index] {
@@ -2519,21 +3111,17 @@ fn set_mat(outputs: &mut [Expr], index: usize, rows: usize, cols: usize) {
 /// CALL intrinsic names the Java `flattenCallProc` dispatches that are not in
 /// the matrix-expansion scope. Refused by name so a document using one fails
 /// loudly instead of being reported as an unknown procedure.
-const UNPORTED_CALL_INTRINSICS: [&str; 54] = [
+///
+/// These are the eigen/Euler decompositions and the control-systems suite,
+/// which land in **Phase 9** with the CAS. The dense linear-algebra, signal and
+/// statistics intrinsics that used to sit here (the Java
+/// `LIN_ALG_SIGNAL_STATS_CALLS` set) are wired above and must stay out of this
+/// list; `procedures::EXPANDED_CALL_TARGETS` is the matching stage-2 allowance.
+const UNPORTED_CALL_INTRINSICS: [&str; 44] = [
     "eigenvalues",
     "eigen",
     "eulerrotate",
     "eulerdecompose",
-    "qr",
-    "cholesky",
-    "matexp",
-    "singularvalues",
-    "svd",
-    "fft",
-    "ifft",
-    "convolve",
-    "linfit",
-    "polyfit",
     "ss2tf",
     "ss2tfij",
     "tf2ss",
@@ -3422,6 +4010,448 @@ mod tests {
         );
     }
 
+    // ── kernel-synthetic CALLs (qr / chol / expm / svd / fft / conv / fits) ──
+    //
+    // Values are the Java oracle's, captured by running each document through
+    // `tools/golden-dumper` against the real engine; the same documents are
+    // frozen in `fixtures/corpus` so the parity gate keeps them honest.
+
+    /// The synthetic function name of every `out = kernel(…)` equation, in
+    /// emission order.
+    fn call_names(eqs: &[Equation]) -> Vec<String> {
+        eqs.iter()
+            .filter_map(|eq| match &eq.rhs {
+                Expr::Call { function, .. } => Some(function.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Evaluate a kernel expansion: seed the literal element equations, then
+    /// resolve every `out = kernel(known…)` equation in one pass (which is all
+    /// these flatteners emit).
+    fn kernel_values(eqs: &[Equation]) -> HashMap<String, f64> {
+        let mut scope: Scope = literal_values(eqs).into_iter().collect();
+        for eq in eqs {
+            if let (Expr::Var(name), Expr::Call { .. }) = (&eq.lhs, &eq.rhs) {
+                let value = eval::eval(&eq.rhs, &scope)
+                    .unwrap_or_else(|e| panic!("`{}` did not evaluate: {e:?}", eq.source_text));
+                scope.insert(name.clone(), value);
+            }
+        }
+        scope
+    }
+
+    fn assert_kernel_values(eqs: &[Equation], expected: &[(&str, f64)]) {
+        let values = kernel_values(eqs);
+        for (name, want) in expected {
+            let got = values
+                .get(*name)
+                .unwrap_or_else(|| panic!("`{name}` not produced; have {values:?}"));
+            assert!(
+                (got - want).abs() < 1e-9,
+                "`{name}` = {got} but the oracle got {want}"
+            );
+        }
+    }
+
+    #[test]
+    fn qr_emits_q_then_r_elements_with_the_java_sign_convention() {
+        let eqs = expand("A = [1 0; 0 1]\nCALL QR(A : Q, R)");
+        assert_eq!(
+            call_names(&eqs),
+            vec![
+                "qr$q$0$0$2$2",
+                "qr$q$0$1$2$2",
+                "qr$q$1$0$2$2",
+                "qr$q$1$1$2$2",
+                "qr$r$0$0$2$2",
+                "qr$r$0$1$2$2",
+                "qr$r$1$0$2$2",
+                "qr$r$1$1$2$2",
+            ]
+        );
+        // Householder QR of I is -I in Commons Math, not +I.
+        assert_kernel_values(
+            &eqs,
+            &[
+                ("q[1,1]", -1.0),
+                ("q[2,2]", -1.0),
+                ("r[1,1]", -1.0),
+                ("r[2,2]", -1.0),
+            ],
+        );
+    }
+
+    #[test]
+    fn qr_sizes_a_bare_q_to_m_by_m_and_r_to_m_by_n() {
+        // 3x2 input: Q is 3x3 (9 equations), R is 3x2 (6).
+        let eqs = expand("A = [1 2; 3 4; 5 6]\nCALL QR(A : Q, R)");
+        assert_eq!(call_names(&eqs).len(), 9 + 6);
+        assert_kernel_values(&eqs, &[("q[3,3]", 0.40824829046386274), ("r[3,2]", 0.0)]);
+    }
+
+    #[test]
+    fn qr_rejects_a_q_that_is_not_square_in_m() {
+        let message =
+            expand_err("A = [1 2; 3 4; 5 6]\nCALL QR(A[1:3,1:2] : Q[1:2,1:2], R[1:3,1:2])");
+        assert!(
+            message.contains("QR requires Q to be 3x3 (m x m for an m x n input)."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn qr_rejects_an_r_that_does_not_match_the_input_shape() {
+        let message =
+            expand_err("A = [1 2; 3 4; 5 6]\nCALL QR(A[1:3,1:2] : Q[1:3,1:3], R[1:3,1:3])");
+        assert!(
+            message.contains("QR requires R to match the input shape (3x2)."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn cholesky_emits_the_full_l_matrix_including_its_zero_upper_half() {
+        let eqs = expand("A = [4 0; 0 9]\nCALL Cholesky(A : L)");
+        assert_eq!(
+            call_names(&eqs),
+            vec![
+                "chol$l$0$0$2",
+                "chol$l$0$1$2",
+                "chol$l$1$0$2",
+                "chol$l$1$1$2",
+            ]
+        );
+        assert_kernel_values(
+            &eqs,
+            &[
+                ("l[1,1]", 2.0),
+                ("l[1,2]", 0.0),
+                ("l[2,1]", 0.0),
+                ("l[2,2]", 3.0),
+            ],
+        );
+    }
+
+    #[test]
+    fn cholesky_rejects_mismatched_sizes() {
+        let message = expand_err("A = [4 0; 0 9]\nCALL Cholesky(A[1:2,1:2] : L[1:1,1:1])");
+        assert!(
+            message.contains("Cholesky requires square matrices of identical size."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn matexp_of_the_zero_matrix_is_the_identity() {
+        let eqs = expand("A = [0 0; 0 0]\nCALL MatExp(A : E)");
+        assert_eq!(
+            call_names(&eqs),
+            vec!["expm$0$0$2", "expm$0$1$2", "expm$1$0$2", "expm$1$1$2"]
+        );
+        assert_kernel_values(
+            &eqs,
+            &[
+                ("e[1,1]", 1.0),
+                ("e[1,2]", 0.0),
+                ("e[2,1]", 0.0),
+                ("e[2,2]", 1.0),
+            ],
+        );
+    }
+
+    #[test]
+    fn matexp_rejects_a_non_square_input() {
+        let message = expand_err("A = [1 2; 3 4; 5 6]\nCALL MatExp(A[1:3,1:2] : E[1:3,1:2])");
+        assert!(
+            message.contains("MatExp requires square matrices of identical size."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn singular_values_are_reported_in_descending_order() {
+        let eqs = expand("A = [2 0; 0 3]\nCALL SingularValues(A : s)");
+        assert_eq!(call_names(&eqs), vec!["svd$s$0$2$2", "svd$s$1$2$2"]);
+        // Descending, so the 3 from A[2,2] comes first.
+        assert_kernel_values(&eqs, &[("s[1]", 3.0), ("s[2]", 2.0)]);
+    }
+
+    #[test]
+    fn singular_values_size_a_bare_output_to_min_rows_cols() {
+        let eqs = expand("A = [1 2; 3 4; 5 6]\nCALL SingularValues(A : s)");
+        assert_eq!(call_names(&eqs), vec!["svd$s$0$3$2", "svd$s$1$3$2"]);
+    }
+
+    #[test]
+    fn singular_values_rejects_a_wrongly_sized_output() {
+        let message = expand_err("A = [1 2; 3 4; 5 6]\nCALL SingularValues(A[1:3,1:2] : s[1:3])");
+        assert!(
+            message.contains(
+                "SingularValues requires an output vector of length min(rows, cols) = 2."
+            ),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn svd_emits_u_then_smat_then_v_with_the_thin_shapes() {
+        // 3x2 -> p = 2: U is 3x2 (6), S is 2x2 (4), V is 2x2 (4).
+        let eqs = expand("A = [1 2; 3 4; 5 6]\nCALL SVD(A : U, S, V)");
+        let names = call_names(&eqs);
+        assert_eq!(names.len(), 6 + 4 + 4);
+        assert_eq!(names[0], "svd$u$0$0$3$2");
+        assert_eq!(names[6], "svd$smat$0$0$3$2");
+        assert_eq!(names[10], "svd$v$0$0$3$2");
+        assert_kernel_values(
+            &eqs,
+            &[
+                ("s[1,1]", 9.525518091565106),
+                ("s[1,2]", 0.0),
+                ("s[2,2]", 0.5143005806586448),
+                ("u[1,1]", 0.22984769640007152),
+            ],
+        );
+    }
+
+    #[test]
+    fn svd_rejects_outputs_that_are_not_the_thin_shapes() {
+        let message = expand_err(
+            "A = [1 2; 3 4; 5 6]\nCALL SVD(A[1:3,1:2] : U[1:3,1:3], S[1:2,1:2], V[1:2,1:2])",
+        );
+        assert!(
+            message.contains("SVD of a 3x2 matrix requires outputs U (3x2), S (2x2), and V (2x2)."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn fft_interleaves_the_real_and_imaginary_outputs() {
+        let eqs = expand("re = [1, 0, 0, 0]\nim = [0, 0, 0, 0]\nCALL FFT(re, im : fr, fi)");
+        assert_eq!(
+            call_names(&eqs),
+            vec![
+                "fft$re$0$4",
+                "fft$im$0$4",
+                "fft$re$1$4",
+                "fft$im$1$4",
+                "fft$re$2$4",
+                "fft$im$2$4",
+                "fft$re$3$4",
+                "fft$im$3$4",
+            ]
+        );
+        // The DFT of the unit impulse is flat.
+        assert_kernel_values(
+            &eqs,
+            &[
+                ("fr[1]", 1.0),
+                ("fr[4]", 1.0),
+                ("fi[1]", 0.0),
+                ("fi[4]", 0.0),
+            ],
+        );
+    }
+
+    #[test]
+    fn fft_packs_the_real_vector_before_the_imaginary_one() {
+        let eqs = expand("re = [1, 2]\nim = [3, 4]\nCALL FFT(re, im : fr, fi)");
+        let Expr::Call { args, .. } = &eqs[4].rhs else {
+            panic!("expected a kernel call, got {:?}", eqs[4].rhs);
+        };
+        assert_eq!(
+            args.to_vec(),
+            vec![var("re[1]"), var("re[2]"), var("im[1]"), var("im[2]")]
+        );
+    }
+
+    #[test]
+    fn ifft_uses_the_inverse_prefix() {
+        let eqs = expand("re = [1, 1]\nim = [0, 0]\nCALL IFFT(re, im : gr, gi)");
+        assert_eq!(
+            call_names(&eqs),
+            vec!["ifft$re$0$2", "ifft$im$0$2", "ifft$re$1$2", "ifft$im$1$2"]
+        );
+        // IFFT of a constant spectrum is the (scaled) impulse.
+        assert_kernel_values(&eqs, &[("gr[1]", 1.0), ("gr[2]", 0.0)]);
+    }
+
+    #[test]
+    fn fft_needs_two_input_and_two_output_vectors() {
+        let message = expand_err("re = [1, 0]\nCALL FFT(re[1:2] : fr[1:2], fi[1:2])");
+        assert!(
+            message.contains(
+                "FFT expects 2 input vectors (real, imag) and 2 output vectors, \
+                 e.g. CALL FFT(re[1:n], im[1:n] : outRe[1:n], outIm[1:n])"
+            ),
+            "{message}"
+        );
+        let inverse = expand_err("re = [1, 0]\nCALL IFFT(re[1:2] : fr[1:2], fi[1:2])");
+        assert!(
+            inverse.contains("IFFT expects 2 input vectors"),
+            "{inverse}"
+        );
+    }
+
+    #[test]
+    fn fft_needs_all_four_vectors_the_same_length() {
+        let message = expand_err(
+            "re = [1, 0, 0]\nim = [0, 0]\nCALL FFT(re[1:3], im[1:2] : fr[1:3], fi[1:3])",
+        );
+        assert!(
+            message.contains("FFT requires all four vectors to have the same length."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn convolve_emits_m_plus_n_minus_one_elements() {
+        let eqs = expand("a = [1, 2]\nb = [1, 3]\nCALL Convolve(a[1:2], b[1:2] : c[1:3])");
+        assert_eq!(
+            call_names(&eqs),
+            vec!["conv$0$2$2", "conv$1$2$2", "conv$2$2$2"]
+        );
+        assert_kernel_values(&eqs, &[("c[1]", 1.0), ("c[2]", 5.0), ("c[3]", 6.0)]);
+    }
+
+    #[test]
+    fn convolve_sizes_a_bare_output_to_m_plus_n_minus_one() {
+        let eqs = expand("a = [1, 2, 3]\nb = [4, 5]\nCALL Convolve(a, b : c)");
+        assert_eq!(call_names(&eqs).len(), 4);
+        assert_kernel_values(
+            &eqs,
+            &[
+                ("c[1]", 4.0),
+                ("c[2]", 13.0),
+                ("c[3]", 22.0),
+                ("c[4]", 15.0),
+            ],
+        );
+    }
+
+    #[test]
+    fn convolve_rejects_a_wrongly_sized_output() {
+        let message = expand_err("a = [1, 2]\nb = [1, 3]\nCALL Convolve(a[1:2], b[1:2] : c[1:2])");
+        assert!(
+            message.contains("Convolve requires the output length to be m + n - 1 = 3."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn linfit_emits_three_scalar_outputs_in_slope_intercept_r2_order() {
+        let eqs = expand("x = [1, 2, 3]\ny = [2, 4, 6]\nCALL LinFit(x, y : m, b, r2)");
+        assert_eq!(
+            call_names(&eqs),
+            vec!["linfit$slope$3", "linfit$intercept$3", "linfit$r2$3"]
+        );
+        assert_kernel_values(&eqs, &[("m", 2.0), ("b", 0.0), ("r2", 1.0)]);
+    }
+
+    #[test]
+    fn linfit_needs_x_and_y_of_equal_length() {
+        let message =
+            expand_err("x = [1, 2, 3]\ny = [1, 2]\nCALL LinFit(x[1:3], y[1:2] : m, b, r2)");
+        assert!(
+            message.contains("LinFit requires x and y of equal length."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn linfit_rejects_more_than_three_outputs() {
+        let message =
+            expand_err("x = [1, 2]\ny = [1, 2]\nCALL LinFit(x[1:2], y[1:2] : m, b, r2, extra)");
+        assert!(
+            message.contains("LinFit expects 2 input vectors and 3 outputs (slope, intercept, r2)"),
+            "{message}"
+        );
+    }
+
+    /// Trailing omission works for the fixed-arity kernels (Java
+    /// `padOmittedOutputs` / `expectedOutputCount`): the dropped slot is still
+    /// computed, into a hidden sink.
+    #[test]
+    fn linfit_pads_an_omitted_trailing_output_with_a_sink() {
+        let eqs = expand("x = [1, 2, 3]\ny = [2, 4, 6]\nCALL LinFit(x, y : m, b)");
+        assert_eq!(
+            call_names(&eqs),
+            vec!["linfit$slope$3", "linfit$intercept$3", "linfit$r2$3"]
+        );
+        let all_vars: HashSet<String> = eqs.iter().flat_map(|eq| eq.variables()).collect();
+        assert!(
+            all_vars
+                .iter()
+                .any(|v| v.starts_with(IGNORED_OUTPUT_PREFIX)),
+            "expected a padded sink, got {all_vars:?}"
+        );
+    }
+
+    #[test]
+    fn polyfit_coefficients_are_ascending_powers() {
+        // y = 2x + 1 -> c[1] is the constant term, c[2] the slope.
+        let eqs = expand("x = [0, 1, 2, 3]\ny = [1, 3, 5, 7]\nCALL PolyFit(x, y, 1 : c)");
+        assert_eq!(call_names(&eqs), vec!["polyfit$0$1$4", "polyfit$1$1$4"]);
+        assert_kernel_values(&eqs, &[("c[1]", 1.0), ("c[2]", 2.0)]);
+    }
+
+    #[test]
+    fn polyfit_sizes_a_bare_output_to_degree_plus_one() {
+        let eqs = expand("x = [1, 2, 3]\ny = [1, 4, 9]\nCALL PolyFit(x, y, 2 : c)");
+        assert_eq!(call_names(&eqs).len(), 3);
+        assert_kernel_values(&eqs, &[("c[3]", 1.0)]);
+    }
+
+    #[test]
+    fn polyfit_rejects_a_short_coefficient_vector() {
+        let message =
+            expand_err("x = [1, 2, 3]\ny = [1, 4, 9]\nCALL PolyFit(x[1:3], y[1:3], 2 : c[1:2])");
+        assert!(
+            message.contains("PolyFit requires a coefficient vector of length degree + 1 = 3."),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn polyfit_rejects_a_negative_degree() {
+        let message =
+            expand_err("x = [1, 2, 3]\ny = [1, 4, 9]\nCALL PolyFit(x[1:3], y[1:3], -1 : c[1:1])");
+        assert!(
+            message.contains("PolyFit degree must be >= 0."),
+            "{message}"
+        );
+    }
+
+    /// The kernel flatteners copy the input matrix into every equation, so the
+    /// generation budget is asserted *before* the batch is built (Java's
+    /// `BoundedEquationList.addAll`). Same error type and message as the
+    /// per-insert check, but it costs O(1) instead of gigabytes.
+    #[test]
+    fn kernel_calls_over_the_equation_budget_are_refused_before_they_are_built() {
+        // 130^2 (Q) + 130^2 (R) = 33 800 equations.
+        let message = expand_err("CALL QR(A[1:130,1:130] : Q[1:130,1:130], R[1:130,1:130])");
+        assert!(message.contains(TOO_MANY_EQUATIONS), "{message}");
+        // Vector kernels are budgeted the same way: 2 * 13 000 outputs.
+        let message = expand_err("CALL FFT(re[1:13000], im[1:13000] : fr[1:13000], fi[1:13000])");
+        assert!(message.contains(TOO_MANY_EQUATIONS), "{message}");
+        // …and a request that fits is untouched.
+        let eqs = expand("CALL Cholesky(A[1:60,1:60] : L[1:60,1:60])");
+        assert_eq!(eqs.len(), 3600);
+    }
+
+    #[test]
+    fn kernel_call_arguments_are_packed_row_major() {
+        let eqs = expand("A = [1 2; 3 4]\nCALL Cholesky(A : L)");
+        let Expr::Call { args, .. } = &eqs[4].rhs else {
+            panic!("expected a kernel call, got {:?}", eqs[4].rhs);
+        };
+        assert_eq!(
+            args.to_vec(),
+            vec![var("a[1,1]"), var("a[1,2]"), var("a[2,1]"), var("a[2,2]")]
+        );
+    }
+
     // ── CALL error surface ──────────────────────────────────────────────────
 
     #[test]
@@ -3435,11 +4465,47 @@ mod tests {
 
     #[test]
     fn unported_call_intrinsics_are_refused_by_name() {
-        let message = expand_err("A = [1 0; 0 1]\nCALL QR(A[1:2,1:2] : Q[1:2,1:2], R[1:2,1:2])");
+        let message = expand_err("A = [1 0; 0 1]\nCALL Eigenvalues(A[1:2,1:2] : lambda[1:2])");
         assert!(
-            message.contains("`CALL qr` is not supported by the wasm engine yet"),
+            message.contains("`CALL eigenvalues` is not supported by the wasm engine yet"),
             "{message}"
         );
+    }
+
+    /// The Phase-9 control-systems suite must stay refused: wiring the dense
+    /// linear-algebra / signal / statistics set must not have leaked any of it
+    /// through.
+    #[test]
+    fn the_control_systems_suite_is_still_refused() {
+        for name in ["ss2tf", "tf2ss", "lqr", "bode", "step", "residue", "c2d"] {
+            assert!(
+                UNPORTED_CALL_INTRINSICS.contains(&name),
+                "`{name}` must remain refused until Phase 9"
+            );
+        }
+    }
+
+    /// …and the ten names that were wired must be gone from it, or
+    /// `flatten_call_proc` would still short-circuit before their flatteners.
+    #[test]
+    fn the_wired_kernel_intrinsics_left_the_unported_list() {
+        for name in [
+            "qr",
+            "cholesky",
+            "matexp",
+            "singularvalues",
+            "svd",
+            "fft",
+            "ifft",
+            "convolve",
+            "linfit",
+            "polyfit",
+        ] {
+            assert!(
+                !UNPORTED_CALL_INTRINSICS.contains(&name),
+                "`{name}` is wired but still listed as unported"
+            );
+        }
     }
 
     // ── SYMBOLIC ────────────────────────────────────────────────────────────

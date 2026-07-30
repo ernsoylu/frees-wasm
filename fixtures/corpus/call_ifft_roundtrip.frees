@@ -1,0 +1,6 @@
+{ IFFT undoes FFT: gr reproduces re to rounding, gi is ~0. Freezes the 1/n
+  scaling and the sign of the inverse kernel's exponent. }
+re = [1, 2, 3, 4]
+im = [0, 0, 0, 0]
+CALL FFT(re[1:4], im[1:4] : fr[1:4], fi[1:4])
+CALL IFFT(fr[1:4], fi[1:4] : gr[1:4], gi[1:4])

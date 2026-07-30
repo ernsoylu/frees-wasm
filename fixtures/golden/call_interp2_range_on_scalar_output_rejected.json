@@ -1,0 +1,17 @@
+{
+  "name": "call_interp2_range_on_scalar_output_rejected",
+  "source": "{ Names are case-insensitive, so the scalar output z resolves to the shape of\n  the grid Z and becomes a range. A range is only legal on an assignment LHS or\n  as a function argument, so the document is refused. }\nxs = [0, 1]\nys = [0, 1]\nZ = [0, 1; 2, 3]\nCALL Interp2(xs[1:2], ys[1:2], Z, 1, 1 : z)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Array range 'z[...]' is only allowed on the LHS of assignments or as function arguments."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

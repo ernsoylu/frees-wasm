@@ -1,0 +1,7 @@
+{ Two trailing outputs omitted at once: only the slope is kept, so LinFit's
+  intercept and r2 both become hidden sinks. The reported equation/variable
+  balance stays honest because Java subtracts a sink's equation as well as its
+  variable (surfacedEqs = equations - (allVars - surfacedVars)). }
+x = [0, 1, 2, 3]
+y = [1, 3, 5, 7]
+CALL LinFit(x, y : m)

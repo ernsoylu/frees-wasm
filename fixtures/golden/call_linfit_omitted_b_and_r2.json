@@ -1,0 +1,36 @@
+{
+  "name": "call_linfit_omitted_b_and_r2",
+  "source": "{ Two trailing outputs omitted at once: only the slope is kept, so LinFit's\n  intercept and r2 both become hidden sinks. The reported equation/variable\n  balance stays honest because Java subtracts a sink's equation as well as its\n  variable (surfacedEqs = equations - (allVars - surfacedVars)). }\nx = [0, 1, 2, 3]\ny = [1, 3, 5, 7]\nCALL LinFit(x, y : m)\n",
+  "expect": {
+    "variables": {
+      "m": 2.0,
+      "x[1]": 0.0,
+      "x[2]": 1.0,
+      "x[3]": 2.0,
+      "x[4]": 3.0,
+      "y[1]": 1.0,
+      "y[2]": 3.0,
+      "y[3]": 5.0,
+      "y[4]": 7.0
+    },
+    "display_names": {
+      "m": "m",
+      "x": "x",
+      "x[1]": "x[1]",
+      "x[2]": "x[2]",
+      "x[3]": "x[3]",
+      "x[4]": "x[4]",
+      "y": "y",
+      "y[1]": "y[1]",
+      "y[2]": "y[2]",
+      "y[3]": "y[3]",
+      "y[4]": "y[4]"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

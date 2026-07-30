@@ -1,0 +1,54 @@
+{
+  "name": "call_fft_feeds_expression",
+  "source": "{ A kernel CALL output is an ordinary unknown: downstream equations may read it\n  and the blocker orders them after the CALL. }\nre = [1, 2, 3, 4]\nim = [0, 0, 0, 0]\nCALL FFT(re[1:4], im[1:4] : fr[1:4], fi[1:4])\nmag1 = sqrt(fr[1]^2 + fi[1]^2)\n",
+  "expect": {
+    "variables": {
+      "fi[1]": 0.0,
+      "fi[2]": 1.9999999999999996,
+      "fi[3]": -9.797174393178826E-16,
+      "fi[4]": -2.000000000000001,
+      "fr[1]": 10.0,
+      "fr[2]": -2.0000000000000004,
+      "fr[3]": -2.0,
+      "fr[4]": -1.9999999999999982,
+      "im[1]": 0.0,
+      "im[2]": 0.0,
+      "im[3]": 0.0,
+      "im[4]": 0.0,
+      "mag1": 10.0,
+      "re[1]": 1.0,
+      "re[2]": 2.0,
+      "re[3]": 3.0,
+      "re[4]": 4.0
+    },
+    "display_names": {
+      "fi": "fi",
+      "fi[1]": "fi[1]",
+      "fi[2]": "fi[2]",
+      "fi[3]": "fi[3]",
+      "fi[4]": "fi[4]",
+      "fr": "fr",
+      "fr[1]": "fr[1]",
+      "fr[2]": "fr[2]",
+      "fr[3]": "fr[3]",
+      "fr[4]": "fr[4]",
+      "im": "im",
+      "im[1]": "im[1]",
+      "im[2]": "im[2]",
+      "im[3]": "im[3]",
+      "im[4]": "im[4]",
+      "mag1": "mag1",
+      "re": "re",
+      "re[1]": "re[1]",
+      "re[2]": "re[2]",
+      "re[3]": "re[3]",
+      "re[4]": "re[4]"
+    },
+    "block_count": 17,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

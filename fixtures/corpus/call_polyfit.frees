@@ -1,0 +1,6 @@
+{ CALL PolyFit returns least-squares coefficients in ASCENDING powers, so
+  y = x^2 gives c = [~0, ~0, 1]. The bare output c is auto-sized to degree + 1
+  by autoSizeCallOutputs. }
+x = [1, 2, 3]
+y = [1, 4, 9]
+CALL PolyFit(x, y, 2 : c)

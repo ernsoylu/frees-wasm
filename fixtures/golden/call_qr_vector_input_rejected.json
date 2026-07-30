@@ -1,0 +1,17 @@
+{
+  "name": "call_qr_vector_input_rejected",
+  "source": "{ A 1-D vector is not a matrix: QR needs a two-dimensional slice. }\nv = [1, 2]\nCALL QR(v[1:2] : Q, R)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Matrix must have exactly 2 dimensions: v"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

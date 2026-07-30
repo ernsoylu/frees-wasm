@@ -4,15 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phases 0–2 are implemented; the Phase-3 wasm boundary is wired; Phase 4 is
-partial** (read [`docs/status-phase4-partial.md`](docs/status-phase4-partial.md)
-before continuing it). A Rust workspace ports the frees engine to WebAssembly.
-1,305 tests green, including a **161/161** golden-corpus parity replay against
-the real Java engine.
+**Phases 0–4 are implemented** — the Phase-3 wasm boundary is wired and Phase 4
+(differentiator, matrix, complex, procedural, tables, integrals, kernels, latex,
+solver retry ladder) is complete. A Rust workspace ports the frees engine to
+WebAssembly. **1,341 tests** green, including a **204/204** golden-corpus parity
+replay against the real Java engine; wasm 1147.7 KiB raw / 436.1 KiB gzipped
+(budget 2048 KiB). Solve, check and the language reference all run in-browser
+with **zero `/api/` traffic**. Phase 5 (properties/CoolProp) is next.
 
 | Document | Contents |
 |---|---|
-| [`docs/status-phase1.md`](docs/status-phase1.md) | **Read first.** What works, known divergences from Java (ranked), commands, next steps |
+| [`docs/status-phase4.md`](docs/status-phase4.md) | **Read first.** What Phase 4 delivers per area, the true gate numbers, fixture counts, and the honest ranked list of what it did *not* deliver |
+| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date), plus the Phase 0–3 inventory |
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
@@ -24,13 +27,20 @@ the real Java engine.
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 161 documents)
+                                       # (--release: the replay solves 204 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
+cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
 cargo fmt --all --check                                 # CI gate
-wasm-pack build crates/frees-wasm --release --target web --out-dir ../../pkg
+wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
 tools/golden-dumper/run.sh             # regenerate golden fixtures from the Java oracle
 ```
+
+> **`rtk` condenses these commands' output.** `cargo test` comes back as a
+> one-line summary with no per-suite results, and clippy/fmt warnings are
+> swallowed entirely. To see real output, call the binary by absolute path
+> (`"$HOME/.cargo/bin/cargo"`, `./node_modules/.bin/vitest`) and redirect to a
+> file.
 
 ## Workspace layout
 

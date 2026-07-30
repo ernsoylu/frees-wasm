@@ -1535,7 +1535,7 @@ mod tests {
 
     #[test]
     fn gauss_legendre_matches_the_java_oracle() {
-        // Oracle values from the Java engine (see docs/status-phase4-partial).
+        // Oracle values from the Java engine (see docs/status-phase4.md).
         assert_eq!(gauss("t^2", "t", 0.0, 1.0, None), 0.333_333_333_333_333_3);
         assert_eq!(
             gauss("sin(x)", "x", 0.0, std::f64::consts::PI, None),

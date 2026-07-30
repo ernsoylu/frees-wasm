@@ -129,6 +129,19 @@ and `block_count` exactly, `error` by classification. If it agrees, move *both*
 files into `corpus/` and `golden/`. If it diverges, leave it here. A pending
 document that starts passing because someone fixed the engine is the point.
 
+> **How to re-check the whole staging area at once.** Copy `tests/parity.rs`,
+> point `golden_dir()` at `corpus-pending/golden`, and replace the panic at the
+> end with a per-fixture `PROMOTE`/`HOLD` print. That reuses the gate's exact
+> comparison logic instead of a hand-rolled approximation of it — which matters,
+> because the `error` rule maps unrecognised Java exception types to "any Rust
+> error" and will report the CoolProp eight as passing. Delete the copy
+> afterwards. **Never relax `tests/parity.rs` to make something pass.**
+>
+> Last full re-check: **2026-07-30, Phase 4 close — 36 staged, 0 promotable.**
+> The only nine that scored green were the eight CoolProp-poisoned goldens and
+> the rank-deficient `solver_singular_linear_cycle`, all deliberately withheld
+> (see below).
+
 ```bash
 tools/golden-dumper/run.sh fixtures/corpus-pending/corpus fixtures/corpus-pending/golden
 ```
@@ -210,6 +223,37 @@ or probe document through both engines, and each unblocked fixtures wholesale:
   intrinsic CALL — including the two whose flatteners live in stage 3. Both
   `expand::flatten_lu_decompose` and the new `expand::flatten_interp2` were
   dead code. `procedures::EXPANDED_CALL_TARGETS` now passes them through.
+* **Ignored-output sinks leaked into the solution.** Omitting a trailing CALL
+  output (`CALL LinFit(x, y : m, b)`) mints a hidden `~ignored~N` sink that the
+  solver must determine but that Java never surfaces
+  (`EquationSystemSolver.java:1888`). The port had `is_ignored_sink` but never
+  called it on the result path, so `~ignored~0 = 1.0` showed up as a result row.
+  `engine.rs` now filters it out of the values map, out of `check`'s variable
+  list, and out of both reported counts (`surfacedVarCount` and
+  `surfacedEqs = equations − (allVars − surfacedVars)`, so hiding a sink's
+  variable also hides its equation). 2 fixtures.
+
+### Authoring hazard: sink names carry a JVM-global counter
+
+`EquationParser.IGNORED_SINK_SEQ` is a **static `AtomicLong`, never reset per
+document**, so the `N` in `~ignored~N` depends on how many documents ran before
+it *in the same JVM*. Running one document inside a batch produced
+`~ignored~1`; running it alone produced `~ignored~0`, from the same engine and
+the same source.
+
+This is invisible for a **scalar** sink — Java hides it from `variables` *and*
+`display_names`, so those fixtures are reproducible and are the ones frozen
+(`call_linfit_omitted_r2`, `call_linfit_omitted_b_and_r2`). It is fatal for an
+**array or matrix** sink: Java hides it from `variables` but **keeps** its
+elements in `display_names` (`~ignored~1[1,1]` …), which `tests/parity.rs`
+compares exactly. **Do not freeze a fixture whose golden mentions
+`~ignored~N[`** — `[L] = LUDecompose(A)`, `CALL SVD(A : U, S)`,
+`CALL QR(A : Q)`, `CALL FFT(re, im : out_re)` and the like. The Rust engine's
+per-document counter is arguably better behaved and will never match the Java
+batch value.
+
+(Also: `~` is not user-writable syntax. `CALL QR(A : Q, ~)` is a Java
+`ParseException` — sinks come only from *omitted trailing* outputs.)
 
 ### Still pending
 

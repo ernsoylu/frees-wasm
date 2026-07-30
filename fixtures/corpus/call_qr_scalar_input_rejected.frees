@@ -1,0 +1,4 @@
+{ A scalar is not a matrix: the shape resolver refuses it before QR runs. }
+A = [1 2; 3 4]
+s = 5
+CALL QR(s : Q, R)

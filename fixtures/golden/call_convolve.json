@@ -1,0 +1,33 @@
+{
+  "name": "call_convolve",
+  "source": "{ Linear convolution of (1 + 2z) and (1 + 3z) is 1 + 5z + 6z^2.\n  The output vector is m + n - 1 long. }\na = [1, 2]\nb = [1, 3]\nCALL Convolve(a[1:2], b[1:2] : c[1:3])\n",
+  "expect": {
+    "variables": {
+      "a[1]": 1.0,
+      "a[2]": 2.0,
+      "b[1]": 1.0,
+      "b[2]": 3.0,
+      "c[1]": 1.0,
+      "c[2]": 5.0,
+      "c[3]": 6.0
+    },
+    "display_names": {
+      "a": "a",
+      "a[1]": "a[1]",
+      "a[2]": "a[2]",
+      "b": "b",
+      "b[1]": "b[1]",
+      "b[2]": "b[2]",
+      "c": "c",
+      "c[1]": "c[1]",
+      "c[2]": "c[2]",
+      "c[3]": "c[3]"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

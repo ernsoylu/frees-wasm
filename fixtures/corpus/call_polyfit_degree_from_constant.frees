@@ -1,0 +1,6 @@
+{ The PolyFit degree may be any compile-time constant expression; it is read by
+  inScalarInt at flatten time and also sizes the bare output vector. }
+d = 2
+x = [1, 2, 3]
+y = [1, 4, 9]
+CALL PolyFit(x, y, d : c)

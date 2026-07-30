@@ -1,0 +1,37 @@
+{
+  "name": "call_interp2_explicit_slices",
+  "source": "{ CALL Interp2 accepts explicit vector slices for the axes alongside a\n  bare-name grid; the query lands exactly on the last node. }\nxs = [0, 1]\nys = [0, 1]\nG = [0, 1; 2, 3]\nCALL Interp2(xs[1:2], ys[1:2], G, 1, 1 : zq)\n",
+  "expect": {
+    "variables": {
+      "G[1,1]": 0.0,
+      "G[1,2]": 1.0,
+      "G[2,1]": 2.0,
+      "G[2,2]": 3.0,
+      "xs[1]": 0.0,
+      "xs[2]": 1.0,
+      "ys[1]": 0.0,
+      "ys[2]": 1.0,
+      "zq": 3.0
+    },
+    "display_names": {
+      "g": "G",
+      "g[1,1]": "G[1,1]",
+      "g[1,2]": "G[1,2]",
+      "g[2,1]": "G[2,1]",
+      "g[2,2]": "G[2,2]",
+      "xs": "xs",
+      "xs[1]": "xs[1]",
+      "xs[2]": "xs[2]",
+      "ys": "ys",
+      "ys[1]": "ys[1]",
+      "ys[2]": "ys[2]",
+      "zq": "zq"
+    },
+    "block_count": 9,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

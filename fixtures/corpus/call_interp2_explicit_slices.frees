@@ -1,0 +1,6 @@
+{ CALL Interp2 accepts explicit vector slices for the axes alongside a
+  bare-name grid; the query lands exactly on the last node. }
+xs = [0, 1]
+ys = [0, 1]
+G = [0, 1; 2, 3]
+CALL Interp2(xs[1:2], ys[1:2], G, 1, 1 : zq)

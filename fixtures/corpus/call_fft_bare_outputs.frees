@@ -1,0 +1,5 @@
+{ FFT of a sampled sine: purely imaginary spectrum. Bare output names are
+  auto-sized from the input length. }
+re = [0, 1, 0, -1]
+im = [0, 0, 0, 0]
+CALL FFT(re[1:4], im[1:4] : fr, fi)

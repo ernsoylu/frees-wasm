@@ -1,0 +1,3 @@
+{ e^A for the nilpotent A = [0 1; 0 0] terminates the series at I + A. }
+A = [0 1; 0 0]
+CALL MatExp(A : E)

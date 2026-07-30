@@ -438,13 +438,12 @@ fn is_lazy_call(function: &str) -> bool {
 /// stage 3), not here. They must pass through this stage unchanged — refusing
 /// them would make the expansion-side flatteners unreachable, which is exactly
 /// what happened to `LUDecompose` and `Interp2` before this list existed.
-const EXPANDED_CALL_TARGETS: &[&str] = &["ludecompose", "interp2"];
-
-const INTRINSIC_CALL_TARGETS: &[&str] = &[
-    "eigenvalues",
-    "eigen",
-    "eulerdecompose",
-    "eulerrotate",
+const EXPANDED_CALL_TARGETS: &[&str] = &[
+    "ludecompose",
+    "interp2",
+    // The Java `LIN_ALG_SIGNAL_STATS_CALLS` set, flattened by
+    // `expand::flatten_call_proc` into the `qr$`/`chol$`/`expm$`/`svd$`/
+    // `fft$`/`ifft$`/`conv$`/`linfit$`/`polyfit$` kernel synthetics.
     "qr",
     "cholesky",
     "matexp",
@@ -455,6 +454,13 @@ const INTRINSIC_CALL_TARGETS: &[&str] = &[
     "convolve",
     "linfit",
     "polyfit",
+];
+
+const INTRINSIC_CALL_TARGETS: &[&str] = &[
+    "eigenvalues",
+    "eigen",
+    "eulerdecompose",
+    "eulerrotate",
     "ss2tf",
     "ss2tfij",
     "tf2ss",
@@ -1391,13 +1397,50 @@ mod tests {
 
     #[test]
     fn an_unported_intrinsic_call_keeps_the_refusal_message() {
-        for name in ["svd", "tf2ss", "eigenvalues"] {
+        for name in ["tf2ss", "eigenvalues", "lqr", "bode"] {
             let doc = parse_document(&format!("[a, b] = {name}(m, n)")).unwrap();
             let err = flatten_calls(doc.statements, &doc.defs).unwrap_err();
             assert!(
                 err.to_string()
                     .contains(&format!("CALL `{name}` is not yet supported")),
                 "{err}"
+            );
+        }
+    }
+
+    /// The dense linear-algebra / signal / statistics CALLs are flattened in
+    /// stage 3 ([`crate::parser::expand`]), so this stage must let them through
+    /// untouched — refusing them here would make those flatteners unreachable,
+    /// exactly as happened to `LUDecompose`/`Interp2` before this list existed.
+    #[test]
+    fn kernel_intrinsic_calls_pass_through_to_the_expansion_stage() {
+        for name in [
+            "qr",
+            "cholesky",
+            "matexp",
+            "singularvalues",
+            "svd",
+            "fft",
+            "ifft",
+            "convolve",
+            "linfit",
+            "polyfit",
+            "ludecompose",
+            "interp2",
+        ] {
+            assert!(
+                EXPANDED_CALL_TARGETS.contains(&name),
+                "`{name}` must reach parser::expand"
+            );
+            assert!(
+                !INTRINSIC_CALL_TARGETS.contains(&name),
+                "`{name}` must not be refused here"
+            );
+            let doc = parse_document(&format!("CALL {name}(a : b)")).unwrap();
+            let out = flatten_calls(doc.statements, &doc.defs).expect("passes through");
+            assert!(
+                matches!(out.as_slice(), [Statement::CallProc { name: n, .. }] if n == name),
+                "`{name}` was rewritten instead of passed through: {out:?}"
             );
         }
     }

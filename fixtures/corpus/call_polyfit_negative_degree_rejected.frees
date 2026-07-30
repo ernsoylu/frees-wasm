@@ -1,0 +1,4 @@
+{ A negative PolyFit degree is refused before the kernel runs. }
+x = [1, 2, 3]
+y = [1, 4, 9]
+CALL PolyFit(x[1:3], y[1:3], -1 : c[1:1])

@@ -1,0 +1,17 @@
+{
+  "name": "call_fft_over_equation_budget_rejected",
+  "source": "{ The vector kernels are budgeted the same way: the two 7000-long inputs fit,\n  the 2 x 7000 output equations do not. }\nre = linspace(0, 1, 7000)\nim = zeros(7000, 1)\nCALL FFT(re, im : fr, fi)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Too many equations generated (over 25000). Reduce loop or array sizes."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "call_fft_length_mismatch_rejected",
+  "source": "{ All four FFT vectors must have the same length. }\nre = [1, 0, 0, 0]\nim = [0, 0, 0]\nCALL FFT(re[1:4], im[1:3] : fr[1:4], fi[1:4])\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "FFT requires all four vectors to have the same length."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

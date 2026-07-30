@@ -384,3 +384,72 @@ y = Bad(2)
         "expected a clear 'CALL not supported' error, got: {message}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Ignored-output sinks (`~ignored~N`)
+//
+// Omitting a trailing CALL output mints a hidden sink variable. The solver must
+// still determine it — it backs a real equation — but the Java engine never
+// surfaces it: `EquationSystemSolver` drops it from the result map
+// (`if (isIgnoredSink(name)) return;`), from `check`'s variable list, and from
+// both reported counts (`surfacedVarCount` / `surfacedEqs`). Verified against
+// the oracle with `fixtures/corpus/call_linfit_omitted_r2.frees`.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn omitted_trailing_call_output_never_surfaces_in_the_solution() {
+    // LinFit's third output (r2) is omitted, so its slot becomes a sink.
+    let source = "x = [1, 2, 3]
+y = [2.1, 3.9, 6.2]
+CALL LinFit(x, y : m, b)
+";
+    let solution = frees_core::solve(source, &frees_core::SolverSettings::default())
+        .expect("LinFit with an omitted trailing output solves");
+
+    for name in solution.values.keys() {
+        assert!(
+            !frees_core::parser::toplevel::is_ignored_sink(name),
+            "sink `{name}` leaked into the result map: {:?}",
+            solution.values
+        );
+    }
+    for name in solution.display_names.keys() {
+        assert!(
+            !frees_core::parser::toplevel::is_ignored_sink(name),
+            "sink `{name}` leaked into display_names"
+        );
+    }
+    // The visible outputs are still there and still correct (Java: m = 2.05,
+    // b = -0.033333333333333215).
+    assert!((solution.values["m"] - 2.05).abs() < 1e-12);
+    assert!((solution.values["b"] + 0.033_333_333_333_333_215).abs() < 1e-12);
+}
+
+#[test]
+fn check_reports_the_surfaced_equation_variable_balance() {
+    // 6 element equations + 3 from the LinFit flattening = 9 equations in 9
+    // unknowns, one of which is the r2 sink. Java hides the sink *and* the
+    // equation that determines it, so `check` reports 8 and 8 — never the
+    // unbalanced-looking 9 and 8.
+    let source = "x = [1, 2, 3]
+y = [2.1, 3.9, 6.2]
+CALL LinFit(x, y : m, b)
+";
+    let report = frees_core::check(source).expect("check succeeds");
+    assert!(report.solvable, "{}", report.message);
+    assert_eq!(report.equation_count, report.unknown_count);
+    assert_eq!(report.unknown_count, 8);
+    assert!(
+        report
+            .variables
+            .iter()
+            .all(|v| !frees_core::parser::toplevel::is_ignored_sink(v)),
+        "check listed a sink: {:?}",
+        report.variables
+    );
+    assert!(
+        report.message.contains("8 equations and 8 variables"),
+        "unexpected check message: {}",
+        report.message
+    );
+}

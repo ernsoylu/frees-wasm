@@ -1,0 +1,43 @@
+{
+  "name": "call_qr",
+  "source": "{ CALL QR of the identity. SIGN CONVENTION: Commons Math's Householder QR puts\n  Q = R = -I here, not +I. Do not \"correct\" this - it is the oracle's answer. }\nA = [1 0; 0 1]\nCALL QR(A : Q, R)\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 1.0,
+      "A[1,2]": 0.0,
+      "A[2,1]": 0.0,
+      "A[2,2]": 1.0,
+      "Q[1,1]": -1.0,
+      "Q[1,2]": 0.0,
+      "Q[2,1]": 0.0,
+      "Q[2,2]": -1.0,
+      "R[1,1]": -1.0,
+      "R[1,2]": 0.0,
+      "R[2,1]": 0.0,
+      "R[2,2]": -1.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "q": "Q",
+      "q[1,1]": "Q[1,1]",
+      "q[1,2]": "Q[1,2]",
+      "q[2,1]": "Q[2,1]",
+      "q[2,2]": "Q[2,2]",
+      "r": "R",
+      "r[1,1]": "R[1,1]",
+      "r[1,2]": "R[1,2]",
+      "r[2,1]": "R[2,1]",
+      "r[2,2]": "R[2,2]"
+    },
+    "block_count": 12,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

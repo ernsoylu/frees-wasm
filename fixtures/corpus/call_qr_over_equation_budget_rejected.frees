@@ -1,0 +1,5 @@
+{ A 130x130 QR emits 130^2 (Q) + 130^2 (R) = 33800 equations on top of the
+  16900 the identity literal already cost, far over the 25000 generation
+  budget. Both engines refuse with the same message. }
+A = eye(130)
+CALL QR(A : Q, R)

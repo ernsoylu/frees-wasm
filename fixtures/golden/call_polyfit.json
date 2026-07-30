@@ -1,0 +1,37 @@
+{
+  "name": "call_polyfit",
+  "source": "{ CALL PolyFit returns least-squares coefficients in ASCENDING powers, so\n  y = x^2 gives c = [~0, ~0, 1]. The bare output c is auto-sized to degree + 1\n  by autoSizeCallOutputs. }\nx = [1, 2, 3]\ny = [1, 4, 9]\nCALL PolyFit(x, y, 2 : c)\n",
+  "expect": {
+    "variables": {
+      "c[1]": 6.618330516232961E-16,
+      "c[2]": -9.216018845611321E-16,
+      "c[3]": 1.0000000000000002,
+      "x[1]": 1.0,
+      "x[2]": 2.0,
+      "x[3]": 3.0,
+      "y[1]": 1.0,
+      "y[2]": 4.0,
+      "y[3]": 9.0
+    },
+    "display_names": {
+      "c": "c",
+      "c[1]": "c[1]",
+      "c[2]": "c[2]",
+      "c[3]": "c[3]",
+      "x": "x",
+      "x[1]": "x[1]",
+      "x[2]": "x[2]",
+      "x[3]": "x[3]",
+      "y": "y",
+      "y[1]": "y[1]",
+      "y[2]": "y[2]",
+      "y[3]": "y[3]"
+    },
+    "block_count": 9,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

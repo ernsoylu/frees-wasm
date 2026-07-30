@@ -1,0 +1,4 @@
+{ CALL SingularValues reports min(rows, cols) values in DESCENDING order, so
+  diag(2, 3) yields s = [3, 2] - not the diagonal order. }
+A = [2 0; 0 3]
+CALL SingularValues(A : s)

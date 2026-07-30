@@ -1,0 +1,4 @@
+{ Convolve with bare names: the output is auto-sized to m + n - 1 = 4. }
+a = [1, 2, 3]
+b = [4, 5]
+CALL Convolve(a, b : c)

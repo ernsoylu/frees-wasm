@@ -1,0 +1,4 @@
+{ CALL QR of the identity. SIGN CONVENTION: Commons Math's Householder QR puts
+  Q = R = -I here, not +I. Do not "correct" this - it is the oracle's answer. }
+A = [1 0; 0 1]
+CALL QR(A : Q, R)

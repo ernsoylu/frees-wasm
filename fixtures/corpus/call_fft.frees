@@ -1,0 +1,5 @@
+{ CALL FFT takes TWO input vectors (real, imag) and TWO output vectors.
+  The DFT of the unit impulse is flat: fr = 1,1,1,1 and fi = 0,0,0,0. }
+re = [1, 0, 0, 0]
+im = [0, 0, 0, 0]
+CALL FFT(re[1:4], im[1:4] : fr[1:4], fi[1:4])

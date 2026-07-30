@@ -1,0 +1,3 @@
+{ MatExp needs a square matrix. }
+A = [1 2; 3 4; 5 6]
+CALL MatExp(A[1:3,1:2] : E[1:3,1:2])

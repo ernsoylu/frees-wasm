@@ -1,0 +1,17 @@
+{
+  "name": "call_fft_single_vector_rejected",
+  "source": "{ FFT is not a real-only transform: one input vector is an arity error. }\nre = [1, 0, 0, 0]\nCALL FFT(re[1:4] : fr[1:4], fi[1:4])\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "FFT expects 2 input vectors (real, imag) and 2 output vectors, e.g. CALL FFT(re[1:n], im[1:n] : outRe[1:n], outIm[1:n])"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "browser_matrix_function_table",
+  "source": "{ Browser end-to-end proof: a MATRIX solve, a user FUNCTION and a TABLE lookup\n  in one document, all resolved by the same Tarjan/Newton path. }\nTABLE htc(re)\n  1000   50\n  2000   80\n  4000   120\nEND\n\nFUNCTION Scale(v)\n  Scale := 2 * v + 1\nEND\n\nA = [2 1; 1 3]\nb = [5; 10]\nx = SolveLinear(A, b)\n\nRe = 3000\nU = htc(Re)\nS = Scale(U)\nQ = S * x[1]\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 2.0,
+      "A[1,2]": 1.0,
+      "A[2,1]": 1.0,
+      "A[2,2]": 3.0,
+      "Q": 201.0,
+      "Re": 3000.0,
+      "S": 201.0,
+      "U": 100.0,
+      "b[1]": 5.0,
+      "b[2]": 10.0,
+      "x[1]": 1.0,
+      "x[2]": 3.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "b": "b",
+      "b[1]": "b[1]",
+      "b[2]": "b[2]",
+      "q": "Q",
+      "re": "Re",
+      "s": "S",
+      "u": "U",
+      "v": "v",
+      "x": "x",
+      "x[1]": "x[1]",
+      "x[2]": "x[2]"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

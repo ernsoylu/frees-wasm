@@ -1,0 +1,52 @@
+{
+  "name": "call_fft_bare_outputs",
+  "source": "{ FFT of a sampled sine: purely imaginary spectrum. Bare output names are\n  auto-sized from the input length. }\nre = [0, 1, 0, -1]\nim = [0, 0, 0, 0]\nCALL FFT(re[1:4], im[1:4] : fr, fi)\n",
+  "expect": {
+    "variables": {
+      "fi[1]": 0.0,
+      "fi[2]": -2.0,
+      "fi[3]": 2.449293598294706E-16,
+      "fi[4]": 2.0,
+      "fr[1]": 0.0,
+      "fr[2]": 2.4492935982947064E-16,
+      "fr[3]": 0.0,
+      "fr[4]": -7.347880794884119E-16,
+      "im[1]": 0.0,
+      "im[2]": 0.0,
+      "im[3]": 0.0,
+      "im[4]": 0.0,
+      "re[1]": 0.0,
+      "re[2]": 1.0,
+      "re[3]": 0.0,
+      "re[4]": -1.0
+    },
+    "display_names": {
+      "fi": "fi",
+      "fi[1]": "fi[1]",
+      "fi[2]": "fi[2]",
+      "fi[3]": "fi[3]",
+      "fi[4]": "fi[4]",
+      "fr": "fr",
+      "fr[1]": "fr[1]",
+      "fr[2]": "fr[2]",
+      "fr[3]": "fr[3]",
+      "fr[4]": "fr[4]",
+      "im": "im",
+      "im[1]": "im[1]",
+      "im[2]": "im[2]",
+      "im[3]": "im[3]",
+      "im[4]": "im[4]",
+      "re": "re",
+      "re[1]": "re[1]",
+      "re[2]": "re[2]",
+      "re[3]": "re[3]",
+      "re[4]": "re[4]"
+    },
+    "block_count": 16,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

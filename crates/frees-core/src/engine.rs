@@ -517,7 +517,7 @@ pub fn solve_with(
                     blocks: report.blocks,
                     block_equations,
                     display_names,
-                    unknown_count: specs.len(),
+                    unknown_count: surfaced_count(specs.keys().map(String::as_str)),
                     residuals,
                     stats: SolveStats {
                         iterations: stepping_iterations + iterations,
@@ -537,8 +537,14 @@ pub fn solve_with(
     // never surfaces them as result variables — `fixtures/golden/constants.json`
     // lists only `a`, `b`, `c`. Leaking `pi#` into the result table would be a
     // visible parity divergence.
+    //
+    // Ignored-output sinks are dropped for the same reason: an omitted trailing
+    // CALL output (`CALL LinFit(x, y : m, b)`) is backed by a real unknown that
+    // the solver must still determine, but Java never surfaces it — the
+    // `EquationSystemSolver` result loop does `if (isIgnoredSink(name)) return;`.
     let solved: BTreeMap<String, f64> = specs
         .keys()
+        .filter(|name| !crate::parser::toplevel::is_ignored_sink(name))
         .map(|name| {
             let value = values.get(name).copied().unwrap_or(f64::NAN);
             (name.clone(), value)
@@ -668,7 +674,18 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         }
     };
     let (_, knowns) = builtin_constants(&equations);
-    let variables = unknowns(&equations, &knowns);
+    let all_vars = unknowns(&equations, &knowns);
+    // Java `check`: report the *surfaced* balance. Each ignored-output sink adds
+    // one variable and the one equation that determines it, so hiding the sink
+    // without also hiding its equation would report a bogus `n equations and
+    // n-1 variables`. Java subtracts both
+    // (`surfacedEqs = equations.size() - (allVars.size() - surfacedVars)`).
+    let surfaced_vars = surfaced_count(all_vars.iter().map(String::as_str));
+    let surfaced_eqs = equations.len() - (all_vars.len() - surfaced_vars);
+    let variables: Vec<String> = all_vars
+        .into_iter()
+        .filter(|name| !crate::parser::toplevel::is_ignored_sink(name))
+        .collect();
 
     let mut diagnostics = doc.diagnostics.clone();
     collect_unit_warnings(&equations, &mut diagnostics);
@@ -686,8 +703,8 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
 
     let base = CheckReport {
         solvable: false,
-        equation_count: equations.len(),
-        unknown_count: variables.len(),
+        equation_count: surfaced_eqs,
+        unknown_count: surfaced_vars,
         display_names: complete_display_names(&parsed_names, &equations),
         variables,
         message: String::new(),
@@ -823,6 +840,15 @@ fn element_parts(name: &str) -> Option<(&str, &str)> {
     }
     let open = name.find('[')?;
     (open > 0).then(|| name.split_at(open))
+}
+
+/// How many of `names` the user ever sees — the Java
+/// `EquationSystemSolver.surfacedVarCount`. Ignored-output sinks are genuine
+/// unknowns to the solver and invisible everywhere else.
+fn surfaced_count<'a>(names: impl Iterator<Item = &'a str>) -> usize {
+    names
+        .filter(|name| !crate::parser::toplevel::is_ignored_sink(name))
+        .count()
 }
 
 /// The Java `ParseResult.displayNames`, completed with what expansion adds.

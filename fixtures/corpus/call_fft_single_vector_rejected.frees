@@ -1,0 +1,3 @@
+{ FFT is not a real-only transform: one input vector is an arity error. }
+re = [1, 0, 0, 0]
+CALL FFT(re[1:4] : fr[1:4], fi[1:4])

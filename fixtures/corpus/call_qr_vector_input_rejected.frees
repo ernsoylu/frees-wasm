@@ -1,0 +1,3 @@
+{ A 1-D vector is not a matrix: QR needs a two-dimensional slice. }
+v = [1, 2]
+CALL QR(v[1:2] : Q, R)

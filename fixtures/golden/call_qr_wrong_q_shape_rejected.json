@@ -1,0 +1,17 @@
+{
+  "name": "call_qr_wrong_q_shape_rejected",
+  "source": "{ Q must be m x m for an m x n input, even when R is written correctly. }\nA = [1 2; 3 4; 5 6]\nCALL QR(A[1:3,1:2] : Q[1:2,1:2], R[1:3,1:2])\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "QR requires Q to be 3x3 (m x m for an m x n input)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,9 @@
+{ Trailing CALL outputs may be omitted: LinFit's r2 slot is left off, so the
+  parser mints an ignored sink (~ignored~N) that the solver determines but
+  never surfaces (EquationSystemSolver: `if (isIgnoredSink(name)) return;`).
+  Only the scalar case is frozen here — a sink's *name* carries a JVM-global
+  counter, so array sinks would make the golden depend on corpus order. }
+x = [1, 2, 3]
+y = [2.1, 3.9, 6.2]
+CALL LinFit(x, y : m, b)
+slope_plus_intercept = m + b

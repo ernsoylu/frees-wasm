@@ -1,0 +1,17 @@
+{
+  "name": "call_qr_over_equation_budget_rejected",
+  "source": "{ A 130x130 QR emits 130^2 (Q) + 130^2 (R) = 33800 equations on top of the\n  16900 the identity literal already cost, far over the 25000 generation\n  budget. Both engines refuse with the same message. }\nA = eye(130)\nCALL QR(A : Q, R)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Too many equations generated (over 25000). Reduce loop or array sizes."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

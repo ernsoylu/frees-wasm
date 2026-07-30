@@ -1,0 +1,8 @@
+{ One MODULE called twice grafts two namespaced copies of its equations.
+  Java ProceduralFeaturesTest.moduleBasicGrafting: a = 10, b = 20. }
+MODULE Doubler(x : y)
+  y = 2 * x
+END
+
+CALL Doubler(5 : a)
+CALL Doubler(10 : b)

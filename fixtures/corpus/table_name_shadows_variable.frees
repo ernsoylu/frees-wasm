@@ -1,0 +1,7 @@
+{ A TABLE named the same as a would-be variable: the table wins in call
+  position. }
+TABLE k(x)
+  0    1
+  1    2
+END
+a = k(0.5)

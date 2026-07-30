@@ -71,19 +71,36 @@ use crate::units::UnitRegistry;
 // Measured there with the guard lifted, the heaviest shape — nested calls —
 // survives 128 levels of nesting and aborts by 192. `MAX_EXPR_DEPTH / NESTING_COST`
 // is therefore set to 64 levels of nesting, a 2–3× margin on the tightest
-// configuration that exists, while the remaining budget still allows a flat
-// chain of ~500 terms, which no hand-written equation approaches. In a release
-// build on the 1 MiB stack wasm ships with, the same shapes survive 256 levels,
-// so the margin there is 4× wider again.
+// configuration that exists.
+//
+// The *flat chain* half of the budget was originally left at ~500 terms on the
+// reasoning that no hand-written equation approaches it. That bounded the
+// parser but not its consumers, and it was too generous by a factor of two:
+// measured by bisection on the same debug/`libtest` configuration, `check` and
+// `solve` walk a flat chain of **304** links and abort above it, for every
+// operator, while the parser itself accepted 519. `x + x + … + x` with 400
+// terms therefore parsed and then aborted the process in `check` — the exact
+// failure this budget exists to prevent, reachable from a document a user
+// could type. Halving both constants keeps the nesting ceiling at 64 levels,
+// byte for byte, and brings the flat-chain ceiling under the measured floor
+// while still clearing the 200-term sum that
+// `robustness::a_long_flat_chain_is_allowed_where_deep_nesting_is_not` pins as
+// a legitimate document.
+//
+// Measured headroom for a flat chain, by bisection, after the change:
+//
+//   debug   / 2 MiB libtest thread   304  (1.19× the 256 admitted)
+//   release / 512 KiB thread         374  (1.46×)
+//   release / 1 MiB — the wasm stack ≥519 (≥2×, no abort at any legal depth)
 
 /// Maximum depth of a parsed expression. See the module-level discussion.
-pub const MAX_EXPR_DEPTH: u32 = 512;
+pub const MAX_EXPR_DEPTH: u32 = 256;
 
 /// Levels charged by one *recursive* descent step. Nesting burns a run of
 /// parser frames that a chain link does not, so it is priced accordingly:
 /// `MAX_EXPR_DEPTH / NESTING_COST` is the real nesting ceiling, and the rest of
 /// the budget is available to left-associative chains.
-const NESTING_COST: u32 = 8;
+const NESTING_COST: u32 = 4;
 
 thread_local! {
     /// Depth currently held by the guards live on this thread's stack.
@@ -537,6 +554,10 @@ fn parse_atom(c: &mut Cursor<'_>) -> Result<Expr> {
                         });
                     }
                 }
+                // `visitVarAtom` records the spelling *after* the constant
+                // lookup returns null — a substituted `pi#` never enters the
+                // display-name table.
+                c.record_display_name(&name);
                 Ok(Expr::var(name))
             }
         },
@@ -596,6 +617,9 @@ fn parse_member_atom(c: &mut Cursor<'_>, first: String) -> Result<Expr> {
 /// `IDENT LBRACKET arrayIndexList RBRACKET`.
 fn parse_array_atom(c: &mut Cursor<'_>, name: String) -> Result<Expr> {
     c.advance(); // IDENT
+                 // `AstBuilder.visitArrayAtom` registers the *base* name, not the indexed
+                 // element; the element spellings are added later by the flattener.
+    c.record_display_name(&name);
     c.expect(&TokenKind::LBracket)?;
     let mut indices = vec![parse_array_index(c)?];
     while c.eat(&TokenKind::Comma) {

@@ -1,0 +1,66 @@
+// Car Dynamics & Cruise Control
+{ This example models a 1000 kg car under viscous drag, converts the state-space model to a transfer function, designs a proportional-integral (PI) controller for a feedback loop, and performs frequency & stability analysis.
+
+  Press Solve (F2). }
+
+m = 1000 [kg]           { car mass }
+c_drag = 50 [N-s/m]     { viscous drag coefficient (named c_drag, not c, since
+                          names are case-insensitive and C is the output matrix) }
+
+{ State Space Model: states are [position; velocity], input is traction force. }
+A[1,1] = 0; A[1,2] = 1
+A[2,1] = 0; A[2,2] = -c_drag/m
+B[1] = 0
+B[2] = 1/m
+C[1] = 0; C[2] = 1      { output is velocity }
+D = 0.0
+
+{ 1. Convert State Space to Transfer Function }
+[num_car, den_car] = ss2tf(A, B, C, D)
+
+{ 2. Design PI Controller: C(s) = Kp + Ki/s = (Kp*s + Ki)/s }
+Kp = 800 [N-s/m]
+Ki = 40 [N/m]
+num_pi = [Kp, Ki]
+den_pi = [1.0, 0.0]
+
+{ 3. Open-Loop System: L(s) = C(s) * G(s) }
+[num_ol, den_ol] = series(num_pi, den_pi, num_car, den_car)
+
+{ 4. Closed-Loop System: T(s) = L(s) / (1 + L(s)), unity feedback H(s) = 1 }
+num_h = [1]
+den_h = [1]
+[num_cl, den_cl] = feedback(num_ol, den_ol, num_h, den_h)
+
+{ 5. Stability & Frequency Margin Analysis }
+[gm, pm, w_cg, w_cp] = margin(num_ol, den_ol)
+
+{ 6. Closed-Loop Poles and Zeros (unity-feedback loop has one finite zero) }
+[cl_pr, cl_pi] = pole(num_cl, den_cl)
+[cl_zr, cl_zi] = zero(num_cl, den_cl)
+
+{ 7. Frequency sweeps for Bode and Nyquist plots }
+omega = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0]
+[mag_ol, phase_ol] = bode(num_ol, den_ol, omega)
+[real_ol, imag_ol] = nyquist(num_ol, den_ol, omega)
+
+PLOT 'Bode Diagram'
+  kind = bode
+  omega = omega
+  mag = mag_ol
+  phase = phase_ol
+END
+
+PLOT 'Nyquist Diagram'
+  kind = nyquist
+  real = real_ol
+  imag = imag_ol
+END
+
+PLOT 'Pole-Zero Map'
+  kind = polezero
+  pr = cl_pr
+  pi = cl_pi
+  zr = cl_zr
+  zi = cl_zi
+END

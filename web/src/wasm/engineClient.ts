@@ -6,7 +6,7 @@
 // that dies (script load failure, OOM trap) rejects everything in flight and
 // is dropped, so the next call spawns a fresh one instead of hanging forever.
 
-import type { CheckResponse, SolveResponse } from '../api'
+import type { CheckResponse, LanguageReference, SolveResponse } from '../api'
 import type { EngineRequest, EngineResponse } from './engine.worker'
 
 interface Pending {
@@ -76,6 +76,13 @@ export async function wasmCheck(
   requestJson: string,
 ): Promise<CheckResponse> {
   return JSON.parse(await call('check', [source, requestJson])) as CheckResponse
+}
+
+/** The engine's language reference (units, built-in constants, intrinsics),
+ *  read straight off the registries the solver itself uses. Argument-free, so
+ *  the worker call carries no args. */
+export async function wasmReference(): Promise<LanguageReference> {
+  return JSON.parse(await call('reference', [])) as LanguageReference
 }
 
 /** The engine crate's semver, for the About dialog / worker handshake. */

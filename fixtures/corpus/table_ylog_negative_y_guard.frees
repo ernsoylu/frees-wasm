@@ -1,0 +1,6 @@
+{ YLOG with a y value of zero: log(0) is undefined, so what does the engine do? }
+TABLE g(x) YLOG
+  0    0
+  2    100
+END
+y = g(1)

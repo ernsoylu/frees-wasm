@@ -1,0 +1,22 @@
+{
+  "name": "fn_formal_shadows_global",
+  "source": "{ The FUNCTION formal n shadows a caller variable of the same name; the caller\n  scope is otherwise visible (dynamic scoping). }\nn = 7\nk = 5\nFUNCTION F(n)\n  F := n + k\nEND\n\ny = F(1)\n",
+  "expect": {
+    "variables": {
+      "k": 5.0,
+      "n": 7.0,
+      "y": 6.0
+    },
+    "display_names": {
+      "k": "k",
+      "n": "n",
+      "y": "y"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

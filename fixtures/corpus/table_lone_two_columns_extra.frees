@@ -1,0 +1,8 @@
+{ A lone table with three columns but a single argument: the second y column
+  is reachable only through Lookup. }
+TABLE t(x)
+  1   10   100
+  2   20   200
+END
+a = t(1.5)
+b = Lookup('t', 2, 3)

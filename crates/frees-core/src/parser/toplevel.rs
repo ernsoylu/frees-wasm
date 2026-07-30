@@ -185,6 +185,7 @@ impl<'a> Parser<'a> {
                 ));
             }
         }
+        doc.display_names = self.c.take_display_names();
         Ok(doc)
     }
 

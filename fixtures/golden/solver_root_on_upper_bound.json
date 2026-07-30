@@ -1,0 +1,18 @@
+{
+  "name": "solver_root_on_upper_bound",
+  "source": "{ The solution lies exactly ON the declared upper bound. }\nGUESS x = 1 [0, 4]\nx^2 = 16\n",
+  "expect": {
+    "variables": {
+      "x": 4.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

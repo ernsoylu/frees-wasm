@@ -1,0 +1,6 @@
+{ FOR bounds taken from constant-folded variables. }
+n = 3
+FOR i = 1 TO 3
+  v[i] = i * n
+END
+t = v[3]

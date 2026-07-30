@@ -1,0 +1,26 @@
+{
+  "name": "adiabatic-flame-temp",
+  "source": "// Adiabatic Flame Temperature\n{ Complete combustion of methane in air (products frozen, no dissociation).\n  Edit phi: 1.0 is stoichiometric, < 1.0 is excess air (lower flame temp). }\nphi     = 1.0              { equivalence ratio (1 = stoichiometric, <1 = excess air) }\nT_react = 298.15 [K]       { reactants enter at 25 C }\nT_flame = AdiabaticFlameTemp('CH4', phi, T_react)\nAFR_st  = StoichAFR('CH4') { stoichiometric air-fuel ratio (mass basis) }\nLHV     = HeatingValue('CH4', 'LHV')\n",
+  "expect": {
+    "variables": {
+      "AFR_st": 17.119975067007417,
+      "LHV": 5.000997319703297E7,
+      "T_flame": 2325.598129753964,
+      "T_react": 298.15,
+      "phi": 1.0
+    },
+    "display_names": {
+      "afr_st": "AFR_st",
+      "lhv": "LHV",
+      "phi": "phi",
+      "t_flame": "T_flame",
+      "t_react": "T_react"
+    },
+    "block_count": 5,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

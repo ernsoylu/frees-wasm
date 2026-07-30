@@ -1,0 +1,6 @@
+{ Calling a FUNCTION with the wrong number of arguments. }
+FUNCTION Sq(u)
+  Sq := u * u
+END
+
+y = Sq(1, 2)

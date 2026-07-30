@@ -1,0 +1,20 @@
+{
+  "name": "fn_repeat_until_converges",
+  "source": "{ REPEAT ... UNTIL: Newton iteration for sqrt(2) inside a FUNCTION body. }\nFUNCTION MySqrt(a)\n  x := a\n  REPEAT\n    x := 0.5 * (x + a / x)\n  UNTIL abs(x*x - a) < 1e-12\n  MySqrt := x\nEND\n\nr = MySqrt(2)\n",
+  "expect": {
+    "variables": {
+      "r": 1.414213562373095
+    },
+    "display_names": {
+      "a": "a",
+      "r": "r",
+      "x": "x"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

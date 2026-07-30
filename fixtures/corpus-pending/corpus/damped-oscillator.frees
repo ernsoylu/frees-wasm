@@ -1,0 +1,21 @@
+// Damped Harmonic Oscillator (parametric time sweep)
+{ Free vibration of a mass-spring-damper, released from x0 at rest,
+  sampled in time. PARAMETRIC table: open the Tables tab and click
+  "Solve Table" (not the main Solve). Then chart x vs time, adding
+  env and -env to see the decay envelope. }
+m = 2 [kg]               { mass }
+k = 50 [N/m]             { stiffness }
+c = 4 [N-s/m]            { damping }
+x0 = 0.1 [m]             { initial displacement }
+
+wn = sqrt(k/m)                   { natural frequency }
+zeta = c / (2*sqrt(k*m))        { damping ratio (underdamped < 1) }
+wd = wn*sqrt(1 - zeta^2)        { damped frequency }
+
+time = t * 1 [s]
+env = x0*exp(-zeta*wn*time)     { decay envelope }
+x = env * (cos(wd*time) + (zeta*wn/wd)*sin(wd*time))
+
+PARAMETRIC vibration (t, time, x, env)
+  t = 0:0.05:6
+END

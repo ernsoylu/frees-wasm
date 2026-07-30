@@ -1,0 +1,2 @@
+{ A point count beyond the [2, 64] clamp. }
+G = GaussIntegral(x^2, x, 0, 1, 500)

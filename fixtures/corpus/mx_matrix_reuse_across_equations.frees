@@ -1,0 +1,5 @@
+{ One matrix consumed by three different operations in one document. }
+A = [2 1; 1 3]
+d = det(A)
+t = trace(A)
+C = Inverse(A)

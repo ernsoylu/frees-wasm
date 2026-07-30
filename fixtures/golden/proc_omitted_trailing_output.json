@@ -1,0 +1,17 @@
+{
+  "name": "proc_omitted_trailing_output",
+  "source": "{ A trailing output omitted entirely. }\nPROCEDURE Two(a : p, q)\n  p := a\n  q := a * 10\nEND\n\nCALL Two(3 : first)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "CALL two provides 1 output variable(s) but PROCEDURE declares 2"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

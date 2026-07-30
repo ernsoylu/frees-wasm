@@ -1,0 +1,21 @@
+{
+  "name": "proc_recursive",
+  "source": "{ A PROCEDURE whose body calls a recursive FUNCTION. }\nFUNCTION Fib(n)\n  IF n < 2 THEN\n    Fib := n\n  ELSE\n    Fib := Fib(n-1) + Fib(n-2)\n  END\nEND\n\nPROCEDURE Pair(n : a, b)\n  a := Fib(n)\n  b := Fib(n+1)\nEND\n\nCALL Pair(10 : f10, f11)\n",
+  "expect": {
+    "variables": {
+      "f10": 55.0,
+      "f11": 89.0
+    },
+    "display_names": {
+      "f10": "f10",
+      "f11": "f11",
+      "n": "n"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

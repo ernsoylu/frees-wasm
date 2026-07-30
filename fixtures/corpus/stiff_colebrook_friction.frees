@@ -1,0 +1,9 @@
+{ The Colebrook-White implicit friction factor: f appears inside a logarithm and
+  under a square root on both sides. From the standard guess this needs several
+  step-halved Newton iterations, and the derivative d/df of 1/sqrt(f) blows up as
+  f -> 0, so the step control is load-bearing. }
+GUESS f = 0.02
+Re = 1.5e5
+eps_D = 0.0002
+1 / sqrt(f) = -2 * log10(eps_D / 3.7 + 2.51 / (Re * sqrt(f)))
+dP = f * 50 * 998 * 2 ^ 2 / (2 * 0.05)

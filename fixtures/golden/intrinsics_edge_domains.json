@@ -1,0 +1,32 @@
+{
+  "name": "intrinsics_edge_domains",
+  "source": "{ Intrinsics at their domain edges. }\na = arcsin(1)\nb = arccos(-1)\nc = ln(1)\nd = exp(0)\ne = tanh(0)\nf = sign(-3)\ng = trunc(-2.7)\nh = round(2.5)\n",
+  "expect": {
+    "variables": {
+      "a": 1.5707963267948966,
+      "b": 3.141592653589793,
+      "c": 0.0,
+      "d": 1.0,
+      "e": 0.0,
+      "f": -1.0,
+      "g": -2.0,
+      "h": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e",
+      "f": "f",
+      "g": "g",
+      "h": "h"
+    },
+    "block_count": 8,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

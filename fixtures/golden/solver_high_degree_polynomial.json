@@ -1,0 +1,18 @@
+{
+  "name": "solver_high_degree_polynomial",
+  "source": "{ A high-degree polynomial root; the retry ladder decides which root is found. }\nGUESS x = 1\nx^7 = 128\n",
+  "expect": {
+    "variables": {
+      "x": 2.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

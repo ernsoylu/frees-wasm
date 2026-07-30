@@ -1,0 +1,6 @@
+{ A user FUNCTION named like an intrinsic: which one wins? }
+FUNCTION Max(a)
+  Max := a + 1000
+END
+
+y = Max(1)

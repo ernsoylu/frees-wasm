@@ -1,0 +1,3 @@
+{ 4x4 determinant crosses DET_CLOSED_FORM_MAX and must use the LU intrinsic. }
+A = [2 0 0 0; 0 3 0 0; 0 0 4 0; 0 0 0 5]
+d = det(A)

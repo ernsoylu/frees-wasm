@@ -1,0 +1,2 @@
+{ Degenerate limits short-circuit to zero before the kernel runs. }
+Z = Integral(1/w, w, 2, 2)

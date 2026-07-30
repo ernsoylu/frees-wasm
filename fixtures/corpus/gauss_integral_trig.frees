@@ -1,0 +1,3 @@
+{ The integral of sin from 0 to pi is 2.
+  Java GaussQuadratureTest.trigIntegral. }
+y = GaussIntegral(sin(x), x, 0, 3.141592653589793)

@@ -1,0 +1,20 @@
+{
+  "name": "table_interpolate_by_name",
+  "source": "{ The classic-solver-compatible Interpolate('name', x) spelling must agree with\n  the direct call. Java CodeTableTest.interpolateNameLinearMatchesDirectCall. }\nTABLE flow(re)\n  0     0\n  100   100\nEND\ny = Interpolate('flow', 50)\nd = flow(50)\n",
+  "expect": {
+    "variables": {
+      "d": 50.0,
+      "y": 50.0
+    },
+    "display_names": {
+      "d": "d",
+      "y": "y"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

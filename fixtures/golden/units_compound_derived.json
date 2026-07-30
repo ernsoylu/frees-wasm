@@ -1,0 +1,22 @@
+{
+  "name": "units_compound_derived",
+  "source": "{ A compound derived unit chain: W = J/s = kg-m^2/s^3. }\nP = 100 [W]\nt = 60 [s]\nE = P * t\n",
+  "expect": {
+    "variables": {
+      "E": 6000.0,
+      "P": 100.0,
+      "t": 60.0
+    },
+    "display_names": {
+      "e": "E",
+      "p": "P",
+      "t": "t"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

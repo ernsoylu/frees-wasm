@@ -1,0 +1,8 @@
+{ A PROCEDURE with two inputs and two outputs, invoked with CALL.
+  Java ProceduralFeaturesTest.procedureBasicOutputs: x = 7, y = 3. }
+PROCEDURE Swap(a, b : c, d)
+  c := b
+  d := a
+END
+
+CALL Swap(3, 7 : x, y)

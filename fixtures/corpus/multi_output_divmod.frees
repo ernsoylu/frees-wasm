@@ -1,0 +1,8 @@
+{ Multi-output FUNCTION consumed by destructuring assignment.
+  Java ProceduralFeaturesTest.multiOutputFunctionBasic: whole = 3, rem = 2. }
+FUNCTION [q, r] = DivMod(a, b)
+  q := trunc(a / b)
+  r := a - q * b
+END
+
+[whole, rem] = DivMod(17, 5)

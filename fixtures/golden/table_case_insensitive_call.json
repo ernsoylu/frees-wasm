@@ -1,0 +1,18 @@
+{
+  "name": "table_case_insensitive_call",
+  "source": "{ A TABLE is reachable under any casing, like every other frees name.\n  Java CodeTableTest.mixedCaseCallResolvesToTable: dP = 150. }\nTABLE fanPressure(rpm)\n  1000   100\n  2000   200\nEND\ndP = FANPRESSURE(1500)\n",
+  "expect": {
+    "variables": {
+      "dP": 150.0
+    },
+    "display_names": {
+      "dp": "dP"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

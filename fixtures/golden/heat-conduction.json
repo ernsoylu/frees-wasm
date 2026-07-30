@@ -1,0 +1,28 @@
+{
+  "name": "heat-conduction",
+  "source": "// Heat Conduction Through a Wall\n{ Steady 1-D conduction (Fourier's law). }\nk = 0.8 [W/m-K]        { thermal conductivity }\nA = 12 [m^2]           { wall area }\nL = 0.25 [m]           { wall thickness }\nT_in = 21 [C]\nT_out = -5 [C]\nQ = k * A * (T_in - T_out) / L   { heat loss rate, watts }\n",
+  "expect": {
+    "variables": {
+      "A": 12.0,
+      "L": 0.25,
+      "Q": 998.4000000000001,
+      "T_in": 294.15,
+      "T_out": 268.15,
+      "k": 0.8
+    },
+    "display_names": {
+      "a": "A",
+      "k": "k",
+      "l": "L",
+      "q": "Q",
+      "t_in": "T_in",
+      "t_out": "T_out"
+    },
+    "block_count": 6,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

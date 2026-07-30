@@ -1,0 +1,6 @@
+{ The table argument is itself the unknown of a Newton block. }
+TABLE f(x)
+  0    0
+  10   100
+END
+f(w) = 50

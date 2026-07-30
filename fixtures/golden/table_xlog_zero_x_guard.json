@@ -1,0 +1,17 @@
+{
+  "name": "table_xlog_zero_x_guard",
+  "source": "{ XLOG with x = 0 in the first row: log(0) is -inf. }\nTABLE c(x) XLOG\n  0     5\n  100   10\nEND\ny = c(50)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

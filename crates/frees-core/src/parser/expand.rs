@@ -939,6 +939,7 @@ impl Flattener<'_> {
 
         match def_name.as_str() {
             "ludecompose" => self.flatten_lu_decompose(&inputs, &outputs, source, loop_vars),
+            "interp2" => self.flatten_interp2(&inputs, &outputs, source, loop_vars),
             _ if UNPORTED_CALL_INTRINSICS.contains(&def_name.as_str()) => Err(parse_err(format!(
                 "`CALL {def_name}` is not supported by the wasm engine yet"
             ))),
@@ -1014,6 +1015,57 @@ impl Flattener<'_> {
             }
         }
         Ok(1)
+    }
+
+    /// Port of `EquationParser.flattenInterp2`:
+    /// `CALL Interp2(x, y, Z, xq, yq : zq)` becomes the single equation
+    /// `zq = interp2$<m>$<n>(x…, y…, Z row-major…, xq, yq)`, which
+    /// `eval::eval_synthetic` routes into [`crate::interp2::interpolate`].
+    ///
+    /// The argument packing order is load-bearing and matches the Java exactly:
+    /// the `m` x-nodes, then the `n` y-nodes, then the `m*n` grid entries
+    /// row-major, then the two query coordinates.
+    fn flatten_interp2(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 5 || outputs.len() != 1 {
+            return Err(parse_err(
+                "Interp2 expects (x[1:m], y[1:n], Z[1:m,1:n], xq, yq : zq), \
+                 e.g. CALL Interp2(x, y, Z, 1.5, 2.5 : zq)",
+            ));
+        }
+        let x = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let y = self.parse_vector_info(&inputs[1], loop_vars)?;
+        let z = self.parse_matrix_info(&inputs[2], loop_vars)?;
+        let (m, n) = (x.size, y.size);
+        if z.rows != m || z.cols != n {
+            return Err(parse_err(format!(
+                "Interp2 requires Z to be m x n ({m}x{n}) matching x and y."
+            )));
+        }
+        let xq = self.expand_expr(&inputs[3], loop_vars)?;
+        let yq = self.expand_expr(&inputs[4], loop_vars)?;
+        let mut entries = Vec::with_capacity(m + n + m * n + 2);
+        entries.extend(x.elements);
+        entries.extend(y.elements);
+        for row in &z.elements {
+            entries.extend(row.iter().cloned());
+        }
+        entries.push(xq);
+        entries.push(yq);
+        let out = self.expand_expr(&outputs[0], loop_vars)?;
+        self.push(Equation::new(
+            out,
+            Expr::Call {
+                function: format!("interp2${m}${n}"),
+                args: entries,
+            },
+            source,
+        ))
     }
 
     /// Port of `EquationParser.flattenLuDecompose`: `A = L·U` with the fixed
@@ -2467,7 +2519,7 @@ fn set_mat(outputs: &mut [Expr], index: usize, rows: usize, cols: usize) {
 /// CALL intrinsic names the Java `flattenCallProc` dispatches that are not in
 /// the matrix-expansion scope. Refused by name so a document using one fails
 /// loudly instead of being reported as an unknown procedure.
-const UNPORTED_CALL_INTRINSICS: [&str; 55] = [
+const UNPORTED_CALL_INTRINSICS: [&str; 54] = [
     "eigenvalues",
     "eigen",
     "eulerrotate",
@@ -2482,7 +2534,6 @@ const UNPORTED_CALL_INTRINSICS: [&str; 55] = [
     "convolve",
     "linfit",
     "polyfit",
-    "interp2",
     "ss2tf",
     "ss2tfij",
     "tf2ss",

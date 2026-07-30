@@ -1,0 +1,17 @@
+{
+  "name": "table_ylog_negative_y_guard",
+  "source": "{ YLOG with a y value of zero: log(0) is undefined, so what does the engine do? }\nTABLE g(x) YLOG\n  0    0\n  2    100\nEND\ny = g(1)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

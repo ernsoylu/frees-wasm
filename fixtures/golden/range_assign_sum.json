@@ -1,0 +1,39 @@
+{
+  "name": "range_assign_sum",
+  "source": "{ A range array consumed by a slice aggregate: Sum(v[1:10]) = 55.\n  Java CodeRangeTest.rangeArrayWorksWithSum. }\nv = 1:1:10\ntotal = Sum(v[1:10])\n",
+  "expect": {
+    "variables": {
+      "total": 55.0,
+      "v[10]": 10.0,
+      "v[1]": 1.0,
+      "v[2]": 2.0,
+      "v[3]": 3.0,
+      "v[4]": 4.0,
+      "v[5]": 5.0,
+      "v[6]": 6.0,
+      "v[7]": 7.0,
+      "v[8]": 8.0,
+      "v[9]": 9.0
+    },
+    "display_names": {
+      "total": "total",
+      "v": "v",
+      "v[10]": "v[10]",
+      "v[1]": "v[1]",
+      "v[2]": "v[2]",
+      "v[3]": "v[3]",
+      "v[4]": "v[4]",
+      "v[5]": "v[5]",
+      "v[6]": "v[6]",
+      "v[7]": "v[7]",
+      "v[8]": "v[8]",
+      "v[9]": "v[9]"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

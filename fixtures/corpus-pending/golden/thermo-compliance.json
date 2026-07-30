@@ -1,0 +1,17 @@
+{
+  "name": "thermo-compliance",
+  "source": "// Real-Fluid Thermodynamics Compliance\n{ Verification problems from a standard thermodynamics textbook.\n  This example demonstrates the compressibility factor (Z) of real fluids\n  and stagnation properties for compressible flow. }\n\n{ --- Part 1: Nelson-Obert Compressibility (Example 3-12 / 3-13) --- }\n{ Determine the compressibility factor Z and specific volume v of R-134a\n  at T = 50 C and P = 1 MPa. Compare to ideal gas. }\nT_r134a = 50 [C]\nP_r134a = 1 [MPa]\n\nZ_real = CompressibilityFactor(R134a, T=T_r134a, P=P_r134a)\nv_real = Volume(R134a, T=T_r134a, P=P_r134a)\n\n{ We can also check critical properties of R134a: }\nT_crit_r134a = T_crit(R134a)\nP_crit_r134a = P_crit(R134a)\n\n{ --- Part 2: Diffuser Stagnation Properties (Example 17-1) --- }\n{ Air enters a diffuser at static temperature T = 300 K, static pressure\n  P = 100 kPa with a velocity V = 200 m/s. k = 1.4, cp = 1005 J/kg-K. }\nT_air = 300 [K]\nP_air = 100 [kPa]\nV_air = 200 [m/s]\ncp_air = 1005 [J/kg-K]\nk_air = 1.4\n\nT0_air = StagnationTemp(T_air, V_air, cp_air)\nP0_air = StagnationPres(P_air, T_air, T0_air, k_air)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "IllegalStateException",
+      "message": "The CoolProp native library is not available. Set the COOLPROP_LIBRARY environment variable to the path of libCoolProp.so to enable fluid property functions."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

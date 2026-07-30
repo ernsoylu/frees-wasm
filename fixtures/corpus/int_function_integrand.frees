@@ -1,0 +1,6 @@
+{ A user FUNCTION inside the integrand must resolve through the defs map. }
+FUNCTION Sq(u)
+  Sq := u * u
+END
+
+A = Integral(Sq(t), t, 0, 3)

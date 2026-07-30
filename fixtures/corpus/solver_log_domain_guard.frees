@@ -1,0 +1,3 @@
+{ A residual whose iterate can wander into ln's forbidden domain. }
+GUESS z = 0.5
+ln(z) = -1

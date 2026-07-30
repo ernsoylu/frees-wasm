@@ -1,0 +1,3 @@
+{ The solution lies exactly ON the declared upper bound. }
+GUESS x = 1 [0, 4]
+x^2 = 16

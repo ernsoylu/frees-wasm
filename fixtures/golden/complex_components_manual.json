@@ -1,0 +1,30 @@
+{
+  "name": "complex_components_manual",
+  "source": "{ The `_r` / `_i` naming convention spelled out by hand, so the document is a\n  plain real system: (3 + 4i)(1 - 2i) = 11 - 2i, and the magnitude of 3 + 4i is 5.\n  This pins the component algebra the complex expander must reproduce. }\na_r = 3\na_i = 4\nb_r = 1\nb_i = -2\nc_r = a_r * b_r - a_i * b_i\nc_i = a_r * b_i + a_i * b_r\nmag = sqrt(a_r ^ 2 + a_i ^ 2)\n",
+  "expect": {
+    "variables": {
+      "a_i": 4.0,
+      "a_r": 3.0,
+      "b_i": -2.0,
+      "b_r": 1.0,
+      "c_i": -2.0,
+      "c_r": 11.0,
+      "mag": 5.0
+    },
+    "display_names": {
+      "a_i": "a_i",
+      "a_r": "a_r",
+      "b_i": "b_i",
+      "b_r": "b_r",
+      "c_i": "c_i",
+      "c_r": "c_r",
+      "mag": "mag"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

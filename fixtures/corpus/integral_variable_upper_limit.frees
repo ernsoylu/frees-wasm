@@ -1,0 +1,5 @@
+{ The upper limit may be an unknown closed by another equation: the integral of
+  2t from 0 to b is b^2 = 9, so b = 3 and t lands on the limit.
+  Java IntegralTest.solvesVariableUpperLimit. }
+F = Integral(2*t, t, 0, b)
+F = 9

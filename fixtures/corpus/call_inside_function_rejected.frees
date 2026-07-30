@@ -1,0 +1,11 @@
+{ Error parity: a CALL inside a FOR within a FUNCTION has no procedural meaning
+  and must raise a clear error rather than be silently skipped.
+  Java callInsideProcedureForIsRejectedNotSilentlyDropped. }
+FUNCTION Bad(n)
+  FOR i = 1 TO n
+    CALL pole(i, i : a, b)
+  END
+  Bad := 1
+END
+
+y = Bad(2)

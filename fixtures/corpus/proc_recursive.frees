@@ -1,0 +1,15 @@
+{ A PROCEDURE whose body calls a recursive FUNCTION. }
+FUNCTION Fib(n)
+  IF n < 2 THEN
+    Fib := n
+  ELSE
+    Fib := Fib(n-1) + Fib(n-2)
+  END
+END
+
+PROCEDURE Pair(n : a, b)
+  a := Fib(n)
+  b := Fib(n+1)
+END
+
+CALL Pair(10 : f10, f11)

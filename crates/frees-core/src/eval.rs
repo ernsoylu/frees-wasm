@@ -12,11 +12,16 @@
 //! statistics, the orthogonal-polynomial recurrences and the two binding forms
 //! `sum` / `product`.
 //!
-//! Everything else in the Java `evalCall` chain — fluid properties (`prop$…`),
-//! user `FUNCTION`/`PROCEDURE` dispatch (`proc$…`), matrix/eigen/FFT synthetics,
-//! control systems, TABLE/parametric/ODE accessors, and the two quadrature
-//! intrinsics — is rejected with an explicit `not yet supported: <name>`
-//! evaluation error rather than a wrong answer.
+//! On top of that, [`eval_with`] dispatches the document-level families through
+//! [`EvalContext`]: user `FUNCTION`s and `TABLE`s by name, the synthetic
+//! `proc$<name>$<k>` procedure-output calls, the `fft$`/`conv$`/`linfit$`/
+//! `polyfit$`/`interp2$` kernel synthetics, and the two quadrature intrinsics
+//! (`Integral` / `GaussIntegral`, whose bodies live in [`crate::integral`]).
+//!
+//! Everything still missing from the Java `evalCall` chain — fluid properties
+//! (`prop$…`), matrix/eigen decompositions, control systems, and the
+//! TABLE/parametric/ODE result accessors — is rejected with an explicit
+//! `not yet supported: <name>` evaluation error rather than a wrong answer.
 //!
 //! # Design: a data-driven registry
 //!
@@ -724,6 +729,20 @@ pub const INTRINSICS: &[Intrinsic] = &[
         let x = eval_in(&args[1], env)?;
         crate::curvetable::differentiate(table, 2, 1, x, true)
     }),
+    // ----- vector-argument kernels (statistics / 2-D interpolation) ----------
+    // `Statistics.linFit` reached by its three `FunctionRegistry` names. The
+    // Java registry documents `slope(xvals, yvals)` / `intercept` / `r2`
+    // (`FunctionRegistry.java:236-238`) but `Evaluator.evalCall` never grew the
+    // arms — only the `linfit$…` synthetic that `CALL LinFit` flattens to
+    // reaches the kernel. This port wires the documented names to the very same
+    // `lin_fit`, with the Java output mapping (`Evaluator.evalLinFit`:
+    // slope → fit[0], intercept → fit[1], r2 → fit[2]). Deviation, documented:
+    // it turns a Java "unknown function" into the documented value, never a
+    // different value.
+    lazy!("slope", Arity::Exact(2), eval_lin_fit_call),
+    lazy!("intercept", Arity::Exact(2), eval_lin_fit_call),
+    lazy!("r2", Arity::Exact(2), eval_lin_fit_call),
+    lazy!("interp2", Arity::Exact(5), eval_interp2_call),
     // ----- dynamic array indexing -------------------------------------------
     // ArrayElmt(data[1:N], k): the range expands to N element args; the last
     // arg is the index. Lazy so only the selected element is evaluated.
@@ -1746,8 +1765,11 @@ fn eval_integral_call<'a>(_name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Re
         Some(expr) => Some(eval_in(expr, env)?),
         None => None,
     };
+    // `_with` rather than the bare contract: the Java threads its `defs` map
+    // through `SimpsonContext.evalAt`, so a user FUNCTION or TABLE inside the
+    // integrand has to resolve.
     let scope = env.to_scope();
-    crate::integral::integral(&args[0], var, lower, upper, step, &scope)
+    crate::integral::integral_with(&args[0], var, lower, upper, step, &scope, env.ctx())
 }
 
 /// `GaussIntegral(f, t, a, b[, points])` — dispatch to
@@ -1772,16 +1794,206 @@ fn eval_gauss_integral_call<'a>(_name: &str, args: &'a [Expr], env: &'a Env<'a>)
         None => None,
     };
     let scope = env.to_scope();
-    crate::integral::gauss_integral(&args[0], var, lower, upper, points, &scope)
+    crate::integral::gauss_integral_with(&args[0], var, lower, upper, points, &scope, env.ctx())
+}
+
+/// Normalize a bracket literal to its rows of cells, or `None` when `expr` is
+/// not a literal of uniform depth.
+///
+/// The wasm port has no run-time array values — a bracket literal is the only
+/// shape an unexpanded vector or grid can take in expression position — so the
+/// literal is read straight off the AST. Three spellings normalize to the same
+/// thing:
+///
+/// * `[1, 2, 3]` — what `parse_matrix_literal` builds: `ArrayLiteral` of one
+///   `ArrayLiteral` per row, so a row vector arrives as `[[1, 2, 3]]`. A
+///   hand-built flat `ArrayLiteral([1, 2, 3])` is accepted as that same row.
+/// * `[1, 2; 3, 4]` — the frees matrix literal, `;` separating rows.
+/// * `[[1, 2], [3, 4]]` — the JSON-ish spelling. The frees grammar parses that
+///   as a *one-row* matrix whose two cells are themselves `1x2` matrices, which
+///   is not a meaningful shape on its own; the single-element unwrap below
+///   reads it as the 2x2 grid it obviously means.
+fn literal_rows(expr: &Expr) -> Option<Vec<Vec<&Expr>>> {
+    let Expr::ArrayLiteral(elements) = expr else {
+        return None;
+    };
+    // A flat literal is one row of scalars.
+    if elements.iter().all(|e| !matches!(e, Expr::ArrayLiteral(_))) {
+        return Some(vec![elements.iter().collect()]);
+    }
+    // `[[1, 2], [3, 4]]`: one element that is itself already 2-D.
+    if elements.len() == 1 {
+        if let Some(inner) = literal_rows(&elements[0]) {
+            if inner.len() > 1 {
+                return Some(inner);
+            }
+        }
+    }
+    // Otherwise every element is one row, and each row must be 1-D.
+    let mut out = Vec::with_capacity(elements.len());
+    for element in elements {
+        let row = literal_rows(element)?;
+        if row.len() != 1 {
+            return None;
+        }
+        out.push(row.into_iter().next().unwrap());
+    }
+    Some(out)
+}
+
+/// True when `expr` is a bracket literal that normalizes to a genuine 2-D grid
+/// (at least 2 rows *and* 2 columns) — the shape only an interpolation grid can
+/// have, which is what pins `Interp2`'s argument order.
+fn is_grid_literal(expr: &Expr) -> bool {
+    match literal_rows(expr) {
+        Some(rows) => rows.len() >= 2 && rows.iter().all(|row| row.len() >= 2),
+        None => false,
+    }
+}
+
+/// A 1-D vector argument: a row literal `[1, 2, 3]` or a column `[1; 2; 3]`.
+fn vector_arg<'a>(fn_name: &str, which: &str, arg: &'a Expr, env: &'a Env<'a>) -> Result<Vec<f64>> {
+    let Some(rows) = literal_rows(arg) else {
+        return Err(domain(
+            fn_name,
+            format_args!("{which} must be a list of numbers, e.g. [1, 2, 3]"),
+        ));
+    };
+    let cells: Vec<&Expr> = if rows.len() == 1 {
+        rows.into_iter().next().unwrap_or_default()
+    } else if rows.iter().all(|row| row.len() == 1) {
+        rows.into_iter().map(|row| row[0]).collect()
+    } else {
+        let cols = rows.first().map_or(0, Vec::len);
+        return Err(domain(
+            fn_name,
+            format_args!(
+                "{which} must be a 1-D list of numbers, not a {}x{cols} matrix",
+                rows.len()
+            ),
+        ));
+    };
+    let mut out = Vec::with_capacity(cells.len());
+    for cell in cells {
+        out.push(eval_in(cell, env)?);
+    }
+    Ok(out)
+}
+
+/// A 2-D grid argument, row-major, every row the same length.
+fn matrix_arg<'a>(fn_name: &str, arg: &'a Expr, env: &'a Env<'a>) -> Result<Vec<Vec<f64>>> {
+    let Some(rows) = literal_rows(arg) else {
+        return Err(domain(
+            fn_name,
+            format_args!("Z must be a grid literal, e.g. [0, 1; 1, 2] or [[0, 1], [1, 2]]"),
+        ));
+    };
+    let cols = rows.first().map_or(0, Vec::len);
+    if rows.iter().any(|row| row.len() != cols) {
+        return Err(domain(
+            fn_name,
+            format_args!("Z has rows of unequal length"),
+        ));
+    }
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut values = Vec::with_capacity(row.len());
+        for cell in row {
+            values.push(eval_in(cell, env)?);
+        }
+        out.push(values);
+    }
+    Ok(out)
+}
+
+/// `slope(xvals, yvals)` / `intercept(…)` / `r2(…)` — the three
+/// `FunctionRegistry` names for `Statistics.linFit`, output-mapped exactly as
+/// `Evaluator.evalLinFit` maps the `linfit$…` synthetic.
+fn eval_lin_fit_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let x = vector_arg(name, "xvals", &args[0], env)?;
+    let y = vector_arg(name, "yvals", &args[1], env)?;
+    let fit = crate::statistics::lin_fit(&x, &y)?;
+    match name {
+        "slope" => Ok(fit[0]),
+        "intercept" => Ok(fit[1]),
+        "r2" => Ok(fit[2]),
+        // Unreachable: only the three names above register this body.
+        other => Err(FreesError::evaluation(format!(
+            "Unknown LinFit output: {other}"
+        ))),
+    }
+}
+
+/// `Interp2` in **expression position** — regular-grid 2-D interpolation
+/// through [`crate::interp2::interpolate`].
+///
+/// **Port extension, documented.** The Java engine reaches `Interpolation2D`
+/// only through `CALL Interp2(x, y, Z, xq, yq : zq)`, which
+/// `EquationParser.flattenInterp2` rewrites into the `interp2$<m>$<n>`
+/// synthetic (dispatched below); there is no `interp2` arm in
+/// `Evaluator.evalCall` and no `FunctionRegistry` entry, so `z = Interp2(…)`
+/// is an "unknown function" error in Java. Wiring it here turns that error
+/// into the value the same kernel computes — it can never disagree with the
+/// oracle on a document the oracle accepts.
+///
+/// Two argument orders are accepted, and the 2-D grid pins which one is meant
+/// (only `Z` can be `m x n` with `m, n >= 2`, so the choice is never ambiguous):
+///
+/// * `Interp2(x, y, Z, xq, yq)` — the `CALL Interp2` order, `Z` third.
+/// * `Interp2(xq, yq, x, y, Z)` — query first, `Z` last.
+fn eval_interp2_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let (xi, yi, zi, xqi, yqi) = if is_grid_literal(&args[2]) {
+        (0, 1, 2, 3, 4)
+    } else if is_grid_literal(&args[4]) {
+        (2, 3, 4, 0, 1)
+    } else {
+        return Err(domain(
+            name,
+            format_args!(
+                "expects Interp2(x, y, Z, xq, yq) or Interp2(xq, yq, x, y, Z), \
+                 with Z an m x n grid literal such as [0, 1; 1, 2]"
+            ),
+        ));
+    };
+    let x = vector_arg(name, "x", &args[xi], env)?;
+    let y = vector_arg(name, "y", &args[yi], env)?;
+    let z = matrix_arg(name, &args[zi], env)?;
+    let xq = eval_in(&args[xqi], env)?;
+    let yq = eval_in(&args[yqi], env)?;
+    crate::interp2::interpolate(&x, &y, &z, xq, yq)
 }
 
 /// Synthetic `$`-calls the flattening passes generate. This port evaluates the
-/// signal/regression/interpolation families through the Phase-4 kernels;
-/// everything else (`prop$…`, `proc$…`, matrix/eigen decompositions, control
-/// systems) still reports *not yet supported*.
+/// procedure, signal, regression and interpolation families through the
+/// Phase-4 kernels; everything else (`prop$…`, matrix/eigen decompositions,
+/// control systems) still reports *not yet supported*.
 fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
     let parts: Vec<&str> = function.split('$').collect();
     match parts[0] {
+        // proc$<name>$<k>: the per-output call `procedures::flatten_calls`
+        // emits for `CALL p(ins : outs)` — and, because the parser desugars
+        // `FUNCTION [a, b] = f(x)` into a `ProcedureDef`, for the multi-output
+        // destructuring `[a, b] = f(x)` too. Port of
+        // `Evaluator.evalProcedureOutput`.
+        //
+        // **Deliberately not memoised.** The Java runs the *entire* body once
+        // per output slot: `evalProcedureOutput` constructs a fresh
+        // `ProcedureEvaluator` and calls `callProcedure` on every `proc$name$k`
+        // it evaluates, so an N-output PROCEDURE executes N times per residual
+        // sweep. That is observable — a body calling `Random`/`RandG` with a
+        // seed derived from its inputs, or one that is merely expensive —
+        // so this port matches it rather than caching behind the oracle's back.
+        "proc" => {
+            let inputs = eval_args(args, env)?;
+            let scope = env.to_scope();
+            match env.ctx().defs {
+                Some(defs) => crate::procedures::call_proc_output(function, &inputs, defs, &scope),
+                // Java reaches the same throw when `defs.get(name)` is absent.
+                None => Err(FreesError::evaluation(format!(
+                    "Unknown procedure output call: {function}"
+                ))),
+            }
+        }
         // fft$re|im$<k>$<n> / ifft$…: DFT of the complex sequence carried as
         // n real args then n imaginary args.
         "fft" | "ifft" if parts.len() == 4 => {
@@ -1859,12 +2071,33 @@ fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Res
             let yq = eval_in(&args[m + n + m * n + 1], env)?;
             crate::interp2::interpolate(&x, &y, &z, xq, yq)
         }
-        _ => Err(FreesError::evaluation(format!(
-            "not yet supported: {function} ({})",
-            unported_family(function)
-                .unwrap_or("synthetic property / procedure / matrix / control-systems call")
-        ))),
+        // The dense linear-algebra synthetics, all of which take their matrix
+        // flattened row-major in the argument list:
+        //   det$<n>, qr$q|r$<i>$<j>$<m>$<n>, chol$l$<i>$<j>$<n>,
+        //   expm$<i>$<j>$<n>, svd$s$<k>$<m>$<n>, svd$u|smat|v$<i>$<j>$<m>$<n>
+        // Port of the `startsWith("det$")` / `qr$` / `chol$` / `expm$` / `svd$`
+        // chain in `Evaluator.evalCall`, which routes each into
+        // `core.LinearAlgebra`. `det$<n>` is the one a user reaches without a
+        // CALL: `EquationParser` (and `parser::expand`) emit it for `det(A)`
+        // whenever `A` is larger than 3×3, because the closed-form cofactor
+        // expansion is O(n!).
+        "det" | "qr" | "chol" | "expm" | "svd" => {
+            let values = eval_args(args, env)?;
+            match crate::linalg::eval_intrinsic(function, &values) {
+                Some(result) => result,
+                None => Err(unsupported_synthetic(function)),
+            }
+        }
+        _ => Err(unsupported_synthetic(function)),
     }
+}
+
+fn unsupported_synthetic(function: &str) -> FreesError {
+    FreesError::evaluation(format!(
+        "not yet supported: {function} ({})",
+        unported_family(function)
+            .unwrap_or("synthetic property / procedure / matrix / control-systems call")
+    ))
 }
 
 fn eval_args<'a>(args: &'a [Expr], env: &'a Env<'a>) -> Result<Vec<f64>> {
@@ -5321,17 +5554,75 @@ mod tests {
 
     #[test]
     fn synthetic_dollar_calls_are_refused_as_a_family() {
-        for name in [
-            "prop$enthalpy$water$t$p",
-            "proc$mypro$0",
-            "eigen$val$1$3",
-            "det$3",
-            "series$0$2$2",
-        ] {
+        // `det$`/`qr$`/`chol$`/`expm$`/`svd$` are deliberately *not* in this
+        // list any more: they route into `crate::linalg`, exactly as the Java
+        // `Evaluator.evalCall` routes them into `core.LinearAlgebra`. See
+        // `linear_algebra_synthetics_are_dispatched`.
+        for name in ["prop$enthalpy$water$t$p", "eigen$val$1$3", "series$0$2$2"] {
             let message = err(&Expr::call(name, vec![n(1.0)]));
             assert!(message.contains("not yet supported"), "{name}: {message}");
             assert!(message.contains("synthetic"), "{name}: {message}");
         }
+    }
+
+    /// `parser::expand` emits `det$<n>` for any `det(A)` with `n > 3` (the
+    /// closed-form cofactor expansion is O(n!)), so this arm is reachable from
+    /// plain user text and has to agree with Commons Math `LUDecomposition`.
+    #[test]
+    fn linear_algebra_synthetics_are_dispatched() {
+        // 4×4 diagonal: 2·3·4·5 = 120.
+        close(
+            c(
+                "det$4",
+                &[
+                    2.0, 0.0, 0.0, 0.0, //
+                    0.0, 3.0, 0.0, 0.0, //
+                    0.0, 0.0, 4.0, 0.0, //
+                    0.0, 0.0, 0.0, 5.0,
+                ],
+            ),
+            120.0,
+        );
+        // One row swap flips the sign (Commons Math `getDeterminant`).
+        close(
+            c(
+                "det$4",
+                &[
+                    0.0, 1.0, 0.0, 0.0, //
+                    1.0, 0.0, 0.0, 0.0, //
+                    0.0, 0.0, 1.0, 0.0, //
+                    0.0, 0.0, 0.0, 1.0,
+                ],
+            ),
+            -1.0,
+        );
+        // Singular: LU convention is exactly 0.0, never NaN.
+        close(c("det$2", &[1.0, 1.0, 1.0, 1.0]), 0.0);
+        close(c("chol$l$0$0$2", &[4.0, 0.0, 0.0, 9.0]), 2.0);
+        close(c("svd$s$0$2$2", &[3.0, 0.0, 0.0, 2.0]), 3.0);
+        // A wrong argument count is an evaluation error naming the shape, not
+        // the "not yet supported" refusal.
+        let msg = err(&Expr::call("det$4", vec![n(1.0)]));
+        assert!(msg.contains("expected 4x4 = 16 entries"), "{msg}");
+    }
+
+    #[test]
+    fn proc_synthetics_without_a_document_report_the_java_message() {
+        // `Evaluator.evalProcedureOutput` throws "Unknown procedure output
+        // call: …" when `defs` has no such PROCEDURE — including when there is
+        // no document context at all, which is this case.
+        let message = err(&Expr::call("proc$mypro$0", vec![n(1.0)]));
+        assert!(
+            message.contains("Unknown procedure output call: proc$mypro$0"),
+            "{message}"
+        );
+        // Malformed shapes take the same arm, exactly like the Java's
+        // `split("\\$", 3).length != 3` guard.
+        let short = err(&Expr::call("proc$mypro", vec![n(1.0)]));
+        assert!(
+            short.contains("Unknown procedure output call: proc$mypro"),
+            "{short}"
+        );
     }
 
     #[test]
@@ -5912,6 +6203,297 @@ mod tests {
         close(ev(&Expr::call("interp2$5$5", args)), 8.5);
     }
 
+    // =====================================================================
+    // Phase 4: vector-argument kernels (slope / intercept / r2 / Interp2)
+    // =====================================================================
+
+    fn arr(values: &[f64]) -> Expr {
+        Expr::ArrayLiteral(nums(values))
+    }
+
+    fn grid(rows: &[&[f64]]) -> Expr {
+        Expr::ArrayLiteral(rows.iter().map(|r| arr(r)).collect())
+    }
+
+    #[test]
+    fn lin_fit_names_expose_the_same_numbers_as_the_linfit_synthetic() {
+        // (1,2),(2,3),(3,5): slope 1.5, intercept 1/3, R² = 27/28 — the very
+        // values `linfit_synthetics_expose_slope_intercept_r2` pins.
+        let x = arr(&[1.0, 2.0, 3.0]);
+        let y = arr(&[2.0, 3.0, 5.0]);
+        close(ev(&Expr::call("slope", vec![x.clone(), y.clone()])), 1.5);
+        close(
+            ev(&Expr::call("intercept", vec![x.clone(), y.clone()])),
+            1.0 / 3.0,
+        );
+        close(ev(&Expr::call("r2", vec![x, y])), 27.0 / 28.0);
+    }
+
+    #[test]
+    fn lin_fit_names_reject_non_vector_and_ragged_arguments() {
+        let msg = err(&Expr::call("slope", vec![n(1.0), arr(&[1.0, 2.0])]));
+        assert!(msg.contains("xvals must be a list of numbers"), "{msg}");
+        let msg = err(&Expr::call(
+            "intercept",
+            vec![arr(&[1.0, 2.0]), grid(&[&[1.0, 2.0], &[3.0, 4.0]])],
+        ));
+        assert!(msg.contains("yvals must be a 1-D list"), "{msg}");
+        assert!(msg.contains("2x2 matrix"), "{msg}");
+        let msg = err(&Expr::call(
+            "r2",
+            vec![arr(&[1.0, 2.0, 3.0]), arr(&[1.0, 2.0])],
+        ));
+        assert!(msg.contains("equal length"), "{msg}");
+    }
+
+    #[test]
+    fn a_column_literal_reads_as_the_same_vector_as_a_row_literal() {
+        // `[1; 2; 3]` (one cell per row) and `[1, 2, 3]` are the same vector.
+        let column = grid(&[&[1.0], &[2.0], &[3.0]]);
+        let row = arr(&[2.0, 3.0, 5.0]);
+        close(ev(&Expr::call("slope", vec![column, row])), 1.5);
+    }
+
+    #[test]
+    fn interp2_accepts_both_documented_argument_orders() {
+        // 2x2 grid → bilinear. Z[i][j] = f(x[i], y[j]) with x = y = [0, 1] and
+        // Z = [[0, 1], [1, 2]] is f(x, y) = x + y.
+        let x = arr(&[0.0, 1.0]);
+        let y = arr(&[0.0, 1.0]);
+        let z = grid(&[&[0.0, 1.0], &[1.0, 2.0]]);
+        // CALL order: Interp2(x, y, Z, xq, yq).
+        close(
+            ev(&Expr::call(
+                "interp2",
+                vec![x.clone(), y.clone(), z.clone(), n(1.0), n(1.0)],
+            )),
+            2.0,
+        );
+        close(
+            ev(&Expr::call(
+                "interp2",
+                vec![x.clone(), y.clone(), z.clone(), n(0.5), n(0.5)],
+            )),
+            1.0,
+        );
+        // Query-first order: Interp2(xq, yq, x, y, Z).
+        close(
+            ev(&Expr::call("interp2", vec![n(1.0), n(1.0), x, y, z])),
+            2.0,
+        );
+    }
+
+    #[test]
+    fn interp2_clamps_outside_the_grid_and_agrees_with_its_synthetic() {
+        let axis: Vec<f64> = (0..5).map(|i| i as f64).collect();
+        let rows: Vec<Vec<f64>> = axis
+            .iter()
+            .map(|&x| axis.iter().map(|&y| x * x + y * y).collect())
+            .collect();
+        let z = Expr::ArrayLiteral(rows.iter().map(|r| arr(r)).collect());
+        let call = |xq: f64, yq: f64| {
+            ev(&Expr::call(
+                "interp2",
+                vec![arr(&axis), arr(&axis), z.clone(), n(xq), n(yq)],
+            ))
+        };
+        // Same 5x5 quadratic the `interp2$5$5` test uses: exact at (1.5, 2.5).
+        close(call(1.5, 2.5), 8.5);
+        // Outside the grid the query clamps to the boundary (no extrapolation).
+        close(call(99.0, 99.0), 32.0);
+        close(call(-5.0, -5.0), 0.0);
+    }
+
+    #[test]
+    fn interp2_needs_a_nested_literal_to_locate_the_grid() {
+        let msg = err(&Expr::call(
+            "interp2",
+            vec![n(1.0), n(1.0), n(1.0), n(1.0), n(1.0)],
+        ));
+        assert!(msg.contains("Interp2(x, y, Z, xq, yq)"), "{msg}");
+        assert!(msg.contains("Interp2(xq, yq, x, y, Z)"), "{msg}");
+        // A 1xN literal is a vector, never the grid — the order stays pinned.
+        let msg = err(&Expr::call(
+            "interp2",
+            vec![
+                arr(&[0.0, 1.0]),
+                arr(&[0.0, 1.0]),
+                arr(&[0.0, 1.0]),
+                n(0.5),
+                n(0.5),
+            ],
+        ));
+        assert!(msg.contains("m x n grid literal"), "{msg}");
+        // A grid that does not match the axes is refused by the kernel.
+        let msg = err(&Expr::call(
+            "interp2",
+            vec![
+                arr(&[0.0, 1.0, 2.0]),
+                arr(&[0.0, 1.0]),
+                grid(&[&[0.0, 1.0], &[1.0, 2.0]]),
+                n(0.5),
+                n(0.5),
+            ],
+        ));
+        assert!(msg.contains("must be 3x2"), "{msg}");
+    }
+
+    // =====================================================================
+    // Phase 4: proc$ synthetic dispatch (Evaluator.evalProcedureOutput)
+    // =====================================================================
+
+    /// Evaluate with a document's definitions in context.
+    fn ev_in_doc(source: &str, e: &Expr) -> Result<f64> {
+        let doc = crate::parser::parse_document(source)
+            .unwrap_or_else(|err| panic!("parse failed: {err}"));
+        eval_with(
+            e,
+            &Scope::new(),
+            EvalContext {
+                defs: Some(&doc.defs),
+            },
+        )
+    }
+
+    const SWAP_DOC: &str = "PROCEDURE p(a : b, c)\n  b := a * 2\n  c := a + 1\nEND\n";
+
+    #[test]
+    fn proc_synthetic_runs_the_body_and_picks_the_output_slot() {
+        let call0 = Expr::call("proc$p$0", vec![n(3.0)]);
+        let call1 = Expr::call("proc$p$1", vec![n(3.0)]);
+        assert_eq!(ev_in_doc(SWAP_DOC, &call0).unwrap(), 6.0);
+        assert_eq!(ev_in_doc(SWAP_DOC, &call1).unwrap(), 4.0);
+    }
+
+    #[test]
+    fn proc_synthetic_evaluates_its_inputs_in_the_callers_scope() {
+        let doc = crate::parser::parse_document(SWAP_DOC).unwrap();
+        let scope = scope(&[("q", 5.0)]);
+        let e = Expr::call(
+            "proc$p$0",
+            vec![Expr::bin(BinOp::Add, Expr::var("q"), n(1.0))],
+        );
+        let got = eval_with(
+            &e,
+            &scope,
+            EvalContext {
+                defs: Some(&doc.defs),
+            },
+        )
+        .unwrap();
+        assert_eq!(got, 12.0);
+    }
+
+    #[test]
+    fn proc_synthetic_reports_an_out_of_range_slot_and_an_unknown_name() {
+        let msg = ev_in_doc(SWAP_DOC, &Expr::call("proc$p$9", vec![n(1.0)]))
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("Unknown procedure output call"), "{msg}");
+        let msg = ev_in_doc(SWAP_DOC, &Expr::call("proc$nope$0", vec![n(1.0)]))
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("Unknown procedure output call"), "{msg}");
+    }
+
+    #[test]
+    fn proc_synthetic_reports_an_input_arity_mismatch() {
+        let msg = ev_in_doc(SWAP_DOC, &Expr::call("proc$p$0", vec![n(1.0), n(2.0)]))
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("expects 1 input(s), got 2"), "{msg}");
+    }
+
+    #[test]
+    fn a_multi_output_function_is_reachable_through_the_same_arm() {
+        // `FUNCTION [p, q] = two(u)` desugars to a ProcedureDef named `two`.
+        let source = "FUNCTION [p, q] = two(u)\n  p := u\n  q := u * 2\nEND\n";
+        assert_eq!(
+            ev_in_doc(source, &Expr::call("proc$two$0", vec![n(4.0)])).unwrap(),
+            4.0
+        );
+        assert_eq!(
+            ev_in_doc(source, &Expr::call("proc$two$1", vec![n(4.0)])).unwrap(),
+            8.0
+        );
+    }
+
+    #[test]
+    fn proc_synthetic_runs_repeat_until_and_conditionals_in_the_body() {
+        let source = "PROCEDURE acc(n : total, parity)\n\
+                      \x20 total := 0\n\
+                      \x20 i := 1\n\
+                      \x20 REPEAT\n\
+                      \x20   total := total + i\n\
+                      \x20   i := i + 1\n\
+                      \x20 UNTIL i > n\n\
+                      \x20 IF total > 10 THEN\n\
+                      \x20   parity := 1\n\
+                      \x20 ELSE\n\
+                      \x20   parity := 0\n\
+                      \x20 END\n\
+                      END\n";
+        // 1+2+3+4+5 = 15 → parity 1; 1+2 = 3 → parity 0.
+        assert_eq!(
+            ev_in_doc(source, &Expr::call("proc$acc$0", vec![n(5.0)])).unwrap(),
+            15.0
+        );
+        assert_eq!(
+            ev_in_doc(source, &Expr::call("proc$acc$1", vec![n(5.0)])).unwrap(),
+            1.0
+        );
+        assert_eq!(
+            ev_in_doc(source, &Expr::call("proc$acc$0", vec![n(2.0)])).unwrap(),
+            3.0
+        );
+        assert_eq!(
+            ev_in_doc(source, &Expr::call("proc$acc$1", vec![n(2.0)])).unwrap(),
+            0.0
+        );
+    }
+
+    #[test]
+    fn proc_synthetic_runs_while_and_for_bodies() {
+        // WHILE … DO … END with an assignment body.
+        let while_doc = "PROCEDURE dbl(seed : out)\n\
+                         \x20 out := seed\n\
+                         \x20 WHILE out < 100 DO\n\
+                         \x20   out := out * 2\n\
+                         \x20 END\n\
+                         END\n";
+        assert_eq!(
+            ev_in_doc(while_doc, &Expr::call("proc$dbl$0", vec![n(3.0)])).unwrap(),
+            192.0
+        );
+        // A FOR inside a procedural body carries *equations*, not `:=`
+        // assignments — `AstBuilder.toProcStatement` converts only equations and
+        // nested FORs, so this port's parser rejects `:=` there exactly as Java
+        // does. The loop variable survives the loop with its final value.
+        let for_doc = "PROCEDURE ramp(n : last)\n\
+                       \x20 FOR i = 1 TO 3\n\
+                       \x20   last = i * 2\n\
+                       \x20 END\n\
+                       END\n";
+        assert_eq!(
+            ev_in_doc(for_doc, &Expr::call("proc$ramp$0", vec![n(0.0)])).unwrap(),
+            6.0
+        );
+    }
+
+    #[test]
+    fn a_runaway_while_in_a_proc_body_is_refused_not_hung() {
+        let source = "PROCEDURE spin(seed : out)\n\
+                      \x20 out := seed\n\
+                      \x20 WHILE out > 0 DO\n\
+                      \x20   out := out + 1\n\
+                      \x20 END\n\
+                      END\n";
+        let msg = ev_in_doc(source, &Expr::call("proc$spin$0", vec![n(1.0)]))
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("WHILE loop exceeded"), "{msg}");
+    }
+
     #[test]
     fn synthetic_calls_validate_shape_and_bounds() {
         let msg = err(&Expr::call("fft$re$0$4", nums(&[1.0, 2.0])));
@@ -5926,12 +6508,8 @@ mod tests {
 
     #[test]
     fn unported_synthetic_families_still_refuse_honestly() {
-        for name in [
-            "prop$enthalpy$r134a$t$x",
-            "proc$f$0",
-            "eigen$val$0$2",
-            "det$2",
-        ] {
+        // `det$` moved out of this list when `crate::linalg` was wired in.
+        for name in ["prop$enthalpy$r134a$t$x", "eigen$val$0$2", "series$0$2$2"] {
             let msg = err(&Expr::call(name, vec![n(1.0)]));
             assert!(msg.contains("not yet supported"), "{name}: {msg}");
         }

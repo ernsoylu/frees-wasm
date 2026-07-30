@@ -1,0 +1,29 @@
+{
+  "name": "mx_vector_slice_sum",
+  "source": "{ Sum over an explicit index range of a generated vector. }\nv = linspace(1, 5, 5)\ns = Sum(v[1:5])\n",
+  "expect": {
+    "variables": {
+      "s": 15.0,
+      "v[1]": 1.0,
+      "v[2]": 2.0,
+      "v[3]": 3.0,
+      "v[4]": 4.0,
+      "v[5]": 5.0
+    },
+    "display_names": {
+      "s": "s",
+      "v": "v",
+      "v[1]": "v[1]",
+      "v[2]": "v[2]",
+      "v[3]": "v[3]",
+      "v[4]": "v[4]",
+      "v[5]": "v[5]"
+    },
+    "block_count": 6,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

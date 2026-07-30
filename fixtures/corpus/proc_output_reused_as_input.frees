@@ -1,0 +1,7 @@
+{ A CALL whose output variable also feeds a later equation. }
+PROCEDURE Dbl(a : b)
+  b := 2 * a
+END
+
+CALL Dbl(3 : v)
+w = v * v

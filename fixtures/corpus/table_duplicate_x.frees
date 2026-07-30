@@ -1,0 +1,7 @@
+{ Two rows share an x value: a zero-width interval. }
+TABLE d(x)
+  1   10
+  1   20
+  2   30
+END
+y = d(1)

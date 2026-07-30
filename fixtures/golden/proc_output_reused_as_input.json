@@ -1,0 +1,21 @@
+{
+  "name": "proc_output_reused_as_input",
+  "source": "{ A CALL whose output variable also feeds a later equation. }\nPROCEDURE Dbl(a : b)\n  b := 2 * a\nEND\n\nCALL Dbl(3 : v)\nw = v * v\n",
+  "expect": {
+    "variables": {
+      "v": 6.0,
+      "w": 36.0
+    },
+    "display_names": {
+      "a": "a",
+      "v": "v",
+      "w": "w"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

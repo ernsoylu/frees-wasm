@@ -1,0 +1,13 @@
+{ A PROCEDURE whose branches assign both outputs. Java procedureWithConditional:
+  small = 3, large = 8. }
+PROCEDURE MinMax(a, b : lo, hi)
+  IF a < b THEN
+    lo := a
+    hi := b
+  ELSE
+    lo := b
+    hi := a
+  END
+END
+
+CALL MinMax(8, 3 : small, large)

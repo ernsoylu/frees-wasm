@@ -1,0 +1,2 @@
+{ Deeply nested parentheses and unary minus. }
+y = -(-(-(-(1 + 2) * 3) / 4) ^ 2)

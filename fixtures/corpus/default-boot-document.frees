@@ -1,0 +1,31 @@
+// Welcome to frees — running natively in your browser
+{ This build runs the frees engine entirely in this tab: the parser, unit
+  checker, Tarjan blocker and Newton solver are Rust compiled to WebAssembly.
+  Solve (F2) and Check need no server and work offline.
+
+  Not yet ported to the browser engine: COMPONENT / connect models, DYNAMIC
+  (ODE) blocks, fluid properties, TABLE / PARAMETRIC / PLOT / STATE blocks,
+  SYMBOLIC math, arrays, and the REPL / optimizer / curve-fit tools.
+  Documents that use them report an explicit error instead of solving. }
+
+{ ---- Inputs with unit-annotated literals (converted to SI at parse time) ---- }
+P_in   = 350 [kPa]        { feed pressure }
+T_in   = 25 [C]           { feed temperature — offset units convert exactly }
+D_pipe = 0.05 [m]         { pipe bore }
+v_flow = 2 [m/s]          { mean velocity }
+rho    = 998 [kg/m^3]     { water density }
+
+{ ---- A sequential chain: each line solves from the ones before ---- }
+A_pipe  = pi# * D_pipe ^ 2 / 4
+mdot    = rho * A_pipe * v_flow
+dP      = 35 [kPa]
+P_out   = P_in - dP
+{ variable names are case-insensitive: MDOT and V_FLOW are mdot and v_flow }
+KE_flux = MDOT * V_FLOW ^ 2 / 2
+
+{ ---- A nonlinear simultaneous pair: one Tarjan block, Newton iteration
+  with step-halving. GUESS seeds the iteration start point. ---- }
+GUESS x = 2
+GUESS y = 3
+x ^ 2 + y ^ 3 = 77
+x / y = 1.23456

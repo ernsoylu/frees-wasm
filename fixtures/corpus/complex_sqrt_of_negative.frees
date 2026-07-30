@@ -1,0 +1,4 @@
+{ sqrt of a negative argument in real (default) mode. In complex mode this is
+  4i; with the flag off the engine must do something definite, and both engines
+  must do the same thing. }
+m = sqrt(-16)

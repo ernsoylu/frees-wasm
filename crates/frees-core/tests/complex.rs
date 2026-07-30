@@ -208,3 +208,30 @@ fn real_mode_refuses_imaginary_documents() {
         "unexpected error: {err}"
     );
 }
+
+/// `ComplexExpansion.expand(equations, parsed.displayNames())` threads the
+/// display-name map through expansion, so `x_r` / `x_i` display as
+/// `<display of x>_r` / `_i` — the base variable's *first-seen spelling* plus
+/// the suffix, not the lowercase canonical name. Reached through the public
+/// `solve` entry point because that is where the engine wires the map in.
+#[test]
+fn complex_components_display_with_the_base_spelling() {
+    let settings = frees_core::SolverSettings {
+        complex_mode: true,
+        ..Default::default()
+    };
+    let solution = frees_core::solve("Zed = 3 + 4i\nWye = Zed * 2\n", &settings)
+        .unwrap_or_else(|e| panic!("expected a solve: {}", e.error.to_string_message()));
+
+    assert_eq!(solution.values["zed_r"], 3.0);
+    assert_eq!(solution.values["zed_i"], 4.0);
+    assert_eq!(solution.values["wye_r"], 6.0);
+    assert_eq!(solution.values["wye_i"], 8.0);
+
+    assert_eq!(solution.display_names["zed_r"], "Zed_r");
+    assert_eq!(solution.display_names["zed_i"], "Zed_i");
+    assert_eq!(solution.display_names["wye_r"], "Wye_r");
+    assert_eq!(solution.display_names["wye_i"], "Wye_i");
+    // The unsuffixed base keeps its own entry, as in the Java map.
+    assert_eq!(solution.display_names["zed"], "Zed");
+}

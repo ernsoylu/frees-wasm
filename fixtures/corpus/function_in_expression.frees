@@ -1,0 +1,7 @@
+{ A FUNCTION called twice inside one expression: 4^2 + 3^2 = 25.
+  Java ProceduralFeaturesTest.functionUsedInExpression. }
+FUNCTION Square(x)
+  Square := x * x
+END
+
+z = Square(4) + Square(3)

@@ -1,0 +1,19 @@
+{
+  "name": "function_in_expression",
+  "source": "{ A FUNCTION called twice inside one expression: 4^2 + 3^2 = 25.\n  Java ProceduralFeaturesTest.functionUsedInExpression. }\nFUNCTION Square(x)\n  Square := x * x\nEND\n\nz = Square(4) + Square(3)\n",
+  "expect": {
+    "variables": {
+      "z": 25.0
+    },
+    "display_names": {
+      "x": "x",
+      "z": "z"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

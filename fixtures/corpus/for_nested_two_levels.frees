@@ -1,0 +1,7 @@
+{ Nested FOR loops writing a 2-D array. }
+FOR i = 1 TO 2
+  FOR j = 1 TO 2
+    M[i,j] = 10*i + j
+  END
+END
+s = M[1,1] + M[1,2] + M[2,1] + M[2,2]

@@ -1,0 +1,8 @@
+{ A TABLE family: one x column, one curve per parameter value. At t = 150 the
+  two curves blend, so re = 5 gives (5 + 15)/2 = 10.
+  Java CodeTableTest.twoDimensionalCurveFamilyInterpolates. }
+TABLE htc(re : t = 100, 200)
+  0    0    0
+  10   10   30
+END
+U = htc(5, 150)

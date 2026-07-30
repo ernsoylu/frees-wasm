@@ -1,0 +1,9 @@
+{ Intrinsics at their domain edges. }
+a = arcsin(1)
+b = arccos(-1)
+c = ln(1)
+d = exp(0)
+e = tanh(0)
+f = sign(-3)
+g = trunc(-2.7)
+h = round(2.5)

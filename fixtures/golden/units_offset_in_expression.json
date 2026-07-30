@@ -1,0 +1,22 @@
+{
+  "name": "units_offset_in_expression",
+  "source": "{ Celsius has an offset; the difference of two Celsius literals is a delta. }\nT1 = 100 [C]\nT2 = 0 [C]\ndT = T1 - T2\n",
+  "expect": {
+    "variables": {
+      "T1": 373.15,
+      "T2": 273.15,
+      "dT": 100.0
+    },
+    "display_names": {
+      "dt": "dT",
+      "t1": "T1",
+      "t2": "T2"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

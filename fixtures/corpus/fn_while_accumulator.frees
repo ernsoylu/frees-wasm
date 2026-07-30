@@ -1,0 +1,12 @@
+{ WHILE ... DO with an accumulator; the loop must terminate. }
+FUNCTION SumTo(n)
+  i := 0
+  s := 0
+  WHILE i < n DO
+    i := i + 1
+    s := s + i
+  END
+  SumTo := s
+END
+
+y = SumTo(10)

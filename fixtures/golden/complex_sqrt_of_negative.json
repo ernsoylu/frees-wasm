@@ -1,0 +1,17 @@
+{
+  "name": "complex_sqrt_of_negative",
+  "source": "{ sqrt of a negative argument in real (default) mode. In complex mode this is\n  4i; with the flag off the engine must do something definite, and both engines\n  must do the same thing. }\nm = sqrt(-16)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 0 (residual NaN). Try different guess values."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

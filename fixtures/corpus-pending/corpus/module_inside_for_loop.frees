@@ -1,0 +1,9 @@
+{ CALL of a MODULE inside a FOR loop: Java instantiates one namespace per
+  iteration. The wasm port refuses this. }
+MODULE Twice(x : y)
+  y = 2 * x
+END
+
+FOR i = 1 TO 2
+  CALL Twice(i : r[i])
+END

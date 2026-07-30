@@ -1,0 +1,6 @@
+{ A TABLE lookup inside the integrand. }
+TABLE f(x)
+  0   0
+  4   8
+END
+A = Integral(f(s), s, 0, 4)

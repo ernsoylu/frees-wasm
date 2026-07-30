@@ -1,0 +1,12 @@
+// Engine Map - 2-D Interpolation
+{ A brake-specific fuel consumption map: rows are engine speed,
+  columns are load. Call the table with two arguments to bilinearly
+  interpolate, bsfc(rpm, load), or use the classic-solver-style Interpolate2D. }
+TABLE bsfc(rpm : load = 0.25, 0.5, 1.0)
+  1000   320   300   290
+  3000   280   260   250
+  5000   300   270   255
+END
+
+g_per_kWh = bsfc(2500, 0.6)                  { direct curve-family call }
+g_check   = Interpolate2D('bsfc', 2500, 0.6) { same value, classic-solver name }

@@ -1,0 +1,5 @@
+{ The short aliases inv() and det() alongside the long spellings.
+  Java solvesMatlabInvDetAliases: C[1,1] = 0.25, d = 20. }
+A = [4 0; 0 5]
+C = inv(A)
+d = det(A)

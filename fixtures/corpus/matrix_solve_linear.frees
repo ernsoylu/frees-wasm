@@ -1,0 +1,6 @@
+{ Array-language-style bare matrix creation + SolveLinear, mirroring the Java
+  EquationSystemSolverTest.solvesMatlabStyleBareNameMatrix. Element names are
+  1-based: x[1], x[2]. }
+A = [2 0; 0 4]
+b = [6; 8]
+x = SolveLinear(A, b)

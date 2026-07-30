@@ -1,0 +1,22 @@
+{
+  "name": "units_display_name_leak",
+  "source": "{ Minimal repro distilled from the brayton-cycle example: the `K` inside the\n  unit annotation [J/kg-K] must NOT register a display name for the variable k.\n  Java records k -> \"k\" (from the equation on line 2); an engine that lets unit\n  tokens enter the display-name table wins the first-seen race with \"K\". }\ncp = 1004 [J/kg-K]\nk = 1.4\nq = cp * k\n",
+  "expect": {
+    "variables": {
+      "cp": 1004.0,
+      "k": 1.4,
+      "q": 1405.6
+    },
+    "display_names": {
+      "cp": "cp",
+      "k": "k",
+      "q": "q"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

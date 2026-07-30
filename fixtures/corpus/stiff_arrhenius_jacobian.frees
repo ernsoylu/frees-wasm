@@ -1,0 +1,14 @@
+{ A stiff 2x2 block that stresses the Jacobian. The Arrhenius factor
+  exp(-Ea/(R#*T)) varies by orders of magnitude over the Newton path, so the
+  entry dQ/dT is enormous next to dQ/dk = 1 - exactly the badly scaled case
+  where a finite-difference Jacobian and an analytic one can disagree.
+  A CSTR energy balance closes the loop: heat released = heat removed. }
+GUESS T = 350
+GUESS k = 1
+Ea = 72000
+A_pre = 1.2e10
+dHr = 180000
+UA = 2200
+T_cool = 300
+k = A_pre * exp(-Ea / (R# * T))
+UA * (T - T_cool) = dHr * k

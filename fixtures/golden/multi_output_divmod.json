@@ -1,0 +1,23 @@
+{
+  "name": "multi_output_divmod",
+  "source": "{ Multi-output FUNCTION consumed by destructuring assignment.\n  Java ProceduralFeaturesTest.multiOutputFunctionBasic: whole = 3, rem = 2. }\nFUNCTION [q, r] = DivMod(a, b)\n  q := trunc(a / b)\n  r := a - q * b\nEND\n\n[whole, rem] = DivMod(17, 5)\n",
+  "expect": {
+    "variables": {
+      "rem": 2.0,
+      "whole": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "q": "q",
+      "rem": "rem",
+      "whole": "whole"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

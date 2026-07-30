@@ -1,0 +1,45 @@
+{
+  "name": "heisler-transient",
+  "source": "// Transient Conduction (Heisler)\n{ A thick plate, initially at Ti, is suddenly exposed to convection.\n  When the Biot number is large, internal gradients matter and lumped\n  capacitance fails — frees gives the one-term (Heisler) solution.\n  Geometry is set once as a string variable: 'wall', 'cylinder' or\n  'sphere'. theta* = (T - Tinf)/(Ti - Tinf). }\ngeom$ = 'wall'\n\nh = 100 [W/m^2-K]        { convection coefficient }\nk = 0.6 [W/m-K]          { plate conductivity }\nalpha = 0.15e-6 [m^2/s]  { thermal diffusivity }\nL = 0.02 [m]             { half-thickness }\nt = 600 [s]              { elapsed time }\nTi = 200 [C]             { initial temperature }\nTinf = 25 [C]            { fluid temperature }\n\nBi = h * L / k\nFo = alpha * t / L^2\n\ntheta_c = heisler_temp(geom$, Bi, Fo, 0)   { centre, x* = 0 }\ntheta_s = heisler_temp(geom$, Bi, Fo, 1)   { surface, x* = 1 }\nT_centre = Tinf + theta_c * (Ti - Tinf)\nT_surface = Tinf + theta_s * (Ti - Tinf)\nQ_ratio = heisler_q(geom$, Bi, Fo)         { fraction of heat removed }\n",
+  "expect": {
+    "variables": {
+      "Bi": 3.3333333333333335,
+      "Fo": 0.22499999999999998,
+      "L": 0.02,
+      "Q_ratio": 0.32952524994160104,
+      "T_centre": 450.576089441665,
+      "T_surface": 350.53744609871654,
+      "Ti": 473.15,
+      "Tinf": 298.15,
+      "alpha": 1.5E-7,
+      "h": 100.0,
+      "k": 0.6,
+      "t": 600.0,
+      "theta_c": 0.8710062253809431,
+      "theta_s": 0.29935683484980896
+    },
+    "display_names": {
+      "alpha": "alpha",
+      "bi": "Bi",
+      "fo": "Fo",
+      "geom$": "geom$",
+      "h": "h",
+      "k": "k",
+      "l": "L",
+      "q_ratio": "Q_ratio",
+      "t": "t",
+      "t_centre": "T_centre",
+      "t_surface": "T_surface",
+      "theta_c": "theta_c",
+      "theta_s": "theta_s",
+      "ti": "Ti",
+      "tinf": "Tinf"
+    },
+    "block_count": 14,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,4 @@
+{ Cross product of two 3-vectors. }
+u = [1; 0; 0]
+v = [0; 1; 0]
+w = cross(u, v)

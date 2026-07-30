@@ -1,0 +1,20 @@
+{
+  "name": "int_table_integrand",
+  "source": "{ A TABLE lookup inside the integrand. }\nTABLE f(x)\n  0   0\n  4   8\nEND\nA = Integral(f(s), s, 0, 4)\n",
+  "expect": {
+    "variables": {
+      "A": 15.999999999998721,
+      "s": 4.0
+    },
+    "display_names": {
+      "a": "A",
+      "s": "s"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

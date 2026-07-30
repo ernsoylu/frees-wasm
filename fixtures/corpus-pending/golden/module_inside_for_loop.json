@@ -1,0 +1,32 @@
+{
+  "name": "module_inside_for_loop",
+  "source": "{ CALL of a MODULE inside a FOR loop: Java instantiates one namespace per\n  iteration. The wasm port refuses this. }\nMODULE Twice(x : y)\n  y = 2 * x\nEND\n\nFOR i = 1 TO 2\n  CALL Twice(i : r[i])\nEND\n",
+  "expect": {
+    "variables": {
+      "r[1]": 2.0,
+      "r[2]": 4.0,
+      "twice$1$x": 1.0,
+      "twice$1$y": 2.0,
+      "twice$2$x": 2.0,
+      "twice$2$y": 4.0
+    },
+    "display_names": {
+      "i": "i",
+      "r": "r",
+      "r[1]": "r[1]",
+      "r[2]": "r[2]",
+      "twice$1$x": "twice$1$x",
+      "twice$1$y": "twice$1$y",
+      "twice$2$x": "twice$2$x",
+      "twice$2$y": "twice$2$y",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 6,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

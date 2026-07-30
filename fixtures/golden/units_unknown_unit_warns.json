@@ -1,0 +1,20 @@
+{
+  "name": "units_unknown_unit_warns",
+  "source": "{ An unrecognised unit must warn, never fail the parse. }\nq = 5 [zorkmids]\nr = q * 2\n",
+  "expect": {
+    "variables": {
+      "q": 5.0,
+      "r": 10.0
+    },
+    "display_names": {
+      "q": "q",
+      "r": "r"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

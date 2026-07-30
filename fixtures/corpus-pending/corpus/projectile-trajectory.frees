@@ -1,0 +1,26 @@
+// Projectile Trajectory (parametric time sweep)
+{ The whole flight path, sampled in time. This uses a PARAMETRIC
+  table, so do NOT use the main Solve — open the Tables tab and
+  click "Solve Table". The base system is underspecified by one on
+  purpose: t is the swept column the table fills in.
+
+  Variables listed in the header with no range (time, x, y, vx, vy,
+  v) become solved OUTPUT columns. Afterward, chart y vs x (the arc)
+  or y vs time in the Plots tab. }
+g  = 9.81 [m/s^2]
+v0 = 20 [m/s]
+theta = 35 * pi# / 180
+
+vx0 = v0 * cos(theta)
+vy0 = v0 * sin(theta)
+
+time = t * 1 [s]                 { give the swept index t units of seconds }
+x  = vx0 * time                 { horizontal position }
+y  = vy0 * time - 0.5*g*time^2  { vertical position }
+vx = vx0                        { dx/dt }
+vy = vy0 - g*time               { dy/dt }
+v  = sqrt(vx^2 + vy^2)          { speed }
+
+PARAMETRIC trajectory (t, time, x, y, vx, vy, v)
+  t = 0:0.05:4
+END

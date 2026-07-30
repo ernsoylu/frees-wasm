@@ -1,0 +1,20 @@
+{
+  "name": "table_xlog_extrapolate_clamp",
+  "source": "{ XLOG table queried below its first x and above its last: clamp, not\n  log-space extrapolation. }\nTABLE cd(re) XLOG\n  1      0\n  100    10\nEND\nlo = cd(0.01)\nhi = cd(10000)\n",
+  "expect": {
+    "variables": {
+      "hi": 10.0,
+      "lo": 0.0
+    },
+    "display_names": {
+      "hi": "hi",
+      "lo": "lo"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

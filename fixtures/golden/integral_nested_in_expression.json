@@ -1,0 +1,21 @@
+{
+  "name": "integral_nested_in_expression",
+  "source": "{ An Integral nested inside a larger expression is hoisted into a synthetic\n  alone-form equation. Java IntegralTest.solvesIntegralNestedInExpression: F = 1. }\nF = 2*Integral(t, t, 0, 1)\n",
+  "expect": {
+    "variables": {
+      "F": 0.9999999999999202,
+      "integral_1": 0.4999999999999601,
+      "t": 1.0
+    },
+    "display_names": {
+      "f": "F",
+      "t": "t"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

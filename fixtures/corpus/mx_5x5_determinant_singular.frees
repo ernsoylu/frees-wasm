@@ -1,0 +1,3 @@
+{ A singular 5x5: LU must return 0, not NaN. }
+A = [1 1 1 1 1; 1 1 1 1 1; 0 0 1 0 0; 0 0 0 1 0; 0 0 0 0 1]
+d = det(A)

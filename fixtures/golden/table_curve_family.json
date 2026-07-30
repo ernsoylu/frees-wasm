@@ -1,0 +1,18 @@
+{
+  "name": "table_curve_family",
+  "source": "{ A TABLE family: one x column, one curve per parameter value. At t = 150 the\n  two curves blend, so re = 5 gives (5 + 15)/2 = 10.\n  Java CodeTableTest.twoDimensionalCurveFamilyInterpolates. }\nTABLE htc(re : t = 100, 200)\n  0    0    0\n  10   10   30\nEND\nU = htc(5, 150)\n",
+  "expect": {
+    "variables": {
+      "U": 10.0
+    },
+    "display_names": {
+      "u": "U"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

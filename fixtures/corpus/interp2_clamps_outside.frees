@@ -1,0 +1,6 @@
+{ Out-of-grid queries clamp to the boundary corner.
+  Java Interp2Test.clampsOutside: zq = 3. }
+x = [0, 1]
+y = [0, 1]
+Z = [0, 1; 2, 3]
+CALL Interp2(x, y, Z, 5, 5 : zq)

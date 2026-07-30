@@ -1,0 +1,18 @@
+{
+  "name": "table_duplicate_x",
+  "source": "{ Two rows share an x value: a zero-width interval. }\nTABLE d(x)\n  1   10\n  1   20\n  2   30\nEND\ny = d(1)\n",
+  "expect": {
+    "variables": {
+      "y": 10.0
+    },
+    "display_names": {
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

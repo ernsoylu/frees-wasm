@@ -1,0 +1,22 @@
+{
+  "name": "radiation-view-factors",
+  "source": "// Radiation View Factors\n{ Analytic (Howell-catalog) diffuse view factors — no chart lookup\n  needed. Each returns the dimensionless fraction of radiation that\n  leaves surface 1 and reaches surface 2. }\nF_perp = viewfactor_perp(1 [m], 1 [m], 1 [m])       { perpendicular plates sharing an edge }\nF_par  = viewfactor_plates(2 [m], 2 [m], 1 [m])     { aligned parallel rectangles }\nF_disk = viewfactor_disks(0.5 [m], 1 [m], 0.4 [m])  { coaxial parallel disks }\n",
+  "expect": {
+    "variables": {
+      "F_disk": 0.8319356147247143,
+      "F_par": 0.4152532835771469,
+      "F_perp": 0.20004377607540316
+    },
+    "display_names": {
+      "f_disk": "F_disk",
+      "f_par": "F_par",
+      "f_perp": "F_perp"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,15 @@
+// Air-Standard Otto Cycle
+{ Spark-ignition engine, cold air-standard. }
+k = 1.4
+r = 8                    { compression ratio }
+T1 = 300 [K]
+q_in = 1800000 [J/kg]    { heat added per unit mass }
+cv = 718 [J/kg-K]
+
+T2 = T1 * r^(k - 1)      { isentropic compression }
+T3 = T2 + q_in / cv      { constant-volume heat addition }
+T4 = T3 / r^(k - 1)      { isentropic expansion }
+q_out = cv * (T4 - T1)
+w_net = q_in - q_out
+eta_th = w_net / q_in
+eta_ideal = 1 - 1 / r^(k - 1)   { closed-form air-standard efficiency }

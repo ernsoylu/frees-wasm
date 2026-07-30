@@ -1,0 +1,13 @@
+{ A FOR loop that fills an array from a recursive FUNCTION.
+  Java ProceduralFeaturesTest.milestone3FactorialAndArrays: f[1..5] = 1,2,6,24,120. }
+FUNCTION Factorial(n)
+  IF n <= 1 THEN
+    Factorial := 1
+  ELSE
+    Factorial := n * Factorial(n-1)
+  END
+END
+
+FOR i = 1 TO 5
+  f[i] = Factorial(i)
+END

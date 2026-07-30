@@ -1,0 +1,4 @@
+{ The integrand may be a variable defined by its own equation.
+  Java IntegralTest.integratesSine: Q = 2. }
+f = sin(t)
+Q = Integral(f, t, 0, 3.141592653589793)

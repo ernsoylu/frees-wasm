@@ -1,22 +1,23 @@
 // Module worker hosting the frees WASM engine off the UI thread.
 //
 // Protocol (see engineClient.ts, the only sender):
-//   request  {id, method: 'solve' | 'check' | 'version', args: string[]}
+//   request  {id, method: 'solve' | 'check' | 'reference' | 'version', args: string[]}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
 // `result` is the raw JSON string the wasm boundary emits (a REST-shaped
-// SolveResponse/CheckResponse; a bare semver string for 'version') — parsing
-// happens on the client side, so the worker only ever posts strings.
+// SolveResponse/CheckResponse/LanguageReference; a bare semver string for
+// 'version') — parsing happens on the client side, so the worker only ever
+// posts strings.
 //
 // Failure discipline: nothing may kill the worker. The wasm boundary already
 // returns every *document* problem as data; this dispatch wraps the rest
 // (init failure, unknown method, an unexpected trap) in {ok: false}.
 
-import init, { check, solve, version } from './pkg/frees_wasm.js'
+import init, { check, reference, solve, version } from './pkg/frees_wasm.js'
 
 export interface EngineRequest {
   id: number
-  method: 'solve' | 'check' | 'version'
+  method: 'solve' | 'check' | 'reference' | 'version'
   args: string[]
 }
 
@@ -50,6 +51,9 @@ ctx.onmessage = async (event: MessageEvent<EngineRequest>) => {
         break
       case 'check':
         result = check(args[0] ?? '', args[1] ?? '')
+        break
+      case 'reference':
+        result = reference()
         break
       case 'version':
         result = version()

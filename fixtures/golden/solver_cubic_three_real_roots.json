@@ -1,0 +1,18 @@
+{
+  "name": "solver_cubic_three_real_roots",
+  "source": "{ A cubic with three real roots; the guess picks the branch. }\nGUESS r = 2.5\nr^3 - 6*r^2 + 11*r - 6 = 0\n",
+  "expect": {
+    "variables": {
+      "r": 1.0
+    },
+    "display_names": {
+      "r": "r"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

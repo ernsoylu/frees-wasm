@@ -1,0 +1,20 @@
+{
+  "name": "int_lower_equals_upper",
+  "source": "{ Degenerate limits short-circuit to zero before the kernel runs. }\nZ = Integral(1/w, w, 2, 2)\n",
+  "expect": {
+    "variables": {
+      "Z": 0.0,
+      "w": 2.0
+    },
+    "display_names": {
+      "w": "w",
+      "z": "Z"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

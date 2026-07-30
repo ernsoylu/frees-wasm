@@ -1,0 +1,4 @@
+{ Inverse of a diagonal matrix by bare name; element naming is C[i,j].
+  Java EquationSystemSolverTest.solvesMatlabStyleBareNameInverseAndMatVec. }
+A = [4 0; 0 5]
+C = Inverse(A)

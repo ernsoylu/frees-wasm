@@ -1,0 +1,17 @@
+{
+  "name": "driving-cycle-energy",
+  "source": "// Driving-Cycle Energy\n{ Tractive power over a speed profile, integrated to total energy.\n  This uses a PARAMETRIC table, so do NOT use the main Solve — open\n  the Tables tab and click \"Solve Table\". E_total and P_avg are\n  whole-table aggregates (the same in every row), computed by the\n  parametric accessor pass. }\nm = 1500 [kg]\nCrr = 0.012\ng = 9.81 [m/s^2]\nrho_air = 1.2 [kg/m^3]\nCd = 0.30\nAf = 2.2 [m^2]\n\nv = t * 1 [m/s]                       { swept speed }\nF_roll = Crr * m * g\nF_aero = 0.5 * rho_air * Cd * Af * v^2\nP = (F_roll + F_aero) * v             { instantaneous tractive power }\n\nE_total = IntegralValue('P', 't')     { trapezoid integral over the cycle }\nP_avg = TableAvg('P')                 { mean power across the runs }\n\nPARAMETRIC drive (t, v, P)\n  t = 0:2:30\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 12 equations and 13 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): v. Coupled to: f_aero, p, t. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

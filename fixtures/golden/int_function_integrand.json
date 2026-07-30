@@ -1,0 +1,21 @@
+{
+  "name": "int_function_integrand",
+  "source": "{ A user FUNCTION inside the integrand must resolve through the defs map. }\nFUNCTION Sq(u)\n  Sq := u * u\nEND\n\nA = Integral(Sq(t), t, 0, 3)\n",
+  "expect": {
+    "variables": {
+      "A": 9.00000007211071,
+      "t": 3.0
+    },
+    "display_names": {
+      "a": "A",
+      "t": "t",
+      "u": "u"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

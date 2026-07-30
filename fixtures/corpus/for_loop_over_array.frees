@@ -1,0 +1,5 @@
+{ A FOR loop writing an array; element display names come from the loop. }
+FOR i = 1 TO 4
+  Sq[i] = i * i
+END
+t = Sq[1] + Sq[2] + Sq[3] + Sq[4]

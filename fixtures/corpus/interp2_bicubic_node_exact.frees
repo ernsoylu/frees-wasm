@@ -1,0 +1,6 @@
+{ A 5x5 grid takes the bicubic path; a query on a node reproduces the grid.
+  Java Interp2Test.bicubicNodeExact: zq = 2^2 + 3^2 = 13. }
+x = [0, 1, 2, 3, 4]
+y = [0, 1, 2, 3, 4]
+Z = [0, 1, 4, 9, 16; 1, 2, 5, 10, 17; 4, 5, 8, 13, 20; 9, 10, 13, 18, 25; 16, 17, 20, 25, 32]
+CALL Interp2(x, y, Z, 2, 3 : zq)

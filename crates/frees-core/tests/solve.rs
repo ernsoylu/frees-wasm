@@ -781,9 +781,10 @@ fn display_names_keep_the_first_seen_spelling() {
     );
 }
 
-/// The map covers exactly the result variables: no function names (`sqrt`),
-/// no built-in constants (`pi#`), no unit spellings from `[...]` annotations —
-/// the golden fixtures record none of those.
+/// The map admits only identifiers the Java `AstBuilder` turns into an
+/// `Expr.Var` / `Expr.ArrayAccess`: no called function names (`sqrt`), no
+/// built-in constants (`pi#`), no unit spellings from `[...]` annotations.
+/// For a document with no bodies or arrays that is exactly the result set.
 #[test]
 fn display_names_cover_exactly_the_result_variables() {
     let solution = solved("A = sqrt(16)\nB = 2 * pi#\nP = 140 [kPa]\n");
@@ -816,6 +817,78 @@ fn check_reports_display_names_too() {
 fn display_names_keep_sigils_and_underscores_as_written() {
     let solution = solved("UA_chl_R = 5\n");
     assert_eq!(solution.display_names["ua_chl_r"], "UA_chl_R");
+}
+
+/// A unit spelling must never claim a display name. `[J/kg-K]` lexes as
+/// ordinary `Ident` tokens, so a scan of the token stream binds `k -> "K"` and
+/// beats the later `k = 1.4` on first-seen — which is exactly the bug the
+/// `units_display_name_leak` fixture was distilled from. The Java records
+/// `k -> "k"` because `AstBuilder` only registers *variable* atoms.
+#[test]
+fn a_unit_spelling_never_claims_a_display_name() {
+    let solution = solved("cp = 1004 [J/kg-K]\nk = 1.4\nq = cp * k\n");
+    assert_eq!(solution.display_names["k"], "k");
+}
+
+/// Same rule for a TABLE column header: `TABLE htc(re)` declares a column, not
+/// a variable, so a later `Re = 2000` keeps its own spelling
+/// (`table_in_newton_block`).
+#[test]
+fn a_table_column_header_never_claims_a_display_name() {
+    let solution = solved("TABLE htc(re)\n  1000   50\n  2000   80\nEND\nRe = 2000\nU = htc(Re)\n");
+    assert_eq!(solution.display_names["re"], "Re");
+    assert_eq!(solution.display_names["u"], "U");
+    assert!(
+        !solution.display_names.contains_key("htc"),
+        "the TABLE's own name is not a variable: {:?}",
+        solution.display_names
+    );
+}
+
+/// The map is the *whole* `ParseResult.displayNames`, not a view filtered to
+/// the result rows: a FUNCTION formal that never survives as a solver variable
+/// still has an entry, because the body's `n * Factorial(n-1)` is a variable
+/// atom. `Factorial` itself does not — a `:=` target and a called name are
+/// neither `visitVarAtom` nor `visitArrayAtom`.
+#[test]
+fn display_names_include_function_body_locals_and_formals() {
+    let solution = solved(
+        "FUNCTION Factorial(n)\n  IF n <= 1 THEN\n    Factorial := 1\n  ELSE\n    \
+         Factorial := n * Factorial(n-1)\n  END\nEND\n\ny = Factorial(5)\n",
+    );
+    assert_eq!(solution.values["y"], 120.0);
+    assert_eq!(
+        solution
+            .display_names
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("n", "n"), ("y", "y")]
+    );
+}
+
+/// An expanded element inherits the *base* name's spelling and appends its own
+/// subscript (`EquationParser` does `getOrDefault(base, base) + "[i,j]"`), and
+/// the bare container keeps an entry of its own.
+#[test]
+fn display_names_carry_matrix_element_casing_and_the_container() {
+    let solution = solved("Amat = [2 0; 0 4]\nb = Amat[2,2]\n");
+    assert_eq!(solution.display_names["amat"], "Amat");
+    assert_eq!(solution.display_names["amat[1,1]"], "Amat[1,1]");
+    assert_eq!(solution.display_names["amat[2,2]"], "Amat[2,2]");
+}
+
+/// A MODULE's namespaced variables display as themselves, and the instance
+/// number is 1-based per CALL (`flattenModuleCall`'s `putIfAbsent(ns, ns)`).
+#[test]
+fn display_names_include_module_namespaced_variables() {
+    let solution = solved("MODULE Add1(x : y)\n  y = x + 1\nEND\n\nCALL Add1(5 : a)\n");
+    assert_eq!(solution.values["a"], 6.0);
+    assert_eq!(solution.display_names["add1$1$x"], "add1$1$x");
+    assert_eq!(solution.display_names["add1$1$y"], "add1$1$y");
+    // The MODULE's own name is not a variable; its body's are.
+    assert!(!solution.display_names.contains_key("add1"));
+    assert_eq!(solution.display_names["x"], "x");
 }
 
 // ---------------------------------------------------------------------------

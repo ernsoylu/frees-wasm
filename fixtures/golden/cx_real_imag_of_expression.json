@@ -1,0 +1,24 @@
+{
+  "name": "cx_real_imag_of_expression",
+  "source": "{ Real/Imag projections of an expression built from real inputs. }\na = 3\nb = 4\nm = sqrt(a^2 + b^2)\np = arctan(b / a)\n",
+  "expect": {
+    "variables": {
+      "a": 3.0,
+      "b": 4.0,
+      "m": 5.0,
+      "p": 0.9272952180016122
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "m": "m",
+      "p": "p"
+    },
+    "block_count": 4,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

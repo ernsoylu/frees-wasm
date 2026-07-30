@@ -1,0 +1,6 @@
+{ The four elementwise operators over 1x2 vectors. }
+a = [2, 8]
+b = [4, 2]
+m = a .* b
+d = a ./ b
+p = a .^ b

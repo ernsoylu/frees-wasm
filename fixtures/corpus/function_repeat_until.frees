@@ -1,0 +1,13 @@
+{ REPEAT ... UNTIL inside a FUNCTION body. Sum 1..10 = 55.
+  Java ProceduralFeaturesTest.functionRepeatUntil. }
+FUNCTION SumN(n)
+  i := 1
+  s := 0
+  REPEAT
+    s := s + i
+    i := i + 1
+  UNTIL i > n
+  SumN := s
+END
+
+result = SumN(10)

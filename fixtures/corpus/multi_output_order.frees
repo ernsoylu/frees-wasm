@@ -1,0 +1,13 @@
+{ A multi-output FUNCTION whose branches assign both outputs.
+  Java multiOutputFunctionWithConditional: small = 3, large = 8. }
+FUNCTION [lo, hi] = Order(a, b)
+  IF a < b THEN
+    lo := a
+    hi := b
+  ELSE
+    lo := b
+    hi := a
+  END
+END
+
+[small, large] = Order(8, 3)

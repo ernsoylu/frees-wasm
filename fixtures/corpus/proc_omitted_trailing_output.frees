@@ -1,0 +1,7 @@
+{ A trailing output omitted entirely. }
+PROCEDURE Two(a : p, q)
+  p := a
+  q := a * 10
+END
+
+CALL Two(3 : first)

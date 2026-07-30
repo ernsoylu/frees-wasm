@@ -1,0 +1,25 @@
+{
+  "name": "proc_three_outputs",
+  "source": "{ A PROCEDURE with three outputs: each is a separate proc$name$k call. }\nPROCEDURE Stats(a, b, c : mn, mx, av)\n  mn := min(a, min(b, c))\n  mx := max(a, max(b, c))\n  av := (a + b + c) / 3\nEND\n\nCALL Stats(4, 1, 7 : lo, hi, mean)\n",
+  "expect": {
+    "variables": {
+      "hi": 7.0,
+      "lo": 1.0,
+      "mean": 4.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "hi": "hi",
+      "lo": "lo",
+      "mean": "mean"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,3 @@
+{ An explicit point count selects the rule order.
+  Java GaussQuadratureTest.exponentialIntegralWithPointCount: y = e - 1. }
+y = GaussIntegral(exp(x), x, 0, 1, 7)

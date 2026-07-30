@@ -18,6 +18,8 @@ pub mod expr;
 pub mod latex;
 pub mod toplevel;
 
+use std::collections::BTreeMap;
+
 use crate::ast::Statement;
 use crate::diag::{Diagnostic, FreesError, Result, Span};
 use crate::token::{Token, TokenKind};
@@ -51,6 +53,19 @@ pub struct Document {
     /// `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE` definitions, in
     /// declaration order.
     pub defs: defs::Definitions,
+    /// Lowercase canonical name → the spelling of its **first appearance as a
+    /// variable**, exactly as the Java `AstBuilder` accumulates
+    /// `ParseResult.displayNames`.
+    ///
+    /// Registered at two sites only, mirroring `AstBuilder.visitVarAtom` and
+    /// `AstBuilder.visitArrayAtom`: a bare identifier atom that is not a
+    /// built-in `#` constant, and the base name of an array access. Identifiers
+    /// the Java visitor never turns into an `Expr.Var` — unit spellings inside
+    /// `[…]`, called function names, `FUNCTION`/`TABLE` headers and their
+    /// formal parameters, dotted member paths (`visitMemberAtom` does *not*
+    /// register) — are deliberately absent, which is why a `[J/kg-K]` cannot
+    /// steal the display name of a later `k`.
+    pub display_names: BTreeMap<String, String>,
 }
 
 impl Document {
@@ -81,6 +96,10 @@ pub struct Cursor<'a> {
     tokens: &'a [Token],
     pos: usize,
     source: &'a str,
+    /// Accumulates [`Document::display_names`] as the atoms are parsed — the
+    /// port of the `AstBuilder`'s own `displayNames` field. First spelling
+    /// wins (`putIfAbsent`).
+    display_names: BTreeMap<String, String>,
 }
 
 impl<'a> Cursor<'a> {
@@ -89,7 +108,27 @@ impl<'a> Cursor<'a> {
             tokens,
             pos: 0,
             source,
+            display_names: BTreeMap::new(),
         }
+    }
+
+    /// `displayNames.putIfAbsent(name.toLowerCase(), name)` — the Java
+    /// `AstBuilder` registration. Call it only where the Java visitor builds an
+    /// `Expr.Var` / `Expr.ArrayAccess` from a user identifier.
+    ///
+    /// A speculative parse that is later rewound may have registered a name
+    /// early. That is harmless: rewinding only ever re-parses the *same*
+    /// tokens, so the re-parse re-registers the identical spelling and
+    /// first-wins makes the second attempt a no-op.
+    pub fn record_display_name(&mut self, original: &str) {
+        self.display_names
+            .entry(original.to_ascii_lowercase())
+            .or_insert_with(|| original.to_string());
+    }
+
+    /// The accumulated map, consumed at the end of `parse_document`.
+    pub fn take_display_names(&mut self) -> BTreeMap<String, String> {
+        std::mem::take(&mut self.display_names)
     }
 
     /// The original document text, for slicing `source_text` onto equations.

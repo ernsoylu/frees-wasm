@@ -1,0 +1,9 @@
+// Real-Gas Properties from a Cubic EOS (Peng-Robinson)
+{ A CoolProp-independent SRK/PR backend. CO2 at 6 MPa, 320 K. }
+T = 320 [K]
+P = 6000000 [Pa]
+Z = eos_z('co2', 'PR', T, P, 'vapor')          { compressibility factor }
+rho = eos_density('co2', 'PR', T, P, 'vapor')
+v = eos_volume('co2', 'PR', T, P, 'vapor')
+h = eos_enthalpy('co2', 'PR', T, P, 'vapor')
+Psat_300 = eos_psat('co2', 'PR', 300)          { saturation pressure at 300 K }

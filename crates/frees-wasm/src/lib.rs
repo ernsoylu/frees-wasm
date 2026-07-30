@@ -26,6 +26,7 @@
 use std::collections::BTreeMap;
 
 use frees_core::engine::{CheckReport, Solution};
+use frees_core::eval::Intrinsic;
 use frees_core::units::registry::{UnitRegistry, UnitSystem};
 use frees_core::{FreesError, SolverSettings, VariableOverride};
 use serde::Deserialize;
@@ -447,7 +448,7 @@ fn solve_failure(
                 .collect();
             let stats = json!({
                 "equations": partial.residuals.len(),
-                "unknowns": partial.display_names.len(),
+                "unknowns": partial.unknown_count,
                 "blocks": partial.blocks.len(),
                 "iterations": partial.stats.iterations,
                 "elapsedMillis": elapsed_ms.max(0.0).round() as u64,
@@ -555,13 +556,139 @@ fn check_failure(message: String) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/reference
+// ---------------------------------------------------------------------------
+
+/// The Help window's language reference, read live from the engine's own
+/// tables so it can never drift from what the solver accepts.
+///
+/// Wire shape is the Java `ReferenceController.reference()` map, key for key:
+///
+/// ```json
+/// {"units":     [{"symbol": "kPa", "dimension": "Pa", "siFactor": 1000.0}],
+///  "constants": [{"name": "R#", "value": 8.314, "unit": "J/mol-K",
+///                 "description": "Universal (molar) gas constant"}],
+///  "functions": [{"name": "atan2", "signature": "atan2(a, b)",
+///                 "description": "", "category": "Built-in"}]}
+/// ```
+///
+/// Sources: [`UnitRegistry::all_units`] (sorted by dimension then symbol, as
+/// `UnitRegistry.listUnits()`), `eval::CONSTANTS` (declaration order, as
+/// `ConstantsRegistry.list()`), and `eval::INTRINSICS` (sorted by name).
+///
+/// One field the Java has and this does not: `FunctionRegistry.FunctionInfo`
+/// hand-writes a `description` and a `category` per function, and the Rust
+/// dispatch table carries neither — its rows are `(name, arity, body)`. Rather
+/// than invent prose, `description` is empty and `category` is the one label
+/// the table genuinely supports. `signature` is generated from the arity, so
+/// the argument *count* is real even though the argument *names* are
+/// positional placeholders.
+#[wasm_bindgen]
+pub fn reference() -> String {
+    json!({
+        "units": reference_units(),
+        "constants": reference_constants(),
+        "functions": reference_functions(),
+    })
+    .to_string()
+}
+
+/// Every registered unit: symbol, the SI dimension it measures, and the factor
+/// to SI base units.
+fn reference_units() -> Vec<Value> {
+    UnitRegistry::all_units()
+        .into_iter()
+        .map(|unit| {
+            json!({
+                "symbol": unit.symbol,
+                "dimension": unit.dimension,
+                "siFactor": unit.si_factor,
+            })
+        })
+        .collect()
+}
+
+/// The `#`-suffixed built-ins. A dimensionless constant carries `"-"`, not
+/// `null` — the Java maps `unit == null` to `"-"` and the Help table prints the
+/// cell verbatim.
+fn reference_constants() -> Vec<Value> {
+    frees_core::eval::CONSTANTS
+        .iter()
+        .map(|constant| {
+            json!({
+                "name": constant.name,
+                "value": constant.value,
+                "unit": constant.unit.unwrap_or("-"),
+                "description": constant.description,
+            })
+        })
+        .collect()
+}
+
+/// The intrinsic dispatch table — the authoritative answer to "does this
+/// browser engine actually have that function?", which is what the static
+/// frontend catalogs cannot know.
+fn reference_functions() -> Vec<Value> {
+    let mut intrinsics: Vec<&Intrinsic> = frees_core::eval::INTRINSICS.iter().collect();
+    intrinsics.sort_unstable_by_key(|intrinsic| intrinsic.name);
+    intrinsics
+        .into_iter()
+        .map(|intrinsic| {
+            json!({
+                "name": intrinsic.name,
+                "signature": signature_of(intrinsic.name, intrinsic.arity),
+                "description": "",
+                "category": "Built-in",
+            })
+        })
+        .collect()
+}
+
+/// `a, b, c` — positional placeholders for `n` arguments. The registry stores
+/// no argument names, so the position is all there is to say.
+fn placeholders(n: usize) -> String {
+    (0..n)
+        .map(|i| match u8::try_from(i) {
+            Ok(offset) if offset < 26 => char::from(b'a' + offset).to_string(),
+            _ => format!("x{}", i + 1),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A call form built from the arity: exact counts render literally, optional
+/// tails as `[, c]`, open tails as `, ...`, and a fixed set of allowed counts
+/// as `|`-separated alternatives (`if` takes 3 or 5, never 4).
+fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
+    use frees_core::eval::Arity;
+    match arity {
+        Arity::Exact(n) => format!("{name}({})", placeholders(n)),
+        Arity::Range(lo, hi) => {
+            // placeholders(lo) is a prefix of placeholders(hi) by construction,
+            // so the optional tail is what the longer form adds.
+            let required = placeholders(lo);
+            let full = placeholders(hi);
+            let optional = full.get(required.len()..).unwrap_or("");
+            format!("{name}({required}[{optional}])")
+        }
+        Arity::OneOf(counts) => counts
+            .iter()
+            .map(|n| format!("{name}({})", placeholders(*n)))
+            .collect::<Vec<_>>()
+            .join(" | "),
+        Arity::AtLeast(0) | Arity::Any => format!("{name}(...)"),
+        Arity::AtLeast(lo) => format!("{name}({}, ...)", placeholders(lo)),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests — every assertion here is about the *wire shape*: the exact camelCase
 // keys and JSON types `web/src/api.ts` declares.
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
-    use super::{check, solve, version};
+    use super::{check, placeholders, reference, signature_of, solve, version};
     use serde_json::Value;
 
     fn parsed(payload: &str) -> Value {
@@ -770,6 +897,25 @@ mod tests {
         assert_eq!(v["success"], false);
         assert_eq!(v["failedBlockIndex"], 0);
         assert_key(&v, "error", Value::is_string);
+        // `stats.unknowns` is the count of unknowns in the stalled system (the
+        // Java partial `Stats.variableCount`), not the size of the display-name
+        // map — that map is the whole `ParseResult.displayNames` and can name
+        // more identifiers than the system has unknowns.
+        assert_eq!(v["stats"]["unknowns"], 1);
+    }
+
+    /// A partial failure whose document has more *named* identifiers than
+    /// unknowns: the FUNCTION formal `n` and the body's `k` both carry display
+    /// names, while the only unknown is `y`.
+    #[test]
+    fn a_partial_failure_counts_unknowns_not_display_names() {
+        let out = solve(
+            "FUNCTION Bad(n)\n  Bad := exp(n)\nEND\n\ny = Bad(y) + 1\n",
+            "{}",
+        );
+        let v = parsed(&out);
+        assert_eq!(v["success"], false);
+        assert_eq!(v["stats"]["unknowns"], 1);
     }
 
     // ── SolveResponse: variableInfo overrides ──────────────────────────────
@@ -872,5 +1018,131 @@ mod tests {
         assert_eq!(v["solvable"], false);
         assert_key(&v, "message", Value::is_string);
         assert_key(&v, "inferredUnits", Value::is_object);
+    }
+
+    // ── LanguageReference (ReferenceController.reference) ─────────────────
+
+    /// The three arrays `web/src/api.ts` declares, all non-empty — an empty
+    /// reference is exactly the stub this replaced.
+    #[test]
+    fn reference_has_the_three_populated_arrays() {
+        let v = parsed(&reference());
+        for key in ["units", "constants", "functions"] {
+            assert_key(&v, key, Value::is_array);
+            assert!(
+                !v[key].as_array().unwrap().is_empty(),
+                "{key} must not be empty"
+            );
+        }
+    }
+
+    /// `UnitInfo` in api.ts: symbol/dimension strings + a numeric siFactor.
+    #[test]
+    fn reference_units_carry_the_unit_info_fields() {
+        let v = parsed(&reference());
+        let units = v["units"].as_array().unwrap();
+        for unit in units {
+            assert_key(unit, "symbol", Value::is_string);
+            assert_key(unit, "dimension", Value::is_string);
+            assert_key(unit, "siFactor", Value::is_number);
+        }
+        let kpa = units
+            .iter()
+            .find(|u| u["symbol"] == "kpa")
+            .unwrap_or_else(|| panic!("kpa missing from {} units", units.len()));
+        assert_eq!(kpa["dimension"], "Pa");
+        assert_eq!(kpa["siFactor"], 1000.0);
+    }
+
+    /// The Java sorts by dimension then symbol and the Help page groups on that
+    /// order — a dimension must not appear in two separate runs.
+    #[test]
+    fn reference_units_stay_grouped_by_dimension() {
+        let v = parsed(&reference());
+        let dimensions: Vec<&str> = v["units"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|u| u["dimension"].as_str().unwrap())
+            .collect();
+        let mut sorted = dimensions.clone();
+        sorted.sort_unstable();
+        assert_eq!(dimensions, sorted, "units must be sorted by dimension");
+    }
+
+    /// `ConstantInfo` in api.ts, and the Java's `unit == null -> "-"` mapping.
+    #[test]
+    fn reference_constants_match_the_java_constant_info() {
+        let v = parsed(&reference());
+        let constants = v["constants"].as_array().unwrap();
+        for constant in constants {
+            assert_key(constant, "name", Value::is_string);
+            assert_key(constant, "value", Value::is_number);
+            assert_key(constant, "unit", Value::is_string);
+            assert_key(constant, "description", Value::is_string);
+            assert!(
+                constant["name"].as_str().unwrap().ends_with('#'),
+                "constants are #-suffixed: {constant}"
+            );
+        }
+        // ReferenceControllerTest asserts exactly this row.
+        let r = constants
+            .iter()
+            .find(|c| c["name"] == "R#")
+            .expect("R# must be in the constants reference");
+        assert_eq!(r["unit"], "J/mol-K");
+        // A dimensionless constant carries "-", never null.
+        let pi = constants.iter().find(|c| c["name"] == "pi#").unwrap();
+        assert_eq!(pi["unit"], "-");
+    }
+
+    /// `FunctionInfo` in api.ts, sorted by name, one row per dispatch entry.
+    #[test]
+    fn reference_functions_mirror_the_intrinsic_registry() {
+        let v = parsed(&reference());
+        let functions = v["functions"].as_array().unwrap();
+        assert_eq!(functions.len(), frees_core::eval::INTRINSICS.len());
+
+        let names: Vec<&str> = functions
+            .iter()
+            .map(|f| f["name"].as_str().unwrap())
+            .collect();
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        assert_eq!(names, sorted, "functions must be sorted by name");
+        assert_eq!(names, frees_core::eval::intrinsic_names());
+
+        for function in functions {
+            assert_key(function, "name", Value::is_string);
+            assert_key(function, "signature", Value::is_string);
+            assert_key(function, "description", Value::is_string);
+            assert_key(function, "category", Value::is_string);
+            let name = function["name"].as_str().unwrap();
+            let signature = function["signature"].as_str().unwrap();
+            assert!(
+                signature.starts_with(&format!("{name}(")),
+                "signature must open with the call: {function}"
+            );
+        }
+    }
+
+    /// The signature is generated from the arity, so the argument *count* is
+    /// real even though the names are placeholders.
+    #[test]
+    fn reference_signatures_render_every_arity_shape() {
+        use frees_core::eval::Arity;
+        assert_eq!(signature_of("pi", Arity::Exact(0)), "pi()");
+        assert_eq!(signature_of("sin", Arity::Exact(1)), "sin(a)");
+        assert_eq!(signature_of("atan2", Arity::Exact(2)), "atan2(a, b)");
+        assert_eq!(signature_of("round", Arity::Range(1, 2)), "round(a[, b])");
+        assert_eq!(
+            signature_of("if", Arity::OneOf(&[3, 5])),
+            "if(a, b, c) | if(a, b, c, d, e)"
+        );
+        assert_eq!(signature_of("max", Arity::AtLeast(1)), "max(a, ...)");
+        assert_eq!(signature_of("sum", Arity::Any), "sum(...)");
+        assert_eq!(signature_of("noop", Arity::AtLeast(0)), "noop(...)");
+        // Past the alphabet the placeholders keep going without colliding.
+        assert!(placeholders(27).ends_with("z, x27"));
     }
 }

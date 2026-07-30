@@ -1,0 +1,3 @@
+{ x^2 = 9 has two roots; the guess decides which one the ladder finds. }
+GUESS x = -5
+x^2 = 9

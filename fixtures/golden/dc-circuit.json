@@ -1,0 +1,24 @@
+{
+  "name": "dc-circuit",
+  "source": "// DC Circuit — Power Dissipation\nV = 12 [V]\nR = 220 [ohm]\nI = V / R       { current }\nP = V * I       { power dissipated }\n",
+  "expect": {
+    "variables": {
+      "I": 0.05454545454545454,
+      "P": 0.6545454545454545,
+      "R": 220.0,
+      "V": 12.0
+    },
+    "display_names": {
+      "i": "I",
+      "p": "P",
+      "r": "R",
+      "v": "V"
+    },
+    "block_count": 4,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

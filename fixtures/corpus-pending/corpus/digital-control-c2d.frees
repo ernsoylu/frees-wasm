@@ -1,0 +1,10 @@
+// Digital Control: Discretization
+{ Sample a continuous plant G(s) = 2/(s+2) at Ts = 0.1 s using the
+  bilinear (Tustin) and zero-order-hold (ZOH) methods. The outputs
+  numz/denz are the discrete transfer function in powers of z. }
+num = [2]
+den = [1, 2]             { 2 / (s + 2) }
+Ts = 0.1 [s]
+
+[numz_t, denz_t] = c2d(num, den, Ts, 'tustin')
+[numz_z, denz_z] = c2d(num, den, Ts, 'zoh')

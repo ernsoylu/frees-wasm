@@ -1,0 +1,46 @@
+{
+  "name": "brayton-cycle",
+  "source": "// Air-Standard Brayton Cycle\n{ Gas-turbine cycle, cold air-standard (constant properties). }\ncp = 1004 [J/kg-K]\nk = 1.4\nr_p = 10                 { compressor pressure ratio }\nT1 = 300 [K]             { compressor inlet }\nT3 = 1400 [K]            { turbine inlet }\neta_c = 0.82\neta_t = 0.85\n\ntau = r_p^((k - 1) / k)  { isentropic temperature ratio }\nT2 = T1 + T1 * (tau - 1) / eta_c\nT4 = T3 - eta_t * T3 * (1 - 1 / tau)\n\nw_c = cp * (T2 - T1)\nw_t = cp * (T3 - T4)\nq_in = cp * (T3 - T2)\nw_net = w_t - w_c\neta_th = w_net / q_in\n",
+  "expect": {
+    "variables": {
+      "T1": 300.0,
+      "T2": 640.499169103628,
+      "T3": 1400.0,
+      "T4": 826.3574868285142,
+      "cp": 1004.0,
+      "eta_c": 0.82,
+      "eta_t": 0.85,
+      "eta_th": 0.30696917578444155,
+      "k": 1.4,
+      "q_in": 762538.8342199575,
+      "r_p": 10.0,
+      "tau": 1.9306977288832499,
+      "w_c": 341861.16578004253,
+      "w_net": 234075.91744412924,
+      "w_t": 575937.0832241718
+    },
+    "display_names": {
+      "cp": "cp",
+      "eta_c": "eta_c",
+      "eta_t": "eta_t",
+      "eta_th": "eta_th",
+      "k": "k",
+      "q_in": "q_in",
+      "r_p": "r_p",
+      "t1": "T1",
+      "t2": "T2",
+      "t3": "T3",
+      "t4": "T4",
+      "tau": "tau",
+      "w_c": "w_c",
+      "w_net": "w_net",
+      "w_t": "w_t"
+    },
+    "block_count": 15,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

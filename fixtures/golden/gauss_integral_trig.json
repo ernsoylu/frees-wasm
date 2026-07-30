@@ -1,0 +1,19 @@
+{
+  "name": "gauss_integral_trig",
+  "source": "{ The integral of sin from 0 to pi is 2.\n  Java GaussQuadratureTest.trigIntegral. }\ny = GaussIntegral(sin(x), x, 0, 3.141592653589793)\n",
+  "expect": {
+    "variables": {
+      "y": 2.000000000001303
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "int_gauss_point_count_clamped",
+  "source": "{ A point count beyond the [2, 64] clamp. }\nG = GaussIntegral(x^2, x, 0, 1, 500)\n",
+  "expect": {
+    "variables": {
+      "G": 0.3333333333333333
+    },
+    "display_names": {
+      "g": "G",
+      "x": "x"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

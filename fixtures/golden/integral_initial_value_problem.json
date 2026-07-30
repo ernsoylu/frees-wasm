@@ -1,0 +1,20 @@
+{
+  "name": "integral_initial_value_problem",
+  "source": "{ A self-referential Integral is an initial-value problem:\n  dF/dt = -0.5*(F + 1), F(0) = 0 gives F(2) = e^(-1) - 1.\n  Java IntegralTest.solvesInitialValueProblem. }\nF = Integral(-0.5*(F + 1), t, 0, 2)\n",
+  "expect": {
+    "variables": {
+      "F": -0.6321205458186983,
+      "t": 2.0
+    },
+    "display_names": {
+      "f": "F",
+      "t": "t"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

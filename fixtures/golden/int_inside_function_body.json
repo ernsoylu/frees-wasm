@@ -1,0 +1,24 @@
+{
+  "name": "int_inside_function_body",
+  "source": "{ An Integral used inside an ordinary equation chain. }\nb = 4\nA = Integral(v, v, 0, b)\nc = A / b\n",
+  "expect": {
+    "variables": {
+      "A": 8.0,
+      "b": 4.0,
+      "c": 2.0,
+      "v": 4.0
+    },
+    "display_names": {
+      "a": "A",
+      "b": "b",
+      "c": "c",
+      "v": "v"
+    },
+    "block_count": 4,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

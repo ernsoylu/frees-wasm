@@ -1,0 +1,18 @@
+{
+  "name": "table_xlog_ylog",
+  "source": "{ XLOG YLOG axes interpolate as a power law, so the geometric midpoint of\n  (10,10) and (1000,1000) is exactly 100.\n  Java CodeTableTest.logAxesInterpolateAsPowerLaw. }\nTABLE flow(re) XLOG YLOG\n  10      10\n  1000    1000\nEND\ny = flow(100)\n",
+  "expect": {
+    "variables": {
+      "y": 100.0
+    },
+    "display_names": {
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

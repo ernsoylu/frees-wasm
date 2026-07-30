@@ -1,0 +1,2 @@
+{ Default-step Simpson on a function with curvature: how close to 2? }
+S = Integral(sin(x), x, 0, 3.141592653589793)

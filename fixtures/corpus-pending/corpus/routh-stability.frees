@@ -1,0 +1,7 @@
+// Routh-Hurwitz Stability
+{ How many closed-loop poles sit in the right half-plane?
+  nRHP = 0 means the system is stable. For s^3 + s^2 + 2s + 8
+  the answer is 2 (unstable). }
+den = [1, 1, 2, 8]       { s^3 + s^2 + 2s + 8 }
+
+[nRHP, stable] = routh(den)

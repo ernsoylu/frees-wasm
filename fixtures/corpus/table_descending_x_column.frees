@@ -1,0 +1,7 @@
+{ An x column that descends rather than ascends. }
+TABLE r(x)
+  10   1
+  5    2
+  1    3
+END
+y = r(7)

@@ -1,0 +1,8 @@
+{ XLOG YLOG axes interpolate as a power law, so the geometric midpoint of
+  (10,10) and (1000,1000) is exactly 100.
+  Java CodeTableTest.logAxesInterpolateAsPowerLaw. }
+TABLE flow(re) XLOG YLOG
+  10      10
+  1000    1000
+END
+y = flow(100)

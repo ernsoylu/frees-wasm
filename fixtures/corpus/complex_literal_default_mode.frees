@@ -1,0 +1,5 @@
+{ An imaginary literal in a document solved with DEFAULT settings — complex mode
+  is a solver flag, not a document directive, so this records what the engine
+  does with `4i` when the flag is off. Whatever that is, both engines must agree. }
+z = 3 + 4i
+w = 1j * z

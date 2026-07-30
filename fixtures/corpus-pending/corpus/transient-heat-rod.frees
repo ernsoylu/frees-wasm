@@ -1,0 +1,29 @@
+// Transient 1-D Heat Conduction (method of lines)
+{ The heat equation dT/dt = alpha d2T/dx2 is discretized into N nodes; the FOR
+  loop generates one der(T[i]) per interior node and the array / FOR machinery
+  expands it into a coupled stiff ODE system. Use the stiff solver ode23s. The
+  ODE Table holds every node vs time — plot t[2], t[3], … against time to watch
+  the rod heat up toward the linear steady profile. }
+
+N = 6
+L = 1
+dx = L / (N - 1)
+alpha = 0.05       { thermal diffusivity }
+T_left  = 100      { boundary node 1 }
+T_right = 0        { boundary node N }
+T_init  = 0        { interior starts cold }
+
+DYNAMIC rod (method = ode23s, t = 0 .. 300, points = 150, rtol = 1e-6)
+  FOR i = 2 TO N-1
+    der(T[i]) = alpha / dx^2 * (T[i-1] - 2*T[i] + T[i+1])
+  END
+  T[1] = T_left            { Dirichlet boundary (auxiliary, held constant) }
+  T[6] = T_right
+  T[2](0) = T_init         { vector initial condition — nodes 2..5 start cold }
+  T[3](0) = T_init
+  T[4](0) = T_init
+  T[5](0) = T_init
+END
+
+{ Steady-state check (linear profile T[i] = 100 (N-i)/(N-1)) }
+T_mid_final = FinalValue('t[4]')

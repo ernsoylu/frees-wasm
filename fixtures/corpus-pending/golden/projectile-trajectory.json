@@ -1,0 +1,17 @@
+{
+  "name": "projectile-trajectory",
+  "source": "// Projectile Trajectory (parametric time sweep)\n{ The whole flight path, sampled in time. This uses a PARAMETRIC\n  table, so do NOT use the main Solve — open the Tables tab and\n  click \"Solve Table\". The base system is underspecified by one on\n  purpose: t is the swept column the table fills in.\n\n  Variables listed in the header with no range (time, x, y, vx, vy,\n  v) become solved OUTPUT columns. Afterward, chart y vs x (the arc)\n  or y vs time in the Plots tab. }\ng  = 9.81 [m/s^2]\nv0 = 20 [m/s]\ntheta = 35 * pi# / 180\n\nvx0 = v0 * cos(theta)\nvy0 = v0 * sin(theta)\n\ntime = t * 1 [s]                 { give the swept index t units of seconds }\nx  = vx0 * time                 { horizontal position }\ny  = vy0 * time - 0.5*g*time^2  { vertical position }\nvx = vx0                        { dx/dt }\nvy = vy0 - g*time               { dy/dt }\nv  = sqrt(vx^2 + vy^2)          { speed }\n\nPARAMETRIC trajectory (t, time, x, y, vx, vy, v)\n  t = 0:0.05:4\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 11 equations and 12 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): x. Coupled to: t, time, v, vy, y. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

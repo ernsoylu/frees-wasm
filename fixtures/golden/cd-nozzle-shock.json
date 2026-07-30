@@ -1,0 +1,36 @@
+{
+  "name": "cd-nozzle-shock",
+  "source": "// Converging-Diverging Nozzle with a Normal Shock\n{ Air (k = 1.4) expands from a reservoir through a C-D nozzle. A normal\n  shock stands in the diverging section where the local A/A* = 2.0. }\nk = 1.4\nP0 = 1000000 [Pa]        { reservoir (stagnation) pressure }\nT0 = 500 [K]             { reservoir temperature }\nA_ratio = 2.0            { local area / throat area at the shock }\n\nM1 = mach_A_Astar(A_ratio, k, 'supersonic')   { supersonic Mach upstream }\nT1 = T0 / T0_T(M1, k)\nP1 = P0 / P0_P(M1, k)\n\nM2 = M2_shock(M1, k)                 { Mach downstream of the shock }\nP2 = P1 * P2_P1_shock(M1, k)\nP02 = P0 * P02_P01_shock(M1, k)      { stagnation pressure after the loss }\n",
+  "expect": {
+    "variables": {
+      "A_ratio": 2.0,
+      "M1": 2.1971981216524625,
+      "M2": 0.5474316547926514,
+      "P0": 1000000.0,
+      "P02": 629412.8957115987,
+      "P1": 93932.64573280433,
+      "P2": 513400.72799562756,
+      "T0": 500.0,
+      "T1": 254.38354783300014,
+      "k": 1.4
+    },
+    "display_names": {
+      "a_ratio": "A_ratio",
+      "k": "k",
+      "m1": "M1",
+      "m2": "M2",
+      "p0": "P0",
+      "p02": "P02",
+      "p1": "P1",
+      "p2": "P2",
+      "t0": "T0",
+      "t1": "T1"
+    },
+    "block_count": 10,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

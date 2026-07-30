@@ -1,0 +1,23 @@
+// Heat Exchanger — Effectiveness-NTU Method
+{ Counterflow water-to-water exchanger rated with the effectiveness-NTU method. }
+mdot_h = 2.0 [kg/s]
+cp_h = 4180 [J/kg-K]
+mdot_c = 1.5 [kg/s]
+cp_c = 4180 [J/kg-K]
+Th_in = 360 [K]
+Tc_in = 290 [K]
+UA = 12000 [W/K]
+
+C_h = mdot_h * cp_h
+C_c = mdot_c * cp_c
+C_min = min(C_h, C_c)
+C_max = max(C_h, C_c)
+Cr = C_min / C_max
+NTU = UA / C_min
+
+eps = hx_effectiveness('counterflow', NTU, Cr)
+Q_max = C_min * (Th_in - Tc_in)
+Q = eps * Q_max
+Th_out = Th_in - Q / C_h
+Tc_out = Tc_in + Q / C_c
+dTlm = LMTD(Th_in - Tc_out, Th_out - Tc_in)

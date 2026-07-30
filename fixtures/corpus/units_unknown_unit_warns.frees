@@ -1,0 +1,3 @@
+{ An unrecognised unit must warn, never fail the parse. }
+q = 5 [zorkmids]
+r = q * 2

@@ -1,0 +1,22 @@
+{
+  "name": "complex_real_imag_projections",
+  "source": "{ real() and imag() applied to a plainly real value under default settings.\n  Pins the real-mode behaviour of the two projection intrinsics. }\nz = 3\na = real(z)\nb = imag(z)\n",
+  "expect": {
+    "variables": {
+      "a": 3.0,
+      "b": 0.0,
+      "z": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "z": "z"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

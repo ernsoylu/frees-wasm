@@ -1,0 +1,4 @@
+{ Postfix transpose of a genuine 2x2 matrix. }
+A = [1 2; 3 4]
+B = A'
+c = B[1,2]

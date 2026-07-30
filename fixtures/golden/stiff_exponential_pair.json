@@ -1,0 +1,20 @@
+{
+  "name": "stiff_exponential_pair",
+  "source": "{ A deliberately ill-conditioned simultaneous pair: one equation is nearly flat\n  in y while the other is nearly flat in x, so the Jacobian is close to singular\n  at the start point and the solve depends on the retry ladder holding up. }\nGUESS x = 1\nGUESS y = 1\nexp(x) + 1e-6 * y = 3\n1e-6 * x + exp(y) = 5\n",
+  "expect": {
+    "variables": {
+      "x": 1.0986117521887349,
+      "y": 1.6094376927117258
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

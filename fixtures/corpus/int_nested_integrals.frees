@@ -1,0 +1,2 @@
+{ One Integral inside another's integrand (hoistNested). }
+I = Integral(Integral(1, b, 0, a), a, 0, 2)

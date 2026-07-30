@@ -1,0 +1,7 @@
+{ A curve family interpolates across curves as well as along them: at n = 1500
+  the two curves blend, so mdot = 1.5 gives the mean of both blends. }
+TABLE eff(mdot : n = 1000, 2000)
+  1    0.50   0.70
+  2    0.60   0.80
+END
+y = eff(1.5, 1500)

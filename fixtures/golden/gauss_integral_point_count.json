@@ -1,0 +1,19 @@
+{
+  "name": "gauss_integral_point_count",
+  "source": "{ An explicit point count selects the rule order.\n  Java GaussQuadratureTest.exponentialIntegralWithPointCount: y = e - 1. }\ny = GaussIntegral(exp(x), x, 0, 1, 7)\n",
+  "expect": {
+    "variables": {
+      "y": 1.718281828459045
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

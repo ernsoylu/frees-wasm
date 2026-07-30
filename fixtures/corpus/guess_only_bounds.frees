@@ -1,0 +1,3 @@
+{ A GUESS that supplies bounds but no guess value. }
+GUESS x [1, 3]
+x^2 = 4

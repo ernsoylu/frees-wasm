@@ -1,0 +1,21 @@
+{ Root Locus Analysis }
+{ Open-loop plant G(s) = K*(s + 3) / (s*(s + 1)*(s + 2)*(s + 4)) }
+{ Expanded open-loop denominator coefficients: }
+{ s*(s + 1)*(s + 2)*(s + 4) = s^4 + 7*s^3 + 14*s^2 + 8*s }
+num_ol = [1, 3]
+den_ol = [1, 7, 14, 8, 0]
+
+{ Calculate closed-loop root locus trajectories }
+[K, cpr, cpi] = rlocus(num_ol, den_ol)
+
+{ Extract open-loop poles and zeros for plotting }
+[pr, pi] = pole(num_ol, den_ol)
+[zr, zi] = zero(num_ol, den_ol)
+
+PLOT 'Root Locus'
+  kind = rootlocus
+  pr = cpr
+  pi = cpi
+  zr = zr
+  zi = zi
+END

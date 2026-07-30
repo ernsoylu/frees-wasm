@@ -1,0 +1,20 @@
+{
+  "name": "intrinsics_min_max_varargs",
+  "source": "{ min/max with several arguments. }\na = max(1, 7, 3)\nb = min(4, 2, 9)\n",
+  "expect": {
+    "variables": {
+      "a": 7.0,
+      "b": 2.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,7 @@
+// Radiation View Factors
+{ Analytic (Howell-catalog) diffuse view factors — no chart lookup
+  needed. Each returns the dimensionless fraction of radiation that
+  leaves surface 1 and reaches surface 2. }
+F_perp = viewfactor_perp(1 [m], 1 [m], 1 [m])       { perpendicular plates sharing an edge }
+F_par  = viewfactor_plates(2 [m], 2 [m], 1 [m])     { aligned parallel rectangles }
+F_disk = viewfactor_disks(0.5 [m], 1 [m], 0.4 [m])  { coaxial parallel disks }

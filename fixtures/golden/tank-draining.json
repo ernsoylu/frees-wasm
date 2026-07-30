@@ -1,0 +1,30 @@
+{
+  "name": "tank-draining",
+  "source": "// Tank Draining (Torricelli) — first-order ODE\n{ Water height h in a tank emptying through a small orifice obeys\n  dh/dt = -(a/A)*sqrt(2*g*h).  Press Solve (F2).\n\n  How the ODE is written: frees integrates an ODE only when the\n  integrand references the integral's OWN result, and that result\n  starts at 0. So we integrate the DROP from the initial level and\n  rebuild h = h0 - drop. Integration limits must be plain numbers\n  (here 0 to 60 seconds). }\ng = 9.81 [m/s^2]\nA_tank = 1.0 [m^2]        { tank cross-section }\na_orifice = 0.0015 [m^2]  { orifice area }\nh0 = 2.0 [m]              { initial water height }\n\ndrop = Integral((a_orifice/A_tank)*sqrt(2*g*(h0 - drop)), tau, 0, 60)\nh = h0 - drop            { water height after 60 s }\n",
+  "expect": {
+    "variables": {
+      "A_tank": 1.0,
+      "a_orifice": 0.0015,
+      "drop": 0.5240460484204431,
+      "g": 9.81,
+      "h": 1.475953951579557,
+      "h0": 2.0,
+      "tau": 60.0
+    },
+    "display_names": {
+      "a_orifice": "a_orifice",
+      "a_tank": "A_tank",
+      "drop": "drop",
+      "g": "g",
+      "h": "h",
+      "h0": "h0",
+      "tau": "tau"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

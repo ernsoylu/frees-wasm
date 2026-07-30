@@ -1,0 +1,3 @@
+{ min/max with several arguments. }
+a = max(1, 7, 3)
+b = min(4, 2, 9)

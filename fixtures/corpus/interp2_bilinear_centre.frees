@@ -1,0 +1,7 @@
+{ CALL Interp2 on a 2x2 grid takes the bilinear path: the centre is the average
+  of the four corners. Java Interp2Test.bilinearCentre: zc = 1.5, ze = 1. }
+x = [0, 1]
+y = [0, 1]
+Z = [0, 1; 2, 3]
+CALL Interp2(x, y, Z, 0.5, 0.5 : zc)
+CALL Interp2(x, y, Z, 0.5, 0 : ze)

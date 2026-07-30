@@ -1,0 +1,6 @@
+{ A FUNCTION with no parameters at all. }
+FUNCTION Answer()
+  Answer := 42
+END
+
+y = Answer()

@@ -21,6 +21,7 @@ use frees_core::ast::Equation;
 use frees_core::eval;
 use frees_core::parser::expand::{expand_document, is_internal_temp};
 use frees_core::parser::parse_document;
+use frees_core::procedures::flatten_calls;
 
 fn corpus_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/corpus")
@@ -62,6 +63,64 @@ fn assert_satisfied(eqs: &[Equation], solution: &[(&str, f64)]) {
 // 1. Scalar byte-identity
 // ---------------------------------------------------------------------------
 
+/// True when `e` mentions any array/matrix syntax — the expander's whole
+/// remit. A document free of these must come out of `expand_document`
+/// untouched; a document containing one is expected to be rewritten and is
+/// covered by the oracle-mirroring tests below instead.
+fn mentions_array_syntax(e: &frees_core::ast::Expr) -> bool {
+    use frees_core::ast::Expr;
+    match e {
+        Expr::ArrayLiteral(_) | Expr::ArrayAccess { .. } | Expr::Range { .. } => true,
+        Expr::Num { .. } | Expr::Str(_) | Expr::Var(_) => false,
+        Expr::Neg(inner) | Expr::Not(inner) => mentions_array_syntax(inner),
+        // The elementwise operators are matrix-only spellings, so the expander
+        // rewrites them even when neither side looks array-valued.
+        Expr::BinOp { op, left, right } => {
+            op.is_element_wise() || mentions_array_syntax(left) || mentions_array_syntax(right)
+        }
+        Expr::Compare { left, right, .. } => {
+            mentions_array_syntax(left) || mentions_array_syntax(right)
+        }
+        Expr::Logical { left, right, .. } => {
+            mentions_array_syntax(left) || mentions_array_syntax(right)
+        }
+        Expr::Call { function, args } => {
+            MATRIX_VALUED_CALLS.contains(&function.as_str())
+                || args.iter().any(mentions_array_syntax)
+        }
+    }
+}
+
+/// Calls whose *result* is matrix-valued, so `x = f(…)` is a bare matrix
+/// creation even though no bracket appears in the source.
+const MATRIX_VALUED_CALLS: &[&str] = &[
+    "eye",
+    "zeros",
+    "ones",
+    "diag",
+    "linspace",
+    "inverse",
+    "inv",
+    "transpose",
+    "solvelinear",
+    "cross",
+    "det",
+    "determinant",
+    "dot",
+    "norm",
+    "nrm2",
+    "asum",
+    "trace",
+    "matrixnorm",
+    "fronorm",
+];
+
+fn document_is_scalar(doc: &frees_core::parser::Document) -> bool {
+    doc.equations()
+        .iter()
+        .all(|eq| !mentions_array_syntax(&eq.lhs) && !mentions_array_syntax(&eq.rhs))
+}
+
 #[test]
 fn every_corpus_document_passes_through_byte_identical() {
     let dir = corpus_dir();
@@ -72,12 +131,30 @@ fn every_corpus_document_passes_through_byte_identical() {
             continue;
         }
         let source = std::fs::read_to_string(&path).expect("read corpus doc");
-        let doc = match parse_document(&source) {
+        let mut doc = match parse_document(&source) {
             Ok(doc) => doc,
             // Corpus entries that intentionally exercise unsupported grammar
             // are outside this pass's contract.
             Err(_) => continue,
         };
+        // Pipeline stage 2 runs before expansion: `expand_document` documents
+        // that PROCEDURE/MODULE calls must already be flattened, so a corpus
+        // document containing a CALL has to come through `flatten_calls`
+        // first — otherwise this test would assert against an order the engine
+        // never uses. Byte-identity is then asserted against the *flattened*
+        // statements, which is the input the expander actually receives.
+        let statements = std::mem::take(&mut doc.statements);
+        doc.statements = match flatten_calls(statements, &doc.defs) {
+            Ok(flat) => flat,
+            // CALLs of intrinsics this port has not reached (control suite,
+            // FFT, …) are refused at stage 2; not this pass's contract.
+            Err(_) => continue,
+        };
+        // Documents that genuinely carry matrix content are the expander's job;
+        // this pass only freezes the *scalar* pipeline.
+        if !document_is_scalar(&doc) {
+            continue;
+        }
         let expanded = expand_document(&doc)
             .unwrap_or_else(|e| panic!("{} failed to expand: {e:?}", path.display()));
         let original: Vec<Equation> = doc.equations().into_iter().cloned().collect();
@@ -274,4 +351,62 @@ fn expansion_is_deterministic() {
     let first = expand(source);
     let second = expand(source);
     assert_eq!(first, second);
+}
+
+// ---------------------------------------------------------------------------
+// 4. The stage-2 / stage-3 CALL seam
+// ---------------------------------------------------------------------------
+
+/// The Java flattens PROCEDURE/MODULE calls and the matrix-intrinsic CALLs in
+/// one pass (`EquationParser.flattenCallProc`); this port splits that across
+/// `procedures::flatten_calls` (stage 2) and `parser::expand` (stage 3). A CALL
+/// whose flattener lives in stage 3 therefore has to survive stage 2 untouched
+/// — refusing it by name there left `flatten_lu_decompose` and
+/// `flatten_interp2` unreachable from user text, which is what
+/// `procedures::EXPANDED_CALL_TARGETS` now prevents.
+fn pipeline(source: &str) -> Vec<Equation> {
+    let mut doc = parse_document(source).expect("parse");
+    let statements = std::mem::take(&mut doc.statements);
+    doc.statements = flatten_calls(statements, &doc.defs).expect("stage 2: flatten CALLs");
+    expand_document(&doc).expect("stage 3: expand")
+}
+
+#[test]
+fn call_ludecompose_survives_stage_two_and_flattens_in_stage_three() {
+    // Java: L = [1 0; 1.5 1], U = [4 3; 0 -1.5] for A = [4 3; 6 3].
+    let eqs =
+        pipeline("A[1:2,1:2] = [4 3; 6 3]\nCALL LUDecompose(A[1:2,1:2] : L[1:2,1:2], U[1:2,1:2])");
+    assert_satisfied(
+        &eqs,
+        &[
+            ("l[1,1]", 1.0),
+            ("l[1,2]", 0.0),
+            ("l[2,1]", 1.5),
+            ("l[2,2]", 1.0),
+            ("u[1,1]", 4.0),
+            ("u[1,2]", 3.0),
+            ("u[2,1]", 0.0),
+            ("u[2,2]", -1.5),
+        ],
+    );
+}
+
+#[test]
+fn call_interp2_lowers_to_the_interp2_synthetic() {
+    let eqs =
+        pipeline("x = [0, 1]\ny = [0, 1]\nZ = [0, 1; 2, 3]\nCALL Interp2(x, y, Z, 0.5, 0.5 : zc)");
+    let call = eqs
+        .iter()
+        .find(|eq| matches!(&eq.lhs, frees_core::ast::Expr::Var(v) if v == "zc"))
+        .expect("an equation binding zc");
+    match &call.rhs {
+        frees_core::ast::Expr::Call { function, args } => {
+            assert_eq!(function, "interp2$2$2");
+            // m x-nodes, n y-nodes, m*n grid entries row-major, xq, yq.
+            assert_eq!(args.len(), 2 + 2 + 4 + 2);
+        }
+        other => panic!("expected an interp2$ call, got {other:?}"),
+    }
+    // Bilinear centre of the four corners.
+    assert_satisfied(&eqs, &[("zc", 1.5)]);
 }

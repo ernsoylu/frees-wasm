@@ -1,0 +1,17 @@
+{
+  "name": "rankine-cycle-2",
+  "source": "// Ideal Rankine Cycle\n{ Steam power cycle: pump -> boiler -> turbine -> condenser.\n  Real-water properties from CoolProp. Press Solve (F2). }\nP_hi = 8000000 [Pa]      { boiler pressure, 8 MPa }\nP_lo = 10000 [Pa]        { condenser pressure, 10 kPa }\neta_t = 0.85             { turbine isentropic efficiency }\neta_p = 0.80             { pump isentropic efficiency }\n\nh1 = Enthalpy(Water, P=P_lo, x=0)    { saturated liquid leaving condenser }\nv1 = Volume(Water, P=P_lo, x=0)\n\nw_p = v1 * (P_hi - P_lo) / eta_p     { pump work }\nh2 = h1 + w_p\n\nT3 = 753.15 [K]                      { superheated steam, 480 C }\nh3 = Enthalpy(Water, P=P_hi, T=T3)\ns3 = Entropy(Water, P=P_hi, T=T3)\n\nh4s = Enthalpy(Water, P=P_lo, s=s3)  { isentropic expansion }\nw_t = eta_t * (h3 - h4s)\nh4 = h3 - w_t\n\nq_in = h3 - h2\nw_net = w_t - w_p\neta_th = w_net / q_in\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "IllegalStateException",
+      "message": "The CoolProp native library is not available. Set the COOLPROP_LIBRARY environment variable to the path of libCoolProp.so to enable fluid property functions."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

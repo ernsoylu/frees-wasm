@@ -1,0 +1,9 @@
+{ The FUNCTION formal n shadows a caller variable of the same name; the caller
+  scope is otherwise visible (dynamic scoping). }
+n = 7
+k = 5
+FUNCTION F(n)
+  F := n + k
+END
+
+y = F(1)

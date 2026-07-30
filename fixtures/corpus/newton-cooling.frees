@@ -1,0 +1,14 @@
+// Newton's Law of Cooling — first-order ODE
+{ A hot object relaxing toward ambient obeys
+  dT/dt = -k*(T - T_inf).  Press Solve (F2).
+
+  The Integral ODE feedback only works when the integrand
+  references its own result (which starts at 0), so we integrate
+  the temperature DROP and rebuild T = T0 - drop. Limits must be
+  plain numbers (0 to 30 seconds). }
+k = 0.05 [1/s]           { cooling constant }
+T_inf = 20 [C]           { ambient temperature }
+T0 = 90 [C]              { initial temperature }
+
+drop = Integral(k*(T0 - drop - T_inf), tau, 0, 30)
+T = T0 - drop            { temperature after 30 s }

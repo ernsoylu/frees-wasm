@@ -1,0 +1,24 @@
+// Driving-Cycle Energy
+{ Tractive power over a speed profile, integrated to total energy.
+  This uses a PARAMETRIC table, so do NOT use the main Solve — open
+  the Tables tab and click "Solve Table". E_total and P_avg are
+  whole-table aggregates (the same in every row), computed by the
+  parametric accessor pass. }
+m = 1500 [kg]
+Crr = 0.012
+g = 9.81 [m/s^2]
+rho_air = 1.2 [kg/m^3]
+Cd = 0.30
+Af = 2.2 [m^2]
+
+v = t * 1 [m/s]                       { swept speed }
+F_roll = Crr * m * g
+F_aero = 0.5 * rho_air * Cd * Af * v^2
+P = (F_roll + F_aero) * v             { instantaneous tractive power }
+
+E_total = IntegralValue('P', 't')     { trapezoid integral over the cycle }
+P_avg = TableAvg('P')                 { mean power across the runs }
+
+PARAMETRIC drive (t, v, P)
+  t = 0:2:30
+END

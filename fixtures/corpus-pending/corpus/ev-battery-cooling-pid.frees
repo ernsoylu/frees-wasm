@@ -1,0 +1,52 @@
+// Five domains in one solve: electrical (pack discharge) -> heat (cell thermal
+// state) -> liquid (coolant loop) -> twophase (R134a chiller) -> signal (PID).
+// The PID modulates the electronic expansion valve to hold the pack at 303 K;
+// with Ki > 0 the steady error vanishes.
+TABLE ocv(soc)
+  0   3.0
+  1   4.2
+END
+TABLE dudt(soc)
+  0   -5e-5
+  1   -5e-5
+END
+BatteryPack   BP(Ns=96, Np=2, ocv$=ocv, dudt$=dudt, R0ref=0.002, Tref=298.15, Ea=0, Q0=60, C_th=50000, SOC0=0.9, T0=306)
+CurrentSource LOAD(I=-60)
+Ground        G()
+connect(BP.p, LOAD.p)
+connect(BP.n, LOAD.n, G.port)
+
+LiquidSource CSRC(fluid$=Water, mdot=0.05, P=200000, T=305)
+Chiller      CH(ref$=R134a, cool$=Water, U_tp=2000, U_sh=200, D=0.01, L=5, eps_zone=0.1, UA_cool=600)
+LiquidWallHX PLATE(fluid$=Water, UA=500)
+LiquidSink   CSNK()
+connect(CSRC.out, CH.cool_in)
+connect(CH.cool_out, PLATE.in)
+connect(PLATE.out, CSNK.in)
+connect(PLATE.wall, BP.heat, TB.port)
+
+COMPONENT PHSupply(out)
+  PARAM P, h, domain$ = twophase
+  out.P = P
+  out.h = h
+END
+hliq = Enthalpy(R134a, P=1200000, x=0)
+PHSupply             RSRC(P=1200000, h=hliq)
+EXVCmd               EXV(fluid$=R134a, CdA_max=2e-7)
+TwoPhasePressureSink RSNK(P=350000)
+connect(RSRC.out, EXV.in)
+connect(EXV.out, CH.ref_in)
+connect(CH.ref_out, RSNK.in)
+
+SigConstant     SP(k=303)
+SigThermalProbe TB()
+SigPID          PID(model$=clamped, Kp=0.05, Ki=0.005, Kd=0, tau=1, i0=0.2, d0=0, umin=0.02, umax=1, Taw=10)
+// Reverse-acting: opening the EXV COOLS, so the measurement drives sp and
+// the setpoint drives pv (equivalent to negating the gains).
+connect(TB.out, PID.sp)
+connect(SP.out, PID.pv)
+connect(PID.out, EXV.u)
+DYNAMIC cool(method = ode23s, time = 0 .. 4000, points = 400)
+END
+t_bat      = FinalValue('bp.t')
+q_positive = 0.5 * (1 + tanh(FinalValue('ch.ev.q')))

@@ -1,0 +1,18 @@
+{
+  "name": "guess_only_bounds",
+  "source": "{ A GUESS that supplies bounds but no guess value. }\nGUESS x [1, 3]\nx^2 = 4\n",
+  "expect": {
+    "variables": {
+      "x": 2.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

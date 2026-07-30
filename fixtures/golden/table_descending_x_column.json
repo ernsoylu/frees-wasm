@@ -1,0 +1,18 @@
+{
+  "name": "table_descending_x_column",
+  "source": "{ An x column that descends rather than ascends. }\nTABLE r(x)\n  10   1\n  5    2\n  1    3\nEND\ny = r(7)\n",
+  "expect": {
+    "variables": {
+      "y": 1.6
+    },
+    "display_names": {
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

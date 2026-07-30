@@ -1,0 +1,20 @@
+{
+  "name": "table_three_columns_family_exact_curve",
+  "source": "{ A family query landing exactly on a declared curve parameter. }\nTABLE eff(mdot : n = 1000, 2000)\n  1    0.50   0.70\n  2    0.60   0.80\nEND\na = eff(1, 1000)\nb = eff(2, 2000)\n",
+  "expect": {
+    "variables": {
+      "a": 0.5,
+      "b": 0.8
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

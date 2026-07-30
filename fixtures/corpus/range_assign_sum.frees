@@ -1,0 +1,4 @@
+{ A range array consumed by a slice aggregate: Sum(v[1:10]) = 55.
+  Java CodeRangeTest.rangeArrayWorksWithSum. }
+v = 1:1:10
+total = Sum(v[1:10])

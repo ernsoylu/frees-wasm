@@ -1,0 +1,153 @@
+// EV Thermal Management System  (coupled, geometry-driven HX sizing)
+{ A complete EV thermal-management system as one acausal component model, with
+  every heat exchanger sized from CORRELATION + GEOMETRY rather than a hand-set UA.
+
+  Coolant line (EG50): the pump feeds a WIDE-BRANCH SPLIT into a battery branch
+  and a motor branch; a flow-weighted COLLECT rejoins them and a DISCRETIZED
+  radiator pipe (three wall-HX + orifice cells) rejects heat to ambient.
+
+  Refrigerant line (R1234yf): one liquid feed SPLITS to a chiller evaporator and
+  a cabin evaporator; both COLLECT at a common compressor suction; condenser head
+  pressure floats with ambient and load.
+
+  Cross-domain bridge: the chiller refrigerant evaporator wall is tied to the
+  battery-branch coolant.
+
+  Each UA is built from the correlation toolkit (htc_evap / htc_cond / htc_1phase
+  + the external air-side htc_extair) and ua_hx, and the evaporator dP from
+  dp_2phase — computed OUTSIDE the components and injected into their UA / dP
+  parameters.
+
+  Every block here is a STANDARD-LIBRARY component (LiquidWallHX, LiquidMixer,
+  TwoPhaseEvaporatorUA, TwoPhaseCompressor, TwoPhaseCondenserFloat, TwoPhaseMixer,
+  MassGen, …) — nothing is hand-defined. Press Solve (F2) for the steady point. }
+
+
+{ ---- UA / dP objects: heat-transfer AREA from the geometry toolkit, not
+  hand-set. Internal sides use hx_aconv(Aflow, L, Dh) = 4*Aflow*L/Dh over their
+  channel geometry; the finned AIR sides build primary + fin area with
+  hx_area_direct / hx_area_indirect / hx_fin_len and derate it by the surface
+  efficiency hx_eta_surf(.., fin_efficiency(mL)). Then UA = htc * area. ---- }
+{ fin-and-tube air-side stock (aluminium louvered fin) }
+k_fin    = 200 [W/m-K]    { fin conductivity }
+t_fin    = 0.0001 [m]     { fin/wall stock thickness }
+fin_dens = 800            { fins per m }
+b_fin    = 0.006 [m]      { fin half-height }
+h_chl_r  = htc_evap('R1234yf', 350000, 0.5, 0.05, 0.006, 8e-5)
+h_chl_c  = htc_1phase('EG50', 200000, 290, 0.23, 0.008, 1.5e-4)
+A_chl_r  = 3  * hx_aconv(8e-5,   0.30, 0.006)   { 3 refrigerant channels x 0.30 m }
+A_chl_c  = 12 * hx_aconv(1.5e-4, 0.40, 0.008)   { 12 coolant channels x 0.40 m }
+UA_chl_r = h_chl_r * A_chl_r
+UA_chl_c = h_chl_c * A_chl_c
+dP_chl   = dp_2phase('R1234yf', 350000, 0.5, 0.05, 0.006, 1.2e-4, 0.4)
+h_cab_r  = htc_evap('R1234yf', 350000, 0.5, 0.02, 0.006, 8e-5)
+A_cab    = 2  * hx_aconv(8e-5, 0.30, 0.006)     { 2 refrigerant channels x 0.30 m }
+UA_cab   = h_cab_r * A_cab
+dP_cab   = dp_2phase('R1234yf', 350000, 0.5, 0.02, 0.006, 1.2e-4, 0.4)
+h_cnd_r  = htc_cond('R1234yf', 1200000, 0.5, 0.07, 0.006, 8e-5)
+h_cnd_a  = htc_extair('Air', 101325, 313, 0.6, 0.01, 0.03)
+A_cnd_r  = 50 * hx_aconv(8e-5, 0.40, 0.006)     { 50 refrigerant microchannels x 0.40 m }
+finlen_cnd = hx_fin_len(0.016, t_fin, fin_dens, 0.002)        { developed fin length }
+A_cnd_prim = hx_area_direct(0.5, 100, 0.002, 0.016, t_fin)    { primary tube-wall area }
+A_cnd_fin  = hx_area_indirect(0.5, 100, finlen_cnd)           { secondary fin area }
+A_cnd_tot  = A_cnd_prim + A_cnd_fin
+mL_cnd     = b_fin * sqrt(2 * h_cnd_a / (k_fin * t_fin))      { fin parameter mL }
+etaO_cnd   = hx_eta_surf(A_cnd_fin, A_cnd_tot, fin_efficiency(mL_cnd))
+A_cnd_a    = etaO_cnd * A_cnd_tot                             { fin-efficiency-weighted air area }
+UA_cond  = ua_hx(h_cnd_r, A_cnd_r, h_cnd_a, A_cnd_a, 1e-4)
+h_rad_c  = htc_1phase('EG50', 200000, 320, 0.4, 0.008, 1.5e-4)
+h_rad_a  = htc_extair('Air', 101325, 313, 0.5, 0.01, 0.03)
+A_rad_c  = 16 * hx_aconv(1.5e-4, 0.30, 0.008)   { 16 coolant tubes per cell x 0.30 m }
+finlen_rad = hx_fin_len(0.016, t_fin, fin_dens, 0.002)
+A_rad_prim = hx_area_direct(0.5, 40, 0.002, 0.016, t_fin)
+A_rad_fin  = hx_area_indirect(0.5, 40, finlen_rad)
+A_rad_tot  = A_rad_prim + A_rad_fin
+mL_rad     = b_fin * sqrt(2 * h_rad_a / (k_fin * t_fin))
+etaO_rad   = hx_eta_surf(A_rad_fin, A_rad_tot, fin_efficiency(mL_rad))
+A_rad_a    = etaO_rad * A_rad_tot                            { air-side area per radiator cell }
+UA_rad   = ua_hx(h_rad_c, A_rad_c, h_rad_a, A_rad_a, 1e-4)
+A_bcp    = 20 * hx_aconv(1.5e-4, 0.30, 0.008)   { battery cold-plate channels }
+A_mcp    = 20 * hx_aconv(1.5e-4, 0.30, 0.008)   { motor cold-plate channels }
+UA_bcp   = h_chl_c * A_bcp
+UA_mcp   = htc_1phase('EG50', 200000, 320, 0.17, 0.008, 1.5e-4) * A_mcp
+
+{ ---- Coolant line ---- }
+LiquidSource  PUMPIN(fluid$=EG50, mdot=0.4, P=200000 [Pa], T=305 [K])
+LiquidPump    PUMP(fluid$=EG50, eta=0.6)
+LiquidOrifice OBAT(CdA=1.6e-5, rho=1050)
+LiquidOrifice OMOT(CdA=1.2e-5, rho=1050)
+LiquidWallHX  BCP(fluid$=EG50, UA=UA_bcp)
+LiquidWallHX  CHLC(fluid$=EG50, UA=UA_chl_c)
+LiquidWallHX  MCP(fluid$=EG50, UA=UA_mcp)
+LiquidMixer   MIX()
+LiquidWallHX  RAD1(fluid$=EG50, UA=UA_rad)
+LiquidOrifice OR1(CdA=1.2e-4, rho=1050)
+LiquidWallHX  RAD2(fluid$=EG50, UA=UA_rad)
+LiquidOrifice OR2(CdA=1.2e-4, rho=1050)
+LiquidWallHX  RAD3(fluid$=EG50, UA=UA_rad)
+LiquidOrifice OR3(CdA=1.2e-4, rho=1050)
+ThermalSource AMB(T=313 [K])
+LiquidSink    PUMPOUT()
+
+MassGen BATT(C=60000, Qgen=4000, T0=305 [K])
+MassGen MOTOR(C=40000, Qgen=5000, T0=305 [K])
+MassGen CABIN(C=8000,  Qgen=2500, T0=305 [K])
+
+{ ---- Refrigerant line ---- }
+TwoPhasePressureSource FEED(fluid$=R1234yf, P=350000 [Pa], x=0.20)
+TwoPhaseEvaporatorUA CHLR(fluid$=R1234yf, UA=UA_chl_r, dP=dP_chl, SH=5)
+TwoPhaseEvaporatorUA CABE(fluid$=R1234yf, UA=UA_cab,  dP=dP_cab, SH=8)
+TwoPhaseMixer SUC()
+TwoPhaseCompressor CMP(fluid$=R1234yf, eta=0.7)
+TwoPhaseCondenserFloat COND(fluid$=R1234yf, UA=UA_cond, T_amb=313)
+TwoPhaseSink  LIQ()
+
+connect(PUMPIN.out, PUMP.in)
+connect(PUMP.out, OBAT.in, OMOT.in)
+connect(OBAT.out, BCP.in)
+connect(BCP.wall, BATT.port)
+connect(BCP.out, CHLC.in)
+connect(CHLC.out, MIX.in1)
+connect(OMOT.out, MCP.in)
+connect(MCP.wall, MOTOR.port)
+connect(MCP.out, MIX.in2)
+connect(MIX.out, RAD1.in)
+connect(RAD1.out, OR1.in)
+connect(OR1.out, RAD2.in)
+connect(RAD2.out, OR2.in)
+connect(OR2.out, RAD3.in)
+connect(RAD3.out, OR3.in)
+connect(OR3.out, PUMPOUT.in)
+connect(AMB.port, RAD1.wall, RAD2.wall, RAD3.wall)
+PUMPOUT.in.P = 200000 [Pa]
+
+connect(FEED.out, CHLR.in, CABE.in)
+connect(CHLR.out, SUC.in1)
+connect(CABE.out, SUC.in2)
+connect(SUC.out, CMP.in)
+connect(CMP.out, COND.in)
+connect(COND.out, LIQ.in)
+connect(CABE.wall, CABIN.port)
+connect(CHLR.wall, CHLC.wall)
+
+{ steady operating point — full compressor capacity }
+CHLR.frac = 1
+CABE.frac = 1
+
+{ ---- Steady cycle performance — each component already computes its own duty
+  and power internally (EvapSH.Q, Compressor.W, CondFloatUA.Q); reference them
+  directly as inst.Q / inst.W rather than re-deriving from port enthalpies. ---- }
+mdot_ref  = CMP.in.mdot           { refrigerant mass flow, kg/s }
+Q_chiller = CHLR.Q                { chiller cooling duty, W }
+Q_cabin   = CABE.Q                { cabin evaporator duty, W }
+Q_evap    = Q_chiller + Q_cabin   { total cooling delivered, W }
+W_comp    = CMP.W                 { compressor power, W }
+COP_cool  = Q_evap / W_comp       { cooling coefficient of performance }
+Q_cond    = COND.Q                { condenser heat rejection, W }
+
+{ Transient pull-down: delete the two frac lines above and wrap a ramp in a
+  DYNAMIC block:
+    DYNAMIC ev (method = ida, time = 0 .. 600, points = 1201)
+      CHLR.frac = 0.05 + 0.95 * min(time/5, 1)
+      CABE.frac = 0.05 + 0.95 * min(time/5, 1)
+    END }

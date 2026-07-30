@@ -1,0 +1,24 @@
+{
+  "name": "int_both_limits_variable",
+  "source": "{ Both limits come from solved variables. }\np = 1\nq = 4\nA = Integral(2*z, z, p, q)\n",
+  "expect": {
+    "variables": {
+      "A": 15.0,
+      "p": 1.0,
+      "q": 4.0,
+      "z": 4.0
+    },
+    "display_names": {
+      "a": "A",
+      "p": "p",
+      "q": "q",
+      "z": "z"
+    },
+    "block_count": 4,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

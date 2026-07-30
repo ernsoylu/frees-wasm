@@ -1,0 +1,4 @@
+{ A compound derived unit chain: W = J/s = kg-m^2/s^3. }
+P = 100 [W]
+t = 60 [s]
+E = P * t

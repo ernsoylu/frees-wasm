@@ -1,0 +1,6 @@
+{ Three equations that reduce to two: structurally square but rank deficient,
+  so the solution set is a line. Recorded to pin what each engine does with a
+  numerically singular block that the structural check accepts. }
+x = y + 1
+y = z + 1
+z = x - 2

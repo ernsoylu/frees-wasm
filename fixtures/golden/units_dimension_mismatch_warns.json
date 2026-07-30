@@ -1,0 +1,22 @@
+{
+  "name": "units_dimension_mismatch_warns",
+  "source": "{ Adding a length to a mass is dimensionally wrong: a warning, never a failure. }\nL = 2 [m]\nM = 3 [kg]\nbad = L + M\n",
+  "expect": {
+    "variables": {
+      "L": 2.0,
+      "M": 3.0,
+      "bad": 5.0
+    },
+    "display_names": {
+      "bad": "bad",
+      "l": "L",
+      "m": "M"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

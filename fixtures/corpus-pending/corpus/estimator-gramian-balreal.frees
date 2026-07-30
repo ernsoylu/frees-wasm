@@ -1,0 +1,24 @@
+// State Estimator, Gramians & Balanced Realization
+
+{ ---- Plant: x' = A x + B u + G w ,  y = C x + v  (stable, observable) ---- }
+A[1,1] = 0; A[1,2] = 1
+A[2,1] = -2; A[2,2] = -3
+B[1,1] = 0; B[2,1] = 1
+C[1,1] = 1; C[1,2] = 0
+
+{ Process-noise input matrix G and noise covariances Qn (process), Rn (measurement) }
+G[1,1] = 1; G[1,2] = 0
+G[2,1] = 0; G[2,2] = 1
+Qn[1,1] = 1; Qn[1,2] = 0
+Qn[2,1] = 0; Qn[2,2] = 1
+Rn = 0.1 [V^2]
+
+{ ---- Continuous Kalman estimator gain L (solves the filter Riccati equation) ---- }
+[L] = lqe(A, G, C, Qn, Rn)
+
+{ ---- Controllability and observability gramians (Lyapunov; A must be stable) ---- }
+[Wc] = gram(A, B, 'c')
+[Wo] = gram(A, C, 'o')
+
+{ ---- Internally-balanced realization: Wc = Wo = diag(Hankel singular values) ---- }
+[Ab, Bb, Cb] = balreal(A, B, C)

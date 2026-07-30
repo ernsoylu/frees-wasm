@@ -753,3 +753,454 @@ fn evaluating_an_expression_the_parser_produced_never_panics() {
         }
     }
 }
+
+// ── Phase 4: the procedural / matrix / quadrature surface ───────────────────
+//
+// Everything below is an adversarial sweep of the constructs Phase 4 added.
+// The rule is the one at the top of this file — `Ok` or `Err`, promptly, and
+// nothing else — and two of these are regressions for aborts it caught:
+//
+// * [`a_flat_chain_at_the_ceiling_does_not_abort_a_consumer`] — the budget in
+//   `parser/expr.rs` admitted a 519-link chain while `check`/`solve` could
+//   only walk 304, so `x + x + … + x` with 400 terms parsed and then killed
+//   the process. Both constants were halved. (`parser/expr.rs`)
+// * [`differentiating_a_long_chain_stays_inside_the_depth_budget`] — a rule
+//   builds a tree *deeper than the one it consumed* (measured: ×2 for `*`,
+//   ×3 for `/`), so a legal expression differentiated into an illegal one and
+//   overflowed the stack building, evaluating and dropping it.
+//   (`differentiator.rs`)
+
+/// The depth of an expression tree, for asserting on what a pass *built*.
+fn expr_depth(e: &frees_core::Expr) -> u32 {
+    use frees_core::Expr;
+    let kids: Vec<&Expr> = match e {
+        Expr::Num { .. } | Expr::Var(_) | Expr::Str(_) => vec![],
+        Expr::Neg(a) | Expr::Not(a) => vec![a.as_ref()],
+        Expr::BinOp { left, right, .. }
+        | Expr::Compare { left, right, .. }
+        | Expr::Logical { left, right, .. }
+        | Expr::Range {
+            start: left,
+            end: right,
+        } => vec![left.as_ref(), right.as_ref()],
+        Expr::Call { args, .. } | Expr::ArrayLiteral(args) => args.iter().collect(),
+        Expr::ArrayAccess { indices, .. } => indices.iter().collect(),
+    };
+    1 + kids.iter().map(|k| expr_depth(k)).max().unwrap_or(0)
+}
+
+fn chain(op: &str, links: usize) -> String {
+    format!("{} = 1\n", vec!["x"; links].join(&format!(" {op} ")))
+}
+
+#[test]
+fn a_flat_chain_at_the_ceiling_does_not_abort_a_consumer() {
+    // A chain costs one level per link, so these span the ceiling and land
+    // well past it. Every one aborted the process at 400+ links before the
+    // budget was recalibrated — for `+` too, which rules out the
+    // differentiator and pins it on the plain recursive walk.
+    for op in ["+", "-", "*", "/"] {
+        for links in [200, 250, 260, 300, 400, 520] {
+            let src = chain(op, links);
+            survives(&src).unwrap_or_else(|e| panic!("{e}"));
+        }
+    }
+}
+
+#[test]
+fn the_flat_chain_ceiling_is_a_refusal_and_still_clears_a_long_sum() {
+    // The capability the budget must not cost us: a 200-term sum is a
+    // legitimate document (matrix expansion emits one per matvec row).
+    assert_eq!(
+        solved(&format!("x = {}1", "1 + ".repeat(200))).get("x"),
+        Some(&201.0)
+    );
+    // Past the budget the answer is the parser's diagnostic, not a signal.
+    assert!(parse_err(&chain("+", 520)).contains("too deeply nested"));
+}
+
+#[test]
+fn differentiating_a_long_chain_stays_inside_the_depth_budget() {
+    // The invariant: whatever `differentiate` hands back is a tree the rest of
+    // the crate is already calibrated to walk. `None` (fall back to finite
+    // differences) is always an acceptable answer; an over-deep tree is not.
+    for op in ["+", "-", "*", "/"] {
+        for links in [2, 10, 50, 100, 200, 260] {
+            let src = chain(op, links);
+            let Ok(doc) = parse_document(&src) else {
+                continue; // past the parser's ceiling; nothing to differentiate
+            };
+            for equation in doc.equations() {
+                if let Some(d) = frees_core::differentiator::differentiate(&equation.lhs, "x") {
+                    let depth = expr_depth(&d);
+                    assert!(
+                        depth <= MAX_EXPR_DEPTH,
+                        "d/dx of a {links}-link `{op}` chain is {depth} deep, \
+                         past the {MAX_EXPR_DEPTH} every consumer is calibrated for"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_long_sum_is_still_differentiated_analytically() {
+    // Charging per *rule* rather than per node is what keeps this true: the
+    // shape matrix expansion generates for every matvec row must not be
+    // pushed onto the finite-difference path by the depth guard.
+    let doc = parse_document(&chain("+", 200)).expect("a 200-term sum parses");
+    let lhs = &doc.equations()[0].lhs;
+    assert!(
+        frees_core::differentiator::differentiate(lhs, "x").is_some(),
+        "a 200-term sum must still differentiate symbolically"
+    );
+}
+
+// ── huge matrix literals ────────────────────────────────────────────────────
+
+fn square_matrix_literal(n: usize) -> String {
+    let mut m = String::with_capacity(n * n * 2 + 8);
+    m.push_str("A = [");
+    for i in 0..n {
+        if i > 0 {
+            m.push_str("; ");
+        }
+        for j in 0..n {
+            if j > 0 {
+                m.push(' ');
+            }
+            m.push_str(if i == j { "2" } else { "1" });
+        }
+    }
+    m.push_str("]\n");
+    m
+}
+
+#[test]
+fn an_enormous_matrix_literal_is_refused_rather_than_expanded() {
+    // 200x200 is 40 000 elements, past `MAX_GENERATED_EQUATIONS`. The refusal
+    // must name the ceiling rather than arrive as an out-of-memory abort.
+    let message = solve_err(&square_matrix_literal(200));
+    assert!(message.contains("Too many equations"), "{message}");
+    // A matrix small enough to expand still does.
+    assert!(solve(&square_matrix_literal(20), &settings()).is_ok());
+}
+
+#[test]
+fn matrix_kernels_on_a_large_system_answer_rather_than_hang() {
+    let mut src = square_matrix_literal(60);
+    src.push_str("b = [");
+    for i in 0..60 {
+        if i > 0 {
+            src.push_str("; ");
+        }
+        src.push('1');
+    }
+    src.push_str("]\nx = SolveLinear(A, b)\n");
+    survives(&src).unwrap_or_else(|e| panic!("{e}"));
+
+    let mut inv = square_matrix_literal(40);
+    inv.push_str("B = Inverse(A)\n");
+    survives(&inv).unwrap_or_else(|e| panic!("{e}"));
+}
+
+// ── recursive and non-terminating procedural bodies ─────────────────────────
+
+#[test]
+fn runaway_recursion_hits_the_call_depth_guard() {
+    for (label, src) in [
+        (
+            "mutual",
+            "FUNCTION F(n)\n  F := G(n-1)\nEND\nFUNCTION G(n)\n  G := F(n-1)\nEND\ny = F(10)\n",
+        ),
+        ("self", "FUNCTION F(n)\n  F := F(n-1)\nEND\ny = F(10)\n"),
+        (
+            "no base case reached",
+            "FUNCTION Fact(n)\n  IF n <= 1 THEN\n    Fact := 1\n  ELSE\n    Fact := n * Fact(n-1)\n  END\nEND\ny = Fact(1e9)\n",
+        ),
+    ] {
+        let message = solve_err(src);
+        assert!(
+            message.contains("nested more than"),
+            "{label}: {message}"
+        );
+    }
+}
+
+#[test]
+fn a_deep_chain_of_distinct_functions_is_bounded_too() {
+    // Not recursion — 200 distinct functions each calling the next. The guard
+    // counts nesting, so it must catch this the same way.
+    let mut src = String::new();
+    for i in 0..200 {
+        src.push_str(&format!(
+            "FUNCTION F{i}(n)\n  F{i} := F{}(n) + 1\nEND\n",
+            i + 1
+        ));
+    }
+    src.push_str("FUNCTION F200(n)\n  F200 := n\nEND\ny = F0(1)\n");
+    assert!(solve_err(&src).contains("nested more than"));
+}
+
+#[test]
+fn a_loop_that_never_terminates_hits_the_iteration_ceiling() {
+    for (label, src, expected) in [
+        (
+            "WHILE",
+            "FUNCTION Spin(n)\n  s := 0\n  WHILE 1 > 0 DO\n    s := s + 1\n  END\n  Spin := s\nEND\ny = Spin(1)\n",
+            "WHILE loop exceeded",
+        ),
+        (
+            "REPEAT",
+            "FUNCTION Spin(n)\n  s := 0\n  REPEAT\n    s := s + 1\n  UNTIL 1 < 0\n  Spin := s\nEND\ny = Spin(1)\n",
+            "REPEAT-UNTIL exceeded",
+        ),
+        (
+            "nested WHILE",
+            "FUNCTION Spin(n)\n  s := 0\n  WHILE 1 > 0 DO\n    WHILE 1 > 0 DO\n      s := s + 1\n    END\n  END\n  Spin := s\nEND\ny = Spin(1)\n",
+            "WHILE loop exceeded",
+        ),
+        (
+            "WHILE in a PROCEDURE",
+            "PROCEDURE P(a : b)\n  b := 0\n  WHILE 1 > 0 DO\n    b := b + 1\n  END\nEND\nCALL P(1 : z)\n",
+            "WHILE loop exceeded",
+        ),
+    ] {
+        let message = solve_err(src);
+        assert!(message.contains(expected), "{label}: {message}");
+    }
+}
+
+#[test]
+fn a_for_loop_with_absurd_bounds_is_bounded_by_the_same_ceiling() {
+    let message = solve_err(
+        "FUNCTION Big(n)\n  s := 0\n  FOR i = 1 TO 1e18\n    s = s + 1\n  END\n  Big := s\nEND\ny = Big(1)\n",
+    );
+    assert!(message.contains("FOR loop exceeded"), "{message}");
+
+    // A NaN bound must be diagnosed, not silently treated as an empty loop.
+    let nan = solve_err(
+        "FUNCTION Big(n)\n  s := 0\n  FOR i = 1 TO 0/0\n    s = s + 1\n  END\n  Big := s\nEND\ny = Big(1)\n",
+    );
+    assert!(nan.contains("division by zero"), "{nan}");
+}
+
+// ── procedural output and arity contracts ───────────────────────────────────
+
+#[test]
+fn an_output_a_procedure_never_assigns_is_diagnosed() {
+    for (label, src) in [
+        (
+            "assigns a different name",
+            "PROCEDURE P(a : b)\n  c := a\nEND\nCALL P(1 : z)\n",
+        ),
+        ("empty body", "PROCEDURE P(a : b)\nEND\nCALL P(1 : z)\n"),
+        (
+            "assigned only on a branch not taken",
+            "PROCEDURE P(a : b)\n  IF a > 100 THEN\n    b := 1\n  END\nEND\nCALL P(1 : z)\n",
+        ),
+    ] {
+        let message = solve_err(src);
+        assert!(
+            message.contains("never assigned output variable"),
+            "{label}: {message}"
+        );
+    }
+
+    // The FUNCTION counterpart: a body that never assigns its own name.
+    assert!(solve_err("FUNCTION F(n)\n  x := n\nEND\ny = F(1)\n")
+        .contains("never assigned a return value"));
+}
+
+#[test]
+fn an_arity_mismatch_is_refused_in_both_directions() {
+    const DIVMOD: &str =
+        "FUNCTION [q, r] = DivMod(a, b)\n  q := trunc(a / b)\n  r := a - q * b\nEND\n";
+    for (label, src, expected) in [
+        (
+            "too many destructuring targets",
+            format!("{DIVMOD}[x, y, z] = DivMod(17, 5)\n"),
+            "provides 3 output variable(s) but PROCEDURE declares 2",
+        ),
+        (
+            "too few destructuring targets",
+            format!("{DIVMOD}[x] = DivMod(17, 5)\n"),
+            "provides 1 output variable(s) but PROCEDURE declares 2",
+        ),
+        (
+            "too many CALL outputs",
+            "PROCEDURE P(a : b, c)\n  b := a\n  c := a\nEND\nCALL P(1 : x, y, z)\n".to_string(),
+            "provides 3 output variable(s) but PROCEDURE declares 2",
+        ),
+        (
+            "too many CALL inputs",
+            "PROCEDURE P(a : b)\n  b := a\nEND\nCALL P(1, 2, 3 : x)\n".to_string(),
+            "expects 1 input(s), got 3",
+        ),
+        (
+            "too few CALL inputs",
+            "PROCEDURE P(a, b : c)\n  c := a + b\nEND\nCALL P(1 : x)\n".to_string(),
+            "expects 2 input(s), got 1",
+        ),
+    ] {
+        let message = solve_err(&src);
+        assert!(message.contains(expected), "{label}: {message}");
+    }
+}
+
+#[test]
+fn a_module_body_that_calls_itself_is_refused_not_expanded_forever() {
+    for (label, src) in [
+        ("self", "MODULE M(x : y)\n  CALL M(x : y)\nEND\nCALL M(1 : z)\n"),
+        (
+            "mutual",
+            "MODULE A(x : y)\n  CALL B(x : y)\nEND\nMODULE B(x : y)\n  CALL A(x : y)\nEND\nCALL A(1 : z)\n",
+        ),
+    ] {
+        let message = solve_err(src);
+        assert!(message.contains("contains a CALL"), "{label}: {message}");
+    }
+    // An empty MODULE grafts nothing, so its output stays free.
+    assert!(solve("MODULE M(x : y)\nEND\nCALL M(1 : z)\n", &settings()).is_err());
+}
+
+// ── degenerate TABLEs ───────────────────────────────────────────────────────
+
+#[test]
+fn a_degenerate_table_answers_rather_than_dividing_by_its_own_span() {
+    none_panic(&[
+        // One point: every interpolation is a zero-width span.
+        "TABLE t(x)\n  1   10\nEND\ny = t(5)\n",
+        // Duplicate abscissa: the span between rows 1 and 2 is zero.
+        "TABLE t(x)\n  1   10\n  1   20\n  2   30\nEND\ny = t(1)\n",
+        "TABLE t(x)\n  1   10\n  1   20\nEND\ny = t(1)\n",
+        // Descending x, which the interpolator's bracket search assumes away.
+        "TABLE t(x)\n  3   30\n  2   20\n  1   10\nEND\ny = t(2.5)\n",
+        // Log axes over zero and negative abscissae.
+        "TABLE t(x) XLOG YLOG\n  0   0\n  -1  -10\n  10  10\nEND\ny = t(5)\n",
+        // Overflowing spans.
+        "TABLE t(x)\n  -1e308   1e308\n  1e308    -1e308\nEND\ny = t(0)\n",
+        // A curve family with a short row.
+        "TABLE t(re : p = 1, 2)\n  0    0    0\n  10   10\nEND\ny = t(5, 1.5)\n",
+    ]);
+    // An empty body is a parse error, not an empty table.
+    assert!(parse_document("TABLE t(x)\nEND\ny = t(5)\n").is_err());
+}
+
+// ── rangeAssign ─────────────────────────────────────────────────────────────
+
+#[test]
+fn a_pathological_range_answers_rather_than_materialising() {
+    none_panic(&[
+        "x = 1:0:10",               // step zero
+        "x = 10:1:1",               // bounds the wrong way round
+        "x = -1e308:1:1e308",       // span overflows the element count
+        "x = 0:5e-324:1",           // subnormal step
+        "x = 1e308:-5e-324:-1e308", // both at once, descending
+        "x = 0:1:1e308 | Log",      // log spacing over an overflowing span
+        "x = 0:10:100 | Log",       // log spacing across zero
+        "x = -100:10:-1 | Log",     // log spacing over negatives
+    ]);
+}
+
+#[test]
+fn an_out_of_range_array_index_is_diagnosed() {
+    none_panic(&[
+        "speed = 0:10:100\na = speed[0]", // 1-based, so 0 is off the front
+        "speed = 0:10:100\na = speed[-1]",
+        "speed = 0:10:100\na = speed[1e18]",
+        "speed = 0:10:100\na = speed[0/0]",
+        "speed = 0:10:100\na = speed[12]", // one past the end
+    ]);
+}
+
+// ── Integral / GaussIntegral ────────────────────────────────────────────────
+
+#[test]
+fn a_pathological_integral_answers_rather_than_sweeping_forever() {
+    none_panic(&[
+        "F = Integral(t^2, t, 1, 0)",                  // bounds reversed
+        "F = Integral(0/0, t, 0, 1)",                  // integrand is NaN everywhere
+        "F = Integral(F, t, 0, 1)",                    // integrand is its own result
+        "F = Integral(1/t, t, 0, 1)",                  // singular at the lower limit
+        "F = Integral(Integral(u, u, 0, t), t, 0, 1)", // nested
+    ]);
+}
+
+/// The two quadrature inputs that are *bounded but not quick*.
+///
+/// Both terminate with the right answer, so they are not defects — but they
+/// are the slowest inputs found on this surface and the numbers should not be
+/// lost. Measured in a debug build:
+///
+/// | document | wall clock | outcome |
+/// |---|---|---|
+/// | `Integral(t, t, -1e308, 1e308)` | ~200 s | `Ok` |
+/// | `GaussIntegral(1/t, t, 0, 1)` | ~170 s | `Err`, did not converge |
+///
+/// `Integral` is bounded only by `integral::MAX_STEPS` (200 000), a faithful
+/// port of the Java sweep, and an interval that wide uses every one of them.
+/// Lowering it would be a parity change, not a fix, so the cost is recorded
+/// here instead. Ignored because 6 minutes is not a unit test.
+#[test]
+#[ignore = "bounded but slow (~6 min); documents the quadrature step budget"]
+fn the_slowest_quadrature_inputs_still_terminate() {
+    none_panic(&[
+        "F = Integral(t, t, -1e308, 1e308)",
+        "F = GaussIntegral(1/t, t, 0, 1)",
+    ]);
+}
+
+#[test]
+fn a_pathological_gauss_integral_answers_rather_than_refining_forever() {
+    none_panic(&[
+        "F = GaussIntegral(t^2, t, 1, 0)",       // bounds reversed
+        "F = GaussIntegral(t^2, t, 0, 1, 0/0)",  // NaN point count
+        "F = GaussIntegral(t^2, t, 0, 1, 1e18)", // point count past the clamp
+        "F = GaussIntegral(t^2, t, 0, 1, -5)",   // negative point count
+        "F = GaussIntegral(F, t, 0, 1)",         // integrand is its own result
+    ]);
+    // Reversed limits are named rather than silently negated.
+    assert!(solve_err("F = GaussIntegral(t^2, t, 1, 0)").contains("do not specify an interval"));
+}
+
+#[test]
+fn an_integrand_that_recurses_without_a_base_case_is_bounded() {
+    let message = solve_err("FUNCTION F(n)\n  F := F(n-1)\nEND\nG = Integral(F(t), t, 0, 1)\n");
+    assert!(message.contains("nested more than"), "{message}");
+}
+
+// ── complex mode ────────────────────────────────────────────────────────────
+
+#[test]
+fn complex_mode_on_a_large_real_document_terminates() {
+    let complex = SolverSettings {
+        complex_mode: true,
+        ..SolverSettings::default()
+    };
+    // Every real equation doubles into a real and an imaginary part, so this
+    // is 800 equations by the time it reaches the blocker.
+    let mut src = String::from("x0 = 1\n");
+    for i in 1..400 {
+        src.push_str(&format!("x{i} = x{} * 1.0001 + sin(x{})\n", i - 1, i - 1));
+    }
+    assert!(
+        solve(&src, &complex).is_ok(),
+        "large real document in complex mode"
+    );
+
+    // Mixed with the rest of the Phase-4 surface.
+    let mixed = "FUNCTION F(n)\n  F := n * 2\nEND\n\
+                 TABLE t(x)\n  1   10\n  2   20\nEND\n\
+                 a = F(3)\nb = t(1.5)\nc_r = 1\nc_i = 2\nd = c_r * c_i + a + b\n";
+    let _ = solve(mixed, &complex);
+
+    // A chain of square roots of a negative, which is where complex expansion
+    // has to seed `_i` components rather than inherit the real guess.
+    let mut roots = String::from("x0 = -1\n");
+    for i in 1..100 {
+        roots.push_str(&format!("x{i} = sqrt(x{})\n", i - 1));
+    }
+    let _ = solve(&roots, &complex);
+}

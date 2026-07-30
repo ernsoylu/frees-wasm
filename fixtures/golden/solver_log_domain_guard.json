@@ -1,0 +1,18 @@
+{
+  "name": "solver_log_domain_guard",
+  "source": "{ A residual whose iterate can wander into ln's forbidden domain. }\nGUESS z = 0.5\nln(z) = -1\n",
+  "expect": {
+    "variables": {
+      "z": 0.36787944117144233
+    },
+    "display_names": {
+      "z": "z"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

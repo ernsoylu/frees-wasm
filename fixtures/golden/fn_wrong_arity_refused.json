@@ -1,0 +1,17 @@
+{
+  "name": "fn_wrong_arity_refused",
+  "source": "{ Calling a FUNCTION with the wrong number of arguments. }\nFUNCTION Sq(u)\n  Sq := u * u\nEND\n\ny = Sq(1, 2)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "IllegalArgumentException",
+      "message": "FUNCTION sq expects 1 argument(s), got 2"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

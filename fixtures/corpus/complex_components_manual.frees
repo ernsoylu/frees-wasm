@@ -1,0 +1,10 @@
+{ The `_r` / `_i` naming convention spelled out by hand, so the document is a
+  plain real system: (3 + 4i)(1 - 2i) = 11 - 2i, and the magnitude of 3 + 4i is 5.
+  This pins the component algebra the complex expander must reproduce. }
+a_r = 3
+a_i = 4
+b_r = 1
+b_i = -2
+c_r = a_r * b_r - a_i * b_i
+c_i = a_r * b_i + a_i * b_r
+mag = sqrt(a_r ^ 2 + a_i ^ 2)

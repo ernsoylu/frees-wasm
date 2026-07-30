@@ -1,0 +1,17 @@
+{
+  "name": "complex_literal_default_mode",
+  "source": "{ An imaginary literal in a document solved with DEFAULT settings — complex mode\n  is a solver flag, not a document directive, so this records what the engine\n  does with `4i` when the flag is off. Whatever that is, both engines must agree. }\nz = 3 + 4i\nw = 1j * z\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "The equations contain complex literals (e.g. 1i): enable Complex mode to solve them."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

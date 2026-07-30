@@ -1,0 +1,7 @@
+{ Minimal repro distilled from the brayton-cycle example: the `K` inside the
+  unit annotation [J/kg-K] must NOT register a display name for the variable k.
+  Java records k -> "k" (from the equation on line 2); an engine that lets unit
+  tokens enter the display-name table wins the first-seen race with "K". }
+cp = 1004 [J/kg-K]
+k = 1.4
+q = cp * k

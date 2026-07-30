@@ -1,0 +1,22 @@
+{
+  "name": "expr_operator_precedence",
+  "source": "{ Precedence and right-associativity of ^. }\na = 2 ^ 3 ^ 2\nb = -2 ^ 2\nc = 2 + 3 * 4 ^ 2 - 6 / 3\n",
+  "expect": {
+    "variables": {
+      "a": 512.0,
+      "b": -4.0,
+      "c": 48.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

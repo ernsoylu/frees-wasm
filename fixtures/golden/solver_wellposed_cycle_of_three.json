@@ -1,0 +1,22 @@
+{
+  "name": "solver_wellposed_cycle_of_three",
+  "source": "{ A genuine 3-cycle with a unique solution (full-rank, nonlinear) must land in\n  one simultaneous block. }\nx + y + z = 6\nx * y = 2\ny - z = -1\nGUESS x = 1\nGUESS y = 1\nGUESS z = 1\n",
+  "expect": {
+    "variables": {
+      "x": 1.0,
+      "y": 2.0,
+      "z": 3.0
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y",
+      "z": "z"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

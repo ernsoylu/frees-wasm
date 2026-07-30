@@ -1,0 +1,33 @@
+{
+  "name": "range_assign_negative_step",
+  "source": "{ A negative step counts down: 50:-10:0 is 50, 40, ... 0. Java CodeRangeTest. }\nt = 50:-10:0\na = t[1]\nb = t[6]\n",
+  "expect": {
+    "variables": {
+      "a": 50.0,
+      "b": 0.0,
+      "t[1]": 50.0,
+      "t[2]": 40.0,
+      "t[3]": 30.0,
+      "t[4]": 20.0,
+      "t[5]": 10.0,
+      "t[6]": 0.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "t": "t",
+      "t[1]": "t[1]",
+      "t[2]": "t[2]",
+      "t[3]": "t[3]",
+      "t[4]": "t[4]",
+      "t[5]": "t[5]",
+      "t[6]": "t[6]"
+    },
+    "block_count": 8,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,3 @@
+{ Error parity: nothing determines b, so the document has one more unknown than
+  equations. Java IntegralTest.freeVariableLimitIsRejected. }
+F = Integral(t, t, 0, b)

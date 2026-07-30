@@ -1,0 +1,6 @@
+{ Bilinear interpolation is exact for an affine field f = 2x + 3y.
+  Java Interp2Test.bilinearExactOnAffineField: zq = 5.5. }
+x = [0, 1, 2]
+y = [0, 1, 2, 3]
+Z = [0, 3, 6, 9; 2, 5, 8, 11; 4, 7, 10, 13]
+CALL Interp2(x, y, Z, 0.5, 1.5 : zq)

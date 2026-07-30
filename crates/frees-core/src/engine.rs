@@ -81,13 +81,12 @@ use crate::ast::{Equation, Expr, Statement};
 use crate::diag::{Diagnostic, FreesError, Result};
 use crate::differentiator::differentiate;
 use crate::eval::{eval_with, lookup_constant, EvalContext, Scope};
-use crate::lexer::tokenize;
+use crate::integral::IntegralEquation;
 use crate::parser::defs::Definitions;
 use crate::parser::{parse_document, Document, GuessDirective};
-use crate::procedures::flatten_calls;
+use crate::procedures::flatten_calls_into;
 use crate::solver::blocker::{block_system, unknowns, Block};
 use crate::solver::newton::{newton_solve_problem, NewtonProblem, SolverSettings};
-use crate::token::TokenKind;
 use crate::units::registry::UnitRegistry;
 
 /// Initial value for an unknown with no `GUESS`.
@@ -189,9 +188,14 @@ pub struct PartialDiagnostics {
     /// Per block, the `source_text` of its equations (see
     /// [`Solution::block_equations`]).
     pub block_equations: Vec<Vec<String>>,
-    /// Lowercase canonical name → first-seen source spelling, covering every
-    /// unknown in the system.
+    /// Lowercase canonical name → first-seen source spelling. This is the whole
+    /// `ParseResult.displayNames` map the Java partial `Result` carries, so it
+    /// may name more identifiers than the system has unknowns — use
+    /// [`PartialDiagnostics::unknown_count`] for the count.
     pub display_names: BTreeMap<String, String>,
+    /// How many unknowns the stalled system had (the Java partial
+    /// `Stats.variableCount`, i.e. `surfacedVarCount`).
+    pub unknown_count: usize,
     /// Every equation's `lhs - rhs` at the stalled iterate, source order.
     pub residuals: Vec<EquationResidual>,
     /// Iterations spent before the stall + the largest finite `|residual|`.
@@ -420,10 +424,53 @@ pub fn solve_with(
     // expansion alongside it, and `ComplexExpansion.expand` runs in
     // `EquationSystemSolver.solve` after both.
     let statements = std::mem::take(&mut doc.statements);
-    doc.statements = flatten_calls(statements, &doc.defs)?;
+    let mut parsed_names = std::mem::take(&mut doc.display_names);
+    doc.statements = flatten_calls_into(statements, &doc.defs, &mut parsed_names)?;
+    doc.display_names = parsed_names;
     let equations = crate::parser::expand::expand_document(&doc)?;
-    let equations = crate::parser::complex::expand_complex(equations, settings.complex_mode)?;
     let defs = &doc.defs;
+
+    // Pipeline stage 3b — the Integral pass, at the Java position (`solve`
+    // runs `IntegralSolver.hoistNested` then `findIntegrals` on the flattened
+    // equations, ahead of `ComplexExpansion` and of blocking). A document that
+    // mentions no `Integral` comes out of `hoist_nested` byte-identical and
+    // takes the same path it always did.
+    let equations = crate::integral::hoist_nested(equations);
+    let integrals = find_integrals(&equations, defs, settings.complex_mode)?;
+    let mut stepping_iterations = 0usize;
+    let equations = if integrals.is_empty() {
+        if settings.complex_mode {
+            // `ComplexExpansion.expand(equations, parsed.displayNames())` — the
+            // Java threads the map in so `x_r`/`x_i` display as
+            // `<display of x>_r` / `_i` rather than falling back to themselves.
+            let mut complex_names: HashMap<String, String> = doc
+                .display_names
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            let expanded =
+                crate::parser::complex::expand_with_display_names(&equations, &mut complex_names)?;
+            doc.display_names = complex_names.into_iter().collect();
+            expanded
+        } else {
+            crate::parser::complex::expand_complex(equations, false)?
+        }
+    } else {
+        // The stepping driver needs guesses and bounds *before* the final
+        // equation list exists (it solves pinned subsystems to build it), so
+        // the specs are materialised twice: here over the hoisted system — a
+        // superset, and where the Java reads them from the parse result ahead
+        // of everything — and again below over the lowered system, which is
+        // what the result rows are keyed on. This pass's diagnostics are
+        // dropped so a `GUESS` warning is never emitted twice.
+        let (_, hoisted_knowns) = builtin_constants(&equations);
+        let mut dropped = Vec::new();
+        let pre_specs = variable_specs(&equations, &hoisted_knowns, &doc, overrides, &mut dropped)?;
+        let (lowered, driven) =
+            lower_integrals(&equations, &integrals, settings, &pre_specs, defs)?;
+        stepping_iterations = driven;
+        lowered
+    };
 
     let (constants, knowns) = builtin_constants(&equations);
     let report = block_system(&equations, &knowns)?;
@@ -442,52 +489,45 @@ pub fn solve_with(
         values.insert(name.clone(), spec.initial());
     }
 
-    let mut iterations = 0usize;
-    // Blocks a merge rescue already solved (Java solveEquationList's
-    // `skipIndices`).
-    let mut skip: HashSet<usize> = HashSet::new();
-    for index in 0..report.blocks.len() {
-        if skip.contains(&index) {
-            continue;
+    let iterations = match run_blocks(
+        &report.blocks,
+        &equations,
+        &mut values,
+        settings,
+        &specs,
+        defs,
+    ) {
+        Ok(block_iterations) => stepping_iterations + block_iterations,
+        Err(BlockLoopFailure {
+            error,
+            failed_block_index,
+            iterations,
+        }) => {
+            // The Java `enrichWithPartialResult`: attach the block structure,
+            // every equation's residual at the stalled iterate (`residuals_at`
+            // records NaN where evaluation fails), and partial stats, so a
+            // failure ships diagnostics.
+            let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values, defs);
+            let block_equations = block_equation_texts(&report.blocks, &equations);
+            let display_names = complete_display_names(&doc.display_names, &equations);
+            return Err(SolveFailure {
+                error,
+                failed_block_index: Some(failed_block_index),
+                partial: Some(Box::new(PartialDiagnostics {
+                    blocks: report.blocks,
+                    block_equations,
+                    display_names,
+                    unknown_count: specs.len(),
+                    residuals,
+                    stats: SolveStats {
+                        iterations: stepping_iterations + iterations,
+                        max_residual,
+                        elapsed_ms: None,
+                    },
+                })),
+            });
         }
-        match solve_block_with_fallback(
-            index,
-            &report.blocks,
-            &equations,
-            &mut values,
-            settings,
-            &specs,
-            defs,
-            &mut skip,
-        ) {
-            Ok(block_iterations) => iterations += block_iterations,
-            Err(error) => {
-                // The Java `enrichWithPartialResult`: attach the block
-                // structure, every equation's residual at the stalled iterate
-                // (`residuals_at` records NaN where evaluation fails), and
-                // partial stats, so a failure ships diagnostics.
-                let (residuals, max_residual) =
-                    residuals_at(&equations, &report.blocks, &values, defs);
-                let block_equations = block_equation_texts(&report.blocks, &equations);
-                let display_names = display_names_for(specs.keys(), source);
-                return Err(SolveFailure {
-                    error,
-                    failed_block_index: Some(index),
-                    partial: Some(Box::new(PartialDiagnostics {
-                        blocks: report.blocks,
-                        block_equations,
-                        display_names,
-                        residuals,
-                        stats: SolveStats {
-                            iterations,
-                            max_residual,
-                            elapsed_ms: None,
-                        },
-                    })),
-                });
-            }
-        }
-    }
+    };
 
     check_bounds(&specs, &values, &mut diagnostics);
 
@@ -505,7 +545,7 @@ pub fn solve_with(
         })
         .collect();
 
-    let display_names = display_names_for(solved.keys(), source);
+    let display_names = complete_display_names(&doc.display_names, &equations);
     let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values, defs);
     let block_equations = block_equation_texts(&report.blocks, &equations);
 
@@ -582,12 +622,28 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
     // `ParseException` becomes the 400-with-body syntax report, and anything
     // else the `catch (SolverException)` not-solvable report with the counts
     // of the equations as they stood when the pass refused.
+    // Display names accumulate across the pipeline exactly as on the solve
+    // path; the closure below works on a clone of the document, so the names
+    // the CALL flattener generates are collected out here.
+    let mut parsed_names = doc.display_names.clone();
     let expanded = (|| {
         let mut doc = doc.clone();
         let statements = std::mem::take(&mut doc.statements);
-        doc.statements = flatten_calls(statements, &doc.defs)?;
+        doc.statements = flatten_calls_into(statements, &doc.defs, &mut parsed_names)?;
         let equations = crate::parser::expand::expand_document(&doc)?;
-        crate::parser::complex::expand_complex(equations, false)
+        // The Integral pass, as in `solve_with` — but `check` builds the
+        // *structural view* instead of driving the quadrature: a constant-limit
+        // integral contributes a `resultVar = 0` placeholder, a variable-limit
+        // one its inlined equation, and each integration variable is pinned
+        // once. Without that pin `F = Integral(t^2, t, 0, 1)` is one equation
+        // in two unknowns and the blocker would reject a valid document.
+        let equations = crate::integral::hoist_nested(equations);
+        let integrals = find_integrals(&equations, &doc.defs, false)?;
+        if integrals.is_empty() {
+            crate::parser::complex::expand_complex(equations, false)
+        } else {
+            crate::integral::structural_view(&equations, &integrals)
+        }
     })();
     let equations: Vec<Equation> = match expanded {
         Ok(equations) => equations,
@@ -600,7 +656,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
                 solvable: false,
                 equation_count: equations.len(),
                 unknown_count: variables.len(),
-                display_names: display_names_for(variables.iter(), source),
+                display_names: complete_display_names(&parsed_names, &equations),
                 variables,
                 message: err.to_string_message(),
                 error_line: None,
@@ -632,7 +688,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         solvable: false,
         equation_count: equations.len(),
         unknown_count: variables.len(),
-        display_names: display_names_for(variables.iter(), source),
+        display_names: complete_display_names(&parsed_names, &equations),
         variables,
         message: String::new(),
         error_line: None,
@@ -759,42 +815,59 @@ fn walk_units(expr: &Expr, report: &mut impl FnMut(&str)) {
     }
 }
 
-/// Lowercase name → the spelling of its first appearance in the token stream.
-///
-/// The Java parser records this as it builds variables
-/// (`ParseResult.displayNames`); this port reconstructs it with a plain lexer
-/// pass — [`TokenKind::Ident`] keeps the original case, and the **first**
-/// occurrence of each identifier wins, sigil suffixes (`$`, `#`) kept as-is.
-/// The scan sees *every* identifier (function names, unit spellings inside
-/// `[...]`), which is why callers filter the map down to actual variables via
-/// [`display_names_for`] — that filtered view is what the golden fixtures
-/// record.
-fn first_seen_spellings(source: &str) -> HashMap<String, String> {
-    let mut spellings = HashMap::new();
-    if let Ok(tokens) = tokenize(source) {
-        for token in tokens {
-            if let TokenKind::Ident(text) = token.kind {
-                spellings.entry(text.to_ascii_lowercase()).or_insert(text);
-            }
-        }
+/// Split `a[1,2]` into `("a", "[1,2]")`; `None` for a name that is not an
+/// expanded array/matrix element.
+fn element_parts(name: &str) -> Option<(&str, &str)> {
+    if !name.ends_with(']') {
+        return None;
     }
-    spellings
+    let open = name.find('[')?;
+    (open > 0).then(|| name.split_at(open))
 }
 
-/// The display-name map for exactly `names` (lowercase canonical names): each
-/// maps to its first-seen source spelling, or to itself when the scan has no
-/// entry (the Java `displayNames.getOrDefault(v, v)`).
-fn display_names_for<'a>(
-    names: impl Iterator<Item = &'a String>,
-    source: &str,
+/// The Java `ParseResult.displayNames`, completed with what expansion adds.
+///
+/// The parser has already recorded every identifier the Java `AstBuilder`
+/// registers (see [`crate::parser::Document::display_names`]) and the CALL
+/// flattener has added its namespaced module variables. What remains is the
+/// **element** rule, which the Java applies at four sites that all compute the
+/// same thing (`EquationParser.expandExpr`'s `ArrayAccess` case,
+/// `buildElementVars`, and the range expansions inside `parseMatrixInfo` /
+/// `parseVectorInfo`, plus `flattenBareMatrixCreation`):
+///
+/// ```text
+/// displayNames.put(base + "[i,j]",
+///                  displayNames.getOrDefault(base, base) + "[i,j]")
+/// ```
+///
+/// Because every one of those sites fires exactly when an element name enters
+/// the equation list, replaying the rule over the expanded system's variables
+/// reproduces the map without threading a mutable map through the whole
+/// flattener. Note the Java uses `put`, not `putIfAbsent`: an element entry
+/// always wins over anything with the same key, which is why this runs after
+/// the parse-time map is in place and overwrites.
+fn complete_display_names(
+    parsed: &BTreeMap<String, String>,
+    equations: &[Equation],
 ) -> BTreeMap<String, String> {
-    let spellings = first_seen_spellings(source);
+    let mut names = parsed.clone();
+    let mut elements: BTreeSet<String> = BTreeSet::new();
+    for equation in equations {
+        elements.extend(
+            equation
+                .variables()
+                .into_iter()
+                .filter(|v| element_parts(v).is_some()),
+        );
+    }
+    for element in elements {
+        let Some((base, suffix)) = element_parts(&element) else {
+            continue;
+        };
+        let base_display = names.get(base).cloned().unwrap_or_else(|| base.to_string());
+        names.insert(element.clone(), format!("{base_display}{suffix}"));
+    }
     names
-        .map(|name| {
-            let display = spellings.get(name).cloned().unwrap_or_else(|| name.clone());
-            (name.clone(), display)
-        })
-        .collect()
 }
 
 /// The check report for a document that did not parse — the body the Java
@@ -1807,6 +1880,269 @@ fn solve_block_with_fallback(
         iterations += count;
     }
     Ok(iterations)
+}
+
+// ---------------------------------------------------------------------------
+// The block loop, shared by the main solve and the Integral driver
+// ---------------------------------------------------------------------------
+
+/// What a completed inner solve leaves behind — the Java
+/// `EquationSystemSolver.InnerSolve` minus its `blocks`, which no caller of
+/// [`solve_equation_list`] needs.
+struct InnerSolve {
+    /// Every variable of the system at the solution, plus the built-in
+    /// constants that were seeded so the evaluator could read them.
+    values: Scope,
+    iterations: usize,
+}
+
+/// A block that gave up, with the index it happened at and the work done
+/// before it (the Java `SolverException.FailureState`, minus the copies of the
+/// blocks and values the caller already holds).
+struct BlockLoopFailure {
+    error: FreesError,
+    failed_block_index: usize,
+    iterations: usize,
+}
+
+/// Solve every block in order through the retry ladder, writing each block's
+/// answer into `values` as it goes (that *is* the "feed knowns forward"
+/// mechanism). The Java `solveEquationList`'s block loop, factored out so the
+/// pinned subsystems the `Integral` stepper solves run through exactly the
+/// same path as the top-level system.
+fn run_blocks(
+    blocks: &[Block],
+    equations: &[Equation],
+    values: &mut Scope,
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
+) -> std::result::Result<usize, BlockLoopFailure> {
+    let mut iterations = 0usize;
+    // Blocks a merge rescue already solved (Java's `skipIndices`).
+    let mut skip: HashSet<usize> = HashSet::new();
+    for index in 0..blocks.len() {
+        if skip.contains(&index) {
+            continue;
+        }
+        match solve_block_with_fallback(
+            index, blocks, equations, values, settings, specs, defs, &mut skip,
+        ) {
+            Ok(block_iterations) => iterations += block_iterations,
+            Err(error) => {
+                return Err(BlockLoopFailure {
+                    error,
+                    failed_block_index: index,
+                    iterations,
+                })
+            }
+        }
+    }
+    Ok(iterations)
+}
+
+/// Block and solve a standalone equation list, seeded from `warm_start` where
+/// it has a value for a variable and from `specs` otherwise — the Java
+/// `EquationSystemSolver.solveEquationList` (`initialGuess(name, specs,
+/// warmStart)`).
+///
+/// Only the `Integral` driver uses this. [`solve_with`] drives
+/// [`block_system`] and [`run_blocks`] itself because it needs the blocking
+/// report, the specs and the diagnostics for its own reporting.
+fn solve_equation_list(
+    equations: &[Equation],
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
+    warm_start: Option<&Scope>,
+) -> Result<InnerSolve> {
+    let (constants, knowns) = builtin_constants(equations);
+    let report = block_system(equations, &knowns)?;
+
+    let mut values: Scope = HashMap::new();
+    values.extend(constants);
+    for name in unknowns(equations, &knowns) {
+        let guess = warm_start
+            .and_then(|warm| warm.get(&name).copied())
+            .unwrap_or_else(|| initial_guess(&name, specs));
+        values.insert(name, guess);
+    }
+
+    let iterations = run_blocks(
+        &report.blocks,
+        equations,
+        &mut values,
+        settings,
+        specs,
+        defs,
+    )
+    .map_err(|failure| failure.error)?;
+    Ok(InnerSolve { values, iterations })
+}
+
+// ---------------------------------------------------------------------------
+// The Integral pass — port of EquationSystemSolver.solveWithIntegrals
+// ---------------------------------------------------------------------------
+
+/// Every `Integral` equation of the system, or an empty list when the document
+/// mentions none.
+///
+/// The Java `EquationSystemSolver.findIntegrals`: detection runs on the raw
+/// equations (before complex expansion), and complex mode is refused outright
+/// rather than producing an expansion the quadrature cannot drive.
+fn find_integrals(
+    equations: &[Equation],
+    defs: &Definitions,
+    complex_mode: bool,
+) -> Result<Vec<IntegralEquation>> {
+    let mentions = equations.iter().any(|equation| {
+        crate::integral::mentions_integral(&equation.lhs)
+            || crate::integral::mentions_integral(&equation.rhs)
+    });
+    if !mentions {
+        return Ok(Vec::new());
+    }
+    if complex_mode {
+        return Err(FreesError::solver(
+            "Integral is not supported in complex mode.",
+        ));
+    }
+    crate::integral::extract(equations, defs)
+}
+
+/// Lower every `Integral` equation into the equation list the solver actually
+/// blocks — the Java `solveWithIntegrals` plus `appendIntegralEquations`.
+///
+/// * A **variable-limit** integral (`F = Integral(2*t, t, 0, b)`) becomes the
+///   inlined quadrature equation, which the evaluator recomputes at every
+///   Newton residual, plus — once per integration variable — a pin
+///   `t = <upper expression>`.
+/// * A **constant-limit** integral is driven *here*, before the main solve:
+///   [`crate::integral::integrate`] sweeps `t` from `a` to `b`, re-solving the
+///   ordinary subsystem with `t` and the running total pinned at every
+///   quadrature point, and the result becomes a numeric equation
+///   `F = <value>`, with `t` pinned at the upper limit.
+///
+/// Those pins are what make an integral document square: without them
+/// `F = Integral(t^2, t, 0, 1)` is one equation in two unknowns. They are also
+/// why the integration variable **survives as a result variable** sitting at
+/// the upper limit, which is the parent engine's documented behaviour.
+///
+/// Returns the lowered equations and the Newton iterations the sweeps
+/// consumed (the Java `IntegrationState.iterations`, which is added to the
+/// reported total).
+fn lower_integrals(
+    equations: &[Equation],
+    integrals: &[IntegralEquation],
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
+) -> Result<(Vec<Equation>, usize)> {
+    let ordinary = crate::integral::ordinary_equations(equations, integrals);
+    let mut lowered = ordinary.clone();
+    let mut pinned_integration_vars: BTreeSet<String> = BTreeSet::new();
+    // The Java `IntegrationState` is built once per document and shared by
+    // every integral, so a later sweep warm-starts from the last subsystem
+    // solve of an earlier one.
+    let mut warm_start: Option<Scope> = None;
+    let mut stepping_iterations = 0usize;
+
+    for ie in integrals {
+        if !ie.constant_limits() {
+            lowered.push(crate::integral::inlined_equation(ie, &ordinary)?);
+            if pinned_integration_vars.insert(ie.integration_var.clone()) {
+                lowered.push(Equation::new(
+                    Expr::Var(ie.integration_var.clone()),
+                    ie.upper_expr.clone(),
+                    format!(
+                        "{} = upper limit of {}",
+                        ie.integration_var, ie.original.source_text
+                    ),
+                ));
+            }
+            continue;
+        }
+
+        let value = crate::integral::integrate(
+            |t, running_total| {
+                let solved = solve_pinned(
+                    &ordinary,
+                    &[
+                        (ie.integration_var.clone(), t),
+                        (ie.result_var.clone(), running_total),
+                    ],
+                    settings,
+                    specs,
+                    defs,
+                    warm_start.as_ref(),
+                )
+                .map_err(|err| integral_point_failure(ie, t, &err))?;
+                stepping_iterations += solved.iterations;
+                let point = eval_with(
+                    &ie.integrand,
+                    &solved.values,
+                    EvalContext { defs: Some(defs) },
+                )
+                .map_err(|err| integral_point_failure(ie, t, &err));
+                warm_start = Some(solved.values);
+                point
+            },
+            ie.lower(),
+            ie.upper(),
+            ie.fixed_step,
+        )?;
+
+        if pinned_integration_vars.insert(ie.integration_var.clone()) {
+            lowered.push(Equation::new(
+                Expr::Var(ie.integration_var.clone()),
+                Expr::num(ie.upper()),
+                format!("{} = {}", ie.integration_var, ie.upper()),
+            ));
+        }
+        lowered.push(Equation::new(
+            Expr::Var(ie.result_var.clone()),
+            Expr::num(value),
+            ie.original.source_text.clone(),
+        ));
+    }
+    Ok((lowered, stepping_iterations))
+}
+
+/// Solve `ordinary` with a set of variables pinned to fixed values, seeded
+/// from `warm_start`. Each pinned variable is appended as a `var = value`
+/// equation (insertion order preserved) so the existing Newton/Tarjan pipeline
+/// treats it as a constant for this solve.
+///
+/// The Java `EquationSystemSolver.solvePinned` — the one place the
+/// "solve the rest of the system with the integration variable fixed"
+/// behaviour lives.
+fn solve_pinned(
+    ordinary: &[Equation],
+    pinned: &[(String, f64)],
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    defs: &Definitions,
+    warm_start: Option<&Scope>,
+) -> Result<InnerSolve> {
+    let mut subsystem: Vec<Equation> = ordinary.to_vec();
+    for (name, value) in pinned {
+        subsystem.push(Equation::new(
+            Expr::Var(name.clone()),
+            Expr::num(*value),
+            format!("{name} = {value}"),
+        ));
+    }
+    solve_equation_list(&subsystem, settings, specs, defs, warm_start)
+}
+
+/// Name the quadrature point a subsystem solve or an integrand evaluation gave
+/// up at — the Java `integrandAt`'s `catch` wrapper.
+fn integral_point_failure(ie: &IntegralEquation, t: f64, err: &FreesError) -> FreesError {
+    FreesError::solver(format!(
+        "While evaluating Integral at {} = {t}: {}",
+        ie.integration_var,
+        err.to_string_message()
+    ))
 }
 
 /// Prefix a block failure with the equations it came from, quoted verbatim.

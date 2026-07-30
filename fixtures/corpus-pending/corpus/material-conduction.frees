@@ -1,0 +1,10 @@
+// Conduction Through an Aluminum Plate
+{ The thermal conductivity comes from the built-in solid-material
+  database via k_(Aluminum) — no need to look it up. }
+T_hot = 400 [K]
+T_cold = 300 [K]
+L = 0.02 [m]             { plate thickness }
+A = 0.25 [m^2]           { area }
+k = k_(Aluminum)         { ~237 W/m-K from the material DB }
+
+q = k * A * (T_hot - T_cold) / L   { heat rate through the plate }

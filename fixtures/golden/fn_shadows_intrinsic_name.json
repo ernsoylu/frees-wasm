@@ -1,0 +1,19 @@
+{
+  "name": "fn_shadows_intrinsic_name",
+  "source": "{ A user FUNCTION named like an intrinsic: which one wins? }\nFUNCTION Max(a)\n  Max := a + 1000\nEND\n\ny = Max(1)\n",
+  "expect": {
+    "variables": {
+      "y": 1001.0
+    },
+    "display_names": {
+      "a": "a",
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

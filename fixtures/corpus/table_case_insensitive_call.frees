@@ -1,0 +1,7 @@
+{ A TABLE is reachable under any casing, like every other frees name.
+  Java CodeTableTest.mixedCaseCallResolvesToTable: dP = 150. }
+TABLE fanPressure(rpm)
+  1000   100
+  2000   200
+END
+dP = FANPRESSURE(1500)

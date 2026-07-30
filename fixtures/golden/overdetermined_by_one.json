@@ -1,0 +1,17 @@
+{
+  "name": "overdetermined_by_one",
+  "source": "{ Three equations, two unknowns. }\nx + y = 3\nx - y = 1\nx = 2\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 3 equations and 2 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): x=2. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

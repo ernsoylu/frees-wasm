@@ -1,0 +1,17 @@
+{
+  "name": "state-tables-multifluid",
+  "source": "// Multi-Fluid State Tables\n{ Two circuits in one model: a steam loop and an R134a loop. Each\n  STATE TABLE groups its own state points and declares its FLUID, so\n  the Fluid States window shows one fluid-aware table per circuit and\n  property look-ups never mix fluids — a Water state 1 and an R134a\n  state 1 stay separate. Press Solve (F2), then click\n  \"Fill Missing Values\" in the Fluid States window to complete each\n  state (s, v, x, ...) from CoolProp using the right fluid. }\n\n{ --- Water loop --- }\nPw_1 = 10 [kPa]\nTw_1 = 45 [C]\nhw_1 = Enthalpy(Water, P=Pw_1, T=Tw_1)\n\nPw_2 = 8000 [kPa]\nTw_2 = 480 [C]\nhw_2 = Enthalpy(Water, P=Pw_2, T=Tw_2)\n\n{ --- R134a loop --- }\nPref_1 = 200 [kPa]\nxref_1 = 1\nhref_1 = Enthalpy(R134a, P=Pref_1, x=xref_1)\n\nPref_2 = 1200 [kPa]\nTref_2 = 60 [C]\nhref_2 = Enthalpy(R134a, P=Pref_2, T=Tref_2)\n\nSTATE TABLE WaterLoop(Pw_1, Tw_1, hw_1, Pw_2, Tw_2, hw_2)\n  FLUID = Water\nEND\n\nSTATE TABLE RefrigerantLoop(Pref_1, xref_1, href_1, Pref_2, Tref_2, href_2)\n  FLUID = R134a\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "IllegalStateException",
+      "message": "The CoolProp native library is not available. Set the COOLPROP_LIBRARY environment variable to the path of libCoolProp.so to enable fluid property functions."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

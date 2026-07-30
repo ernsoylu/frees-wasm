@@ -1,0 +1,2 @@
+{ Upper limit below the lower one: the integral must change sign. }
+R = Integral(2*t, t, 3, 1)

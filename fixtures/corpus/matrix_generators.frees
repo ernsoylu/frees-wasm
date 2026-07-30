@@ -1,0 +1,7 @@
+{ The matrix generator family, from Java solvesMatlabMatrixGenerators.
+  linspace(0,10,5) is 0, 2.5, 5, 7.5, 10. }
+I = eye(3)
+Z = zeros(2,2)
+u = ones(3,1)
+D = diag([2; 5; 7])
+g = linspace(0, 10, 5)

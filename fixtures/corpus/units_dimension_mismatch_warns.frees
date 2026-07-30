@@ -1,0 +1,4 @@
+{ Adding a length to a mass is dimensionally wrong: a warning, never a failure. }
+L = 2 [m]
+M = 3 [kg]
+bad = L + M

@@ -1,0 +1,4 @@
+{ An Integral used inside an ordinary equation chain. }
+b = 4
+A = Integral(v, v, 0, b)
+c = A / b

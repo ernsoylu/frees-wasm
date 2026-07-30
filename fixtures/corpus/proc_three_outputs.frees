@@ -1,0 +1,8 @@
+{ A PROCEDURE with three outputs: each is a separate proc$name$k call. }
+PROCEDURE Stats(a, b, c : mn, mx, av)
+  mn := min(a, min(b, c))
+  mx := max(a, max(b, c))
+  av := (a + b + c) / 3
+END
+
+CALL Stats(4, 1, 7 : lo, hi, mean)

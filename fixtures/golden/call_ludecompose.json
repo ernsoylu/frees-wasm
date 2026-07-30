@@ -1,0 +1,43 @@
+{
+  "name": "call_ludecompose",
+  "source": "{ CALL LUDecompose pins the L/U triangular structure by equations.\n  Java EquationSystemSolverTest LU decomposition of [4 3; 6 3]. }\nA[1:2,1:2] = [4 3; 6 3]\nCALL LUDecompose(A[1:2,1:2] : L[1:2,1:2], U[1:2,1:2])\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 4.0,
+      "A[1,2]": 3.0,
+      "A[2,1]": 6.0,
+      "A[2,2]": 3.0,
+      "L[1,1]": 1.0,
+      "L[1,2]": 0.0,
+      "L[2,1]": 1.5,
+      "L[2,2]": 1.0,
+      "U[1,1]": 4.0,
+      "U[1,2]": 3.0,
+      "U[2,1]": 0.0,
+      "U[2,2]": -1.5
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "l": "L",
+      "l[1,1]": "L[1,1]",
+      "l[1,2]": "L[1,2]",
+      "l[2,1]": "L[2,1]",
+      "l[2,2]": "L[2,2]",
+      "u": "U",
+      "u[1,1]": "U[1,1]",
+      "u[1,2]": "U[1,2]",
+      "u[2,1]": "U[2,1]",
+      "u[2,2]": "U[2,2]"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

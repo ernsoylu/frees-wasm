@@ -1,0 +1,18 @@
+{
+  "name": "solver_division_by_zero_iterate",
+  "source": "{ A residual that divides by an iterate which starts at the default guess. }\nGUESS q = 1\n1 / q = 4\n",
+  "expect": {
+    "variables": {
+      "q": 0.25
+    },
+    "display_names": {
+      "q": "q"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

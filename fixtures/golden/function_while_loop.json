@@ -1,0 +1,21 @@
+{
+  "name": "function_while_loop",
+  "source": "{ WHILE ... DO inside a FUNCTION body. Sum 1..10 = 55.\n  Java ProceduralFeaturesTest.functionWhileLoop. }\nFUNCTION SumWhile(n)\n  i := 1\n  s := 0\n  WHILE i <= n DO\n    s := s + i\n    i := i + 1\n  END\n  SumWhile := s\nEND\n\nresult = SumWhile(10)\n",
+  "expect": {
+    "variables": {
+      "result": 55.0
+    },
+    "display_names": {
+      "i": "i",
+      "n": "n",
+      "result": "result",
+      "s": "s"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

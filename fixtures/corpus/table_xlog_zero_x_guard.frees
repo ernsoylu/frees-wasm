@@ -1,0 +1,6 @@
+{ XLOG with x = 0 in the first row: log(0) is -inf. }
+TABLE c(x) XLOG
+  0     5
+  100   10
+END
+y = c(50)

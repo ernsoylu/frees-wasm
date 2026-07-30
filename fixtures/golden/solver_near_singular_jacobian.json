@@ -1,0 +1,20 @@
+{
+  "name": "solver_near_singular_jacobian",
+  "source": "{ An almost-dependent pair stresses the linear solve inside Newton. }\nGUESS a = 1\nGUESS b = 1\na + b = 2\na + 1.0000001 * b = 2.0000001\n",
+  "expect": {
+    "variables": {
+      "a": 1.000000002220446,
+      "b": 0.999999997779554
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "projectile-motion",
+  "source": "// Projectile Motion\n{ A ball launched from the ground at an angle.\n  Edit v0 or theta_deg and press Solve (F2). }\ng = 9.81 [m/s^2]\nv0 = 20 [m/s]            { launch speed }\ntheta_deg = 35          { launch angle in degrees }\ntheta = theta_deg * pi# / 180\n\nvx = v0 * cos(theta)\nvy = v0 * sin(theta)\nt_flight = 2 * vy / g    { time of flight }\nx_range = vx * t_flight  { horizontal range }\nh_max = vy^2 / (2 * g)   { peak height }\n",
+  "expect": {
+    "variables": {
+      "g": 9.81,
+      "h_max": 6.707236051726107,
+      "t_flight": 2.3387418403712377,
+      "theta": 0.6108652381980153,
+      "theta_deg": 35.0,
+      "v0": 20.0,
+      "vx": 16.383040885779835,
+      "vy": 11.471528727020921,
+      "x_range": 38.31570319208596
+    },
+    "display_names": {
+      "g": "g",
+      "h_max": "h_max",
+      "t_flight": "t_flight",
+      "theta": "theta",
+      "theta_deg": "theta_deg",
+      "v0": "v0",
+      "vx": "vx",
+      "vy": "vy",
+      "x_range": "x_range"
+    },
+    "block_count": 9,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "table_two_tables_same_argument",
+  "source": "{ Two tables sharing one argument variable inside a single block. }\nTABLE up(x)\n  0   0\n  10  100\nEND\nTABLE down(x)\n  0   100\n  10  0\nEND\na = up(4)\nb = down(4)\nc = a + b\n",
+  "expect": {
+    "variables": {
+      "a": 40.0,
+      "b": 60.0,
+      "c": 100.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

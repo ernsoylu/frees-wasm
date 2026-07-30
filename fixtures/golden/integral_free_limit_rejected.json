@@ -1,0 +1,17 @@
+{
+  "name": "integral_free_limit_rejected",
+  "source": "{ Error parity: nothing determines b, so the document has one more unknown than\n  equations. Java IntegralTest.freeVariableLimitIsRejected. }\nF = Integral(t, t, 0, b)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 2 equations and 3 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): f. Coupled to: b, t. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

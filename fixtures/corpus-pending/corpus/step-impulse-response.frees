@@ -1,0 +1,50 @@
+{ Step & Impulse Response Analysis }
+{ Second-order system: G(s) = wn^2 / (s^2 + 2*zeta*wn*s + wn^2) }
+{ Natural frequency and damping ratio }
+wn = 2 [rad/s]
+zeta = 0.3
+
+{ Transfer function coefficients (descending powers of s) }
+{ num(s) = wn^2,  den(s) = s^2 + 2*zeta*wn*s + wn^2 }
+num = [wn^2]
+den = [1, 2*zeta*wn, wn^2]
+
+{ 1. Unit Step Response (uses default 10s time vector) }
+[y_step, t] = step(num, den)
+
+{ 2. Impulse Response (uses default 10s time vector) }
+[y_imp] = impulse(num, den)
+
+{ 3. Forced Response: ramp input u(t) = t }
+u = t
+[y_ramp] = lsim(num, den, u, t)
+
+{ 4. Stability check: poles of the system }
+[pr, pi] = pole(num, den)
+
+PLOT 'Step Response'
+  kind = xy
+  x = t
+  y = y_step
+  xlabel = 'Time [s]'
+  ylabel = 'Amplitude'
+  title = 'Unit Step Response'
+END
+
+PLOT 'Impulse Response'
+  kind = xy
+  x = t
+  y = y_imp
+  xlabel = 'Time [s]'
+  ylabel = 'Amplitude'
+  title = 'Impulse Response'
+END
+
+PLOT 'Ramp Response (lsim)'
+  kind = xy
+  x = t
+  y = y_ramp
+  xlabel = 'Time [s]'
+  ylabel = 'Amplitude'
+  title = 'Ramp Response via lsim'
+END

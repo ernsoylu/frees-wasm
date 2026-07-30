@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phases 0–2 are implemented; the Phase-3 wasm boundary is wired.** A Rust
-workspace ports the frees engine to WebAssembly. 644 tests green, including a
-17/17 golden-corpus parity replay against the real Java engine. It is not a git
-repository yet.
+**Phases 0–2 are implemented; the Phase-3 wasm boundary is wired; Phase 4 is
+partial** (read [`docs/status-phase4-partial.md`](docs/status-phase4-partial.md)
+before continuing it). A Rust workspace ports the frees engine to WebAssembly.
+1,305 tests green, including a **161/161** golden-corpus parity replay against
+the real Java engine.
 
 | Document | Contents |
 |---|---|
@@ -22,7 +23,8 @@ repository yet.
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
-cargo test --workspace                 # all tests incl. the parity replay
+cargo test --release --workspace       # all tests incl. the parity replay
+                                       # (--release: the replay solves 161 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
 cargo fmt --all --check                                 # CI gate

@@ -1,0 +1,30 @@
+{
+  "name": "cubic-eos-properties",
+  "source": "// Real-Gas Properties from a Cubic EOS (Peng-Robinson)\n{ A CoolProp-independent SRK/PR backend. CO2 at 6 MPa, 320 K. }\nT = 320 [K]\nP = 6000000 [Pa]\nZ = eos_z('co2', 'PR', T, P, 'vapor')          { compressibility factor }\nrho = eos_density('co2', 'PR', T, P, 'vapor')\nv = eos_volume('co2', 'PR', T, P, 'vapor')\nh = eos_enthalpy('co2', 'PR', T, P, 'vapor')\nPsat_300 = eos_psat('co2', 'PR', 300)          { saturation pressure at 300 K }\n",
+  "expect": {
+    "variables": {
+      "P": 6000000.0,
+      "Psat_300": 6726910.38265417,
+      "T": 320.0,
+      "Z": 0.6950257605383134,
+      "h": -45003.83281558031,
+      "rho": 142.796497070525,
+      "v": 0.007002972905603668
+    },
+    "display_names": {
+      "h": "h",
+      "p": "P",
+      "psat_300": "Psat_300",
+      "rho": "rho",
+      "t": "T",
+      "v": "v",
+      "z": "Z"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

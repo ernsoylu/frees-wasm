@@ -1,0 +1,8 @@
+// Heat Conduction Through a Wall
+{ Steady 1-D conduction (Fourier's law). }
+k = 0.8 [W/m-K]        { thermal conductivity }
+A = 12 [m^2]           { wall area }
+L = 0.25 [m]           { wall thickness }
+T_in = 21 [C]
+T_out = -5 [C]
+Q = k * A * (T_in - T_out) / L   { heat loss rate, watts }

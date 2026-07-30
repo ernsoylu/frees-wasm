@@ -1,0 +1,17 @@
+{
+  "name": "pressure-cooker",
+  "source": "// Pressure Cooker (transient boil-off)\n{ A 5 L rigid stainless cooker holds 3 L of tap water at 20 C, lid sealed,\n  heated by a 220 V resistive element (32.27 ohm -> 1.5 kW). A spring relief\n  valve vents steam to the atmosphere to hold the cooker near its 2 atm\n  setpoint, where water boils at about 121 C. The run lasts 20 minutes.\n\n  A full multi-domain transient, every block from the component library:\n    - an ELECTRICAL heater (source + resistor + ground) whose ohmic heat\n      I^2*R crosses into a thermal STEEL body, which heats the water through a\n      conductive link;\n    - a rigid two-phase WATER vessel whose pressure, temperature and vapour\n      fraction come from a density / internal-energy flash of its conserved\n      mass and energy (the BoilingVessel state vars are mass and internal\n      energy, integrated in time);\n    - a PROPORTIONAL relief valve that lifts with overpressure to regulate the\n      cooker to its setpoint (a fixed orifice would instead over-pressurise).\n\n  Press Solve, then open the Plots tab to chart, over time:\n    (1) water temperature (cook.t_cv)  - climbs to ~121 C and holds,\n    (2) heater current    (I_heater)   - constant ~6.8 A,\n    (3) water mass        (cook.mass)  - flat until boiling, then falls as\n        steam vents,\n    (4) vapour fraction   (cook.x_cv)  - the cooker stays almost all liquid. }\n\n{ ---- Electrical heater: 220 V across a 32.27 ohm element = 1.5 kW ---- }\nVoltageSource   SUP(E=220)\nHeatingResistor HTR(R=32.2667)\nGround          GND()\nI_heater = 220 / 32.2667                 { heater current by Ohm's law, A }\n\n{ ---- Steel body heated by the element, passing heat to the water ---- }\nThermalMass STEEL(C=750, T0=293.15)      { 750 J/K steel thermal mass }\nConvection  S2W(htc=333.33, area=1)      { steel -> water link, 333 W/K }\n\n{ ---- Rigid 5 L two-phase water vessel + lifting relief valve to air ---- }\nBoilingVessel   COOK(fluid$=Water, V=0.005, m0=2.994, T0=293.15)\nProportionalReliefValve PRV(fluid$=Water, Pcrack=202600, grad=6e-7, eps=2000)\nTwoPhasePressureSink ATM(P=101300)\n\nconnect(SUP.p, HTR.p)\nconnect(SUP.n, HTR.n, GND.port)          { circuit return tied to ground }\nconnect(HTR.heat, STEEL.port, S2W.a)     { element dissipates into the steel }\nconnect(S2W.b, COOK.wall)                { steel heats the water }\nconnect(COOK.vent, PRV.in)\nconnect(PRV.out, ATM.in)\n\nDYNAMIC cooker (method = ida, time = 0 .. 1200, points = 241, rtol = 1e-5, atol = 1e-4)\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "IllegalStateException",
+      "message": "The CoolProp native library is not available. Set the COOLPROP_LIBRARY environment variable to the path of libCoolProp.so to enable fluid property functions."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

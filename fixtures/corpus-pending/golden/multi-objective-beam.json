@@ -1,0 +1,34 @@
+{
+  "name": "multi-objective-beam",
+  "source": "// Multi-Objective Cantilever Beam\n{ A steel cantilever with a tip load. Solve (F2) to evaluate one\n  design, then open Tools > Min/Max, switch to 'Multi-objective\n  (Pareto)', and MINIMIZE both 'mass' and 'delta' over the decisions\n  b (0.01 .. 0.06) and h (0.02 .. 0.10) to trace the trade-off front.\n  Material properties come from the built-in solid database. }\nL = 1 [m]                { beam length }\nF = 500 [N]              { tip load }\nE = E_(Steel)            { Young's modulus }\nrho = rho_(Steel)        { density }\n\nb = 0.03 [m]             { cross-section width  (decision) }\nh = 0.05 [m]             { cross-section height (decision) }\n\nI = b * h^3 / 12         { second moment of area }\nmass = rho * L * b * h               { objective 1: minimize }\ndelta = F * L^3 / (3 * E * I)        { objective 2: tip deflection, minimize }\n",
+  "expect": {
+    "variables": {
+      "E": 2.0E11,
+      "F": 500.0,
+      "I": 3.125000000000001E-7,
+      "L": 1.0,
+      "b": 0.03,
+      "delta": 0.0026666666666666657,
+      "h": 0.05,
+      "mass": 11.781,
+      "rho": 7854.0
+    },
+    "display_names": {
+      "b": "b",
+      "delta": "delta",
+      "e": "E",
+      "f": "F",
+      "h": "h",
+      "i": "I",
+      "l": "L",
+      "mass": "mass",
+      "rho": "rho"
+    },
+    "block_count": 9,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

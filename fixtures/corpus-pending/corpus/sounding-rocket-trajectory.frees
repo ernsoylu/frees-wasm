@@ -1,0 +1,41 @@
+// Loss-Accurate Sounding-Rocket Trajectory (DYNAMIC)
+{ The coupled multi-state system der(h)=v, der(v)=(F - D - m g)/m, der(m)=-mdot,
+  with aerodynamic drag against an exponential atmosphere computed every step as
+  an algebraic auxiliary, thrust gated off at burnout via If(), and an apogee
+  EVENT (v = 0, falling) that stops the integration. The ODE Table (Tables
+  window) plots altitude / velocity / mass vs time, or mass vs altitude.
+
+  The apogee altitude is read back into the analytic solution with MaxValue('h').
+  Change t_burn and re-solve to trade burn time for apogee — or, to SIZE the
+  rocket, open Variable Information, give t_burn a guess near 27 and bounds
+  [5, 55], add the equation  MaxValue('h') = h_target  and let frees solve for
+  the burn time that reaches 100 km. }
+
+g0     = 9.81
+m0     = 600        { lift-off mass }
+mdot   = 9          { propellant mass flow during burn }
+F0     = 28000      { motor thrust }
+Cd     = 0.3        { drag coefficient }
+A      = 0.03       { reference area }
+rho0   = 1.225      { sea-level air density }
+Hscale = 8000       { atmospheric scale height }
+t_burn = 27         { motor burn time }
+
+DYNAMIC ascent (method = ode45, time = 0 .. 600, points = 500, rtol = 1e-7, atol = 1e-3)
+  thrust = If(time, t_burn, F0, F0, 0)         { thrust on until burnout }
+  mflow  = If(time, t_burn, mdot, mdot, 0)     { mass flow on until burnout }
+  rho    = rho0 * exp(-h / Hscale)             { exponential atmosphere }
+  drag   = 0.5 * rho * v * v * Cd * A          { aerodynamic drag }
+  der(h) = v
+  der(v) = (thrust - drag - m * g0) / m
+  der(m) = -mflow
+  h(0) = 0
+  v(0) = 0
+  m(0) = m0
+  EVENT apogee: v = 0 | falling -> stop        { stop at the top of the arc }
+END
+
+{ Read the trajectory back into the analytic solution }
+apogee_km = MaxValue('h') / 1000     { peak altitude reached }
+v_burnout = ODEValue('v', t_burn)    { speed at burnout }
+m_final   = FinalValue('m')          { burnout / coasting mass }

@@ -1,0 +1,4 @@
+{ Both limits come from solved variables. }
+p = 1
+q = 4
+A = Integral(2*z, z, p, q)

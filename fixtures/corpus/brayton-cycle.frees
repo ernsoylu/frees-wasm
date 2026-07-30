@@ -1,0 +1,19 @@
+// Air-Standard Brayton Cycle
+{ Gas-turbine cycle, cold air-standard (constant properties). }
+cp = 1004 [J/kg-K]
+k = 1.4
+r_p = 10                 { compressor pressure ratio }
+T1 = 300 [K]             { compressor inlet }
+T3 = 1400 [K]            { turbine inlet }
+eta_c = 0.82
+eta_t = 0.85
+
+tau = r_p^((k - 1) / k)  { isentropic temperature ratio }
+T2 = T1 + T1 * (tau - 1) / eta_c
+T4 = T3 - eta_t * T3 * (1 - 1 / tau)
+
+w_c = cp * (T2 - T1)
+w_t = cp * (T3 - T4)
+q_in = cp * (T3 - T2)
+w_net = w_t - w_c
+eta_th = w_net / q_in

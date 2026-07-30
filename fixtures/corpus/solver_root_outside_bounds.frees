@@ -1,0 +1,3 @@
+{ The only root is OUTSIDE the declared bounds: what does each engine do? }
+GUESS x = 5 [10, 20]
+x^2 = 4

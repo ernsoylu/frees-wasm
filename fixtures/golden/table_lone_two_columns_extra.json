@@ -1,0 +1,20 @@
+{
+  "name": "table_lone_two_columns_extra",
+  "source": "{ A lone table with three columns but a single argument: the second y column\n  is reachable only through Lookup. }\nTABLE t(x)\n  1   10   100\n  2   20   200\nEND\na = t(1.5)\nb = Lookup('t', 2, 3)\n",
+  "expect": {
+    "variables": {
+      "a": 15.0,
+      "b": 200.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

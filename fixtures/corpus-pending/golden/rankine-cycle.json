@@ -1,0 +1,17 @@
+{
+  "name": "rankine-cycle",
+  "source": "// Rankine Cycle (Steam)\n{ Ideal steam Rankine cycle using CoolProp water properties. }\nP_boiler = 8000 [kPa]\nP_cond = 10 [kPa]\n\n{ State 1: saturated liquid leaving the condenser }\nh1 = Enthalpy(Water, P=P_cond, x=0)\nv1 = Volume(Water, P=P_cond, x=0)\n\n{ Pump (state 1 -> 2) }\nw_pump = v1 * (P_boiler - P_cond)\nh2 = h1 + w_pump\n\n{ State 3: boiler exit (superheated) }\nh3 = Enthalpy(Water, P=P_boiler, T=480 [C])\ns3 = Entropy(Water, P=P_boiler, T=480 [C])\n\n{ State 4: turbine exit (isentropic, s4 = s3) }\nh4 = Enthalpy(Water, P=P_cond, s=s3)\n\n{ Performance }\nq_in = h3 - h2\nw_turb = h3 - h4\neta_th = (w_turb - w_pump) / q_in\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "IllegalStateException",
+      "message": "The CoolProp native library is not available. Set the COOLPROP_LIBRARY environment variable to the path of libCoolProp.so to enable fluid property functions."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

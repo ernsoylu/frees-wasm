@@ -1,0 +1,13 @@
+// Projectile Motion
+{ A ball launched from the ground at an angle.
+  Edit v0 or theta_deg and press Solve (F2). }
+g = 9.81 [m/s^2]
+v0 = 20 [m/s]            { launch speed }
+theta_deg = 35          { launch angle in degrees }
+theta = theta_deg * pi# / 180
+
+vx = v0 * cos(theta)
+vy = v0 * sin(theta)
+t_flight = 2 * vy / g    { time of flight }
+x_range = vx * t_flight  { horizontal range }
+h_max = vy^2 / (2 * g)   { peak height }

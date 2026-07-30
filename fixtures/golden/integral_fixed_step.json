@@ -1,0 +1,20 @@
+{
+  "name": "integral_fixed_step",
+  "source": "{ A fifth argument pins the step size instead of adapting.\n  Java IntegralTest.supportsFixedStepSize: F = 2. }\nF = Integral(t, t, 0, 2, 0.01)\n",
+  "expect": {
+    "variables": {
+      "F": 1.9999999999999984,
+      "t": 2.0
+    },
+    "display_names": {
+      "f": "F",
+      "t": "t"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

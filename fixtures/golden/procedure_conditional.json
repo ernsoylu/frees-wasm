@@ -1,0 +1,22 @@
+{
+  "name": "procedure_conditional",
+  "source": "{ A PROCEDURE whose branches assign both outputs. Java procedureWithConditional:\n  small = 3, large = 8. }\nPROCEDURE MinMax(a, b : lo, hi)\n  IF a < b THEN\n    lo := a\n    hi := b\n  ELSE\n    lo := b\n    hi := a\n  END\nEND\n\nCALL MinMax(8, 3 : small, large)\n",
+  "expect": {
+    "variables": {
+      "large": 8.0,
+      "small": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "large": "large",
+      "small": "small"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

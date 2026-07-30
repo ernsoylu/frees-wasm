@@ -1,0 +1,24 @@
+// Rankine Cycle (Steam)
+{ Ideal steam Rankine cycle using CoolProp water properties. }
+P_boiler = 8000 [kPa]
+P_cond = 10 [kPa]
+
+{ State 1: saturated liquid leaving the condenser }
+h1 = Enthalpy(Water, P=P_cond, x=0)
+v1 = Volume(Water, P=P_cond, x=0)
+
+{ Pump (state 1 -> 2) }
+w_pump = v1 * (P_boiler - P_cond)
+h2 = h1 + w_pump
+
+{ State 3: boiler exit (superheated) }
+h3 = Enthalpy(Water, P=P_boiler, T=480 [C])
+s3 = Entropy(Water, P=P_boiler, T=480 [C])
+
+{ State 4: turbine exit (isentropic, s4 = s3) }
+h4 = Enthalpy(Water, P=P_cond, s=s3)
+
+{ Performance }
+q_in = h3 - h2
+w_turb = h3 - h4
+eta_th = (w_turb - w_pump) / q_in

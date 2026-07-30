@@ -1,0 +1,28 @@
+{
+  "name": "newton-cooling-transient",
+  "source": "// Newton Cooling — Transient (DYNAMIC)\n{ A first-order ODE solved over time. The DYNAMIC ... END block is a parallel\n  path to the analytic solver: a variable is a STATE when a der(X) appears, with\n  one der(X) = ... and one initial condition X(0) = ...  The block produces an\n  ODE Table (see the Tables window) you can plot (Plots window: x = time, y = T).\n\n  Note: temperature is named T, which is case-insensitively the same as a time\n  variable t — so this block names time \"time\" in the header. }\n\nk     = 0.012     { cooling rate constant [1/s] }\nT_inf = 22        { ambient temperature }\n\nDYNAMIC cooling (method = ode45, time = 0 .. 300, points = 200, rtol = 1e-8)\n  der(T) = -k * (T - T_inf)      { Newton's law of cooling }\n  T(0)   = 90                    { initial temperature }\n  rate   = -der(T)               { algebraic auxiliary -> an output column }\nEND\n\n{ Read transient results back into the analytic solution }\nT_final = FinalValue('T')        { temperature at the end of the run }\nT_peak  = MaxValue('T')          { hottest point (here, the start) }\nt_half  = TimeAt('T', 56)        { time to reach 56 degrees }\n",
+  "expect": {
+    "variables": {
+      "T_final": 23.85801312653418,
+      "T_inf": 22.0,
+      "T_peak": 90.0,
+      "k": 0.012,
+      "t_half": 57.765213572996466
+    },
+    "display_names": {
+      "k": "k",
+      "rate": "rate",
+      "t": "T",
+      "t_final": "T_final",
+      "t_half": "t_half",
+      "t_inf": "T_inf",
+      "t_peak": "T_peak"
+    },
+    "block_count": 5,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

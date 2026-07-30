@@ -1,0 +1,9 @@
+// Inverse Laplace via Residues
+{ Partial-fraction expansion of Y(s) = (s + 3)/(s^2 + 3s + 2).
+  residue() returns the residues r and matching poles p, so the
+  time response is y(t) = r_r[1] exp(p_r[1] t) + r_r[2] exp(p_r[2] t).
+  Here that is 2 exp(-t) - exp(-2 t). }
+num = [1, 3]             { s + 3 }
+den = [1, 3, 2]          { s^2 + 3s + 2 = (s+1)(s+2) }
+
+[r_r, r_i, p_r, p_i, k] = residue(num, den)

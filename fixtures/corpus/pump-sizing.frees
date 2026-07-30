@@ -1,0 +1,13 @@
+// Pump Sizing
+{ A worked example — edit any value and press Solve (F2).
+  Equations may be written in any order; frees figures out
+  the calculation order for you. }
+
+rho = 1000 [kg/m^3]      { water density }
+g = 9.81 [m/s^2]
+Q_flow = 0.02 [m^3/s]    { volumetric flow rate }
+H = 25 [m]               { pump head }
+eta = 0.7                { pump efficiency }
+
+P_hydraulic = rho * g * Q_flow * H   { hydraulic power, in watts }
+P_shaft = P_hydraulic / eta          { required shaft power }

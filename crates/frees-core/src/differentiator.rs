@@ -16,12 +16,100 @@
 //! spellings (not `asin`/`acos`/`atan`, which the evaluator also accepts):
 //! that asymmetry is preserved because it is the oracle's behavior.
 
+use std::cell::Cell;
+
 use crate::ast::{BinOp, Expr};
+use crate::parser::expr::MAX_EXPR_DEPTH;
 
 /// Java `Differentiator.GAMMA`.
 const GAMMA: &str = "gamma";
 /// Java `Differentiator.DIGAMMA`.
 const DIGAMMA: &str = "digamma";
+
+/// Levels of tree one rule adds on top of whatever its operands differentiate
+/// into — an upper bound, so the running total is an upper bound on the depth
+/// of the derivative being built.
+///
+/// Every rule rebuilds its operands into a *larger* tree, so a derivative is
+/// deeper than the expression it came from. The parser's budget bounds only
+/// the tree it builds itself, not one a later pass grows out of it, and
+/// nothing else bounded this: `x / x / … / x` with 300 links is a legal
+/// expression (a flat chain costs one level per link) whose derivative is
+/// ~900 levels deep, and building, evaluating and finally dropping that tree
+/// overflowed the stack. A stack overflow is an uncatchable abort — a trap in
+/// the browser — so the tree must never be built.
+///
+/// Measured out/in depth ratio over left-associative chains, which is what
+/// these numbers round up:
+///
+/// | chain | rule | measured |
+/// |---|---|---|
+/// | `x + x + …`, `x - x - …` | `f' ± g'` | collapses to one node |
+/// | `x * x * …` | `f'g + fg'` | 1.98–2.00 |
+/// | `x / x / …` | `(f'g − fg') / g²` | 2.97–2.99 |
+///
+/// Charging per rule rather than a flat level per node is what keeps a long
+/// *sum* — the shape matrix expansion generates for every matvec row — on the
+/// analytic path, while still refusing the quotient chain that is 3× as deep.
+fn rule_cost(e: &Expr) -> u32 {
+    match e {
+        Expr::BinOp { op: BinOp::Mul, .. } => 2,
+        Expr::BinOp { op: BinOp::Div, .. } => 3,
+        // `f^g * (g' ln f + g f'/f)` is the deepest construction here.
+        Expr::BinOp { op: BinOp::Pow, .. } => 4,
+        // The chain rule wraps its argument's derivative in a product with an
+        // outer-derivative expression; `if`/`probability` build more still.
+        Expr::Call { .. } => 4,
+        _ => 1,
+    }
+}
+
+/// Budget for [`rule_cost`], and therefore the deepest derivative this walker
+/// will build.
+///
+/// It is exactly [`MAX_EXPR_DEPTH`] because that is the depth every *other*
+/// recursive consumer in the crate is calibrated against: a derivative that
+/// fits it is one `eval`, `Expr::variables` and `Drop` can already walk.
+/// Exceeding it is not an error — [`differentiate`] returns [`None`], the
+/// existing "not symbolically differentiable" signal, and the caller falls
+/// back to a finite-difference Jacobian entry. **Deviation** from Java, which
+/// has no guard and raises `StackOverflowError`; the oracle's deepest
+/// differentiated expression is a handful of levels, so no document it accepts
+/// reaches this.
+const MAX_DIFF_DEPTH: u32 = MAX_EXPR_DEPTH;
+
+thread_local! {
+    /// Levels currently held by [`DepthGuard`]s live on this thread's stack
+    /// (wasm is single-threaded; native tests get one counter per thread).
+    static DIFF_DEPTH: Cell<u32> = const { Cell::new(0) };
+}
+
+/// RAII claim on some levels of [`MAX_DIFF_DEPTH`].
+///
+/// Released on drop, so the `?` paths that abandon a partial derivative
+/// restore the budget exactly and the counter is back at zero for the next
+/// call.
+struct DepthGuard {
+    held: u32,
+}
+
+impl DepthGuard {
+    fn charge(levels: u32) -> Option<DepthGuard> {
+        let held = DIFF_DEPTH.with(Cell::get);
+        let next = held.saturating_add(levels);
+        if next > MAX_DIFF_DEPTH {
+            return None;
+        }
+        DIFF_DEPTH.with(|d| d.set(next));
+        Some(DepthGuard { held: levels })
+    }
+}
+
+impl Drop for DepthGuard {
+    fn drop(&mut self) {
+        DIFF_DEPTH.with(|d| d.set(d.get().saturating_sub(self.held)));
+    }
+}
 
 /// The partial derivative `∂expr/∂var` as a new expression tree, or `None`
 /// where the expression is not symbolically differentiable (an intrinsic the
@@ -39,6 +127,9 @@ pub fn differentiate(expr: &Expr, var: &str) -> Option<Expr> {
 // ── core recursive differentiator ───────────────────────────────────────────
 
 fn diff(e: &Expr, var: &str) -> Option<Expr> {
+    // Held for the whole walk of this node, so the claim covers the operand
+    // recursion below *and* the tree this rule builds on the way back out.
+    let _depth = DepthGuard::charge(rule_cost(e))?;
     match e {
         // The unit annotation and imaginary flag do not survive: the Java arm
         // returns a bare `num(0)` for every literal.

@@ -1,0 +1,5 @@
+{ Real/Imag projections of an expression built from real inputs. }
+a = 3
+b = 4
+m = sqrt(a^2 + b^2)
+p = arctan(b / a)

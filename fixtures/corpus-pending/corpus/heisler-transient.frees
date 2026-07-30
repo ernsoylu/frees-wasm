@@ -1,0 +1,24 @@
+// Transient Conduction (Heisler)
+{ A thick plate, initially at Ti, is suddenly exposed to convection.
+  When the Biot number is large, internal gradients matter and lumped
+  capacitance fails — frees gives the one-term (Heisler) solution.
+  Geometry is set once as a string variable: 'wall', 'cylinder' or
+  'sphere'. theta* = (T - Tinf)/(Ti - Tinf). }
+geom$ = 'wall'
+
+h = 100 [W/m^2-K]        { convection coefficient }
+k = 0.6 [W/m-K]          { plate conductivity }
+alpha = 0.15e-6 [m^2/s]  { thermal diffusivity }
+L = 0.02 [m]             { half-thickness }
+t = 600 [s]              { elapsed time }
+Ti = 200 [C]             { initial temperature }
+Tinf = 25 [C]            { fluid temperature }
+
+Bi = h * L / k
+Fo = alpha * t / L^2
+
+theta_c = heisler_temp(geom$, Bi, Fo, 0)   { centre, x* = 0 }
+theta_s = heisler_temp(geom$, Bi, Fo, 1)   { surface, x* = 1 }
+T_centre = Tinf + theta_c * (Ti - Tinf)
+T_surface = Tinf + theta_s * (Ti - Tinf)
+Q_ratio = heisler_q(geom$, Bi, Fo)         { fraction of heat removed }

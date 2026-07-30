@@ -1,0 +1,18 @@
+{
+  "name": "table_arg_is_solved",
+  "source": "{ The table argument is itself the unknown of a Newton block. }\nTABLE f(x)\n  0    0\n  10   100\nEND\nf(w) = 50\n",
+  "expect": {
+    "variables": {
+      "w": 5.0
+    },
+    "display_names": {
+      "w": "w"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "module_namespacing",
+  "source": "{ Negation and a function call inside a MODULE body must both be rewritten into\n  the instance namespace. Java moduleNamespacesFunctionCallsAndNegation: out = -3. }\nMODULE Shift(x : y)\n  buf = -x + sin(0)\n  y = buf + 1\nEND\n\nCALL Shift(4 : out)\n",
+  "expect": {
+    "variables": {
+      "out": -3.0,
+      "shift$1$buf": -4.0,
+      "shift$1$x": 4.0,
+      "shift$1$y": -3.0
+    },
+    "display_names": {
+      "buf": "buf",
+      "out": "out",
+      "shift$1$buf": "shift$1$buf",
+      "shift$1$x": "shift$1$x",
+      "shift$1$y": "shift$1$y",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 4,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

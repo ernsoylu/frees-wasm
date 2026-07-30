@@ -1,0 +1,10 @@
+{ One FUNCTION calling another. }
+FUNCTION Sq(u)
+  Sq := u * u
+END
+
+FUNCTION Quad(v)
+  Quad := Sq(Sq(v))
+END
+
+y = Quad(3)

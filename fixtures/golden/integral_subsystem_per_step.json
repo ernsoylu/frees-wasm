@@ -1,0 +1,22 @@
+{
+  "name": "integral_subsystem_per_step",
+  "source": "{ The subsystem is re-solved at every quadrature step: x = 2t, so\n  the integral of x^2 from 0 to 1 is 4/3 and the final x is 2.\n  Java IntegralTest.solvesSubsystemAtEveryStep. }\nx = 2*t\nF = Integral(x^2, t, 0, 1)\n",
+  "expect": {
+    "variables": {
+      "F": 1.3333333440164552,
+      "t": 1.0,
+      "x": 2.0
+    },
+    "display_names": {
+      "f": "F",
+      "t": "t",
+      "x": "x"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

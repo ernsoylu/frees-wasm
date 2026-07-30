@@ -1,0 +1,20 @@
+{
+  "name": "fn_nested_calls",
+  "source": "{ One FUNCTION calling another. }\nFUNCTION Sq(u)\n  Sq := u * u\nEND\n\nFUNCTION Quad(v)\n  Quad := Sq(Sq(v))\nEND\n\ny = Quad(3)\n",
+  "expect": {
+    "variables": {
+      "y": 81.0
+    },
+    "display_names": {
+      "u": "u",
+      "v": "v",
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

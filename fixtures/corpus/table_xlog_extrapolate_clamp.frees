@@ -1,0 +1,8 @@
+{ XLOG table queried below its first x and above its last: clamp, not
+  log-space extrapolation. }
+TABLE cd(re) XLOG
+  1      0
+  100    10
+END
+lo = cd(0.01)
+hi = cd(10000)

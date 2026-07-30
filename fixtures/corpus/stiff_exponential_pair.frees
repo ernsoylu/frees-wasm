@@ -1,0 +1,7 @@
+{ A deliberately ill-conditioned simultaneous pair: one equation is nearly flat
+  in y while the other is nearly flat in x, so the Jacobian is close to singular
+  at the start point and the solve depends on the retry ladder holding up. }
+GUESS x = 1
+GUESS y = 1
+exp(x) + 1e-6 * y = 3
+1e-6 * x + exp(y) = 5

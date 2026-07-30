@@ -1,0 +1,3 @@
+{ A GUESS value outside its own bracket is clamped onto the bounds. }
+GUESS y = 100 [0, 3]
+y^2 = 4

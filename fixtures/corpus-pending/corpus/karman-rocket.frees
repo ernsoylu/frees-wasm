@@ -1,0 +1,64 @@
+// Sounding Rocket to the Kármán Line
+{ A single-stage methane / liquid-oxygen rocket sized to carry a 10 kg
+  payload to the Karman line (100 km), then release it at apogee.
+
+  This shows off frees end to end: built-in constants (g#, R#), the
+  chemistry functions (MolarMass, HeatingValue), units throughout, and an
+  *implicit* solve — the propellant mass is whatever makes the apogee come
+  out to 100 km, and Newton's method finds it. Edit any input and Solve (F2). }
+
+{ Mission }
+g0 = g#                  { standard gravity }
+h_target = 100 [km]      { Karman line — the closing condition below }
+m_payload = 10 [kg]      { released at apogee }
+
+{ Propellant: methane (CH4) + liquid oxygen (O2) }
+MM_fuel = MolarMass(CH4)            { kg/mol }
+MM_ox = MolarMass(O2)
+OF_stoich = 2 * MM_ox / MM_fuel     { CH4 + 2 O2 -> CO2 + 2 H2O, so O/F = 4.0 }
+OF = 3.4                            { run slightly fuel-rich, as real engines do }
+f_fuel = 1 / (1 + OF)               { fuel fraction of the propellant mass }
+
+{ Combustion -> chamber temperature }
+LHV = HeatingValue(CH4, 'LHV')      { lower heating value of the fuel [J/kg] }
+eta_comb = 0.90                     { combustion efficiency (dissociation, losses) }
+cp_gas = 3000 [J/kg-K]              { mean specific heat of the hot products }
+T_ref = 298 [K]
+T_c = T_ref + eta_comb * LHV * f_fuel / cp_gas    { adiabatic-ish chamber temp }
+
+{ Exhaust and specific impulse (ideal nozzle) }
+MM_exhaust = (MolarMass(CO2) + 2 * MolarMass('H2O')) / 3   { mean product molar mass }
+R_gas = R# / MM_exhaust             { specific gas constant of the exhaust }
+gamma = 1.20
+P_c = 70 [bar]                      { chamber pressure }
+P_e = 0.5 [bar]                     { nozzle exit pressure }
+v_e = sqrt( 2*gamma/(gamma - 1) * R_gas * T_c * (1 - (P_e/P_c)^((gamma - 1)/gamma)) )
+Isp = v_e / g0                      { specific impulse [s] }
+
+{ Vehicle mass (m_prop is solved from the apogee condition) }
+f_struct = 0.12                     { tank + structure, as a fraction of propellant }
+m_struct = f_struct * m_prop
+m0 = m_payload + m_struct + m_prop  { lift-off mass }
+m_burnout = m_payload + m_struct    { mass at burnout (payload still aboard) }
+MR = m0 / m_burnout                 { mass ratio }
+
+{ Thrust and lift-off }
+TWR = 2.0                           { thrust-to-weight at lift-off (> 1 to fly) }
+F_thrust = TWR * m0 * g0
+mdot = F_thrust / v_e               { propellant mass flow }
+t_burn = m_prop / mdot
+
+{ Powered ascent (gravity + drag losses, decreasing mass) }
+{ Integrating v(t) = v_e ln(m0/m(t)) - g0 t over the burn gives, in closed form: }
+dv_losses = 500 [m/s]               { lumped aerodynamic drag + steering losses }
+v_burnout = v_e * ln(MR) - g0 * t_burn - dv_losses
+h_powered = v_e * t_burn - (v_e * m_burnout / mdot) * ln(MR) - 0.5 * g0 * t_burn^2
+
+{ Coast to apogee and close the loop }
+h_coast = v_burnout^2 / (2 * g0)    { ballistic coast after burnout }
+h_apogee = h_powered + h_coast
+h_apogee = h_target                 { <-- the equation that sizes the rocket }
+
+{ Propellant split (load this much into the tanks) }
+m_fuel = f_fuel * m_prop
+m_oxidizer = OF * m_fuel

@@ -1,0 +1,18 @@
+{
+  "name": "table_lone_1d",
+  "source": "{ A lone TABLE block used as an interpolation function. The midpoint of\n  (2000,310)-(3000,560) is 435. Java CodeTableTest.oneDimensionalTableInterpolates. }\nTABLE fanPressure(rpm)\n  // rpm   dP\n  1000     120\n  2000     310\n  3000     560\nEND\ndP = fanPressure(2500)\n",
+  "expect": {
+    "variables": {
+      "dP": 435.0
+    },
+    "display_names": {
+      "dp": "dP"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

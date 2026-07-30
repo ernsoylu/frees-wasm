@@ -1,0 +1,4 @@
+{ Celsius has an offset; the difference of two Celsius literals is a delta. }
+T1 = 100 [C]
+T2 = 0 [C]
+dT = T1 - T2

@@ -1,0 +1,24 @@
+// Nichols Chart Presentation
+
+{ Open-loop magnitude vs phase for G(s) = 1 / ((s+1)(s+2)(s+3)).
+  Solve (F2) to view the plots. }
+
+{ System Definition }
+
+{ We define the numerator and denominator for the open-loop plant: }
+num = [1]
+den = [1, 6, 11, 6]      { (s+1)(s+2)(s+3) }
+omega = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20]
+
+[mag, phase] = nichols(num, den, omega)
+
+{ Nichols Chart }
+
+{ The locus is drawn on the standard Nichols grid with the -1 critical point marked. }
+
+
+PLOT 'Nichols'
+  kind = nichols
+  mag = mag
+  phase = phase
+END

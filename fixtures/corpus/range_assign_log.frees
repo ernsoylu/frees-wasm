@@ -1,0 +1,6 @@
+{ The | Log flag spaces the points geometrically: five points from 1 to 1000
+  are 1, 10^0.75, 10^1.5, 10^2.25, 1000. Java CodeRangeTest.logRangeSpacesGeometrically. }
+freq = 1:5:1000 | Log
+f1 = freq[1]
+f3 = freq[3]
+f5 = freq[5]

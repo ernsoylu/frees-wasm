@@ -1,0 +1,34 @@
+// Multi-Fluid State Tables
+{ Two circuits in one model: a steam loop and an R134a loop. Each
+  STATE TABLE groups its own state points and declares its FLUID, so
+  the Fluid States window shows one fluid-aware table per circuit and
+  property look-ups never mix fluids — a Water state 1 and an R134a
+  state 1 stay separate. Press Solve (F2), then click
+  "Fill Missing Values" in the Fluid States window to complete each
+  state (s, v, x, ...) from CoolProp using the right fluid. }
+
+{ --- Water loop --- }
+Pw_1 = 10 [kPa]
+Tw_1 = 45 [C]
+hw_1 = Enthalpy(Water, P=Pw_1, T=Tw_1)
+
+Pw_2 = 8000 [kPa]
+Tw_2 = 480 [C]
+hw_2 = Enthalpy(Water, P=Pw_2, T=Tw_2)
+
+{ --- R134a loop --- }
+Pref_1 = 200 [kPa]
+xref_1 = 1
+href_1 = Enthalpy(R134a, P=Pref_1, x=xref_1)
+
+Pref_2 = 1200 [kPa]
+Tref_2 = 60 [C]
+href_2 = Enthalpy(R134a, P=Pref_2, T=Tref_2)
+
+STATE TABLE WaterLoop(Pw_1, Tw_1, hw_1, Pw_2, Tw_2, hw_2)
+  FLUID = Water
+END
+
+STATE TABLE RefrigerantLoop(Pref_1, xref_1, href_1, Pref_2, Tref_2, href_2)
+  FLUID = R134a
+END

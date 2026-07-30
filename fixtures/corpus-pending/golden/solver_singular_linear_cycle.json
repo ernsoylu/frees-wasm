@@ -1,0 +1,22 @@
+{
+  "name": "solver_singular_linear_cycle",
+  "source": "{ Three equations that reduce to two: structurally square but rank deficient,\n  so the solution set is a line. Recorded to pin what each engine does with a\n  numerically singular block that the structural check accepts. }\nx = y + 1\ny = z + 1\nz = x - 2\n",
+  "expect": {
+    "variables": {
+      "x": 2.0,
+      "y": 1.0,
+      "z": 0.0
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y",
+      "z": "z"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

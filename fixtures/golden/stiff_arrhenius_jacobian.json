@@ -1,0 +1,30 @@
+{
+  "name": "stiff_arrhenius_jacobian",
+  "source": "{ A stiff 2x2 block that stresses the Jacobian. The Arrhenius factor\n  exp(-Ea/(R#*T)) varies by orders of magnitude over the Newton path, so the\n  entry dQ/dT is enormous next to dQ/dk = 1 - exactly the badly scaled case\n  where a finite-difference Jacobian and an analytic one can disagree.\n  A CSTR energy balance closes the loop: heat released = heat removed. }\nGUESS T = 350\nGUESS k = 1\nEa = 72000\nA_pre = 1.2e10\ndHr = 180000\nUA = 2200\nT_cool = 300\nk = A_pre * exp(-Ea / (R# * T))\nUA * (T - T_cool) = dHr * k\n",
+  "expect": {
+    "variables": {
+      "A_pre": 1.2E10,
+      "Ea": 72000.0,
+      "T": 370.82133535330433,
+      "T_cool": 300.0,
+      "UA": 2200.0,
+      "dHr": 180000.0,
+      "k": 0.8655940987626087
+    },
+    "display_names": {
+      "a_pre": "A_pre",
+      "dhr": "dHr",
+      "ea": "Ea",
+      "k": "k",
+      "t": "T",
+      "t_cool": "T_cool",
+      "ua": "UA"
+    },
+    "block_count": 6,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

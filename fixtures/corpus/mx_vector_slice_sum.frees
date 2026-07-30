@@ -1,0 +1,3 @@
+{ Sum over an explicit index range of a generated vector. }
+v = linspace(1, 5, 5)
+s = Sum(v[1:5])

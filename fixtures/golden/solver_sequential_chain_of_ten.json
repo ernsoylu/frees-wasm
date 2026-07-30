@@ -1,0 +1,36 @@
+{
+  "name": "solver_sequential_chain_of_ten",
+  "source": "{ Ten sequential single-variable blocks: block ordering must be topological. }\nj = i + 1\nh = g + 1\nf = e + 1\nd = c + 1\nb = a + 1\na = 1\nc = b + 1\ne = d + 1\ng = f + 1\ni = h + 1\n",
+  "expect": {
+    "variables": {
+      "a": 1.0,
+      "b": 2.0,
+      "c": 3.0,
+      "d": 4.0,
+      "e": 5.0,
+      "f": 6.0,
+      "g": 7.0,
+      "h": 8.0,
+      "i": 9.0,
+      "j": 10.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e",
+      "f": "f",
+      "g": "g",
+      "h": "h",
+      "i": "i",
+      "j": "j"
+    },
+    "block_count": 10,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

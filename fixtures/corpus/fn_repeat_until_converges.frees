@@ -1,0 +1,10 @@
+{ REPEAT ... UNTIL: Newton iteration for sqrt(2) inside a FUNCTION body. }
+FUNCTION MySqrt(a)
+  x := a
+  REPEAT
+    x := 0.5 * (x + a / x)
+  UNTIL abs(x*x - a) < 1e-12
+  MySqrt := x
+END
+
+r = MySqrt(2)

@@ -1,0 +1,40 @@
+{
+  "name": "otto-cycle",
+  "source": "// Air-Standard Otto Cycle\n{ Spark-ignition engine, cold air-standard. }\nk = 1.4\nr = 8                    { compression ratio }\nT1 = 300 [K]\nq_in = 1800000 [J/kg]    { heat added per unit mass }\ncv = 718 [J/kg-K]\n\nT2 = T1 * r^(k - 1)      { isentropic compression }\nT3 = T2 + q_in / cv      { constant-volume heat addition }\nT4 = T3 / r^(k - 1)      { isentropic expansion }\nq_out = cv * (T4 - T1)\nw_net = q_in - q_out\neta_th = w_net / q_in\neta_ideal = 1 - 1 / r^(k - 1)   { closed-form air-standard efficiency }\n",
+  "expect": {
+    "variables": {
+      "T1": 300.0,
+      "T2": 689.2190129982209,
+      "T3": 3196.182801299057,
+      "T4": 1391.2193690341392,
+      "cv": 718.0,
+      "eta_ideal": 0.5647247183519379,
+      "eta_th": 0.5647247183519378,
+      "k": 1.4,
+      "q_in": 1800000.0,
+      "q_out": 783495.506966512,
+      "r": 8.0,
+      "w_net": 1016504.493033488
+    },
+    "display_names": {
+      "cv": "cv",
+      "eta_ideal": "eta_ideal",
+      "eta_th": "eta_th",
+      "k": "k",
+      "q_in": "q_in",
+      "q_out": "q_out",
+      "r": "r",
+      "t1": "T1",
+      "t2": "T2",
+      "t3": "T3",
+      "t4": "T4",
+      "w_net": "w_net"
+    },
+    "block_count": 12,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

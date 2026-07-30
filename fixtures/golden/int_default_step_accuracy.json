@@ -1,0 +1,20 @@
+{
+  "name": "int_default_step_accuracy",
+  "source": "{ Default-step Simpson on a function with curvature: how close to 2? }\nS = Integral(sin(x), x, 0, 3.141592653589793)\n",
+  "expect": {
+    "variables": {
+      "S": 1.9999993342983777,
+      "x": 3.141592653589793
+    },
+    "display_names": {
+      "s": "S",
+      "x": "x"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

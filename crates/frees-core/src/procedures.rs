@@ -42,7 +42,7 @@
 //!   with a diagnostic instead. **Deviation**, documented here.
 
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::ast::{Equation, Expr, Statement};
 use crate::diag::{FreesError, Result};
@@ -193,6 +193,17 @@ pub fn parse_proc_output_name(function: &str) -> Option<(&str, usize)> {
 /// Port of `Evaluator.evalProcedureOutput`: runs the whole PROCEDURE body and
 /// returns the value of output slot `k`. The expression evaluator dispatches
 /// `proc$`-prefixed call names here.
+///
+/// # Not memoised — checked against the Java
+///
+/// `Evaluator.evalProcedureOutput` builds a **fresh** `ProcedureEvaluator` and
+/// calls `callProcedure` on *every* `proc$name$k` it evaluates; there is no
+/// cache anywhere on that path. An N-output PROCEDURE therefore runs its body
+/// N times per residual sweep in the reference engine, and this port does the
+/// same. The difference is observable, not merely a cost: a body that calls
+/// `Random`/`RandG`, or one whose intermediate `=` equations the caller can see
+/// through the returned scope, would diverge under memoisation. Parity wins
+/// over the constant factor.
 pub fn call_proc_output(
     function: &str,
     args: &[f64],
@@ -423,10 +434,15 @@ fn is_lazy_call(function: &str) -> bool {
 /// suite, linear algebra, signal/stats). They are not part of the procedural
 /// port; naming them keeps the refusal honest — "not yet supported", not
 /// "unknown".
+/// CALL targets whose flattener lives in [`crate::parser::expand`] (pipeline
+/// stage 3), not here. They must pass through this stage unchanged — refusing
+/// them would make the expansion-side flatteners unreachable, which is exactly
+/// what happened to `LUDecompose` and `Interp2` before this list existed.
+const EXPANDED_CALL_TARGETS: &[&str] = &["ludecompose", "interp2"];
+
 const INTRINSIC_CALL_TARGETS: &[&str] = &[
     "eigenvalues",
     "eigen",
-    "ludecompose",
     "eulerdecompose",
     "eulerrotate",
     "qr",
@@ -439,7 +455,6 @@ const INTRINSIC_CALL_TARGETS: &[&str] = &[
     "convolve",
     "linfit",
     "polyfit",
-    "interp2",
     "ss2tf",
     "ss2tfij",
     "tf2ss",
@@ -489,6 +504,14 @@ const INTRINSIC_CALL_TARGETS: &[&str] = &[
 /// (`incrementAndGet`).
 struct ModuleCounter(u32);
 
+/// Display names the CALL flattener *generates*, in the two places the Java
+/// `EquationParser` does: `flattenModuleCall` registers each namespaced
+/// parameter and each namespaced body variable as its own display name
+/// (`putIfAbsent(nsParam, nsParam)`, `nsLhs.variables().forEach(…)`), and
+/// `flattenProcedureCall` re-registers the CALL's output variables (already
+/// recorded at parse time, so that one is a no-op here).
+type GeneratedNames = BTreeMap<String, String>;
+
 /// Flatten `CALL name(inputs : outputs)` statements into binding equations
 /// (`Statement::CallProc` — "At flatten time this generates equations that
 /// bind the outputs", `ast/Statement.java`). Non-CALL statements pass through
@@ -509,10 +532,29 @@ struct ModuleCounter(u32);
 /// silently colliding equations. Unrolled-first pipelines never hit that
 /// refusal.
 pub fn flatten_calls(statements: Vec<Statement>, defs: &Definitions) -> Result<Vec<Statement>> {
+    flatten_calls_into(statements, defs, &mut BTreeMap::new())
+}
+
+/// [`flatten_calls`], additionally accumulating the display names the flatten
+/// step generates (see [`GeneratedNames`]). The solve path threads its
+/// document map through here so a MODULE's namespaced variables surface with
+/// the same spelling the Java engine reports.
+pub fn flatten_calls_into(
+    statements: Vec<Statement>,
+    defs: &Definitions,
+    display_names: &mut BTreeMap<String, String>,
+) -> Result<Vec<Statement>> {
     let mut counter = ModuleCounter(0);
     let mut out = Vec::with_capacity(statements.len());
     for statement in statements {
-        flatten_statement(statement, defs, &mut counter, false, &mut out)?;
+        flatten_statement(
+            statement,
+            defs,
+            &mut counter,
+            false,
+            &mut out,
+            display_names,
+        )?;
     }
     Ok(out)
 }
@@ -523,6 +565,7 @@ fn flatten_statement(
     counter: &mut ModuleCounter,
     inside_for: bool,
     out: &mut Vec<Statement>,
+    display_names: &mut GeneratedNames,
 ) -> Result<()> {
     match statement {
         Statement::CallProc {
@@ -539,6 +582,7 @@ fn flatten_statement(
             counter,
             inside_for,
             out,
+            display_names,
         ),
         Statement::For {
             var_name,
@@ -548,7 +592,7 @@ fn flatten_statement(
         } => {
             let mut inner = Vec::with_capacity(body.len());
             for s in body {
-                flatten_statement(s, defs, counter, true, &mut inner)?;
+                flatten_statement(s, defs, counter, true, &mut inner, display_names)?;
             }
             out.push(Statement::For {
                 var_name,
@@ -575,9 +619,10 @@ fn flatten_call(
     counter: &mut ModuleCounter,
     inside_for: bool,
     out: &mut Vec<Statement>,
+    display_names: &mut GeneratedNames,
 ) -> Result<()> {
     if let Some(def) = defs.procedure(name) {
-        return flatten_procedure_call(def, inputs, outputs, source_text, out);
+        return flatten_procedure_call(def, inputs, outputs, source_text, out, display_names);
     }
     if let Some(def) = defs.module(name) {
         if inside_for {
@@ -588,7 +633,7 @@ fn flatten_call(
                  the wasm engine yet"
             )));
         }
-        return flatten_module_call(def, inputs, outputs, counter, out);
+        return flatten_module_call(def, inputs, outputs, counter, out, display_names);
     }
     if defs.function(name).is_some() || defs.table(name).is_some() {
         // FunctionTableDef falls into the same `default` arm in the Java switch.
@@ -596,6 +641,19 @@ fn flatten_call(
             "'{name}' is a FUNCTION, not callable with CALL (use it directly in \
              an expression)"
         )));
+    }
+    if EXPANDED_CALL_TARGETS.contains(&name) {
+        // The Java flattens PROCEDURE/MODULE calls and the matrix intrinsics in
+        // one pass (`flattenCallProc`); this port splits that in two, so a CALL
+        // whose flattener lives in `parser::expand` has to survive this stage
+        // untouched instead of being refused here.
+        out.push(Statement::CallProc {
+            name: name.to_string(),
+            inputs,
+            outputs,
+            source_text: source_text.to_string(),
+        });
+        return Ok(());
     }
     if INTRINSIC_CALL_TARGETS.contains(&name) {
         // Same refusal (message and kind) the Phase-3 stub gave every CALL.
@@ -615,6 +673,7 @@ fn flatten_procedure_call(
     outputs: Vec<Expr>,
     source_text: &str,
     out: &mut Vec<Statement>,
+    display_names: &mut GeneratedNames,
 ) -> Result<()> {
     if outputs.len() != def.outputs.len() {
         return Err(FreesError::parse(format!(
@@ -625,9 +684,13 @@ fn flatten_procedure_call(
         )));
     }
     for (k, output) in outputs.into_iter().enumerate() {
-        if !matches!(output, Expr::Var(_)) {
+        let Expr::Var(var_name) = &output else {
             return Err(output_not_a_variable(source_text));
-        }
+        };
+        // `flattenProcedureCall`: putIfAbsent(varName, varName).
+        display_names
+            .entry(var_name.clone())
+            .or_insert_with(|| var_name.clone());
         let call = Expr::Call {
             function: proc_output_name(&def.name, k),
             args: inputs.clone(),
@@ -649,6 +712,7 @@ fn flatten_module_call(
     outputs: Vec<Expr>,
     counter: &mut ModuleCounter,
     out: &mut Vec<Statement>,
+    display_names: &mut GeneratedNames,
 ) -> Result<()> {
     // Java increments before the arity checks; a failing CALL still consumed
     // an instance number.
@@ -674,8 +738,14 @@ fn flatten_module_call(
 
     // Input binding equations: ns$param = inputExpr.
     for (param, input) in def.inputs.iter().zip(inputs) {
+        let ns_param = format!("{ns}{param}");
+        // `flattenModuleCall`: putIfAbsent(nsParam, nsParam) — a namespaced
+        // name is its own display spelling.
+        display_names
+            .entry(ns_param.clone())
+            .or_insert_with(|| ns_param.clone());
         out.push(Statement::Eq(Equation::new(
-            Expr::Var(format!("{ns}{param}")),
+            Expr::Var(ns_param),
             input,
             format!("MODULE {} input {param}", def.name),
         )));
@@ -687,11 +757,20 @@ fn flatten_module_call(
     // (deviation — loud, not silent).
     for body_statement in &def.body {
         match body_statement {
-            Statement::Eq(eq) => out.push(Statement::Eq(Equation::new(
-                namespace_expr(&eq.lhs, &ns),
-                namespace_expr(&eq.rhs, &ns),
-                eq.source_text.clone(),
-            ))),
+            Statement::Eq(eq) => {
+                let lhs = namespace_expr(&eq.lhs, &ns);
+                let rhs = namespace_expr(&eq.rhs, &ns);
+                // `nsLhs.variables().forEach(v -> putIfAbsent(v, v))`, same for
+                // the RHS: every namespaced body variable displays as itself.
+                for var in lhs.variables().into_iter().chain(rhs.variables()) {
+                    display_names.entry(var.clone()).or_insert(var);
+                }
+                out.push(Statement::Eq(Equation::new(
+                    lhs,
+                    rhs,
+                    eq.source_text.clone(),
+                )));
+            }
             other => {
                 let kind = match other {
                     Statement::For { .. } => "a FOR block",
@@ -710,9 +789,12 @@ fn flatten_module_call(
 
     // Output binding equations: outputVar = ns$outputParam.
     for (param, output) in def.outputs.iter().zip(outputs) {
-        if !matches!(output, Expr::Var(_)) {
+        let Expr::Var(var_name) = &output else {
             return Err(output_not_a_variable(&format!("CALL {}", def.name)));
-        }
+        };
+        display_names
+            .entry(var_name.clone())
+            .or_insert_with(|| var_name.clone());
         out.push(Statement::Eq(Equation::new(
             output,
             Expr::Var(format!("{ns}{param}")),

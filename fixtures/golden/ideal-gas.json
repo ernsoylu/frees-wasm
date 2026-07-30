@@ -1,0 +1,26 @@
+{
+  "name": "ideal-gas",
+  "source": "// Ideal Gas Law\n{ Mass of air in a rigid tank. Note the implicit equation:\n  you do not have to write \"m = ...\". }\nP = 500 [kPa]\nVol = 0.05 [m^3]\nT = 25 [C]\nR = 0.287 [kJ/kg-K]    { gas constant for air }\nP * Vol = m * R * T    { ideal gas equation }\n",
+  "expect": {
+    "variables": {
+      "P": 500000.0,
+      "R": 287.0,
+      "T": 298.15,
+      "Vol": 0.05,
+      "m": 0.2921617103380253
+    },
+    "display_names": {
+      "m": "m",
+      "p": "P",
+      "r": "R",
+      "t": "T",
+      "vol": "Vol"
+    },
+    "block_count": 5,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

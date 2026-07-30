@@ -1,0 +1,20 @@
+{
+  "name": "engine-map-2d",
+  "source": "// Engine Map - 2-D Interpolation\n{ A brake-specific fuel consumption map: rows are engine speed,\n  columns are load. Call the table with two arguments to bilinearly\n  interpolate, bsfc(rpm, load), or use the classic-solver-style Interpolate2D. }\nTABLE bsfc(rpm : load = 0.25, 0.5, 1.0)\n  1000   320   300   290\n  3000   280   260   250\n  5000   300   270   255\nEND\n\ng_per_kWh = bsfc(2500, 0.6)                  { direct curve-family call }\ng_check   = Interpolate2D('bsfc', 2500, 0.6) { same value, classic-solver name }\n",
+  "expect": {
+    "variables": {
+      "g_check": 268.0,
+      "g_per_kWh": 268.0
+    },
+    "display_names": {
+      "g_check": "g_check",
+      "g_per_kwh": "g_per_kWh"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

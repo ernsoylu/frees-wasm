@@ -1,0 +1,44 @@
+{
+  "name": "engine-cycle-wiebe",
+  "source": "// Single-Zone Engine Cycle (Wiebe Heat Release)\n{ Crank-angle single-zone first-law model of a spark-ignition engine over the\n  compression-combustion-expansion strokes. Cylinder volume follows slider-crank\n  kinematics; the burned fraction follows a Wiebe function; the DYNAMIC block\n  integrates dp/dtheta over crank angle. The integration variable t is the crank\n  angle in degrees after BDC, so TDC is at 180. Plot p vs V (Plots window) for\n  the indicator diagram. }\nr_c       = 10             { compression ratio }\nVd        = 0.0005 [m^3]   { displacement volume (0.5 L) }\nVc        = Vd / (r_c - 1) { clearance volume }\nlambda    = 0.25           { crank radius / connecting-rod length }\nkk        = 1.35           { ratio of specific heats }\nQ_tot     = 800 [J]        { total combustion heat release }\ntheta_soc = 165            { start of combustion, deg aBDC (15 deg BTDC) }\ntheta_dur = 50             { combustion duration, deg }\np_ivc     = 100000 [Pa]    { pressure at intake-valve close (BDC) }\n\nDYNAMIC engine (method = ode45, t = 0 .. 360, points = 361, rtol = 1e-8)\n  { the integration variable t is the crank angle in degrees after BDC }\n  th       = (t - 180) * pi# / 180            { crank angle from TDC, radians }\n  root     = sqrt(1 - lambda^2 * sin(th)^2)\n  V        = Vc + (Vd/2) * ((1 - cos(th)) + (1/lambda) * (1 - root))\n  dVdth    = (Vd/2) * (sin(th) + lambda * sin(th) * cos(th) / root)\n  dVdtheta = dVdth * pi# / 180                { dV per crank degree }\n  dQdtheta = Q_tot * wiebe_rate(t, theta_soc, theta_dur, 5, 2)\n  der(p)   = (-kk * p * dVdtheta + (kk - 1) * dQdtheta) / V\n  p(0)     = p_ivc\nEND\n\np_max = MaxValue('p')      { peak cylinder pressure }\n",
+  "expect": {
+    "variables": {
+      "Q_tot": 800.0,
+      "Vc": 5.555555555555556E-5,
+      "Vd": 5.0E-4,
+      "kk": 1.35,
+      "lambda": 0.25,
+      "p_ivc": 100000.0,
+      "p_max": 4473698.179189238,
+      "r_c": 10.0,
+      "theta_dur": 50.0,
+      "theta_soc": 165.0
+    },
+    "display_names": {
+      "dqdtheta": "dQdtheta",
+      "dvdth": "dVdth",
+      "dvdtheta": "dVdtheta",
+      "kk": "kk",
+      "lambda": "lambda",
+      "p": "p",
+      "p_ivc": "p_ivc",
+      "p_max": "p_max",
+      "q_tot": "Q_tot",
+      "r_c": "r_c",
+      "root": "root",
+      "t": "t",
+      "th": "th",
+      "theta_dur": "theta_dur",
+      "theta_soc": "theta_soc",
+      "v": "V",
+      "vc": "Vc",
+      "vd": "Vd"
+    },
+    "block_count": 10,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

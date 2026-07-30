@@ -1,0 +1,22 @@
+{
+  "name": "units_temperature_ratio",
+  "source": "{ Two Kelvin quantities divided: the ratio is dimensionless. }\nTh = 500 [K]\nTc = 300 [K]\neta = 1 - Tc / Th\n",
+  "expect": {
+    "variables": {
+      "Tc": 300.0,
+      "Th": 500.0,
+      "eta": 0.4
+    },
+    "display_names": {
+      "eta": "eta",
+      "tc": "Tc",
+      "th": "Th"
+    },
+    "block_count": 3,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

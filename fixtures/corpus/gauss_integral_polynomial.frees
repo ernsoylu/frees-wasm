@@ -1,0 +1,3 @@
+{ GaussIntegral is Gauss-Legendre quadrature, exact to machine precision on a
+  low-order polynomial. Java GaussQuadratureTest.polynomialIntegral: y = 1/3. }
+y = GaussIntegral(x^2, x, 0, 1)

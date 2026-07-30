@@ -1,0 +1,17 @@
+{
+  "name": "ev-battery-cooling-pid",
+  "source": "// Five domains in one solve: electrical (pack discharge) -> heat (cell thermal\n// state) -> liquid (coolant loop) -> twophase (R134a chiller) -> signal (PID).\n// The PID modulates the electronic expansion valve to hold the pack at 303 K;\n// with Ki > 0 the steady error vanishes.\nTABLE ocv(soc)\n  0   3.0\n  1   4.2\nEND\nTABLE dudt(soc)\n  0   -5e-5\n  1   -5e-5\nEND\nBatteryPack   BP(Ns=96, Np=2, ocv$=ocv, dudt$=dudt, R0ref=0.002, Tref=298.15, Ea=0, Q0=60, C_th=50000, SOC0=0.9, T0=306)\nCurrentSource LOAD(I=-60)\nGround        G()\nconnect(BP.p, LOAD.p)\nconnect(BP.n, LOAD.n, G.port)\n\nLiquidSource CSRC(fluid$=Water, mdot=0.05, P=200000, T=305)\nChiller      CH(ref$=R134a, cool$=Water, U_tp=2000, U_sh=200, D=0.01, L=5, eps_zone=0.1, UA_cool=600)\nLiquidWallHX PLATE(fluid$=Water, UA=500)\nLiquidSink   CSNK()\nconnect(CSRC.out, CH.cool_in)\nconnect(CH.cool_out, PLATE.in)\nconnect(PLATE.out, CSNK.in)\nconnect(PLATE.wall, BP.heat, TB.port)\n\nCOMPONENT PHSupply(out)\n  PARAM P, h, domain$ = twophase\n  out.P = P\n  out.h = h\nEND\nhliq = Enthalpy(R134a, P=1200000, x=0)\nPHSupply             RSRC(P=1200000, h=hliq)\nEXVCmd               EXV(fluid$=R134a, CdA_max=2e-7)\nTwoPhasePressureSink RSNK(P=350000)\nconnect(RSRC.out, EXV.in)\nconnect(EXV.out, CH.ref_in)\nconnect(CH.ref_out, RSNK.in)\n\nSigConstant     SP(k=303)\nSigThermalProbe TB()\nSigPID          PID(model$=clamped, Kp=0.05, Ki=0.005, Kd=0, tau=1, i0=0.2, d0=0, umin=0.02, umax=1, Taw=10)\n// Reverse-acting: opening the EXV COOLS, so the measurement drives sp and\n// the setpoint drives pv (equivalent to negating the gains).\nconnect(TB.out, PID.sp)\nconnect(SP.out, PID.pv)\nconnect(PID.out, EXV.u)\nDYNAMIC cool(method = ode23s, time = 0 .. 4000, points = 400)\nEND\nt_bat      = FinalValue('bp.t')\nq_positive = 0.5 * (1 + tanh(FinalValue('ch.ev.q')))\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "IllegalStateException",
+      "message": "The CoolProp native library is not available. Set the COOLPROP_LIBRARY environment variable to the path of libCoolProp.so to enable fluid property functions."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

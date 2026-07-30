@@ -1,0 +1,12 @@
+{ The row/cell accessor family over a TABLE: NLookupRows, Lookup, LookupRow and
+  Differentiate. Java CodeTableTest.lookupCellAndRowCountAndRow and
+  differentiateTableColumn: n = 3, c = 400, r = 2.5, d = 50. }
+TABLE g(x)
+  10   100
+  20   400
+  30   900
+END
+n = NLookupRows('g')
+c = Lookup('g', 2, 2)
+r = LookupRow('g', 1, 25)
+d = Differentiate('g', 2, 1, 25)

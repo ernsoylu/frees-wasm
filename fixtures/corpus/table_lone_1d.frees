@@ -1,0 +1,9 @@
+{ A lone TABLE block used as an interpolation function. The midpoint of
+  (2000,310)-(3000,560) is 435. Java CodeTableTest.oneDimensionalTableInterpolates. }
+TABLE fanPressure(rpm)
+  // rpm   dP
+  1000     120
+  2000     310
+  3000     560
+END
+dP = fanPressure(2500)

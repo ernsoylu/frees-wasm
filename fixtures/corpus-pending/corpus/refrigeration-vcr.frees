@@ -1,0 +1,20 @@
+// Vapor-Compression Refrigeration (R134a)
+{ Ideal VCR cycle. Real-refrigerant properties from CoolProp. }
+T_evap = 263.15 [K]      { -10 C }
+T_cond = 313.15 [K]      { 40 C }
+eta_comp = 0.80
+
+P1 = P_sat(R134a, T=T_evap)
+h1 = Enthalpy(R134a, T=T_evap, x=1)  { saturated vapor leaving evaporator }
+s1 = Entropy(R134a, T=T_evap, x=1)
+
+P2 = P_sat(R134a, T=T_cond)
+h2s = Enthalpy(R134a, P=P2, s=s1)
+h2 = h1 + (h2s - h1) / eta_comp
+
+h3 = Enthalpy(R134a, P=P2, x=0)      { saturated liquid leaving condenser }
+h4 = h3                              { throttle is isenthalpic }
+
+q_L = h1 - h4            { refrigeration effect }
+w_c = h2 - h1
+COP = q_L / w_c

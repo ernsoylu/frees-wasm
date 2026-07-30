@@ -1,0 +1,17 @@
+{
+  "name": "fn_zero_argument",
+  "source": "{ A FUNCTION with no parameters at all. }\nFUNCTION Answer()\n  Answer := 42\nEND\n\ny = Answer()\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "line 6:11 extraneous input '(' expecting {<EOF>, ';', NEWLINE}"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,17 @@
+// Multi-Objective Cantilever Beam
+{ A steel cantilever with a tip load. Solve (F2) to evaluate one
+  design, then open Tools > Min/Max, switch to 'Multi-objective
+  (Pareto)', and MINIMIZE both 'mass' and 'delta' over the decisions
+  b (0.01 .. 0.06) and h (0.02 .. 0.10) to trace the trade-off front.
+  Material properties come from the built-in solid database. }
+L = 1 [m]                { beam length }
+F = 500 [N]              { tip load }
+E = E_(Steel)            { Young's modulus }
+rho = rho_(Steel)        { density }
+
+b = 0.03 [m]             { cross-section width  (decision) }
+h = 0.05 [m]             { cross-section height (decision) }
+
+I = b * h^3 / 12         { second moment of area }
+mass = rho * L * b * h               { objective 1: minimize }
+delta = F * L^3 / (3 * E * I)        { objective 2: tip deflection, minimize }

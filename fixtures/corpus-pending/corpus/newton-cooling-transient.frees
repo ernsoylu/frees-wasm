@@ -1,0 +1,22 @@
+// Newton Cooling — Transient (DYNAMIC)
+{ A first-order ODE solved over time. The DYNAMIC ... END block is a parallel
+  path to the analytic solver: a variable is a STATE when a der(X) appears, with
+  one der(X) = ... and one initial condition X(0) = ...  The block produces an
+  ODE Table (see the Tables window) you can plot (Plots window: x = time, y = T).
+
+  Note: temperature is named T, which is case-insensitively the same as a time
+  variable t — so this block names time "time" in the header. }
+
+k     = 0.012     { cooling rate constant [1/s] }
+T_inf = 22        { ambient temperature }
+
+DYNAMIC cooling (method = ode45, time = 0 .. 300, points = 200, rtol = 1e-8)
+  der(T) = -k * (T - T_inf)      { Newton's law of cooling }
+  T(0)   = 90                    { initial temperature }
+  rate   = -der(T)               { algebraic auxiliary -> an output column }
+END
+
+{ Read transient results back into the analytic solution }
+T_final = FinalValue('T')        { temperature at the end of the run }
+T_peak  = MaxValue('T')          { hottest point (here, the start) }
+t_half  = TimeAt('T', 56)        { time to reach 56 degrees }

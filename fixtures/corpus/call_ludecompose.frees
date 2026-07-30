@@ -1,0 +1,4 @@
+{ CALL LUDecompose pins the L/U triangular structure by equations.
+  Java EquationSystemSolverTest LU decomposition of [4 3; 6 3]. }
+A[1:2,1:2] = [4 3; 6 3]
+CALL LUDecompose(A[1:2,1:2] : L[1:2,1:2], U[1:2,1:2])

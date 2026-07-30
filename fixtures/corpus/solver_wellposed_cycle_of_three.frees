@@ -1,0 +1,8 @@
+{ A genuine 3-cycle with a unique solution (full-rank, nonlinear) must land in
+  one simultaneous block. }
+x + y + z = 6
+x * y = 2
+y - z = -1
+GUESS x = 1
+GUESS y = 1
+GUESS z = 1

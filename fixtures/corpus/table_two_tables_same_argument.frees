@@ -1,0 +1,12 @@
+{ Two tables sharing one argument variable inside a single block. }
+TABLE up(x)
+  0   0
+  10  100
+END
+TABLE down(x)
+  0   100
+  10  0
+END
+a = up(4)
+b = down(4)
+c = a + b

@@ -1,0 +1,5 @@
+{ The subsystem is re-solved at every quadrature step: x = 2t, so
+  the integral of x^2 from 0 to 1 is 4/3 and the final x is 2.
+  Java IntegralTest.solvesSubsystemAtEveryStep. }
+x = 2*t
+F = Integral(x^2, t, 0, 1)

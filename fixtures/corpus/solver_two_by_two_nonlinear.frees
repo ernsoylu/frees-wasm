@@ -1,0 +1,6 @@
+{ A 2x2 simultaneous nonlinear block: analytic and FD Jacobians must agree
+  to the reported tolerance. }
+x^2 + y^2 = 25
+x - y = 1
+GUESS x = 5
+GUESS y = 5

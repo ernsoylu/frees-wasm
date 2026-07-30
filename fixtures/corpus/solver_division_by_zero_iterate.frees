@@ -1,0 +1,3 @@
+{ A residual that divides by an iterate which starts at the default guess. }
+GUESS q = 1
+1 / q = 4

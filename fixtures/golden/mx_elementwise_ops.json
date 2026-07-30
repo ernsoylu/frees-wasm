@@ -1,0 +1,41 @@
+{
+  "name": "mx_elementwise_ops",
+  "source": "{ The four elementwise operators over 1x2 vectors. }\na = [2, 8]\nb = [4, 2]\nm = a .* b\nd = a ./ b\np = a .^ b\n",
+  "expect": {
+    "variables": {
+      "a[1]": 2.0,
+      "a[2]": 8.0,
+      "b[1]": 4.0,
+      "b[2]": 2.0,
+      "d[1]": 0.5,
+      "d[2]": 4.0,
+      "m[1]": 8.0,
+      "m[2]": 16.0,
+      "p[1]": 16.0,
+      "p[2]": 64.0
+    },
+    "display_names": {
+      "a": "a",
+      "a[1]": "a[1]",
+      "a[2]": "a[2]",
+      "b": "b",
+      "b[1]": "b[1]",
+      "b[2]": "b[2]",
+      "d": "d",
+      "d[1]": "d[1]",
+      "d[2]": "d[2]",
+      "m": "m",
+      "m[1]": "m[1]",
+      "m[2]": "m[2]",
+      "p": "p",
+      "p[1]": "p[1]",
+      "p[2]": "p[2]"
+    },
+    "block_count": 10,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

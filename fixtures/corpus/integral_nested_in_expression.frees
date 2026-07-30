@@ -1,0 +1,3 @@
+{ An Integral nested inside a larger expression is hoisted into a synthetic
+  alone-form equation. Java IntegralTest.solvesIntegralNestedInExpression: F = 1. }
+F = 2*Integral(t, t, 0, 1)

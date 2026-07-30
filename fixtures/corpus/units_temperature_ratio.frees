@@ -1,0 +1,4 @@
+{ Two Kelvin quantities divided: the ratio is dimensionless. }
+Th = 500 [K]
+Tc = 300 [K]
+eta = 1 - Tc / Th

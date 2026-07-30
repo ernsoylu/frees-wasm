@@ -1,0 +1,28 @@
+{
+  "name": "for_loop_over_array",
+  "source": "{ A FOR loop writing an array; element display names come from the loop. }\nFOR i = 1 TO 4\n  Sq[i] = i * i\nEND\nt = Sq[1] + Sq[2] + Sq[3] + Sq[4]\n",
+  "expect": {
+    "variables": {
+      "Sq[1]": 1.0,
+      "Sq[2]": 4.0,
+      "Sq[3]": 9.0,
+      "Sq[4]": 16.0,
+      "t": 30.0
+    },
+    "display_names": {
+      "i": "i",
+      "sq": "Sq",
+      "sq[1]": "Sq[1]",
+      "sq[2]": "Sq[2]",
+      "sq[3]": "Sq[3]",
+      "sq[4]": "Sq[4]",
+      "t": "t"
+    },
+    "block_count": 5,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

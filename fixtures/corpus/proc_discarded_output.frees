@@ -1,0 +1,7 @@
+{ The ~ sink discards an output slot; it must not surface as a result row. }
+PROCEDURE Two(a : p, q)
+  p := a
+  q := a * 10
+END
+
+CALL Two(3 : ~, second)

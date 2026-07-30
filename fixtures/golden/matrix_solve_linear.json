@@ -1,0 +1,35 @@
+{
+  "name": "matrix_solve_linear",
+  "source": "{ Array-language-style bare matrix creation + SolveLinear, mirroring the Java\n  EquationSystemSolverTest.solvesMatlabStyleBareNameMatrix. Element names are\n  1-based: x[1], x[2]. }\nA = [2 0; 0 4]\nb = [6; 8]\nx = SolveLinear(A, b)\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 2.0,
+      "A[1,2]": 0.0,
+      "A[2,1]": 0.0,
+      "A[2,2]": 4.0,
+      "b[1]": 6.0,
+      "b[2]": 8.0,
+      "x[1]": 3.0,
+      "x[2]": 2.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "b": "b",
+      "b[1]": "b[1]",
+      "b[2]": "b[2]",
+      "x": "x",
+      "x[1]": "x[1]",
+      "x[2]": "x[2]"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

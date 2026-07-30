@@ -1,0 +1,8 @@
+{ The classic-solver-compatible Interpolate('name', x) spelling must agree with
+  the direct call. Java CodeTableTest.interpolateNameLinearMatchesDirectCall. }
+TABLE flow(re)
+  0     0
+  100   100
+END
+y = Interpolate('flow', 50)
+d = flow(50)

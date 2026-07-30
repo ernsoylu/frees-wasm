@@ -1,0 +1,5 @@
+// DC Circuit — Power Dissipation
+V = 12 [V]
+R = 220 [ohm]
+I = V / R       { current }
+P = V * I       { power dissipated }

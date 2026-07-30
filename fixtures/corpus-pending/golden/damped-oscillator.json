@@ -1,0 +1,17 @@
+{
+  "name": "damped-oscillator",
+  "source": "// Damped Harmonic Oscillator (parametric time sweep)\n{ Free vibration of a mass-spring-damper, released from x0 at rest,\n  sampled in time. PARAMETRIC table: open the Tables tab and click\n  \"Solve Table\" (not the main Solve). Then chart x vs time, adding\n  env and -env to see the decay envelope. }\nm = 2 [kg]               { mass }\nk = 50 [N/m]             { stiffness }\nc = 4 [N-s/m]            { damping }\nx0 = 0.1 [m]             { initial displacement }\n\nwn = sqrt(k/m)                   { natural frequency }\nzeta = c / (2*sqrt(k*m))        { damping ratio (underdamped < 1) }\nwd = wn*sqrt(1 - zeta^2)        { damped frequency }\n\ntime = t * 1 [s]\nenv = x0*exp(-zeta*wn*time)     { decay envelope }\nx = env * (cos(wd*time) + (zeta*wn/wd)*sin(wd*time))\n\nPARAMETRIC vibration (t, time, x, env)\n  t = 0:0.05:6\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 10 equations and 11 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): x. Coupled to: env, t, time. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,12 +1,13 @@
-// solve() and check() run fully in the browser: a Rust/WASM engine inside a
-// Web Worker (src/wasm/) replaces POST /api/solve and /api/check, emitting the
-// same REST wire shapes this module always parsed. Endpoints whose engine
-// features are not ported yet (REPL, optimize, curve fit, fluids, plots,
-// tables, Monte Carlo, control) are stubbed — a neutral resolved value where
-// the UI consumes data at boot, otherwise a rejection naming the gap — so
-// nothing in this module hits the network anymore. runCompute/pollJob stay
-// exported for the day a hybrid remote path returns.
-import { wasmCheck, wasmSolve } from './wasm/engineClient'
+// solve(), check() and getReference() run fully in the browser: a Rust/WASM
+// engine inside a Web Worker (src/wasm/) replaces POST /api/solve, /api/check
+// and GET /api/reference, emitting the same REST wire shapes this module always
+// parsed. Endpoints whose engine features are not ported yet (REPL, optimize,
+// curve fit, fluids, plots, tables, Monte Carlo, control) are stubbed — a
+// neutral resolved value where the UI consumes data at boot, otherwise a
+// rejection naming the gap — so nothing in this module hits the network
+// anymore. runCompute/pollJob stay exported for the day a hybrid remote path
+// returns.
+import { wasmCheck, wasmReference, wasmSolve } from './wasm/engineClient'
 
 export interface VariableResult {
   name: string
@@ -793,17 +794,45 @@ export interface ConstantInfo {
   description: string
 }
 
+/** One row of the engine's intrinsic dispatch table (the Java
+ *  `FunctionRegistry.FunctionInfo`). `signature` is generated from the arity,
+ *  so the argument count is authoritative but the names are placeholders; the
+ *  Rust registry carries no per-function prose, so `description` is empty and
+ *  `category` is the single label `"Built-in"`. Prefer `functionCatalog.ts`
+ *  for wording — use this list to answer "does the engine actually have it?". */
+export interface FunctionInfo {
+  name: string
+  signature: string
+  description: string
+  category: string
+}
+
 export interface LanguageReference {
   units: UnitInfo[]
   constants: ConstantInfo[]
+  functions: FunctionInfo[]
 }
 
-/** Supported units and built-in constants. The wasm boundary does not export
- *  the registry tables yet; the empty reference is the old path's unreachable-
- *  backend fallback, which the Help page renders as empty tables without
- *  crashing. */
+/** Every unit the checker accepts, the `#`-suffixed built-in constants, and the
+ *  intrinsic dispatch table — read live from the wasm engine's own registries,
+ *  so the Help page can never drift from what the solver accepts.
+ *
+ *  Never rejects: the Help page's two call sites use bare `.then()`, so a
+ *  rejection would surface as an unhandled promise. An engine-infrastructure
+ *  failure resolves to the empty reference instead — the old unreachable-
+ *  backend fallback, which renders as empty tables plus the page's own
+ *  "live list unavailable" notice. */
 export async function getReference(): Promise<LanguageReference> {
-  return { units: [], constants: [] }
+  try {
+    const reference = await wasmReference()
+    return {
+      units: reference.units ?? [],
+      constants: reference.constants ?? [],
+      functions: reference.functions ?? [],
+    }
+  } catch {
+    return { units: [], constants: [], functions: [] }
+  }
 }
 
 /** Property diagrams need CoolProp, not ported yet — rejects; the PlotCard

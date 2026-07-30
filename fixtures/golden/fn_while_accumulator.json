@@ -1,0 +1,21 @@
+{
+  "name": "fn_while_accumulator",
+  "source": "{ WHILE ... DO with an accumulator; the loop must terminate. }\nFUNCTION SumTo(n)\n  i := 0\n  s := 0\n  WHILE i < n DO\n    i := i + 1\n    s := s + i\n  END\n  SumTo := s\nEND\n\ny = SumTo(10)\n",
+  "expect": {
+    "variables": {
+      "y": 55.0
+    },
+    "display_names": {
+      "i": "i",
+      "n": "n",
+      "s": "s",
+      "y": "y"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

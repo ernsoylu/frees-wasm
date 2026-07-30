@@ -1,0 +1,4 @@
+{ Integral(f, t, a, b) by adaptive predictor-corrector. The integration variable
+  is reported at the end of the sweep, so t = 1.
+  Java IntegralTest.integratesPolynomialDirectly: F = 1/3. }
+F = Integral(t^2, t, 0, 1)

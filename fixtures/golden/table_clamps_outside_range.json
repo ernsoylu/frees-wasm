@@ -1,0 +1,20 @@
+{
+  "name": "table_clamps_outside_range",
+  "source": "{ Queries outside the tabulated range clamp to the end rows, they do not\n  extrapolate. Java CodeTableTest.clampsOutsideRange: h1 = 50, h2 = 30. }\nTABLE pumpHead(q)\n  0      50\n  10     30\nEND\nh1 = pumpHead(-5)\nh2 = pumpHead(999)\n",
+  "expect": {
+    "variables": {
+      "h1": 50.0,
+      "h2": 30.0
+    },
+    "display_names": {
+      "h1": "h1",
+      "h2": "h2"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "int_reversed_limits",
+  "source": "{ Upper limit below the lower one: the integral must change sign. }\nR = Integral(2*t, t, 3, 1)\n",
+  "expect": {
+    "variables": {
+      "R": -7.9999999999995834,
+      "t": 1.0
+    },
+    "display_names": {
+      "r": "R",
+      "t": "t"
+    },
+    "block_count": 2,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

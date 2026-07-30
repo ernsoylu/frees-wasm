@@ -1,0 +1,30 @@
+{
+  "name": "pump-sizing",
+  "source": "// Pump Sizing\n{ A worked example — edit any value and press Solve (F2).\n  Equations may be written in any order; frees figures out\n  the calculation order for you. }\n\nrho = 1000 [kg/m^3]      { water density }\ng = 9.81 [m/s^2]\nQ_flow = 0.02 [m^3/s]    { volumetric flow rate }\nH = 25 [m]               { pump head }\neta = 0.7                { pump efficiency }\n\nP_hydraulic = rho * g * Q_flow * H   { hydraulic power, in watts }\nP_shaft = P_hydraulic / eta          { required shaft power }\n",
+  "expect": {
+    "variables": {
+      "H": 25.0,
+      "P_hydraulic": 4905.0,
+      "P_shaft": 7007.142857142858,
+      "Q_flow": 0.02,
+      "eta": 0.7,
+      "g": 9.81,
+      "rho": 1000.0
+    },
+    "display_names": {
+      "eta": "eta",
+      "g": "g",
+      "h": "H",
+      "p_hydraulic": "P_hydraulic",
+      "p_shaft": "P_shaft",
+      "q_flow": "Q_flow",
+      "rho": "rho"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

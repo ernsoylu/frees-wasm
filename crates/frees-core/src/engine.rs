@@ -33,16 +33,16 @@
 //!    when a later block is evaluated, which is what "feed knowns forward"
 //!    means here — a downstream block never re-solves an upstream unknown.
 //!
-//! # Built-in constants are knowns, not unknowns
+//! # Built-in constants fold at parse time
 //!
-//! `AstBuilder` in the Java engine folds `pi#`/`R#`/`g#` into numeric literals
-//! at parse time. This port's expression parser deliberately does not (there is
-//! no `ConstantsRegistry` module for it to call), so a `#`-suffixed constant
-//! reaches the solver as an ordinary [`crate::ast::Expr::Var`]. Left alone it
-//! would count as a free variable and turn `a = pi#` into an underdetermined
-//! system. The engine therefore resolves every variable that
-//! [`crate::eval::lookup_constant`] knows, seeds its SI value into the scope and
-//! hands it to the blocker as a *known*. The observable behaviour matches Java.
+//! Like the Java `AstBuilder.visitVarAtom`, the expression parser substitutes
+//! `pi#`/`R#`/`g#` (every name [`crate::eval::lookup_constant`] knows) as
+//! numeric literals carrying their raw SI unit string, so a constant never
+//! reaches the solver as a variable and the unit checker can ground downstream
+//! variables from it. [`builtin_constants`] survives as a knowns hook — it
+//! collects nothing on documents from this parser (folding leaves no `#`
+//! variables behind) but keeps hand-built ASTs and the future component
+//! expander honest.
 //!
 //! # Evaluation failures inside the Newton loop
 //!
@@ -63,15 +63,53 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use crate::ast::{Equation, Expr, Statement};
 use crate::diag::{Diagnostic, FreesError, Result};
 use crate::eval::{eval, lookup_constant, Scope};
+use crate::lexer::tokenize;
 use crate::parser::{parse_document, Document, GuessDirective};
 use crate::solver::blocker::{block_system, unknowns, Block};
 use crate::solver::newton::{newton_solve, SolverSettings};
+use crate::token::TokenKind;
 use crate::units::registry::UnitRegistry;
 
 /// Initial value for an unknown with no `GUESS`.
 ///
 /// `EquationSystemSolver.DEFAULT_GUESS` in the Java engine.
 pub const DEFAULT_GUESS: f64 = 1.0;
+
+/// One equation's residual `lhs - rhs` at the final solution.
+///
+/// The Java `EquationSystemSolver.EquationResidual` (`equation`, `residual`),
+/// plus the index of the Tarjan block the equation was solved in, which the
+/// Java side reconstructs from `Block.equations` when it needs it
+/// (`failedBlockIndex` diagnostics in `api.ts`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct EquationResidual {
+    /// The equation quoted verbatim (`Equation.source_text` — the Java
+    /// `Equation::sourceText`), never a mangled internal form.
+    pub equation: String,
+    /// `lhs - rhs` evaluated at the returned values. `NaN` when the equation
+    /// cannot be evaluated there (Java catches and records `NaN` the same way
+    /// in `enrichWithPartialResult`).
+    pub residual: f64,
+    /// 0-based index into [`Solution::blocks`] of the block that solved it.
+    pub block: usize,
+}
+
+/// Solve-effort statistics — the subset of the Java `EquationSystemSolver.Stats`
+/// the core can know. `equationCount`/`unknownCount`/`blockCount` are derivable
+/// from the [`Solution`] itself (`residuals.len()`, `values.len()`,
+/// `blocks.len()`), so they are not duplicated here.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SolveStats {
+    /// Total Newton iterations across every block (Java `Stats.iterations`).
+    pub iterations: usize,
+    /// Largest `|residual|` across the system at the returned solution
+    /// (Java `Stats.maxResidual`).
+    pub max_residual: f64,
+    /// Wall-clock solve time (Java `Stats.elapsedMillis`). Always `None` in
+    /// core: `wasm32-unknown-unknown` has no clock, so the boundary stage
+    /// measures and fills this where a clock exists.
+    pub elapsed_ms: Option<f64>,
+}
 
 /// A completed steady solve.
 #[derive(Debug, Clone, PartialEq)]
@@ -83,13 +121,126 @@ pub struct Solution {
     /// substitutes them as numeric literals at parse time, so they are never
     /// result rows (`fixtures/golden/constants.json` lists only `a`, `b`, `c`).
     pub values: BTreeMap<String, f64>,
+    /// Lowercase canonical name → the spelling of its **first appearance** in
+    /// the source, sigil suffixes kept as-is (the Java
+    /// `ParseResult.displayNames`): `t_out` → `"T_out"`. Covers exactly the
+    /// unknowns in [`Solution::values`].
+    pub display_names: BTreeMap<String, String>,
     /// The blocks, in the order they were solved.
     pub blocks: Vec<Block>,
+    /// Per block (aligned with [`Solution::blocks`]), the `source_text` of its
+    /// equations, first occurrence of a repeated text kept — the Java
+    /// `SolveDtos.toBlockDto` applies `.distinct()` so an expanded component
+    /// never lists one user line twice.
+    pub block_equations: Vec<Vec<String>>,
+    /// `lhs - rhs` of every equation, in source order, evaluated at the final
+    /// values (the Java `Result.residuals`).
+    pub residuals: Vec<EquationResidual>,
+    /// Effort statistics for the whole solve.
+    pub stats: SolveStats,
+    /// Lowercase variable name → display unit string: declared units
+    /// (annotated literals, then external `VariableInfo` units on top) plus the
+    /// units [`crate::units::checker`] derived dimensionally — the Java
+    /// `SolverApiSupport.unitsByLowerName` composition, which fills the
+    /// `variables[].units` column of the solve response.
+    pub inferred_units: BTreeMap<String, String>,
+    /// Unit-consistency warning sentences from [`crate::units::checker`], in
+    /// Java emission order (`unitWarnings[]` in `api.ts`). Unit problems are
+    /// warnings by the parent engine's invariant — they never block a solve.
+    pub unit_warnings: Vec<String>,
     /// Parser diagnostics plus anything the solve wanted to say. Unit and
     /// bounds problems are warnings and never block a solve.
     pub diagnostics: Vec<Diagnostic>,
-    /// Total Newton iterations across every block.
+    /// Total Newton iterations across every block (same value as
+    /// `stats.iterations`, kept for existing callers).
     pub iterations: usize,
+}
+
+/// Diagnostics captured at the point a block solve gave up — the Java
+/// `SolverException.partialResult` built by `enrichWithPartialResult`: the
+/// block structure, every equation's residual evaluated at the stalled
+/// iterate (`NaN` where an unsolved upstream block leaves nothing to
+/// evaluate), and partial stats. Deliberately carries **no solved values** —
+/// the Java partial `Result` ships `Map.of()` for `variables`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartialDiagnostics {
+    /// The full block decomposition (known before the first block ran).
+    pub blocks: Vec<Block>,
+    /// Per block, the `source_text` of its equations (see
+    /// [`Solution::block_equations`]).
+    pub block_equations: Vec<Vec<String>>,
+    /// Lowercase canonical name → first-seen source spelling, covering every
+    /// unknown in the system.
+    pub display_names: BTreeMap<String, String>,
+    /// Every equation's `lhs - rhs` at the stalled iterate, source order.
+    pub residuals: Vec<EquationResidual>,
+    /// Iterations spent before the stall + the largest finite `|residual|`.
+    pub stats: SolveStats,
+}
+
+/// A failed solve: what went wrong, plus the structured diagnostics the Java
+/// engine carries on `SolverException` (`FailureState.failedBlockIndex` +
+/// `partialResult`). Pre-block failures (parse errors, structural rejections)
+/// have `failed_block_index: None` and `partial: None`, exactly as Java
+/// failures without a `FailureState` pass through unenriched.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SolveFailure {
+    /// The underlying error (its message already carries the block annotation
+    /// where one applies).
+    pub error: FreesError,
+    /// 0-based index of the Tarjan block whose solve gave up.
+    pub failed_block_index: Option<usize>,
+    pub partial: Option<PartialDiagnostics>,
+}
+
+impl SolveFailure {
+    /// The message without the `Display` kind prefix (delegates to
+    /// [`FreesError::to_string_message`]).
+    pub fn to_string_message(&self) -> String {
+        self.error.to_string_message()
+    }
+
+    /// Source span of the underlying error, where one is known.
+    pub fn span(&self) -> Option<crate::diag::Span> {
+        self.error.span()
+    }
+}
+
+impl std::fmt::Display for SolveFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+impl std::error::Error for SolveFailure {}
+
+impl From<FreesError> for SolveFailure {
+    fn from(error: FreesError) -> SolveFailure {
+        SolveFailure {
+            error,
+            failed_block_index: None,
+            partial: None,
+        }
+    }
+}
+
+/// Lets existing assertions compare a failure against a bare [`FreesError`]
+/// (`assert_eq!(solve(..).unwrap_err(), FreesError::solver("…"))`).
+impl PartialEq<FreesError> for SolveFailure {
+    fn eq(&self, other: &FreesError) -> bool {
+        self.error == *other
+    }
+}
+
+/// One syntax error with its 1-based editor position, so the lint gutter can
+/// mark the broken line. The Java `SolveDtos.SyntaxErrorDto`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SyntaxErrorInfo {
+    /// 1-based line of the error.
+    pub line: usize,
+    /// 1-based column of the error.
+    pub column: usize,
+    pub message: String,
 }
 
 /// The result of a check-before-solve.
@@ -107,10 +258,52 @@ pub struct CheckReport {
     pub unknown_count: usize,
     /// The unknowns, sorted, lowercase.
     pub variables: Vec<String>,
+    /// Lowercase canonical name → first-seen source spelling, covering exactly
+    /// [`CheckReport::variables`]. See [`Solution::display_names`].
+    pub display_names: BTreeMap<String, String>,
     /// Human-readable summary — the "No syntax errors were detected…" sentence
-    /// on success, or the blocker's causality diagnosis on failure.
+    /// on success, the blocker's causality diagnosis on a structural failure,
+    /// or `"Syntax error: …"` on a parse failure (the Java `CheckController`
+    /// 400-with-body message).
     pub message: String,
+    /// 1-based editor line of the syntax error this report describes, `None`
+    /// for whole-system problems (the `errorLine` field `api.ts` parses).
+    pub error_line: Option<usize>,
+    /// Every syntax error with its position. Empty unless the parse failed.
+    /// (The Rust parser stops at the first error, so at most one entry today;
+    /// the Java engine collects up to eight.)
+    pub errors: Vec<SyntaxErrorInfo>,
+    /// Lowercase variable name → inferred display unit (`inferredUnits` in
+    /// `api.ts`): units [`crate::units::checker`] derived dimensionally,
+    /// overlaid by units read off annotated literal assignments — the Java
+    /// `CheckController` composition (`deriveUnits` then `putAll(inferUnits)`),
+    /// which deliberately leaves external `VariableInfo` units out.
+    pub inferred_units: BTreeMap<String, String>,
+    /// Unit-consistency warning sentences from [`crate::units::checker`], in
+    /// Java emission order (`unitWarnings[]` in `api.ts`). Never affects
+    /// [`CheckReport::solvable`].
+    pub unit_warnings: Vec<String>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Externally supplied per-variable solver information — one row of the
+/// Variable Information window, the Java `SolverApiSupport.VariableInfoDto`
+/// (`name`, `guess`, `lower`, `upper`, `units`; `uncertainty` is not ported).
+///
+/// Values are expressed in `unit` when one is given and are converted to SI
+/// (`value * factor + offset`) before the solver sees them, exactly as
+/// `VariableInfoDto.toSpec` does.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct VariableOverride {
+    /// Variable name, any case (lowercased on use).
+    pub name: String,
+    pub guess: Option<f64>,
+    pub lower: Option<f64>,
+    pub upper: Option<f64>,
+    /// Display unit the numbers above are written in. `None`, `""` and `"-"`
+    /// all mean "already SI"; an *unknown* unit falls back to factor 1 /
+    /// offset 0 silently, matching the Java `toSpec` catch-and-default.
+    pub unit: Option<String>,
 }
 
 /// What the document says about one unknown before the solve starts.
@@ -150,7 +343,8 @@ impl VarSpec {
 // Public entry points
 // ---------------------------------------------------------------------------
 
-/// Parse, block and solve `source`.
+/// Parse, block and solve `source`. Equivalent to [`solve_with`] with no
+/// external variable information.
 ///
 /// # Errors
 ///
@@ -161,7 +355,41 @@ impl VarSpec {
 /// * whatever [`crate::eval`] raises when the residuals cannot be evaluated at
 ///   the initial point (unknown function, wrong arity, a string in a numeric
 ///   position).
-pub fn solve(source: &str, settings: &SolverSettings) -> Result<Solution> {
+pub fn solve(
+    source: &str,
+    settings: &SolverSettings,
+) -> std::result::Result<Solution, SolveFailure> {
+    solve_with(source, settings, &[])
+}
+
+/// [`solve`] with externally supplied per-variable guesses/bounds — the shape
+/// `POST /api/solve` receives as `variableInfo`.
+///
+/// # How overrides and in-text `GUESS` directives merge
+///
+/// The rule is the Java one, verified against
+/// `EquationSystemSolver.withTextGuesses` and `VariableInfoDto.toSpec`:
+///
+/// 1. Each override converts to a spec first (values pass through its `unit`
+///    to SI). An override with bounds but no guess starts from `DEFAULT_GUESS`
+///    clamped into those bounds.
+/// 2. In-text `GUESS` directives then merge **over** the overrides, field by
+///    field: a part the directive states wins; a part it omits falls back to
+///    the override ("text wins, so a shared document solves identically for
+///    its recipient").
+/// 3. The merged guess is clamped into the merged bounds — a stale external
+///    guess landing outside text bounds is pulled onto them (the bounds win).
+///
+/// # Errors
+///
+/// Everything [`solve`] raises, plus [`FreesError::Solver`] for an invalid
+/// override (NaN, crossed bounds, or an explicit guess outside its own
+/// bounds), mirroring the Java `VariableSpec` constructor's rejections.
+pub fn solve_with(
+    source: &str,
+    settings: &SolverSettings,
+    overrides: &[VariableOverride],
+) -> std::result::Result<Solution, SolveFailure> {
     let doc = parse_document(source)?;
     reject_unsupported(&doc.statements)?;
 
@@ -171,7 +399,7 @@ pub fn solve(source: &str, settings: &SolverSettings) -> Result<Solution> {
 
     let mut diagnostics = doc.diagnostics.clone();
     collect_unit_warnings(&equations, &mut diagnostics);
-    let specs = variable_specs(&equations, &knowns, &doc, &mut diagnostics);
+    let specs = variable_specs(&equations, &knowns, &doc, overrides, &mut diagnostics)?;
 
     // One scope for the whole document: it starts as the initial guesses plus
     // the built-in constants, and each block overwrites its own unknowns as it
@@ -185,7 +413,33 @@ pub fn solve(source: &str, settings: &SolverSettings) -> Result<Solution> {
 
     let mut iterations = 0usize;
     for (index, block) in report.blocks.iter().enumerate() {
-        iterations += solve_block(index, block, &equations, &mut values, settings)?;
+        match solve_block(index, block, &equations, &mut values, settings) {
+            Ok(block_iterations) => iterations += block_iterations,
+            Err(error) => {
+                // The Java `enrichWithPartialResult`: attach the block
+                // structure, every equation's residual at the stalled iterate
+                // (`residuals_at` records NaN where evaluation fails), and
+                // partial stats, so a failure ships diagnostics.
+                let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values);
+                let block_equations = block_equation_texts(&report.blocks, &equations);
+                let display_names = display_names_for(specs.keys(), source);
+                return Err(SolveFailure {
+                    error,
+                    failed_block_index: Some(index),
+                    partial: Some(PartialDiagnostics {
+                        blocks: report.blocks,
+                        block_equations,
+                        display_names,
+                        residuals,
+                        stats: SolveStats {
+                            iterations,
+                            max_residual,
+                            elapsed_ms: None,
+                        },
+                    }),
+                });
+            }
+        }
     }
 
     check_bounds(&specs, &values, &mut diagnostics);
@@ -196,7 +450,7 @@ pub fn solve(source: &str, settings: &SolverSettings) -> Result<Solution> {
     // never surfaces them as result variables — `fixtures/golden/constants.json`
     // lists only `a`, `b`, `c`. Leaking `pi#` into the result table would be a
     // visible parity divergence.
-    let solved = specs
+    let solved: BTreeMap<String, f64> = specs
         .keys()
         .map(|name| {
             let value = values.get(name).copied().unwrap_or(f64::NAN);
@@ -204,23 +458,74 @@ pub fn solve(source: &str, settings: &SolverSettings) -> Result<Solution> {
         })
         .collect();
 
+    let display_names = display_names_for(solved.keys(), source);
+    let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values);
+    let block_equations = block_equation_texts(&report.blocks, &equations);
+
+    // Dimensional check + SI unit inference (the Java solve path's
+    // `checkUnits` + `unitsByLowerName`): declared units feed the checker, and
+    // the result map is the derived units overlaid by the declared ones —
+    // a declared unit always wins over a dimensionally derived one.
+    let declared = declared_units(&equations, overrides);
+    let unit_report = crate::units::checker::check_units(&equations, &declared);
+    let mut inferred_units = unit_report.inferred;
+    inferred_units.extend(declared);
+
     Ok(Solution {
         values: solved,
+        display_names,
         blocks: report.blocks,
+        block_equations,
+        residuals,
+        stats: SolveStats {
+            iterations,
+            max_residual,
+            // No clock on wasm32-unknown-unknown; the boundary stage measures.
+            elapsed_ms: None,
+        },
+        inferred_units,
+        unit_warnings: unit_report.warnings,
         diagnostics,
         iterations,
     })
 }
 
+/// Verify syntax and structural solvability without solving. Equivalent to
+/// [`check_with`] with no external variable information.
+pub fn check(source: &str) -> Result<CheckReport> {
+    check_with(source, &[])
+}
+
 /// Verify syntax and structural solvability without solving.
 ///
-/// Mirrors `POST /api/check`. A *syntax* failure is an `Err` (the Java endpoint
-/// answers 400 for it); a *structural* failure is an `Ok` report with
-/// `solvable: false` and the blocker's diagnosis in `message`, because the
-/// editor needs the counts and the variable list either way.
-pub fn check(source: &str) -> Result<CheckReport> {
-    let doc = parse_document(source)?;
-    reject_unsupported(&doc.statements)?;
+/// Mirrors `POST /api/check`. *Every* failure of the document itself is data,
+/// not an `Err`:
+///
+/// * a **syntax** failure (or an unported construct) returns a report with
+///   `solvable: false`, `error_line`/`errors` pointing at the offending line
+///   and a `"Syntax error: …"` message — the body the Java `CheckController`
+///   sends with its 400, which `api.ts` parses like any other check result;
+/// * a **structural** failure (degrees of freedom, singular matching) returns
+///   `solvable: false` with the blocker's diagnosis in `message`, because the
+///   editor needs the counts and the variable list either way.
+///
+/// `overrides` cannot change a check's outcome — the Java check endpoint never
+/// receives `variableInfo`, and structural solvability does not depend on
+/// guesses. They are still *validated*, so a caller preparing a solve gets the
+/// same early `Err` surface from both entry points.
+pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckReport> {
+    for o in overrides {
+        override_spec(o)?;
+    }
+
+    let doc = match parse_document(source).and_then(|doc| {
+        reject_unsupported(&doc.statements)?;
+        Ok(doc)
+    }) {
+        Ok(doc) => doc,
+        Err(err @ FreesError::Parse { .. }) => return Ok(syntax_failure_report(source, &err)),
+        Err(other) => return Err(other),
+    };
 
     let equations: Vec<Equation> = doc.equations().into_iter().cloned().collect();
     let (_, knowns) = builtin_constants(&equations);
@@ -229,12 +534,28 @@ pub fn check(source: &str) -> Result<CheckReport> {
     let mut diagnostics = doc.diagnostics.clone();
     collect_unit_warnings(&equations, &mut diagnostics);
 
+    // Dimensional check + SI unit inference (the Java `CheckController` path):
+    // declared units — annotated literals plus external `VariableInfo` units —
+    // feed the checker; the reported map is the derived units overlaid by the
+    // *literal*-declared ones only. External units are deliberately left out of
+    // the report (the caller already knows them), exactly as the Java check
+    // response composes `deriveUnits` + `inferUnits`.
+    let declared = declared_units(&equations, overrides);
+    let unit_report = crate::units::checker::check_units(&equations, &declared);
+    let mut inferred_units = unit_report.inferred;
+    inferred_units.extend(literal_units(&equations));
+
     let base = CheckReport {
         solvable: false,
         equation_count: equations.len(),
         unknown_count: variables.len(),
+        display_names: display_names_for(variables.iter(), source),
         variables,
         message: String::new(),
+        error_line: None,
+        errors: Vec::new(),
+        inferred_units,
+        unit_warnings: unit_report.warnings,
         diagnostics,
     };
 
@@ -360,23 +681,233 @@ fn walk_units(expr: &Expr, report: &mut impl FnMut(&str)) {
     }
 }
 
+/// Lowercase name → the spelling of its first appearance in the token stream.
+///
+/// The Java parser records this as it builds variables
+/// (`ParseResult.displayNames`); this port reconstructs it with a plain lexer
+/// pass — [`TokenKind::Ident`] keeps the original case, and the **first**
+/// occurrence of each identifier wins, sigil suffixes (`$`, `#`) kept as-is.
+/// The scan sees *every* identifier (function names, unit spellings inside
+/// `[...]`), which is why callers filter the map down to actual variables via
+/// [`display_names_for`] — that filtered view is what the golden fixtures
+/// record.
+fn first_seen_spellings(source: &str) -> HashMap<String, String> {
+    let mut spellings = HashMap::new();
+    if let Ok(tokens) = tokenize(source) {
+        for token in tokens {
+            if let TokenKind::Ident(text) = token.kind {
+                spellings.entry(text.to_ascii_lowercase()).or_insert(text);
+            }
+        }
+    }
+    spellings
+}
+
+/// The display-name map for exactly `names` (lowercase canonical names): each
+/// maps to its first-seen source spelling, or to itself when the scan has no
+/// entry (the Java `displayNames.getOrDefault(v, v)`).
+fn display_names_for<'a>(
+    names: impl Iterator<Item = &'a String>,
+    source: &str,
+) -> BTreeMap<String, String> {
+    let spellings = first_seen_spellings(source);
+    names
+        .map(|name| {
+            let display = spellings.get(name).cloned().unwrap_or_else(|| name.clone());
+            (name.clone(), display)
+        })
+        .collect()
+}
+
+/// The check report for a document that did not parse — the body the Java
+/// `CheckController` returns with its 400 (`solvable=false`, zero counts,
+/// `"Syntax error: …"`, `errorLine`, `errors`), which `api.ts` consumes like
+/// any other check result.
+fn syntax_failure_report(source: &str, err: &FreesError) -> CheckReport {
+    let message = err.to_string_message();
+    // The Java message is "Syntax error: " + the first line of the parser's
+    // report (multi-line detail stays in `errors`/diagnostics).
+    let first_line = message.lines().next().unwrap_or_default().to_string();
+
+    let (error_line, errors) = match err.span() {
+        Some(span) => {
+            let (line, column) = span.line_col(source);
+            (
+                Some(line),
+                vec![SyntaxErrorInfo {
+                    line,
+                    column,
+                    message: message.clone(),
+                }],
+            )
+        }
+        // A parse refusal with no position (mirrors Java semantic
+        // ParseExceptions, whose syntaxErrors() list is empty).
+        None => (None, Vec::new()),
+    };
+
+    let mut diagnostic = Diagnostic::error(message);
+    if let Some(span) = err.span() {
+        diagnostic = diagnostic.with_span(span);
+    }
+
+    CheckReport {
+        solvable: false,
+        equation_count: 0,
+        unknown_count: 0,
+        variables: Vec::new(),
+        display_names: BTreeMap::new(),
+        message: format!("Syntax error: {first_line}"),
+        error_line,
+        errors,
+        inferred_units: BTreeMap::new(),
+        unit_warnings: Vec::new(),
+        diagnostics: vec![diagnostic],
+    }
+}
+
+/// Lowercase variable name → declared unit read off annotated literal
+/// assignments: `P = 100 [bar]` declares `p`'s unit (as its SI display name,
+/// since literals convert at parse time), first assignment wins. The Java
+/// `EquationSystemSolver.inferUnits`.
+fn literal_units(equations: &[Equation]) -> BTreeMap<String, String> {
+    let mut units = BTreeMap::new();
+    for equation in equations {
+        let declared = match (&equation.lhs, &equation.rhs) {
+            (
+                Expr::Var(name),
+                Expr::Num {
+                    unit: Some(unit), ..
+                },
+            )
+            | (
+                Expr::Num {
+                    unit: Some(unit), ..
+                },
+                Expr::Var(name),
+            ) => Some((name, unit)),
+            _ => None,
+        };
+        if let Some((name, unit)) = declared {
+            units.entry(name.clone()).or_insert_with(|| unit.clone());
+        }
+    }
+    units
+}
+
+/// Every unit declaration the unit checker should treat as ground truth: the
+/// literal-annotated ones, overlaid by external `VariableInfo` units — an
+/// explicit user unit always wins. The Java `SolverApiSupport.effectiveUnits`
+/// (minus component member units, which wait on the component expander).
+fn declared_units(
+    equations: &[Equation],
+    overrides: &[VariableOverride],
+) -> BTreeMap<String, String> {
+    let mut units = literal_units(equations);
+    for o in overrides {
+        if let Some(unit) = o.unit.as_deref() {
+            if !unit.trim().is_empty() {
+                units.insert(o.name.trim().to_ascii_lowercase(), unit.to_string());
+            }
+        }
+    }
+    units
+}
+
+/// Every equation's residual at the final values, in source order, plus the
+/// largest finite `|residual|` — the Java `buildResult` loop.
+///
+/// An equation that cannot be evaluated at the solution records `NaN` rather
+/// than failing the whole solve (Java catches and stores `NaN` the same way);
+/// non-finite residuals do not contribute to `max_residual`.
+fn residuals_at(
+    equations: &[Equation],
+    blocks: &[Block],
+    values: &Scope,
+) -> (Vec<EquationResidual>, f64) {
+    // Which Tarjan block solved each equation. The blocker assigns every
+    // equation of a square system to exactly one block; `unwrap_or(0)` is a
+    // defensive default, not an expected path.
+    let mut block_of: HashMap<usize, usize> = HashMap::with_capacity(equations.len());
+    for (block_index, block) in blocks.iter().enumerate() {
+        for &equation_index in &block.equations {
+            block_of.insert(equation_index, block_index);
+        }
+    }
+
+    let mut residuals = Vec::with_capacity(equations.len());
+    let mut max_residual = 0.0f64;
+    for (index, equation) in equations.iter().enumerate() {
+        let residual = match (eval(&equation.lhs, values), eval(&equation.rhs, values)) {
+            (Ok(lhs), Ok(rhs)) => lhs - rhs,
+            _ => f64::NAN,
+        };
+        if residual.is_finite() {
+            max_residual = max_residual.max(residual.abs());
+        }
+        residuals.push(EquationResidual {
+            equation: equation.source_text.clone(),
+            residual,
+            block: block_of.get(&index).copied().unwrap_or(0),
+        });
+    }
+    (residuals, max_residual)
+}
+
+/// Per block, the source text of its equations — first occurrence of a
+/// repeated text kept, as the Java `toBlockDto`'s `.distinct()` does, so a
+/// future component expansion never lists one user line twice.
+fn block_equation_texts(blocks: &[Block], equations: &[Equation]) -> Vec<Vec<String>> {
+    blocks
+        .iter()
+        .map(|block| {
+            let mut seen = BTreeSet::new();
+            block
+                .equations
+                .iter()
+                .filter_map(|&index| equations.get(index))
+                .filter(|equation| seen.insert(equation.source_text.as_str()))
+                .map(|equation| equation.source_text.clone())
+                .collect()
+        })
+        .collect()
+}
+
 /// Initial guesses and bounds for every unknown.
 ///
-/// Port of `EquationSystemSolver.withTextGuesses` over the default specs: the
-/// in-text `GUESS` wins over the default, the bounds come from the directive,
-/// and the guess is clamped into them. A directive naming something that is not
-/// an unknown is a warning, not an error — the Java engine merges it into a
-/// spec map that the solver then never reads.
+/// Port of `EquationSystemSolver.withTextGuesses` over the externally supplied
+/// specs. **The merge rule, verified against the Java source:** the overrides
+/// are applied first (they are the caller's `variableInfo` specs); each in-text
+/// `GUESS` directive then merges *over* them field by field — a part the
+/// directive states wins, a part it omits falls back to the override — and the
+/// merged guess is clamped into the merged bounds. In-text wins on conflict;
+/// the external value only survives where the directive is silent.
+///
+/// A directive naming something that is not an unknown is a warning, not an
+/// error — the Java engine merges it into a spec map that the solver then never
+/// reads. An *override* naming something that is not an unknown is silently
+/// ignored, also the Java behaviour: the Variable Information window keeps
+/// stale rows around and posts them with every request.
 fn variable_specs(
     equations: &[Equation],
     knowns: &HashSet<String>,
     doc: &Document,
+    overrides: &[VariableOverride],
     diagnostics: &mut Vec<Diagnostic>,
-) -> BTreeMap<String, VarSpec> {
+) -> Result<BTreeMap<String, VarSpec>> {
     let mut specs: BTreeMap<String, VarSpec> = unknowns(equations, knowns)
         .into_iter()
         .map(|name| (name, VarSpec::default()))
         .collect();
+
+    for o in overrides {
+        let (name, spec) = override_spec(o)?;
+        // Only real unknowns take a spec: `specs.keys()` defines the result
+        // rows, so a stale override must not add a phantom variable.
+        if let Some(slot) = specs.get_mut(&name) {
+            *slot = spec;
+        }
+    }
 
     for guess in &doc.guesses {
         let name = guess.name.to_ascii_lowercase();
@@ -393,7 +924,70 @@ fn variable_specs(
         }
     }
 
-    specs
+    Ok(specs)
+}
+
+/// One override converted to `(lowercase name, spec)`, the port of
+/// `VariableInfoDto.toSpec` plus the `VariableSpec` constructor's validation.
+///
+/// The numbers are written in `unit` and convert to SI as
+/// `value * factor + offset`; an unknown unit falls back to factor 1 / offset 0
+/// **silently**, exactly as the Java `toSpec` catch-and-default does — being
+/// noisier here would be a visible behavioural divergence. A missing guess
+/// defaults to [`DEFAULT_GUESS`] clamped into the bounds.
+///
+/// # Errors
+///
+/// The Java `VariableSpec` compact constructor's three rejections, as
+/// [`FreesError::Solver`]: any NaN, a lower bound above the upper, or an
+/// explicit guess outside its own bounds.
+fn override_spec(o: &VariableOverride) -> Result<(String, VarSpec)> {
+    let name = o.name.trim().to_ascii_lowercase();
+
+    let (factor, offset) = match o.unit.as_deref().map(str::trim) {
+        Some(unit) if !unit.is_empty() && unit != "-" => {
+            match UnitRegistry::parse_with_offset(unit) {
+                Ok(quantity) => (quantity.factor, quantity.offset),
+                Err(_) => (1.0, 0.0),
+            }
+        }
+        _ => (1.0, 0.0),
+    };
+    let to_si = |value: f64| value * factor + offset;
+
+    let lower = o.lower.map(to_si).unwrap_or(f64::NEG_INFINITY);
+    let upper = o.upper.map(to_si).unwrap_or(f64::INFINITY);
+    let explicit_guess = o.guess.map(to_si);
+
+    if lower.is_nan() || upper.is_nan() || explicit_guess.is_some_and(f64::is_nan) {
+        return Err(FreesError::solver(format!(
+            "Variable information for {name} contains NaN."
+        )));
+    }
+    if lower > upper {
+        return Err(FreesError::solver(format!(
+            "Lower bound exceeds upper bound for variable {name}."
+        )));
+    }
+    let guess = match explicit_guess {
+        Some(guess) if guess < lower || guess > upper => {
+            return Err(FreesError::solver(format!(
+                "The guess value {guess} for variable {name} is outside \
+                 its bounds [{lower}, {upper}]."
+            )));
+        }
+        Some(guess) => guess,
+        None => DEFAULT_GUESS.clamp(lower, upper),
+    };
+
+    Ok((
+        name,
+        VarSpec {
+            guess,
+            lower,
+            upper,
+        },
+    ))
 }
 
 fn apply_guess(spec: &mut VarSpec, guess: &GuessDirective) {
@@ -719,7 +1313,7 @@ mod tests {
     fn an_overdetermined_document_names_the_redundant_relation() {
         let err = solve("z = 1\nz = 2\n", &SolverSettings::default()).unwrap_err();
         let message = err.to_string_message();
-        assert!(matches!(err, FreesError::Solver { .. }), "{err:?}");
+        assert!(matches!(err.error, FreesError::Solver { .. }), "{err:?}");
         assert!(message.contains("2 equations and 1 variables"), "{message}");
         assert!(message.contains("overspecified"), "{message}");
     }
@@ -735,14 +1329,14 @@ mod tests {
     #[test]
     fn an_unsupported_block_is_refused_by_name() {
         let err = solve("COMPONENT pump\nEND\n", &SolverSettings::default()).unwrap_err();
-        assert!(matches!(err, FreesError::Parse { .. }), "{err:?}");
+        assert!(matches!(err.error, FreesError::Parse { .. }), "{err:?}");
         assert!(err.to_string_message().contains("COMPONENT"));
     }
 
     #[test]
     fn a_syntax_error_is_a_parse_error_with_a_span() {
         let err = solve("x = = 2\n", &SolverSettings::default()).unwrap_err();
-        assert!(matches!(err, FreesError::Parse { .. }), "{err:?}");
+        assert!(matches!(err.error, FreesError::Parse { .. }), "{err:?}");
         assert!(err.span().is_some());
     }
 
@@ -781,11 +1375,30 @@ mod tests {
     }
 
     #[test]
-    fn check_errors_on_a_syntax_error() {
-        assert!(matches!(
-            check("x = = 2").unwrap_err(),
-            FreesError::Parse { .. }
-        ));
+    fn check_reports_a_syntax_error_as_data_not_an_err() {
+        // Mirrors the Java 400-with-body: the report is the payload api.ts
+        // parses, so a parse failure must come back as a report, not an Err.
+        let report = check("x = = 2").unwrap();
+        assert!(!report.solvable);
+        assert_eq!(report.equation_count, 0);
+        assert_eq!(report.unknown_count, 0);
+        assert!(report.variables.is_empty());
+        assert!(
+            report.message.starts_with("Syntax error: "),
+            "{}",
+            report.message
+        );
+        assert_eq!(report.error_line, Some(1));
+        assert_eq!(report.errors.len(), 1);
+        assert_eq!(report.errors[0].line, 1);
+        assert!(report.errors[0].column >= 1);
+    }
+
+    #[test]
+    fn check_error_line_is_the_line_of_the_broken_statement() {
+        let report = check("a = 1\nb = 2\nc = = 3\n").unwrap();
+        assert_eq!(report.error_line, Some(3));
+        assert_eq!(report.errors[0].line, 3);
     }
 
     #[test]
@@ -893,16 +1506,33 @@ mod tests {
     }
 
     #[test]
-    fn document_variables_includes_constants() {
+    fn constants_fold_at_parse_time_like_the_java_ast_builder() {
+        // `AstBuilder.visitVarAtom` substitutes built-in `#` constants as
+        // numeric literals at parse time, so they never appear as document
+        // variables and the knowns hook has nothing left to collect.
         let doc = parse_document("a = pi# + b\n").unwrap();
         let vars: Vec<String> = document_variables(&doc).into_iter().collect();
-        assert_eq!(vars, vec!["a", "b", "pi#"]);
+        assert_eq!(vars, vec!["a", "b"]);
+        assert!(
+            known_constants(&doc.equations().into_iter().cloned().collect::<Vec<_>>()).is_empty()
+        );
+
+        // The folded literal carries the raw SI unit string, grounding the
+        // unit checker: v = g#*t infers v as m/s (m/s^2 times s).
+        let g = parse_document("x = g#\n").unwrap();
+        match &g.equations()[0].rhs {
+            Expr::Num { value, unit, .. } => {
+                assert!((value - 9.806_65).abs() < 1e-12);
+                assert_eq!(unit.as_deref(), Some("m/s^2"));
+            }
+            other => panic!("g# should fold to a literal, got {other:?}"),
+        }
+
+        // Unknown `#` names stay variables, exactly like the Java lookup miss.
+        let unknown = parse_document("y = zz#\n").unwrap();
         assert_eq!(
-            known_constants(&doc.equations().into_iter().cloned().collect::<Vec<_>>())
-                .keys()
-                .cloned()
-                .collect::<Vec<_>>(),
-            vec!["pi#".to_string()]
+            document_variables(&unknown).into_iter().collect::<Vec<_>>(),
+            vec!["y", "zz#"]
         );
     }
 

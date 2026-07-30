@@ -78,6 +78,59 @@ jobs:
           name: frees-wasm-pkg
           path: pkg/
 
+  web:
+    name: web build (wasm + vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: v0.13.1
+      - uses: actions/setup-node@v4
+        with:
+          # Pinned by web/.nvmrc. Node 20.x cannot run the vitest suite:
+          # jsdom@30 pulls undici@8, whose CacheStorage calls
+          # webidl.util.markAsUncloneable — absent before Node 22 — so every
+          # test file dies at environment setup.
+          node-version-file: web/.nvmrc
+          # Caches ~/.npm keyed on the lockfile — the supported way to speed up
+          # `npm ci` (which deletes node_modules on every run by design, so
+          # caching node_modules itself would be wasted work).
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build wasm package into the web tree
+        # web/src/wasm/pkg is generated output (gitignored); the worker imports
+        # from it, so it must exist before the Vite build.
+        run: wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Frontend tests
+        working-directory: web
+        run: npx vitest run
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Verify the wasm asset shipped in dist
+        working-directory: web
+        run: |
+          set -euo pipefail
+          wasm=$(find dist -name '*.wasm' | head -1)
+          if [[ -z "$wasm" ]]; then
+            echo "::error::no .wasm asset in dist — the engine worker did not bundle"
+            exit 1
+          fi
+          echo "bundled wasm asset: $wasm ($(stat -c%s "$wasm") bytes)"
+
   parity:
     name: parity corpus
     runs-on: ubuntu-latest

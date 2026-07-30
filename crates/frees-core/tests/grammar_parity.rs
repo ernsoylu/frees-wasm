@@ -1116,15 +1116,42 @@ fn deviation_newlines_are_tolerated_inside_bracketed_argument_lists() {
 }
 
 #[test]
-fn deviation_builtin_constants_are_not_folded_at_parse_time() {
+fn builtin_constants_fold_at_parse_time_like_ast_builder() {
     // AstBuilder.visitVarAtom substitutes `pi#`/`R#`/`g#` for numeric literals
-    // while parsing. The port keeps them as variables and binds them as knowns
-    // in the engine instead (see `engine::builtin_constants`), so the parsed
-    // tree lists them where Java's would not.
-    assert_eq!(rhs("pi#"), Expr::Var("pi#".into()));
+    // while parsing, carrying the ConstantsRegistry's raw SI unit string so
+    // the unit checker can ground downstream variables. The port now matches
+    // (this test previously documented the pre-fold deviation).
+    assert_eq!(
+        rhs("pi#"),
+        Expr::Num {
+            value: std::f64::consts::PI,
+            unit: None,
+            is_imaginary: false,
+        }
+    );
+    assert_eq!(
+        rhs("g#"),
+        Expr::Num {
+            value: 9.806_65,
+            unit: Some("m/s^2".into()),
+            is_imaginary: false,
+        }
+    );
+    // Folded constants no longer surface as variables…
     assert_eq!(
         rhs("a + pi#").variables().into_iter().collect::<Vec<_>>(),
-        vec!["a", "pi#"]
+        vec!["a"]
+    );
+    // …while an unknown `#` name still falls through as a variable, exactly
+    // like the Java lookup miss (case-insensitive match on the known ones).
+    assert_eq!(rhs("zz#"), Expr::Var("zz#".into()));
+    assert_eq!(
+        rhs("PI#"),
+        Expr::Num {
+            value: std::f64::consts::PI,
+            unit: None,
+            is_imaginary: false,
+        }
     );
 }
 

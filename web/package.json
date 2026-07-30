@@ -1,0 +1,83 @@
+{
+  "name": "frees-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "npm run compile-docs && vite",
+    "dev": "npm run compile-docs && vite",
+    "build": "npm run compile-docs && tsc -b && vite build",
+    "compile-docs": "node scripts/compile-docs.js",
+    "check-docs": "node scripts/build-doc-manifest.mjs && node scripts/check-doc-coverage.mjs",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.6",
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@glideapps/glide-data-grid": "^6.0.3",
+    "@lezer/highlight": "^1.2.3",
+    "@mantine/core": "^9.5.0",
+    "@mantine/hooks": "^9.5.0",
+    "@mantine/notifications": "^9.5.0",
+    "@mantine/spotlight": "^9.5.0",
+    "@tabler/icons-react": "^3.45.0",
+    "@uiw/react-codemirror": "^4.25.11",
+    "@univerjs/preset-sheets-core": "^0.25.1",
+    "@univerjs/presets": "^0.25.1",
+    "dockview-react": "^7.0.4",
+    "katex": "^0.18.1",
+    "lodash": "^4.18.1",
+    "lz-string": "^1.5.0",
+    "marked": "^18.0.7",
+    "papaparse": "^5.5.4",
+    "plotly.js-dist-min": "^3.7.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-responsive-carousel": "^3.2.23",
+    "rxjs": "^7.8.2",
+    "uplot": "^1.6.32"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.8.0",
+    "jsdom": "^30.0.0",
+    "postcss": "^8.5.16",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "lodash-es": "^4.17.21",
+    "esbuild": "^0.25.0",
+    "vite": "^6.4.3",
+    "@excalidraw/excalidraw": {
+      "nanoid": "^3.3.8"
+    },
+    "@excalidraw/mermaid-to-excalidraw": {
+      "nanoid": "^5.0.9"
+    },
+    "brace-expansion": "^5.0.8"
+  }
+}

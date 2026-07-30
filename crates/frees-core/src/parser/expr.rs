@@ -523,6 +523,20 @@ fn parse_atom(c: &mut Cursor<'_>) -> Result<Expr> {
             TokenKind::LBracket => parse_array_atom(c, name),
             _ => {
                 c.advance();
+                // `AstBuilder.visitVarAtom`: a built-in `#` constant is
+                // substituted at parse time as a numeric literal carrying its
+                // raw SI unit string (already SI — no conversion), so the unit
+                // checker can ground downstream variables. Unknown `#` names
+                // fall through as ordinary variables, exactly like the Java.
+                if name.ends_with('#') {
+                    if let Some(constant) = crate::eval::lookup_constant(&name) {
+                        return Ok(Expr::Num {
+                            value: constant.value,
+                            unit: constant.unit.map(str::to_string),
+                            is_imaginary: false,
+                        });
+                    }
+                }
                 Ok(Expr::var(name))
             }
         },

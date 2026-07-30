@@ -1,0 +1,22 @@
+/* Mantine provides global styles and the dark theme; only app-specific
+   tweaks belong here. */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.search-result-row:hover {
+  background: light-dark(var(--mantine-color-blue-0), var(--mantine-color-dark-6));
+}
+
+/* Clickable expand/collapse headers (Variable Explorer array & component
+   rows): a soft hover tint with a short transition so they read as
+   interactive without a border change. */
+.frees-row-toggle {
+  transition: background-color 120ms ease;
+}
+.frees-row-toggle:hover {
+  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
+}

@@ -27,22 +27,26 @@ The canonical case solves **identically to the oracle**: `x = 4.694012391660914`
 ## Known divergences from Java (deliberate or open)
 
 From the adversarial verification pass (25 findings; 11 fixed during the pass).
-The ones that remain, ranked:
+The ones that remain, ranked (originally items 1–8; three closed since — see
+the strikethrough entries and `docs/status-phase3.md`):
 
 1. **No symbolic-Jacobian path** (`newton.rs`, critical, open). Java
    differentiates residuals via `Differentiator` first and falls back to finite
    differences; this port is FD-only. Documents that are FD-fragile may diverge.
    Unblocks when `Differentiator` ports in Phase 4.
 2. **No solve retry ladder** (`engine.rs`, open). Java retries failed blocks
-   with relaxed settings/merging/polish. One attempt per block here.
+   with relaxed settings/merging/polish. One attempt per block here. (Failures
+   do now carry the Java partial diagnostics — blocks, residuals at the stalled
+   iterate, stats, `failed_block_index` — via `SolveFailure`.)
 3. **Bounds are advisory** (`newton.rs`, open). Java clamps candidates into
    `[lo, hi]` inside the line search and Jacobian perturbation; here bounds only
    seed the start point, and out-of-bounds solutions warn.
-4. **`#` constants stay `Expr::Var`** until `engine.rs` resolves them as knowns
-   (Java folds them at parse time via `ConstantsRegistry`). Same results;
-   different AST shape. A ConstantsRegistry module would align it.
-5. **`Solution` has no `display_names`** (first-seen spellings). Golden fixtures
-   record them; parity currently folds case instead of comparing them.
+4. ~~**`#` constants stay `Expr::Var`**~~ **Closed 2026-07-30**: the expression
+   parser now folds built-in constants at parse time exactly like
+   `AstBuilder.visitVarAtom` (value + raw SI unit string), so unit inference
+   grounds through them (`v = g#*t` → m/s).
+5. ~~**`Solution` has no `display_names`**~~ **Closed in Phase 3**: present on
+   `Solution` and `CheckReport`; the parity test compares them exactly.
 6. **Newline tolerance inside `[...]`/`(...)`** in two spots (`multiAssign`
    outputs, CALL args) where ANTLR would reject — Rust is more permissive.
 7. **NaN in five-argument `If`** errors here, silently takes a branch in Java.

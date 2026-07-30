@@ -196,8 +196,16 @@ fn nesting_past_the_ceiling_is_a_parse_error_not_a_stack_overflow() {
     ] {
         let message = parse_err(&src);
         assert!(message.contains("too deeply nested"), "{label}: {message}");
-        // and the same refusal reaches the two callers that matter
-        assert!(check(&src).is_err(), "{label}: check");
+        // and the same refusal reaches the two callers that matter: solve as
+        // an Err, check as the not-solvable syntax-failure report it returns
+        // for every parse problem (the Java 400-with-body shape).
+        let report = check(&src).unwrap_or_else(|e| panic!("{label}: check errored: {e}"));
+        assert!(!report.solvable, "{label}: check");
+        assert!(
+            report.message.contains("too deeply nested"),
+            "{label}: {}",
+            report.message
+        );
         assert!(solve(&src, &settings()).is_err(), "{label}: solve");
     }
 }

@@ -96,15 +96,47 @@ type Outcome = (Value, bool);
 fn solve_json(source: &str, settings: &SolverSettings) -> Outcome {
     match engine::solve(source, settings) {
         Ok(solution) => (solution_value(&solution), true),
-        Err(err) => (error_value(&err, source), false),
+        Err(failure) => {
+            let mut value = error_value(&failure.error, source);
+            // Structured failure diagnostics (the Java `SolverException`
+            // payload): which block stalled, and the residuals/stats captured
+            // there — same data the wasm boundary ships to the frontend.
+            if let Some(object) = value.as_object_mut() {
+                if let Some(index) = failure.failed_block_index {
+                    object.insert("failed_block_index".into(), json!(index));
+                }
+                if let Some(partial) = &failure.partial {
+                    object.insert(
+                        "partial".into(),
+                        json!({
+                            "blocks": partial.blocks.len(),
+                            "iterations": partial.stats.iterations,
+                            "max_residual": number(partial.stats.max_residual),
+                            "residuals": partial
+                                .residuals
+                                .iter()
+                                .map(|r| json!({
+                                    "equation": r.equation,
+                                    "value": number(r.residual),
+                                    "block": r.block,
+                                }))
+                                .collect::<Vec<_>>(),
+                        }),
+                    );
+                }
+            }
+            (value, false)
+        }
     }
 }
 
 fn check_json(source: &str) -> Outcome {
     match engine::check(source) {
-        // A structurally unsolvable document is a *reported* outcome, not a
-        // crash — but the exit status still says "not solvable" so a shell
-        // caller can gate on it the way the frontend gates its Solve button.
+        // An unsolvable document — structurally *or* syntactically — is a
+        // *reported* outcome, not a crash (syntax failures carry `error_line`
+        // and `errors`, mirroring the Java 400-with-body). The exit status
+        // still says "not solvable" so a shell caller can gate on it the way
+        // the frontend gates its Solve button.
         Ok(report) => {
             let ok = report.solvable;
             (check_value(&report), ok)
@@ -126,8 +158,20 @@ fn solution_value(solution: &Solution) -> Value {
             json!({
                 "index": index,
                 "equations": block.equations,
+                "equation_text": solution.block_equations.get(index),
                 "variables": block.variables,
                 "simultaneous": !block.is_scalar(),
+            })
+        })
+        .collect();
+    let residuals: Vec<Value> = solution
+        .residuals
+        .iter()
+        .map(|r| {
+            json!({
+                "equation": r.equation,
+                "residual": number(r.residual),
+                "block": r.block,
             })
         })
         .collect();
@@ -135,21 +179,36 @@ fn solution_value(solution: &Solution) -> Value {
     json!({
         "ok": true,
         "variables": Value::Object(variables),
+        "display_names": solution.display_names,
         "blocks": blocks,
         "block_count": solution.blocks.len(),
+        "residuals": residuals,
+        "stats": {
+            "iterations": solution.stats.iterations,
+            "max_residual": number(solution.stats.max_residual),
+            "elapsed_ms": solution.stats.elapsed_ms,
+        },
         "iterations": solution.iterations,
         "diagnostics": diagnostics_value(&solution.diagnostics),
     })
 }
 
 fn check_value(report: &CheckReport) -> Value {
+    let errors: Vec<Value> = report
+        .errors
+        .iter()
+        .map(|e| json!({ "line": e.line, "column": e.column, "message": e.message }))
+        .collect();
     json!({
         "ok": true,
         "solvable": report.solvable,
         "equations": report.equation_count,
         "unknowns": report.unknown_count,
         "variables": report.variables,
+        "display_names": report.display_names,
         "message": report.message,
+        "error_line": report.error_line,
+        "errors": errors,
         "diagnostics": diagnostics_value(&report.diagnostics),
     })
 }
@@ -377,6 +436,38 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("underspecified"));
+    }
+
+    #[test]
+    fn solve_emits_display_names_residuals_and_stats() {
+        let payload = solve_out("Tin = 300\nT_out = TIN * 2\n");
+        assert_eq!(payload["display_names"]["tin"], json!("Tin"));
+        assert_eq!(payload["display_names"]["t_out"], json!("T_out"));
+
+        let residuals = payload["residuals"].as_array().unwrap();
+        assert_eq!(residuals.len(), 2);
+        assert_eq!(residuals[0]["equation"], json!("Tin = 300"));
+        assert_eq!(residuals[0]["block"], json!(0));
+
+        assert_eq!(payload["stats"]["iterations"], payload["iterations"]);
+        assert_eq!(payload["stats"]["elapsed_ms"], json!(null));
+        assert!(payload["stats"]["max_residual"].as_f64().unwrap() < 1e-7);
+
+        assert_eq!(payload["blocks"][0]["equation_text"], json!(["Tin = 300"]));
+    }
+
+    #[test]
+    fn check_reports_a_syntax_error_as_a_positioned_report() {
+        let (payload, ok) = check_json("a = 1\nb = = 2\n");
+        assert!(!ok, "a syntax failure must not exit 0");
+        assert_eq!(payload["ok"], json!(true), "it is still a report");
+        assert_eq!(payload["solvable"], json!(false));
+        assert_eq!(payload["error_line"], json!(2));
+        assert_eq!(payload["errors"][0]["line"], json!(2));
+        assert!(payload["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("Syntax error: "));
     }
 
     #[test]

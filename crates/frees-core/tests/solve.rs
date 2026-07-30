@@ -10,7 +10,9 @@
 use std::collections::BTreeMap;
 
 use frees_core::diag::Severity;
-use frees_core::{check, solve, FreesError, Solution, SolverSettings};
+use frees_core::{
+    check, check_with, solve, solve_with, FreesError, Solution, SolverSettings, VariableOverride,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,7 +26,7 @@ fn solved(source: &str) -> Solution {
 fn failed(source: &str) -> FreesError {
     match solve(source, &SolverSettings::default()) {
         Ok(solution) => panic!("expected {source:?} to fail, got {:?}", solution.values),
-        Err(err) => err,
+        Err(failure) => failure.error,
     }
 }
 
@@ -472,12 +474,20 @@ fn every_unported_block_form_is_refused_by_its_own_name() {
 }
 
 /// The same refusal reaches `check`, so the Solve button is never enabled for a
-/// document the engine cannot honour.
+/// document the engine cannot honour. Since the parse-failure rework, check
+/// answers with the not-solvable report the Java 400-with-body carries rather
+/// than an `Err` — the refusal is data the editor can render.
 #[test]
 fn check_refuses_an_unsupported_construct_too() {
-    let err = check("COMPONENT pump\nEND\n").unwrap_err();
-    assert!(matches!(err, FreesError::Parse { .. }), "{err:?}");
-    assert!(message(&err).contains("COMPONENT"));
+    let report = check("COMPONENT pump\nEND\n").unwrap();
+    assert!(!report.solvable);
+    assert!(report.message.contains("COMPONENT"), "{}", report.message);
+    assert!(
+        report.message.starts_with("Syntax error: "),
+        "{}",
+        report.message
+    );
+    assert_eq!(report.error_line, Some(1));
 }
 
 /// `CALL` parses (it is a `Statement`, not a block) but needs the procedure
@@ -728,6 +738,471 @@ fn solving_the_same_document_twice_gives_identical_results() {
     assert_eq!(first.values, second.values);
     assert_eq!(first.blocks, second.blocks);
     assert_eq!(first.iterations, second.iterations);
+}
+
+// ---------------------------------------------------------------------------
+// A2 — display names (first-seen source spelling)
+// ---------------------------------------------------------------------------
+
+/// `fixtures/golden/case_insensitive.json`: the Java engine records the
+/// spelling of each variable's *first* appearance and keys it by the lowercase
+/// canonical name — `t_out` → `"T_out"`, `tin` → `"Tin"` (not the later `TIN`).
+#[test]
+fn display_names_keep_the_first_seen_spelling() {
+    let solution = solved("Tin = 300\nT_out = TIN * 2\nresult = t_Out + tin\n");
+    let names: Vec<(&str, &str)> = solution
+        .display_names
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    assert_eq!(
+        names,
+        vec![("result", "result"), ("t_out", "T_out"), ("tin", "Tin")]
+    );
+}
+
+/// The map covers exactly the result variables: no function names (`sqrt`),
+/// no built-in constants (`pi#`), no unit spellings from `[...]` annotations —
+/// the golden fixtures record none of those.
+#[test]
+fn display_names_cover_exactly_the_result_variables() {
+    let solution = solved("A = sqrt(16)\nB = 2 * pi#\nP = 140 [kPa]\n");
+    assert_eq!(
+        keys(&solution.values),
+        solution
+            .display_names
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(solution.display_names["a"], "A");
+    assert_eq!(solution.display_names["b"], "B");
+    assert_eq!(solution.display_names["p"], "P");
+}
+
+/// `check` carries the same map, covering its `variables` list.
+#[test]
+fn check_reports_display_names_too() {
+    let report = check("Tin = 300\nT_out = TIN * 2\n").unwrap();
+    assert_eq!(report.variables, vec!["t_out", "tin"]);
+    assert_eq!(report.display_names["t_out"], "T_out");
+    assert_eq!(report.display_names["tin"], "Tin");
+}
+
+/// Sigil suffixes stay part of the spelling (`X#` would be a constant; a `$`
+/// name is a string — neither shows up as an unknown, but an `_`-ridden
+/// mixed-case name must round-trip untouched).
+#[test]
+fn display_names_keep_sigils_and_underscores_as_written() {
+    let solution = solved("UA_chl_R = 5\n");
+    assert_eq!(solution.display_names["ua_chl_r"], "UA_chl_R");
+}
+
+// ---------------------------------------------------------------------------
+// A3 — error positions on check
+// ---------------------------------------------------------------------------
+
+/// A parse failure is *data*, not an `Err` — the Java `CheckController`
+/// answers 400 with a full CheckResponse body (`solvable=false`, zero counts,
+/// `"Syntax error: …"`, `errorLine`, `errors`), and `api.ts` parses that body
+/// like any success. `check` mirrors it.
+#[test]
+fn check_reports_a_syntax_error_with_its_line_and_column() {
+    let report = check("a = 1\nb = = 2\nc = 3\n").unwrap();
+    assert!(!report.solvable);
+    assert_eq!(report.equation_count, 0);
+    assert_eq!(report.unknown_count, 0);
+    assert!(report.variables.is_empty());
+    assert!(
+        report.message.starts_with("Syntax error: "),
+        "{}",
+        report.message
+    );
+    assert_eq!(report.error_line, Some(2));
+    assert_eq!(report.errors.len(), 1);
+    assert_eq!(report.errors[0].line, 2);
+    assert!(report.errors[0].column >= 1);
+    assert!(!report.errors[0].message.is_empty());
+}
+
+/// The same failure through `solve` stays an `Err` whose span points at the
+/// same 1-based line — the CLI and the boundary derive `errorLine` from it.
+#[test]
+fn solve_still_errs_on_a_syntax_error_and_the_span_agrees_with_check() {
+    let source = "a = 1\nb = = 2\nc = 3\n";
+    let err = failed(source);
+    let span = err.span().expect("parse errors carry a span");
+    let (line, _) = span.line_col(source);
+    assert_eq!(Some(line), check(source).unwrap().error_line);
+}
+
+/// Structural failures keep the old path: no error line, real counts.
+#[test]
+fn a_structural_failure_has_no_error_line() {
+    let report = check("m + n = 5\n").unwrap();
+    assert!(!report.solvable);
+    assert_eq!(report.error_line, None);
+    assert!(report.errors.is_empty());
+    assert_eq!(report.equation_count, 1);
+}
+
+// ---------------------------------------------------------------------------
+// A4 — residuals, stats, block equation text
+// ---------------------------------------------------------------------------
+
+/// Residuals are `lhs - rhs` at the returned values, one per equation in
+/// source order, quoting the user's own text.
+#[test]
+fn residuals_quote_each_equation_and_vanish_at_the_solution() {
+    let solution = solved("x^2 + y^3 = 77\nx/y = 1.23456\n");
+    assert_eq!(solution.residuals.len(), 2);
+    assert_eq!(solution.residuals[0].equation, "x^2 + y^3 = 77");
+    assert_eq!(solution.residuals[1].equation, "x/y = 1.23456");
+    for r in &solution.residuals {
+        assert!(r.residual.abs() < 1e-7, "{}: {}", r.equation, r.residual);
+        assert_eq!(r.block, 0, "one simultaneous block solves both");
+    }
+}
+
+/// Each residual names the Tarjan block that solved its equation — the source
+/// order and the solve order disagree on purpose here.
+#[test]
+fn residuals_carry_their_block_index() {
+    let solution = solved("c = b + 1\nb = a * 3\na = 2\n");
+    // Blocks solve a, then b, then c; the source lists c, b, a.
+    let blocks: Vec<usize> = solution.residuals.iter().map(|r| r.block).collect();
+    assert_eq!(blocks, vec![2, 1, 0]);
+}
+
+/// `stats` mirrors the Java `Stats`: total iterations, the worst residual, and
+/// an elapsed time the core deliberately cannot measure.
+#[test]
+fn stats_summarise_the_solve() {
+    let solution = solved("x^2 + y^3 = 77\nx/y = 1.23456\nz = x + y\n");
+    assert_eq!(solution.stats.iterations, solution.iterations);
+    let worst = solution
+        .residuals
+        .iter()
+        .map(|r| r.residual.abs())
+        .fold(0.0f64, f64::max);
+    assert_eq!(solution.stats.max_residual, worst);
+    assert!(solution.stats.max_residual < 1e-7);
+    assert_eq!(
+        solution.stats.elapsed_ms, None,
+        "no clock in core; the boundary fills this"
+    );
+}
+
+/// `block_equations` aligns with `blocks` and quotes each block's source text.
+#[test]
+fn block_equations_quote_each_blocks_source_text() {
+    let solution = solved("k = 4\np + q = k\np - q = 1\nr = p * q\n");
+    assert_eq!(solution.block_equations.len(), solution.blocks.len());
+    assert_eq!(solution.block_equations[0], vec!["k = 4"]);
+    assert_eq!(solution.block_equations[1], vec!["p + q = k", "p - q = 1"]);
+    assert_eq!(solution.block_equations[2], vec!["r = p * q"]);
+}
+
+/// The unit checker is wired into both entry points: a literal-declared unit
+/// is reported for the assigned variable, and a variable computed from it gets
+/// its unit derived dimensionally. Case with units: P is declared by the
+/// annotated literal (converted to its SI display name at parse time) and Q
+/// inherits the same dimensions through the multiplication.
+#[test]
+fn units_are_inferred_by_the_wired_checker() {
+    let solution = solved("P = 140 [kPa]\nQ = P * 2\n");
+    assert_eq!(
+        solution.inferred_units.get("p").map(String::as_str),
+        Some("Pa")
+    );
+    assert_eq!(
+        solution.inferred_units.get("q").map(String::as_str),
+        Some("Pa")
+    );
+    assert!(
+        solution.unit_warnings.is_empty(),
+        "{:?}",
+        solution.unit_warnings
+    );
+
+    let report = check("P = 140 [kPa]\nQ = P * 2\n").unwrap();
+    assert_eq!(
+        report.inferred_units.get("p").map(String::as_str),
+        Some("Pa")
+    );
+    assert_eq!(
+        report.inferred_units.get("q").map(String::as_str),
+        Some("Pa")
+    );
+    assert!(
+        report.unit_warnings.is_empty(),
+        "{:?}",
+        report.unit_warnings
+    );
+}
+
+/// A dimensionally inconsistent document still solves/checks — unit problems
+/// are warnings, never errors (parent-engine invariant).
+#[test]
+fn unit_warnings_never_block_anything() {
+    let solution = solved("x = 2 [m]\ny = 3 [s]\nz = x + y\n");
+    assert!(
+        solution
+            .unit_warnings
+            .iter()
+            .any(|w| w.contains("[m]") && w.contains("[s]")),
+        "{:?}",
+        solution.unit_warnings
+    );
+    assert!((solution.values["z"] - 5.0).abs() < 1e-12);
+
+    let report = check("x = 2 [m]\ny = 3 [s]\nz = x + y\n").unwrap();
+    assert!(report.solvable);
+    assert!(!report.unit_warnings.is_empty());
+}
+
+/// An external `VariableInfo` unit feeds the checker (T's kelvin grounds the
+/// derivation for U) and wins over everything in the solve-path map, but the
+/// check-path report leaves the externally declared name out — the Java
+/// CheckController composes `deriveUnits` + `inferUnits` only.
+#[test]
+fn override_units_ground_the_checker() {
+    let with_unit = VariableOverride {
+        name: "T".into(),
+        unit: Some("K".into()),
+        ..VariableOverride::default()
+    };
+    let source = "T = 300\nU = T * 2\n";
+
+    let solution = solve_with(
+        source,
+        &SolverSettings::default(),
+        std::slice::from_ref(&with_unit),
+    )
+    .unwrap();
+    assert_eq!(
+        solution.inferred_units.get("t").map(String::as_str),
+        Some("K")
+    );
+    assert_eq!(
+        solution.inferred_units.get("u").map(String::as_str),
+        Some("K")
+    );
+
+    let report = check_with(source, &[with_unit]).unwrap();
+    assert_eq!(report.inferred_units.get("t"), None);
+    assert_eq!(
+        report.inferred_units.get("u").map(String::as_str),
+        Some("K")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// A5 — external variable information (solve_with / check_with)
+// ---------------------------------------------------------------------------
+
+fn guess_override(name: &str, guess: f64) -> VariableOverride {
+    VariableOverride {
+        name: name.into(),
+        guess: Some(guess),
+        ..VariableOverride::default()
+    }
+}
+
+/// An external guess steers the solve exactly as an in-text GUESS would.
+#[test]
+fn an_override_guess_selects_the_root() {
+    let negative = solve_with(
+        "x ^ 2 = 9\n",
+        &SolverSettings::default(),
+        &[guess_override("x", -3.0)],
+    )
+    .unwrap();
+    assert_near(get(&negative, "x"), -3.0);
+
+    // Names are case-insensitive like everything else.
+    let positive = solve_with(
+        "x ^ 2 = 9\n",
+        &SolverSettings::default(),
+        &[guess_override("X", 3.0)],
+    )
+    .unwrap();
+    assert_near(get(&positive, "x"), 3.0);
+}
+
+/// The merge rule found in `EquationSystemSolver.withTextGuesses`: in-text
+/// GUESS directives merge **over** the external specs — text wins, "so a
+/// shared document solves identically for its recipient".
+#[test]
+fn an_in_text_guess_wins_over_an_override() {
+    let solution = solve_with(
+        "GUESS x = 3\nx ^ 2 = 9\n",
+        &SolverSettings::default(),
+        &[guess_override("x", -3.0)],
+    )
+    .unwrap();
+    assert_near(get(&solution, "x"), 3.0);
+}
+
+/// The parts a directive omits fall back to the override: text bounds pick the
+/// branch while the external guess supplies the start — and a stale external
+/// guess outside text bounds is clamped onto them (the bounds win).
+#[test]
+fn text_bounds_merge_with_an_override_guess_and_clamp_it() {
+    // `GUESS x [-5, 0]` gives bounds but no guess; the override's +7 start is
+    // clamped to the upper bound 0... from which Newton on x^2=9 stalls at the
+    // flat spot, so use a start the clamp moves *into* the negative branch.
+    let solution = solve_with(
+        "GUESS x [-5, -1]\nx ^ 2 = 9\n",
+        &SolverSettings::default(),
+        &[guess_override("x", 7.0)],
+    )
+    .unwrap();
+    assert_near(get(&solution, "x"), -3.0);
+}
+
+/// Override values pass through their declared unit into SI, the
+/// `VariableInfoDto.toSpec` conversion: bounds written in Celsius become
+/// kelvins before the bounds check runs.
+#[test]
+fn override_bounds_convert_through_their_unit() {
+    let solution = solve_with(
+        "T = 500\n",
+        &SolverSettings::default(),
+        &[VariableOverride {
+            name: "T".into(),
+            lower: Some(0.0),
+            upper: Some(100.0),
+            unit: Some("C".into()),
+            ..VariableOverride::default()
+        }],
+    )
+    .unwrap();
+    assert_near(get(&solution, "t"), 500.0);
+    // 0..100 C is 273.15..373.15 K, and 500 K is outside it.
+    let warning = solution
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains("outside the GUESS bounds"))
+        .expect("bounds warning");
+    assert!(warning.message.contains("273.15"), "{}", warning.message);
+    assert!(warning.message.contains("373.15"), "{}", warning.message);
+}
+
+/// A guess passes through a purely multiplicative unit the same way.
+#[test]
+fn an_override_guess_converts_through_its_unit() {
+    // -0.009 kPa is -9 Pa (SI): the guess lands on the negative branch.
+    let solution = solve_with(
+        "x ^ 2 = 81\n",
+        &SolverSettings::default(),
+        &[VariableOverride {
+            name: "x".into(),
+            guess: Some(-0.009),
+            unit: Some("kPa".into()),
+            ..VariableOverride::default()
+        }],
+    )
+    .unwrap();
+    assert_near(get(&solution, "x"), -9.0);
+}
+
+/// The Java `VariableSpec` constructor's three rejections, verbatim.
+#[test]
+fn invalid_overrides_are_solver_errors() {
+    let solve_one = |o: VariableOverride| {
+        solve_with("x = 1\n", &SolverSettings::default(), &[o])
+            .unwrap_err()
+            .error
+    };
+
+    let nan = solve_one(guess_override("x", f64::NAN));
+    assert!(matches!(nan, FreesError::Solver { .. }), "{nan:?}");
+    assert!(message(&nan).contains("contains NaN"), "{}", message(&nan));
+
+    let crossed = solve_one(VariableOverride {
+        name: "x".into(),
+        lower: Some(10.0),
+        upper: Some(0.0),
+        ..VariableOverride::default()
+    });
+    assert!(
+        message(&crossed).contains("Lower bound exceeds upper bound"),
+        "{}",
+        message(&crossed)
+    );
+
+    let outside = solve_one(VariableOverride {
+        name: "x".into(),
+        guess: Some(100.0),
+        lower: Some(0.0),
+        upper: Some(10.0),
+        ..VariableOverride::default()
+    });
+    assert!(
+        message(&outside).contains("outside its bounds"),
+        "{}",
+        message(&outside)
+    );
+}
+
+/// An override naming nothing in the system is ignored without a whisper —
+/// the Java Variable Information window posts stale rows with every request.
+#[test]
+fn a_stale_override_is_silently_ignored() {
+    let solution = solve_with(
+        "x = 1\n",
+        &SolverSettings::default(),
+        &[guess_override("long_gone", 42.0)],
+    )
+    .unwrap();
+    assert_near(get(&solution, "x"), 1.0);
+    assert!(
+        solution.diagnostics.is_empty(),
+        "{:?}",
+        solution.diagnostics
+    );
+    assert_eq!(keys(&solution.values), vec!["x"]);
+}
+
+/// An unknown unit on an override falls back to factor 1 silently — the Java
+/// `toSpec` catch-and-default.
+#[test]
+fn an_unknown_override_unit_falls_back_to_si() {
+    let solution = solve_with(
+        "x ^ 2 = 9\n",
+        &SolverSettings::default(),
+        &[VariableOverride {
+            name: "x".into(),
+            guess: Some(-3.0),
+            unit: Some("zorp".into()),
+            ..VariableOverride::default()
+        }],
+    )
+    .unwrap();
+    assert_near(get(&solution, "x"), -3.0);
+}
+
+/// `check_with` validates overrides (same early error surface as solve) but
+/// they cannot change the structural verdict.
+#[test]
+fn check_with_validates_but_ignores_overrides() {
+    let report = check_with("x ^ 2 = 9\n", &[guess_override("x", -3.0)]).unwrap();
+    assert!(report.solvable);
+
+    let err = check_with("x = 1\n", &[guess_override("x", f64::NAN)]).unwrap_err();
+    assert!(message(&err).contains("contains NaN"), "{}", message(&err));
+}
+
+/// The plain entry points are the empty-override case, byte for byte.
+#[test]
+fn solve_and_check_are_thin_wrappers_over_the_with_variants() {
+    let source = "x^2 + y^3 = 77\nx/y = 1.23456\n";
+    assert_eq!(
+        solve(source, &SolverSettings::default()).unwrap(),
+        solve_with(source, &SolverSettings::default(), &[]).unwrap()
+    );
+    assert_eq!(check(source).unwrap(), check_with(source, &[]).unwrap());
 }
 
 /// Tightening the settings must not change the answer, only the effort.

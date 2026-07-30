@@ -9,6 +9,8 @@
 //! * `variables` — relative tolerance `1e-9`, absolute `1e-12` near zero.
 //!   Golden keys carry the Java first-seen spelling (`T_out`); the Rust engine
 //!   keys by lowercase canonical name, so keys are folded before matching.
+//! * `display_names` — **exact**: keys and values must match the Java
+//!   `ParseResult.displayNames` map the dumper recorded, spelling included.
 //! * `block_count` — exact. A different blocking is a real divergence.
 //! * `error` — the *classification* must agree (both solve, or both fail with
 //!   the equivalent error type). Messages are not compared verbatim.
@@ -124,6 +126,27 @@ fn replay(path: &Path, failures: &mut Vec<Failure>) {
                 }
             }
 
+            // display_names is compared EXACTLY: the Java engine records the
+            // spelling of each variable's first appearance, and the dumper
+            // wrote that map into the fixture verbatim.
+            let golden_names: BTreeMap<String, String> = expect["display_names"]
+                .as_object()
+                .expect("fixture has display_names")
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.clone(),
+                        v.as_str().expect("display name is a string").to_string(),
+                    )
+                })
+                .collect();
+            if solution.display_names != golden_names {
+                fail(format!(
+                    "display_names {:?} but Java recorded {golden_names:?}",
+                    solution.display_names
+                ));
+            }
+
             let expected_blocks = expect["block_count"].as_u64().unwrap_or(0) as usize;
             if solution.blocks.len() != expected_blocks {
                 fail(format!(
@@ -137,7 +160,7 @@ fn replay(path: &Path, failures: &mut Vec<Failure>) {
                 fail(format!("Java solved but Rust failed: {err}"));
             } else {
                 let java_type = expected_error["type"].as_str().unwrap_or("?");
-                if !error_matches(java_type, &err) {
+                if !error_matches(java_type, &err.error) {
                     fail(format!(
                         "Java failed with {java_type} but Rust failed differently: {err}"
                     ));

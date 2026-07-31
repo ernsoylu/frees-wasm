@@ -24,9 +24,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod analysis;
 pub mod ast;
 pub mod components;
 pub mod curvetable;
+pub mod dae;
 pub mod diag;
 pub mod differentiator;
 pub mod engine;
@@ -35,6 +37,7 @@ pub mod integral;
 pub mod interp2;
 pub mod lexer;
 pub mod linalg;
+pub mod ode;
 pub mod parser;
 pub mod procedures;
 pub mod props;

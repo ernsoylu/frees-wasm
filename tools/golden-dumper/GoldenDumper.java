@@ -105,6 +105,51 @@ public final class GoldenDumper {
 
             sb.append("    \"block_count\": ").append(result.blocks() == null ? 0 : result.blocks().size())
               .append(",\n");
+
+            // ODE tables. A solved DYNAMIC block puts NOTHING in `variables` —
+            // the trajectory lives here, in the first-class ODE Table. Without
+            // this section a transient fixture compares only its algebraic
+            // constants and passes vacuously, which is worse than no fixture.
+            sb.append("    \"ode_tables\": [\n");
+            List<String> tables = new ArrayList<>();
+            if (result.odeTables() != null) {
+                for (var table : result.odeTables()) {
+                    StringBuilder t = new StringBuilder();
+                    t.append("      {\n");
+                    t.append("        \"name\": ").append(quote(table.name())).append(",\n");
+                    t.append("        \"method\": ").append(quote(table.method())).append(",\n");
+                    t.append("        \"stopped\": ").append(table.stopped()).append(",\n");
+                    t.append("        \"end_time\": ").append(number(table.endTime())).append(",\n");
+                    List<String> cols = new ArrayList<>();
+                    for (String c : table.columns()) {
+                        cols.add(quote(c));
+                    }
+                    t.append("        \"columns\": [").append(String.join(", ", cols)).append("],\n");
+                    List<String> rows = new ArrayList<>();
+                    for (List<Double> row : table.rows()) {
+                        List<String> cells = new ArrayList<>();
+                        for (Double cell : row) {
+                            cells.add(number(cell));
+                        }
+                        rows.add("          [" + String.join(", ", cells) + "]");
+                    }
+                    t.append("        \"rows\": [\n").append(String.join(",\n", rows));
+                    t.append(rows.isEmpty() ? "" : "\n").append("        ],\n");
+                    List<String> hits = new ArrayList<>();
+                    for (var e : table.events()) {
+                        hits.add("          {\"name\": " + quote(e.name())
+                                + ", \"time\": " + number(e.time()) + "}");
+                    }
+                    t.append("        \"events\": [\n").append(String.join(",\n", hits));
+                    t.append(hits.isEmpty() ? "" : "\n").append("        ]\n");
+                    t.append("      }");
+                    tables.add(t.toString());
+                }
+            }
+            sb.append(String.join(",\n", tables));
+            sb.append(tables.isEmpty() ? "" : "\n");
+            sb.append("    ],\n");
+
             sb.append("    \"error\": null\n");
         } catch (RuntimeException ex) {
             // A document that legitimately fails is just as valuable a fixture as
@@ -112,6 +157,7 @@ public final class GoldenDumper {
             sb.append("    \"variables\": {},\n");
             sb.append("    \"display_names\": {},\n");
             sb.append("    \"block_count\": 0,\n");
+            sb.append("    \"ode_tables\": [],\n");
             sb.append("    \"error\": {\n");
             sb.append("      \"type\": ").append(quote(ex.getClass().getSimpleName())).append(",\n");
             sb.append("      \"message\": ").append(quote(String.valueOf(ex.getMessage()))).append("\n");

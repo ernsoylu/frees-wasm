@@ -1,0 +1,17 @@
+{
+  "name": "adv_diag_duplicate_instance_rejected",
+  "source": "// Two instances with the same name.\nThermalSource HOT(T = 400)\nThermalSource HOT(T = 300)\nt = HOT.port.T\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Component instance 'hot' is declared more than once."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

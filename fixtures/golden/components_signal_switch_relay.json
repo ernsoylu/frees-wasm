@@ -1,0 +1,56 @@
+{
+  "name": "components_signal_switch_relay",
+  "source": "// Smooth relay & 2-way switch, steady (no time dependence).\n// EXPECT r1.out.sig = 10 tol 1e-6\n// EXPECT r2.out.sig = 0 tol 1e-6\n// EXPECT sw1.out.sig = 7 tol 1e-6\n// EXPECT sw2.out.sig = -2 tol 1e-6\nSigConstant HIGHIN(k=3)\nSigConstant LOWIN(k=1)\nSigConstant CTRL1(k=1)\nSigConstant CTRL0(k=0)\nSigConstant V7(k=7)\nSigConstant VM2(k=-2)\nSigRelay R1(thresh=2, low=0, high=10, eps=0.001)\nSigRelay R2(thresh=2, low=0, high=10, eps=0.001)\nSigSwitch SW1(thresh=0.5, eps=0.001)\nSigSwitch SW2(thresh=0.5, eps=0.001)\nconnect(HIGHIN.out, R1.in)\nconnect(LOWIN.out, R2.in)\nconnect(V7.out, SW1.in1, SW2.in1)\nconnect(VM2.out, SW1.in2, SW2.in2)\nconnect(CTRL1.out, SW1.ctrl)\nconnect(CTRL0.out, SW2.ctrl)\n",
+  "expect": {
+    "variables": {
+      "ctrl0.out.sig": 0.0,
+      "ctrl1.out.sig": 1.0,
+      "highin.out.sig": 3.0,
+      "lowin.out.sig": 1.0,
+      "r1.in.sig": 3.0,
+      "r1.out.sig": 10.0,
+      "r2.in.sig": 1.0,
+      "r2.out.sig": 0.0,
+      "sw1.ctrl.sig": 1.0,
+      "sw1.in1.sig": 7.0,
+      "sw1.in2.sig": -2.0,
+      "sw1.out.sig": 7.0,
+      "sw1.wgt": 1.0,
+      "sw2.ctrl.sig": 0.0,
+      "sw2.in1.sig": 7.0,
+      "sw2.in2.sig": -2.0,
+      "sw2.out.sig": -2.0,
+      "sw2.wgt": 0.0,
+      "v7.out.sig": 7.0,
+      "vm2.out.sig": -2.0
+    },
+    "display_names": {
+      "ctrl0$out$sig": "ctrl0.out.sig",
+      "ctrl1$out$sig": "ctrl1.out.sig",
+      "highin$out$sig": "highin.out.sig",
+      "lowin$out$sig": "lowin.out.sig",
+      "r1$in$sig": "r1.in.sig",
+      "r1$out$sig": "r1.out.sig",
+      "r2$in$sig": "r2.in.sig",
+      "r2$out$sig": "r2.out.sig",
+      "sw1$ctrl$sig": "sw1.ctrl.sig",
+      "sw1$in1$sig": "sw1.in1.sig",
+      "sw1$in2$sig": "sw1.in2.sig",
+      "sw1$out$sig": "sw1.out.sig",
+      "sw1$wgt": "sw1.wgt",
+      "sw2$ctrl$sig": "sw2.ctrl.sig",
+      "sw2$in1$sig": "sw2.in1.sig",
+      "sw2$in2$sig": "sw2.in2.sig",
+      "sw2$out$sig": "sw2.out.sig",
+      "sw2$wgt": "sw2.wgt",
+      "v7$out$sig": "v7.out.sig",
+      "vm2$out$sig": "vm2.out.sig"
+    },
+    "block_count": 20,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

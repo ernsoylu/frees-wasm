@@ -1,0 +1,54 @@
+{
+  "name": "adv_junction_fluid_mixer_enthalpy",
+  "source": "// The library Mixer flow-weights the outlet enthalpy: 1 kg/s @ 100 kJ/kg with\n// 3 kg/s @ 400 kJ/kg must give 325 kJ/kg, not 250.\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC1(f1, P = 300000, h = 100000, mdot = 1.0)\nFluidBoundary SRC2(f2, P = 300000, h = 400000, mdot = 3.0)\nMixer         MX(f1, f2, f3)\nSink          SK(f3)\nh1 = f1.h\nh2 = f2.h\nh3 = f3.h\nm3 = f3.mdot\n",
+  "expect": {
+    "variables": {
+      "f1.h": 100000.0,
+      "f1.mdot": 1.0,
+      "f1.p": 300000.0,
+      "f2.h": 400000.0,
+      "f2.mdot": 3.0,
+      "f2.p": 300000.0,
+      "f3.h": 325000.0,
+      "f3.mdot": 4.0,
+      "f3.p": 300000.0,
+      "h1": 100000.0,
+      "h2": 400000.0,
+      "h3": 325000.0,
+      "m3": 4.0,
+      "sk.h": 325000.0,
+      "sk.mdot": 4.0,
+      "sk.p": 300000.0
+    },
+    "display_names": {
+      "f1": "f1",
+      "f1$h": "f1.h",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$h": "f2.h",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "f3": "f3",
+      "f3$h": "f3.h",
+      "f3$mdot": "f3.mdot",
+      "f3$p": "f3.p",
+      "h": "h",
+      "h1": "h1",
+      "h2": "h2",
+      "h3": "h3",
+      "m3": "m3",
+      "mdot": "mdot",
+      "p": "P",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p"
+    },
+    "block_count": 16,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

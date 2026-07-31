@@ -1,0 +1,74 @@
+// Hydraulic valve set, steady. Check valve: forward matches the square law,
+// reverse blocks. Sequence valve: shut 30 bar below the setpoint, open above.
+// Flow control holds Qset. Flow divider splits 70/30 with the power-mix inlet
+// pressure. K-resistance and pipe drops replicate their own laws.
+// EXPECT d_cv = 0 tol 1e-8
+// EXPECT cvr.in.mdot = 0 tol 1e-6
+// EXPECT d_sq = 0 tol 1e-6
+// EXPECT sqs.in.mdot = 0 tol 1e-6
+// EXPECT fc.in.mdot = 0.85 tol 1e-9
+// EXPECT fd.outa.mdot = 1.4 tol 1e-9
+// EXPECT d_fd = 0 tol 1e-6
+// EXPECT d_kr = 0 tol 1e-8
+// EXPECT d_pp = 0 tol 1e-2
+HydraulicSupply    S1(P=1000000)
+HydraulicCheckValve CVF(CdA=1e-6, rho=850, eps=100)
+HydraulicTank      T1(P=100000)
+connect(S1.out, CVF.in)
+connect(CVF.out, T1.port)
+d_cv = CVF.in.mdot - 1e-6 * sqrt(2 * 850 * 900000)
+HydraulicSupply    S2(P=100000)
+HydraulicCheckValve CVR(CdA=1e-6, rho=850, eps=100)
+HydraulicTank      T2(P=1000000)
+connect(S2.out, CVR.in)
+connect(CVR.out, T2.port)
+
+HydraulicSupply       S3(P=25000000)
+HydraulicSequenceValve SQO(Pset=20000000, CdA=1e-6, rho=850, eps=100000)
+HydraulicTank         T3(P=100000)
+connect(S3.out, SQO.in)
+connect(SQO.out, T3.port)
+d_sq = SQO.in.mdot - 1e-6 * sqrt(2 * 850 * 24900000)
+HydraulicSupply       S4(P=17000000)
+HydraulicSequenceValve SQS(Pset=20000000, CdA=1e-6, rho=850, eps=100000)
+HydraulicTank         T4(P=100000)
+connect(S4.out, SQS.in)
+connect(SQS.out, T4.port)
+
+HydraulicSupply     S5(P=1000000)
+HydraulicFlowControl FC(Qset=0.001, rho=850)
+HydraulicTank       T5(P=100000)
+connect(S5.out, FC.in)
+connect(FC.out, T5.port)
+
+COMPONENT OilFlowSource(out)
+  PARAM mdot, domain$ = oil
+  out.mdot = mdot
+  out.h    = 0
+END
+OilFlowSource       FSD(mdot=2)
+HydraulicFlowDivider FD(frac=0.7)
+HydraulicTank       TA(P=500000)
+HydraulicTank       TB(P=300000)
+connect(FSD.out, FD.in)
+connect(FD.outa, TA.port)
+connect(FD.outb, TB.port)
+d_fd = FD.in.P - (0.7 * 500000 + 0.3 * 300000)
+
+OilFlowSource      FKR(mdot=1)
+HydraulicResistance KR(K=2.5, rho=850, D=0.01)
+HydraulicTank      TK(P=100000)
+connect(FKR.out, KR.in)
+connect(KR.out, TK.port)
+vkr  = 1 / (850 * pi# / 4 * 0.01^2)
+d_kr = (KR.in.P - 100000) - 2.5 * 850 * vkr^2 / 2
+
+OilFlowSource FPP(mdot=1)
+HydraulicPipe HP(rho=850, nu=4e-5, L=5, D=0.01, rough=0)
+HydraulicTank TP(P=100000)
+connect(FPP.out, HP.in)
+connect(HP.out, TP.port)
+vpp  = 1 / (850 * pi# / 4 * 0.01^2)
+repp = reynolds(850, vpp, 0.01, 850 * 4e-5)
+fpp2 = friction_factor(repp, 0)
+d_pp = (HP.in.P - 100000) - fpp2 * (5 / 0.01) * 850 * vpp^2 / 2

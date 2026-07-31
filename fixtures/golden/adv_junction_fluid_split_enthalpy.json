@@ -1,0 +1,17 @@
+{
+  "name": "adv_junction_fluid_split_enthalpy",
+  "source": "// One inflow, two outflows on a raw connect node: P equal, sum mdot zero, and\n// h EQUAL on every branch (a split must not weight).\nSource SRC(fluid$ = Water, mdot = 3.0, P = 400000, T = 350)\nValve  VA(Cv = 0.01, rho = 980, u = 1, model$ = fixed)\nValve  VB(Cv = 0.02, rho = 980, u = 1, model$ = fixed)\nSink   SA()\nSink   SB()\nconnect(SRC.out, VA.in, VB.in)\nconnect(VA.out, SA.in)\nconnect(VB.out, SB.in)\nSA.P    = 300000\nSB.mdot = 1.0\nha = VA.out.h\nhb = VB.out.h\nh1 = SRC.out.h\nma = VA.out.mdot\nmb = VB.out.mdot\npn = SRC.out.P\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 34 equations and 33 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): CONNECT src.out, va.in, vb.in: src$out.p = va$in.p. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

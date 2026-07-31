@@ -1,0 +1,7 @@
+// The domain$ family separation: pneumatic (domain$=gas) meeting hydraulic
+// (domain$=oil) on the shared (P, mdot, h) bond must be a hard error.
+PneumaticSupply  PS(g1, fluid$ = Air, P = 500000, T = 300)
+HydraulicOrifice HO(o1, o2, CdA = 1e-5, rho = 870, model$ = turbulent)
+HydraulicTank    TK(o2, P = 100000)
+connect(PS.out, HO.in)
+p = HO.in.P

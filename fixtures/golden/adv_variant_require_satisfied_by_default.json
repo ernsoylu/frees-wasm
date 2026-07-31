@@ -1,0 +1,44 @@
+{
+  "name": "adv_variant_require_satisfied_by_default",
+  "source": "// A VARIANT REQUIRE naming a parameter that has a PARAM default must be\n// satisfied by the default, not rejected.\nCOMPONENT Sized(in, out)\n  PARAM a, b = 3, model$ = wide\n  out.mdot = in.mdot\n  out.h    = in.h\n  VARIANT wide REQUIRE a, b\n    out.P = in.P - a * b\n  END\n  VARIANT narrow REQUIRE a\n    out.P = in.P - a\n  END\nEND\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(f1, P = 400000, h = 112929, mdot = 1.0)\nSized         SZ(f1, f2, a = 1000)\nSink          SK(f2)\np2 = f2.P\n",
+  "expect": {
+    "variables": {
+      "f1.h": 112929.0,
+      "f1.mdot": 1.0,
+      "f1.p": 400000.0,
+      "f2.h": 112929.0,
+      "f2.mdot": 1.0,
+      "f2.p": 397000.0,
+      "p2": 397000.0,
+      "sk.h": 112929.0,
+      "sk.mdot": 1.0,
+      "sk.p": 397000.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "f1": "f1",
+      "f1$h": "f1.h",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$h": "f2.h",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "h": "h",
+      "mdot": "mdot",
+      "p": "P",
+      "p2": "p2",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "wide": "wide"
+    },
+    "block_count": 10,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "components_family_hydraulic",
+  "source": "// Domain family: HYDRAULIC (hydraulic.frees). Fluid-family (P, mdot, h) bond\n// separated by `domain$ = oil`; the components carry rho as a parameter, so no\n// property backend is involved.\nHydraulicSupply    SUP(o1, P = 21000000)\nHydraulicValve     VLV(o1, o2, CdA_max = 3e-5, rho = 870, u = 0.6)\nHydraulicResistance RES(o2, o3, K = 2.5, rho = 870, D = 0.008)\nHydraulicTank      TNK(o3, P = 100000)\nq_flow = o1.mdot\np_mid  = o2.P\n",
+  "expect": {
+    "variables": {
+      "o1.h": 0.0,
+      "o1.mdot": 2.9870110979332307,
+      "o1.p": 2.1E7,
+      "o2.h": 0.0,
+      "o2.mdot": 2.9870110979332307,
+      "o2.p": 5173699.270653674,
+      "o3.h": 0.0,
+      "o3.mdot": 2.9870110979332307,
+      "o3.p": 100000.0,
+      "p_mid": 5173699.270653674,
+      "q_flow": 2.9870110979332307,
+      "res.a": 5.0265482457436686E-5,
+      "res.v": 68.30425018770448
+    },
+    "display_names": {
+      "o1": "o1",
+      "o1$h": "o1.h",
+      "o1$mdot": "o1.mdot",
+      "o1$p": "o1.p",
+      "o2": "o2",
+      "o2$h": "o2.h",
+      "o2$mdot": "o2.mdot",
+      "o2$p": "o2.p",
+      "o3": "o3",
+      "o3$h": "o3.h",
+      "o3$mdot": "o3.mdot",
+      "o3$p": "o3.p",
+      "p_mid": "p_mid",
+      "q_flow": "q_flow",
+      "res$a": "res.a",
+      "res$v": "res.v"
+    },
+    "block_count": 10,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

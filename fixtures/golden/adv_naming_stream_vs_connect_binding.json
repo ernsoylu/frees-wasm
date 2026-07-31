@@ -1,0 +1,17 @@
+{
+  "name": "adv_naming_stream_vs_connect_binding",
+  "source": "// Positional stream binding names variables after the STREAM (f1$p); connect\n// binding names them after the PORT (va$in$p). Both in one document.\nSource SRC(f1, fluid$ = Water, mdot = 2.0, P = 400000, T = 330)\nValve  VA(f1, f2, Cv = 0.01, rho = 980, u = 1)\nSink   SK(f2)\nf2.P = 350000\n\nThermalSource HOT(T = 400)\nConduction    CD(k = 10, area = 1, L = 0.1)\nThermalSource COLD(T = 300)\nconnect(HOT.port, CD.a)\nconnect(CD.b, COLD.port)\nm  = f2.mdot\nq  = CD.Q\nta = CD.a.T\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 22 equations and 21 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): f2.P=350000. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

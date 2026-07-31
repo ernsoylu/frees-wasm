@@ -1,0 +1,17 @@
+{
+  "name": "adv_domain_steam_vs_moistair_rejected",
+  "source": "// Thermofluid (steam/water) meeting moist air on the shared bond must fail.\nSource       SRC(f1, fluid$ = Water, mdot = 1.0, P = 101325, T = 350)\nHeatingCoil  HTR(a1, a2, Q = 1000)\nMoistAirSink SK(a2)\nconnect(SRC.out, HTR.in)\nh = HTR.in.h\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "connect(src.out, htr.in): cannot connect a 'fluid' line (src.out) to a 'moistair' line (htr.in). Thermofluid ('fluid'), liquid ('liquid'), two-phase ('twophase'), pneumatic ('gas'), hydraulic ('oil') and humid-air ('moistair') are incompatible fluid connector types; couple them only through a heat exchanger."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

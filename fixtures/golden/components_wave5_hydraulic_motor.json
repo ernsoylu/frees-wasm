@@ -1,0 +1,62 @@
+{
+  "name": "components_wave5_hydraulic_motor",
+  "source": "// Motor at 100 rad/s between 200 bar and 1 bar: flow = rho*disp*n/eta_v =\n// 0.1424018 kg/s; torque = -disp*dP*eta_m/(2pi) = -28.5047 N·m.\n// EXPECT d_mm = 0 tol 1e-8\n// EXPECT d_mt = 0 tol 1e-6\nHydraulicSupply SM(P=20000000)\nHydraulicMotor  HM(disp=1e-5, rho=850, eta_v=0.95, eta_m=0.9)\nHydraulicTank   TM(P=100000)\nSpeedSource     WS(w=100)\nMechGround      MG()\nconnect(SM.out, HM.in)\nconnect(HM.out, TM.port)\nconnect(WS.a, HM.shaft)\nconnect(WS.b, MG.port)\nd_mm = HM.in.mdot - 0.1424017912\nd_mt = HM.shaft.tau - (-28.5046503)\n\n",
+  "expect": {
+    "variables": {
+      "d_mm": -1.2514683733755305E-11,
+      "d_mt": -7.75845876432868E-9,
+      "hm.in.h": 0.0,
+      "hm.in.mdot": 0.1424017911874853,
+      "hm.in.p": 2.0E7,
+      "hm.n_rev": 15.915494309189533,
+      "hm.out.h": 0.0,
+      "hm.out.mdot": 0.1424017911874853,
+      "hm.out.p": 100000.0,
+      "hm.shaft.tau": -28.50465030775846,
+      "hm.shaft.w": 100.0,
+      "mg.port.tau": 28.50465030775846,
+      "mg.port.w": 0.0,
+      "sm.out.h": 0.0,
+      "sm.out.mdot": 0.1424017911874853,
+      "sm.out.p": 2.0E7,
+      "tm.port.h": 0.0,
+      "tm.port.mdot": 0.1424017911874853,
+      "tm.port.p": 100000.0,
+      "ws.a.tau": 28.50465030775846,
+      "ws.a.w": 100.0,
+      "ws.b.tau": -28.50465030775846,
+      "ws.b.w": 0.0
+    },
+    "display_names": {
+      "d_mm": "d_mm",
+      "d_mt": "d_mt",
+      "hm$in$h": "hm.in.h",
+      "hm$in$mdot": "hm.in.mdot",
+      "hm$in$p": "hm.in.p",
+      "hm$n_rev": "hm.n_rev",
+      "hm$out$h": "hm.out.h",
+      "hm$out$mdot": "hm.out.mdot",
+      "hm$out$p": "hm.out.p",
+      "hm$shaft$tau": "hm.shaft.tau",
+      "hm$shaft$w": "hm.shaft.w",
+      "mg$port$tau": "mg.port.tau",
+      "mg$port$w": "mg.port.w",
+      "sm$out$h": "sm.out.h",
+      "sm$out$mdot": "sm.out.mdot",
+      "sm$out$p": "sm.out.p",
+      "tm$port$h": "tm.port.h",
+      "tm$port$mdot": "tm.port.mdot",
+      "tm$port$p": "tm.port.p",
+      "ws$a$tau": "ws.a.tau",
+      "ws$a$w": "ws.a.w",
+      "ws$b$tau": "ws.b.tau",
+      "ws$b$w": "ws.b.w"
+    },
+    "block_count": 23,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,13 @@
+// A VARIANT REQUIREs a name that is not a PARAM of the component at all.
+COMPONENT Bad(in, out)
+  PARAM a, model$ = only
+  out.mdot = in.mdot
+  out.h    = in.h
+  VARIANT only REQUIRE a, ghost
+    out.P = in.P - a
+  END
+END
+Source SRC(f1, fluid$ = Water, mdot = 1.0, P = 400000, T = 300)
+Bad    BD(f1, f2, a = 100)
+Sink   SK(f2)
+p2 = f2.P

@@ -1,0 +1,12 @@
+// model$ omitted: the PARAM default (fixed) must be selected.
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(f1, P = 500000, h = 196595, mdot = 2.0)
+Valve         VA(f1, f2, Cv = 0.01, rho = 980, u = 1)
+Sink          SK(f2)
+dp = f1.P - f2.P
+m  = f2.mdot

@@ -41,10 +41,11 @@ pub struct GuessDirective {
 /// A parsed document.
 ///
 /// Block constructs that the wasm port has not reached yet (`PARAMETRIC`,
-/// `PLOT`, `STATE TABLE`, `DYNAMIC`, `COMPONENT`, `connect`, `LINEARIZE`) are
-/// reported as an explicit unsupported-construct error rather than being
-/// silently skipped — a wrong answer is worse than a refusal. `FUNCTION`,
-/// `PROCEDURE`, `MODULE` and `TABLE` parse into [`Document::defs`] (Phase 4).
+/// `PLOT`, `STATE TABLE`, `DYNAMIC`, `LINEARIZE`) are reported as an explicit
+/// unsupported-construct error rather than being silently skipped — a wrong
+/// answer is worse than a refusal. `FUNCTION`, `PROCEDURE`, `MODULE` and
+/// `TABLE` parse into [`Document::defs`] (Phase 4); `COMPONENT`, a component
+/// instantiation and `connect` parse into [`Document::components`] (Phase 6).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Document {
     pub statements: Vec<Statement>,
@@ -53,6 +54,15 @@ pub struct Document {
     /// `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE` definitions, in
     /// declaration order.
     pub defs: defs::Definitions,
+    /// `COMPONENT` definitions, component instantiations and `connect`
+    /// declarations, in declaration order.
+    ///
+    /// Parsing them is not the same as honouring them: expansion is a separate
+    /// pass, [`crate::engine::expand_component_layer`], which runs at the Java's
+    /// own position (first of the expansion passes, ahead of CALL flattening —
+    /// see `EquationParser.parseResult`). It consumes this field and replaces
+    /// [`Document::statements`] with the port-rewritten form.
+    pub components: crate::components::def::Components,
     /// Lowercase canonical name → the spelling of its **first appearance as a
     /// variable**, exactly as the Java `AstBuilder` accumulates
     /// `ParseResult.displayNames`.
@@ -90,7 +100,8 @@ impl Document {
 ///
 /// The frees grammar needs more than one token of lookahead in a few places —
 /// `componentInst` (`IDENT IDENT (`) versus an equation starting with an
-/// identifier, and `multiAssign` (`[ … ] =`) versus a matrix-literal equation.
+/// identifier, `componentArg` (`IDENT =`) versus a positional expression, and
+/// `multiAssign` (`[ … ] =`) versus a matrix-literal equation.
 /// [`Cursor::peek_at`] exists for exactly those decisions.
 pub struct Cursor<'a> {
     tokens: &'a [Token],

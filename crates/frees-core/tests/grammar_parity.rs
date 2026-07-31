@@ -1042,25 +1042,31 @@ fn guess_directives_leave_the_statement_list_alone() {
 }
 
 #[test]
-fn component_instantiation_is_detected_rather_than_mis_reported() {
-    // `componentInst : IDENT IDENT LPAREN` — nothing in the expression grammar
-    // makes that shape, so it is named instead of producing a confusing
-    // expression error.
-    assert!(fails("Pump P1(s3, s4)").contains("COMPONENT instantiation"));
+fn the_block_forms_land_in_the_right_half_of_the_document() {
     for (src, construct) in [
         ("PARAMETRIC sweep(a)\nEND", "PARAMETRIC"),
         ("PLOT 'x'\nEND", "PLOT"),
         ("STATE TABLE C(P)\nEND", "STATE TABLE"),
         ("DYNAMIC d()\nEND", "DYNAMIC"),
-        ("connect(a.b, c)", "CONNECT"),
+        ("LINEARIZE p(block = w)\nEND", "LINEARIZE"),
     ] {
         assert!(fails(src).contains(construct), "`{src}`");
     }
-    // FUNCTION/PROCEDURE/MODULE/TABLE now parse into `Document::defs` — the
-    // Phase-4 procedural pass; their coverage lives in `parser::toplevel` and
+    // FUNCTION/PROCEDURE/MODULE/TABLE parse into `Document::defs` — the Phase-4
+    // procedural pass; their coverage lives in `parser::toplevel` and
     // `tests/procedural.rs`.
     assert_eq!(doc("FUNCTION f(x)\n  f := x\nEND").defs.functions.len(), 1);
     assert_eq!(doc("TABLE cp(T)\n  1 2\nEND").defs.tables.len(), 1);
+    // COMPONENT / componentInst / connect parse into `Document::components` —
+    // the Phase-6 grammar pass; coverage lives in `parser::toplevel` and
+    // `tests/component_library.rs`.
+    // `componentInst : IDENT IDENT LPAREN` is the one shape the expression
+    // grammar cannot make, which is what lets it be predicted without
+    // backtracking.
+    let d = doc("COMPONENT Pump(in, out)\n  PARAM eta\n  out.h = in.h/eta\nEND");
+    assert_eq!(d.components.defs.len(), 1);
+    assert_eq!(doc("Pump P1(s3, s4)").components.instances.len(), 1);
+    assert_eq!(doc("connect(a.b, c)").components.connects.len(), 1);
 }
 
 // ════════════════════════════════════════════════════════════════════════════

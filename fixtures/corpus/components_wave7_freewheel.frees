@@ -1,0 +1,23 @@
+// Freewheel: engaged (dw = +5) transmits k*hinge = 500.000005 N·m; overrun
+// (dw = -5) leaks only the eps residual ~5e-6. Steady circuits only — the
+// probes read block-free port variables.
+// EXPECT fw_eng = 500 tol 1e-3
+// EXPECT fw_ovr = 0 tol 1e-3
+
+SpeedSource FA(w=5)
+MechGround  FGA()
+Freewheel   FW1(k=100, eps=1e-3)
+MechGround  FGB()
+connect(FA.a, FW1.a)
+connect(FA.b, FGA.port)
+connect(FW1.b, FGB.port)
+fw_eng = FW1.a.tau
+
+SpeedSource FC(w=-5)
+MechGround  FGC()
+Freewheel   FW2(k=100, eps=1e-3)
+MechGround  FGD()
+connect(FC.a, FW2.a)
+connect(FC.b, FGC.port)
+connect(FW2.b, FGD.port)
+fw_ovr = FW2.a.tau

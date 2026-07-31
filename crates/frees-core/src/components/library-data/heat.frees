@@ -1,0 +1,157 @@
+COMPONENT ThermalSource(port)
+  PARAM T
+  port.T = T
+END
+
+// Heat-flow source: injects a fixed thermal power Q into the connected node
+// (port.Qdot = -Q, so the network receives +Q). The Qdot dual of ThermalSource.
+COMPONENT HeatSource(port)
+  PARAM Q
+  port.Qdot = -Q
+END
+
+COMPONENT Conduction(a, b)
+  PARAM k, area, L
+  Q      = k * area / L * (a.T - b.T)
+  a.Qdot = Q
+  b.Qdot = -Q
+END
+
+COMPONENT Convection(a, b)
+  PARAM htc, area
+  Q      = htc * area * (a.T - b.T)
+  a.Qdot = Q
+  b.Qdot = -Q
+END
+
+COMPONENT Radiation(a, b)
+  PARAM emis, area
+  Q      = emis * 5.670374419e-8 * area * (a.T^4 - b.T^4)
+  a.Qdot = Q
+  b.Qdot = -Q
+END
+
+COMPONENT ThermalMass(port)
+  PARAM C, T0
+  der(port.T)  = port.Qdot / C
+  init(port.T) = T0
+END
+
+// Thermal mass with internal heat generation: der(T) = (Qgen + Qdot)/C. Models a
+// self-heating lump (battery pack, e-motor, cabin load) tied to a heat port.
+COMPONENT MassGen(port)
+  PARAM C, Qgen, T0
+  der(port.T)  = (Qgen + port.Qdot) / C
+  init(port.T) = T0
+END
+
+COMPONENT ContactResistance(a, b)
+  PARAM Rth
+  Q      = (a.T - b.T) / Rth
+  a.Qdot = Q
+  b.Qdot = -Q
+END
+
+COMPONENT ThermalSensor(port)
+  port.Qdot = 0
+  T_meas    = port.T
+END
+
+// ── Thermal breadth (Wave 6) ───────────────────────────────────────────────
+
+// Two-node transient wall: capacitance–conduction–capacitance, the classic RC
+// warm-up wall between two heat ports.
+COMPONENT WallRC(a, b)
+  PARAM C1, C2, R, T10, T20
+  der(T1)  = (a.Qdot - (T1 - T2) / R) / C1
+  init(T1) = T10
+  der(T2)  = ((T1 - T2) / R + b.Qdot) / C2
+  init(T2) = T20
+  a.T = T1
+  b.T = T2
+END
+
+// Two-surface radiation enclosure: surface resistances (1−ε)/(εA) in series
+// with the view-factor space resistance 1/(A1·F12), on the σ(T⁴−T⁴) potential.
+COMPONENT RadiationTwoSurface(a, b)
+  PARAM e1, e2, A1, A2, F12
+  Rrad   = (1 - e1) / (e1 * A1) + 1 / (A1 * F12) + (1 - e2) / (e2 * A2)
+  a.Qdot = 5.670374419e-8 * (a.T^4 - b.T^4) / Rrad
+  a.Qdot + b.Qdot = 0
+END
+
+// Heat pipe: a very high effective conductance saturating smoothly at the
+// transport limit Qmax (capillary/sonic), so overload degrades instead of
+// diverging.
+COMPONENT HeatPipe(a, b)
+  PARAM G, Qmax
+  a.Qdot = Qmax * tanh(G * (a.T - b.T) / Qmax)
+  a.Qdot + b.Qdot = 0
+END
+
+// Phase-change-material mass: latent heat L released over a Gaussian mushy
+// zone of width dTm around the melt point (∫cp_eff dT = cp·ΔT + L exactly).
+COMPONENT PCMMass(port)
+  PARAM m, cp, L, Tm, dTm, T0
+  cpe          = cp + (L / (dTm * 1.7724539)) * exp(-((port.T - Tm) / dTm)^2)
+  der(port.T)  = port.Qdot / (m * cpe)
+  init(port.T) = T0
+END
+
+// Peltier thermoelectric module: Seebeck voltage + ohmic drop electrically;
+// Peltier pumping ± half-Joule and back-conduction thermally. Energy-exact:
+// Q_hot − Q_cold = I·V.
+COMPONENT PeltierTEC(p, n, hot, cold)
+  PARAM Sab, Rel, Kth
+  I         = p.I
+  p.V - n.V = Sab * (hot.T - cold.T) + Rel * I
+  p.I + n.I = 0
+  Qc        = Sab * cold.T * I - 0.5 * Rel * I^2 - Kth * (hot.T - cold.T)
+  Qh        = Sab * hot.T * I + 0.5 * Rel * I^2 - Kth * (hot.T - cold.T)
+  cold.Qdot = Qc
+  hot.Qdot  = -Qh
+END
+
+// Thermal switch / bimetal thermostat: a conductance that engages smoothly
+// above the trip temperature (sensed on side a).
+COMPONENT ThermalSwitch(a, b)
+  PARAM G, Ton, band
+  u      = 0.5 * (1 + tanh((a.T - Ton) / band))
+  a.Qdot = u * G * (a.T - b.T)
+  a.Qdot + b.Qdot = 0
+END
+
+
+// ── Electrochemistry & energy systems (Wave 8) ──────────────────────────────
+
+// Cell-to-plate thermal path: contact/interface resistance into the cold-plate
+// mass — the network that makes pack gradients (cell hot spot vs plate) real.
+// (Direct equations: the plate node carries this component's own state.)
+COMPONENT CellToPackThermal(cell, plate)
+  PARAM Rcc, Cpl, T0
+  Q         = (cell.T - Tp) / Rcc
+  cell.Qdot = Q
+  der(Tp)   = (Q + plate.Qdot) / Cpl
+  init(Tp)  = T0
+  plate.T   = Tp
+END
+
+
+// ── HVAC, buildings & process-lite (Wave 9) ─────────────────────────────────
+
+// Two-zone partition wall: surface films (h_a, h_b) into two face masses with
+// U·A conduction between them. The ports are resistive — they READ the zone
+// temperatures — so the wall composes directly with any temperature-setting
+// zone (CabinZone, MassGen) without C-C adjacency.
+COMPONENT MultiZoneWall(a, b)
+  PARAM h_a, h_b, U, A, C1, C2, T10, T20
+  qa       = h_a * A * (a.T - T1)
+  a.Qdot   = qa
+  q        = U * A * (T1 - T2)
+  der(T1)  = (qa - q) / C1
+  init(T1) = T10
+  qb       = h_b * A * (T2 - b.T)
+  b.Qdot   = -qb
+  der(T2)  = (q - qb) / C2
+  init(T2) = T20
+END

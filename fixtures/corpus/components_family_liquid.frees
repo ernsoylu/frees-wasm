@@ -1,0 +1,19 @@
+// Domain family: LIQUID single-phase coolant loop (liquid.frees), separated
+// from thermofluid by `domain$ = liquid`. Water is one of the two tabulated
+// fluids.
+//
+// The B-branch orifice area is left as the top-level unknown `cda_b`: the
+// mixer's `in2.P = in1.P` closes the loop and the solver sizes the orifice
+// that balances the two legs. That is the acausal property the component layer
+// exists for - nothing here says which way the computation runs.
+LiquidSource        LS(l1, fluid$ = Water, mdot = 0.8, P = 200000, T = 310)
+LiquidThreeWayValve TW(l1, l2, l3, u = 0.65)
+LiquidOrifice       OA(l2, l4, CdA = 4e-5, rho = 993, model$ = incompressible)
+LiquidOrifice       OB(l3, l5, CdA = cda_b, rho = 993, model$ = incompressible)
+LiquidMixer         LM(l4, l5, l6)
+LiquidSink          LK(l6)
+
+mdot_a = l2.mdot
+mdot_b = l3.mdot
+p_mix  = l6.P
+h_out  = LK.h

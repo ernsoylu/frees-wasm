@@ -1,0 +1,20 @@
+// Domain family: ELECTRICAL (electrical.frees). Across V, flow I; a connect
+// node equates every V and sums every I to zero.
+// 12 V across a 10/20 ohm divider: i = 0.4 A, v_mid = 8 V.
+VoltageSource V1(E = 12)
+Resistor      R1(R = 10)
+Resistor      R2(R = 20)
+Ground        G1()
+connect(V1.p, R1.a)
+connect(R1.b, R2.a)
+connect(R2.b, V1.n, G1.port)
+v_mid = R1.b.V
+i_div = R1.a.I
+
+// 5 A forced through 4 ohm: 20 V across the resistor.
+CurrentSource I1(I = 5)
+Resistor      R3(R = 4)
+Ground        G2()
+connect(I1.p, R3.a)
+connect(R3.b, I1.n, G2.port)
+v_cs = R3.a.V - R3.b.V

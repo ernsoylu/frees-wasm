@@ -1,0 +1,52 @@
+{
+  "name": "adv_junction_rotational_three_way",
+  "source": "// 3-way rotational node via connect: w equal, sum tau = 0.\nTorqueSource     TS(T = 50)\nMechGround       MG()\nRotationalDamper D1(c = 2)\nRotationalDamper D2(c = 3)\nconnect(TS.a, MG.port, D1.b, D2.b)\nconnect(TS.b, D1.a, D2.a)\nwm = D1.a.w\nt1 = D1.a.tau\nt2 = D2.a.tau\nts = TS.b.tau\n",
+  "expect": {
+    "variables": {
+      "d1.a.tau": -20.0,
+      "d1.a.w": -10.0,
+      "d1.b.tau": 20.0,
+      "d1.b.w": 0.0,
+      "d2.a.tau": -30.0,
+      "d2.a.w": -10.0,
+      "d2.b.tau": 30.0,
+      "d2.b.w": 0.0,
+      "mg.port.tau": 0.0,
+      "mg.port.w": 0.0,
+      "t1": -20.0,
+      "t2": -30.0,
+      "ts": 50.0,
+      "ts.a.tau": -50.0,
+      "ts.a.w": 0.0,
+      "ts.b.tau": 50.0,
+      "ts.b.w": -10.0,
+      "wm": -10.0
+    },
+    "display_names": {
+      "d1$a$tau": "d1.a.tau",
+      "d1$a$w": "d1.a.w",
+      "d1$b$tau": "d1.b.tau",
+      "d1$b$w": "d1.b.w",
+      "d2$a$tau": "d2.a.tau",
+      "d2$a$w": "d2.a.w",
+      "d2$b$tau": "d2.b.tau",
+      "d2$b$w": "d2.b.w",
+      "mg$port$tau": "mg.port.tau",
+      "mg$port$w": "mg.port.w",
+      "t1": "t1",
+      "t2": "t2",
+      "ts": "ts",
+      "ts$a$tau": "ts.a.tau",
+      "ts$a$w": "ts.a.w",
+      "ts$b$tau": "ts.b.tau",
+      "ts$b$w": "ts.b.w",
+      "wm": "wm"
+    },
+    "block_count": 14,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

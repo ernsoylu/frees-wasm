@@ -1,0 +1,37 @@
+// Domain family: POWERTRAIN (powertrain.frees), riding the rotational bond.
+// Engine at 0.6 throttle held at 240 rad/s through a 4:1 0.95-efficient box.
+SpeedSource  WS(w = 60)
+MechGround   MG()
+Engine       EN(Tmax = 200, throttle = 0.6, bf = 0.05)
+Transmission TR(ratio = 4, eta = 0.95)
+connect(EN.shaft, TR.in)
+connect(TR.out, WS.a)
+connect(WS.b, MG.port)
+w_eng   = EN.shaft.w
+tau_eng = EN.shaft.tau
+tau_out = TR.out.tau
+
+// Open differential, 3.5:1, both half-shafts held at 40 rad/s.
+TorqueSource TI(T = 150)
+Differential DF(ratio = 3.5)
+SpeedSource  WL(w = 40)
+SpeedSource  WR(w = 40)
+MechGround   G2()
+MechGround   G3()
+MechGround   G4()
+connect(TI.a, DF.in)
+connect(TI.b, G2.port)
+connect(DF.left, WL.a)
+connect(DF.right, WR.a)
+connect(WL.b, G3.port)
+connect(WR.b, G4.port)
+w_prop  = DF.in.w
+tau_l   = DF.left.tau
+
+// Road load at 30 rad/s: Crr + Caero*w^2 = 30 + 0.02*900 = 48 N.m.
+RoadLoad    RL(Crr = 30, Caero = 0.02)
+SpeedSource RW(w = 30)
+MechGround  G5()
+connect(RL.shaft, RW.a)
+connect(RW.b, G5.port)
+tau_load = RL.shaft.tau

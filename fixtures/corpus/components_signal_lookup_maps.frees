@@ -1,0 +1,18 @@
+// TABLE-driven lookup blocks: 1-D map (slope-2 line -> 6 at 3) and a 2-D
+// curve family (midway between U=x and U=3x at x=5 -> 10).
+// EXPECT m1.out.sig = 6
+// EXPECT m2.out.sig = 10
+TABLE lin(x)
+  0   0
+  10  20
+END
+TABLE fam(x : y = 0, 10)
+  0    0    0
+  10   10   30
+END
+SigConstant X(k=3)
+SigConstant X2(k=5)
+SigMap   M1(map$=lin)
+SigMap2  M2(map$=fam)
+connect(X.out, M1.in)
+connect(X2.out, M2.in1, M2.in2)

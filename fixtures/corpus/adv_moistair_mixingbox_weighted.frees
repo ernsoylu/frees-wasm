@@ -1,0 +1,15 @@
+// W is flow-weighted only at an explicit mixer: 1 kg/s @ W=0.004 mixed with
+// 3 kg/s @ W=0.012 must give 0.010, not 0.008.
+MixingBox    MIX(a1, a2, a3)
+MoistAirSink SK(a3)
+a1.P = 101325
+a1.mdot = 1.0
+a1.W = 0.004
+a1.h = 30000
+a2.P = 101325
+a2.mdot = 3.0
+a2.W = 0.012
+a2.h = 60000
+w3 = a3.W
+h3 = a3.h
+m3 = a3.mdot

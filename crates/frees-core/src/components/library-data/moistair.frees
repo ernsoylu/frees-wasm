@@ -1,0 +1,261 @@
+COMPONENT MoistAirSource(out)
+  PARAM P, T, W, mdot, domain$ = moistair
+  out.P    = P
+  out.mdot = mdot
+  out.W    = W
+  out.h    = Enthalpy(AirH2O, T=T, P=P, W=W)
+END
+
+COMPONENT MoistAirSink(in)
+  PARAM domain$ = moistair
+  mdot = in.mdot
+  P    = in.P
+  h    = in.h
+  W    = in.W
+END
+
+COMPONENT HeatingCoil(in, out)
+  PARAM Q, domain$ = moistair
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.W    = in.W
+  out.h    = in.h + Q / in.mdot
+END
+
+COMPONENT Humidifier(in, out)
+  PARAM mdot_w, h_w, domain$ = moistair
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.W    = in.W + mdot_w / in.mdot
+  out.h    = in.h + mdot_w * h_w / in.mdot
+END
+
+COMPONENT MixingBox(in1, in2, out)
+  PARAM domain$ = moistair
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.W = in1.mdot * in1.W + in2.mdot * in2.W
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+
+COMPONENT CoolingCoil(in, out)
+  PARAM Tout, domain$ = moistair
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.W    = HumRat(AirH2O, T=Tout, P=in.P, R=1)
+  out.h    = Enthalpy(AirH2O, T=Tout, P=in.P, W=out.W)
+  Q        = in.mdot * (in.h - out.h)
+  Q_lat    = in.mdot * 2.501e6 * (in.W - out.W)
+END
+
+// Moist-air-side heat-exchanger half with a wall heat port: a WET cooling coil.
+// The air approaches the wall temperature (effectiveness eps); the outlet is
+// taken saturated (smooth-clamped so it never humidifies), giving sensible +
+// latent (dehumidification) duty. Pairs with a refrigerant evaporator through a
+// shared wall node to form the AirCoil bridge. Q>0 = heat from air into the wall.
+COMPONENT MoistAirWallHX(in, out, wall)
+  PARAM eps, NTU, domain$ = moistair, model$ = eps_t
+  out.mdot  = in.mdot
+  out.P     = in.P
+  Q         = in.mdot * (in.h - out.h)
+  Q_lat     = in.mdot * 2.501e6 * (in.W - out.W)
+  wall.Qdot = -Q
+  // Temperature-effectiveness rung (the original model): the air approaches
+  // the wall temperature; outlet W smooth-clamped at saturation.
+  VARIANT eps_t REQUIRE eps
+    T_in      = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+    T_out     = T_in - eps * (T_in - wall.T)
+    W_sat     = HumRat(AirH2O, T=T_out, P=in.P, R=1)
+    out.W     = 0.5 * (in.W + W_sat - sqrt((in.W - W_sat)^2 + 1e-12))
+    out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=out.W)
+  END
+  // Threlkeld enthalpy-potential rung: for a wet coil the driving potential is
+  // the ENTHALPY difference to saturated air at the wall temperature, with
+  // effectiveness 1 − e^(−NTU) on the air side. The outlet humidity follows the
+  // same smooth saturation clamp at the (implicit) outlet temperature.
+  VARIANT ntu_wet REQUIRE NTU
+    W_sw      = HumRat(AirH2O, T=wall.T, P=in.P, R=1)
+    h_sw      = Enthalpy(AirH2O, T=wall.T, P=in.P, W=W_sw)
+    eps_h     = 1 - exp(-NTU)
+    out.h     = in.h - eps_h * (in.h - h_sw)
+    W_sat_o   = HumRat(AirH2O, h=out.h, P=in.P, R=1)
+    out.W     = 0.5 * (in.W + W_sat_o - sqrt((in.W - W_sat_o)^2 + 1e-12))
+  END
+END
+
+// ── Cabin / air-handling set (Wave 2) ──────────────────────────────────────
+
+// Blower: fixed pressure rise dP with motor+aero inefficiency heating the
+// stream (shaft power = V̇·ΔP/η, all of it ends up in the air).
+COMPONENT MoistAirFan(in, out)
+  PARAM dP, eta, domain$ = moistair
+  out.mdot = in.mdot
+  out.W    = in.W
+  out.P    = in.P + dP
+  T_in     = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+  v_in     = Volume(AirH2O, T=T_in, P=in.P, W=in.W)
+  out.h    = in.h + v_in * dP / eta
+  W_el     = in.mdot * v_in * dP / eta
+END
+
+// Diverting damper: routes fraction u of the air to outa, the rest to outb
+// (both riders carried).
+COMPONENT MoistAirDamper(in, outa, outb)
+  PARAM u, domain$ = moistair
+  outa.P    = in.P
+  outb.P    = in.P
+  outa.h    = in.h
+  outb.h    = in.h
+  outa.W    = in.W
+  outb.W    = in.W
+  outa.mdot = u * in.mdot
+  outb.mdot = (1 - u) * in.mdot
+END
+
+// Adiabatic evaporative cooler: constant-enthalpy humidification toward
+// saturation with effectiveness eff (eff=1 reaches the adiabatic-saturation
+// state, W directly from the (h, P, R=1) property call — no implicit outlet
+// temperature to iterate).
+COMPONENT EvaporativeCooler(in, out)
+  PARAM eff, domain$ = moistair
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h
+  W_sat    = HumRat(AirH2O, h=in.h, P=in.P, R=1)
+  out.W    = in.W + eff * (W_sat - in.W)
+END
+
+// Cabin zone: a perfectly-mixed air volume Vz with temperature and humidity
+// STATES, occupant sensible/moisture loads, a solar/auxiliary heat input, and
+// a wall heat port (couple it to ThermalMass walls or an evaporator AirCoil).
+// Ventilation air flows through (in → out at the zone state).
+COMPONENT CabinZone(in, out, wall)
+  PARAM Vz, T0, W0, n_occ, q_sens, mw_occ, Q_aux, domain$ = moistair
+  out.mdot  = in.mdot
+  out.P     = in.P
+  out.W     = Wz
+  out.h     = Enthalpy(AirH2O, T=Tz, P=in.P, W=Wz)
+  v_z       = Volume(AirH2O, T=Tz, P=in.P, W=Wz)
+  cp_z      = Cp(AirH2O, T=Tz, P=in.P, W=Wz)
+  m_air     = Vz / v_z
+  der(Wz)   = (in.mdot * (in.W - Wz) + n_occ * mw_occ) / m_air
+  init(Wz)  = W0
+  der(Tz)   = (in.mdot * (in.h - out.h) + n_occ * q_sens + Q_aux + wall.Qdot) / (m_air * cp_z)
+  init(Tz)  = T0
+  wall.T    = Tz
+END
+
+
+// ── Electrochemistry & energy systems (Wave 8) ──────────────────────────────
+
+// Membrane humidifier: effectiveness exchange of BOTH enthalpy and moisture
+// between a wet (cathode exhaust) and a dry (supply) stream; water and energy
+// balances close exactly on the dry-air basis.
+COMPONENT MembraneHumidifier(dry_in, dry_out, wet_in, wet_out)
+  PARAM eff_h, eff_w, domain$ = moistair
+  dry_out.mdot = dry_in.mdot
+  wet_out.mdot = wet_in.mdot
+  dry_out.P    = dry_in.P
+  wet_out.P    = wet_in.P
+  dry_out.W    = dry_in.W + eff_w * (wet_in.W - dry_in.W)
+  dry_out.h    = dry_in.h + eff_h * (wet_in.h - dry_in.h)
+  wet_out.W    = wet_in.W - (dry_in.mdot / wet_in.mdot) * (dry_out.W - dry_in.W)
+  wet_out.h    = wet_in.h - (dry_in.mdot / wet_in.mdot) * (dry_out.h - dry_in.h)
+END
+
+
+// ── HVAC, buildings & process-lite (Wave 9) ─────────────────────────────────
+
+// Humid-air duct: Darcy friction pressure drop on the total (moist) mass flow;
+// composition and enthalpy pass through.
+COMPONENT MoistAirDuct(in, out)
+  PARAM L, D, rough, mu_a, domain$ = moistair
+  out.mdot = in.mdot
+  out.W    = in.W
+  out.h    = in.h
+  rho      = 1 / Volume(AirH2O, h=in.h, P=in.P, W=in.W)
+  A        = pi# / 4 * D^2
+  V        = in.mdot * (1 + in.W) / (rho * A)
+  Re_d     = reynolds(rho, V, D, mu_a)
+  f        = friction_factor(Re_d, rough / D)
+  out.P    = in.P - f * (L / D) * rho * V^2 / 2
+END
+
+// Air filter: quadratic loss with a fouling multiplier (foul = 1 clean; scale
+// it up as the filter loads — fan-energy studies).
+COMPONENT AirFilter(in, out)
+  PARAM K, foul, domain$ = moistair
+  out.mdot = in.mdot
+  out.W    = in.W
+  out.h    = in.h
+  out.P    = in.P - foul * K * in.mdot^2
+END
+
+// Diffuser/recovery section: converts velocity head to static pressure with a
+// recovery efficiency between inlet area A1 and outlet area A2.
+COMPONENT Diffuser(in, out)
+  PARAM A1, A2, eta_rec, domain$ = moistair
+  out.mdot = in.mdot
+  out.W    = in.W
+  out.h    = in.h
+  rho      = 1 / Volume(AirH2O, h=in.h, P=in.P, W=in.W)
+  V1       = in.mdot * (1 + in.W) / (rho * A1)
+  out.P    = in.P + eta_rec * 0.5 * rho * V1^2 * (1 - (A1 / A2)^2)
+END
+
+// VAV terminal box: a flow-determining (R) element — the damper command sets
+// the supply flow directly (u in 0..1 of mdot_max) and the reheat command adds
+// coil heat. Like a speed source, it imposes flow and leaves the pressures to
+// the neighbouring plenum/zone volumes.
+COMPONENT VAVBox(in, out, u, ur)
+  PARAM mdot_max, Qr_max, domain$ = moistair
+  in.mdot  = u.sig * mdot_max
+  out.mdot = in.mdot
+  out.W    = in.W
+  out.h    = in.h + ur.sig * Qr_max / in.mdot
+END
+
+// Rotary enthalpy wheel: paired effectiveness recovery of BOTH enthalpy and
+// moisture between exhaust and supply streams; water and energy balances
+// close exactly on the dry-air basis (same exchange math as the membrane
+// humidifier, wheel-rated effectivenesses).
+COMPONENT EnthalpyWheel(sup_in, sup_out, exh_in, exh_out)
+  PARAM eff_h, eff_w, domain$ = moistair
+  sup_out.mdot = sup_in.mdot
+  exh_out.mdot = exh_in.mdot
+  sup_out.P    = sup_in.P
+  exh_out.P    = exh_in.P
+  sup_out.W    = sup_in.W + eff_w * (exh_in.W - sup_in.W)
+  sup_out.h    = sup_in.h + eff_h * (exh_in.h - sup_in.h)
+  exh_out.W    = exh_in.W - (sup_in.mdot / exh_in.mdot) * (sup_out.W - sup_in.W)
+  exh_out.h    = exh_in.h - (sup_in.mdot / exh_in.mdot) * (sup_out.h - sup_in.h)
+END
+
+// Infiltration: pressure-driven leakage path (power-law crack flow, C1-smooth
+// odd law) between two humid-air nodes — zone to ambient, zone to zone.
+COMPONENT Infiltration(in, out)
+  PARAM C_inf, n_exp, eps, domain$ = moistair
+  dP       = in.P - out.P
+  in.mdot  = C_inf * dP * (dP^2 + eps^2)^((n_exp - 1) / 2)
+  out.mdot = in.mdot
+  out.W    = in.W
+  out.h    = in.h
+END
+
+// Air-handling unit: mixing box + filter + cooling coil + reheat coil + supply
+// fan in one block (all stateless stages, replaceable by editing the source).
+COMPONENT AHU(ret_in, oa_in, sup_out)
+  PARAM Kf, foul, Tc, Qh, dPfan, eta_fan
+  MixingBox   MB()
+  AirFilter   FL(K=Kf, foul=foul)
+  CoolingCoil CC(Tout=Tc)
+  HeatingCoil HC(Q=Qh)
+  MoistAirFan FN(dP=dPfan, eta=eta_fan)
+  connect(ret_in, MB.in1)
+  connect(oa_in, MB.in2)
+  connect(MB.out, FL.in)
+  connect(FL.out, CC.in)
+  connect(CC.out, HC.in)
+  connect(HC.out, FN.in)
+  connect(FN.out, sup_out)
+END

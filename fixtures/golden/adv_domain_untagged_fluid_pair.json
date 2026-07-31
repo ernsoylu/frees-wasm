@@ -1,0 +1,17 @@
+{
+  "name": "adv_domain_untagged_fluid_pair",
+  "source": "// Two components with NO domain$ on the (P, mdot, h) bond: the untagged family\n// must be internally compatible.\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(P = 300000, h = 196421, mdot = 1.0)\nThrottle      TH()\nSink          SK()\nconnect(SRC.out, TH.in)\nconnect(TH.out, SK.in)\nm = SK.mdot\nh = SK.h\np = SK.P\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 17 equations and 18 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): sk.p. Coupled to: p, sk.in.p, th.out.p. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

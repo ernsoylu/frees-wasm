@@ -1,0 +1,13 @@
+// hasStorage() with no DYNAMIC block: der(port.T) = port.Qdot/C must take the
+// steady branch (rhs = 0) plus a warning, not integrate.
+ThermalSource S1(T = 400)
+Conduction    C1(k = 10, area = 1, L = 0.1)
+ThermalMass   M1(m1, C = 500, T0 = 300)
+Conduction    C2(k = 20, area = 1, L = 0.1)
+ThermalSource S2(T = 300)
+connect(S1.port, C1.a)
+connect(C1.b, M1.port, C2.a)
+connect(C2.b, S2.port)
+tm = M1.port.T
+q1 = C1.Q
+q2 = C2.Q

@@ -1,0 +1,43 @@
+{
+  "name": "adv_variant_default_model",
+  "source": "// model$ omitted: the PARAM default (fixed) must be selected.\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(f1, P = 500000, h = 196595, mdot = 2.0)\nValve         VA(f1, f2, Cv = 0.01, rho = 980, u = 1)\nSink          SK(f2)\ndp = f1.P - f2.P\nm  = f2.mdot\n",
+  "expect": {
+    "variables": {
+      "dp": 40.81632653059205,
+      "f1.h": 196595.0,
+      "f1.mdot": 2.0,
+      "f1.p": 500000.0,
+      "f2.h": 196595.0,
+      "f2.mdot": 2.0,
+      "f2.p": 499959.1836734694,
+      "m": 2.0,
+      "sk.h": 196595.0,
+      "sk.mdot": 2.0,
+      "sk.p": 499959.1836734694
+    },
+    "display_names": {
+      "dp": "dp",
+      "f1": "f1",
+      "f1$h": "f1.h",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$h": "f2.h",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "h": "h",
+      "m": "m",
+      "mdot": "mdot",
+      "p": "P",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,5 @@
+COMPONENT pump(in, out)
+  out.P = in.P * 2
+END
+
+P_in = 1 [bar]

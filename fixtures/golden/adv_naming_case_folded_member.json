@@ -1,0 +1,50 @@
+{
+  "name": "adv_naming_case_folded_member",
+  "source": "// Variable names are case-insensitive: PA.w must resolve to the same scalar as\n// PA.W, and s2.p to s2.P. Display names come from the first-seen spelling.\nCOMPONENT Lift(in, out)\n  PARAM v, eta\n  out.mdot = in.mdot\n  out.h    = in.h + v * (out.P - in.P) / eta\n  W        = in.mdot * (out.h - in.h)\nEND\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(s1, P = 100000, h = 112000, mdot = 1.0)\nLift          PA(s1, s2, v = 0.001, eta = 0.7)\nSink          SK(s2)\ns2.P = 250000\nlower_w = PA.w\nupper_w = PA.W\nlower_p = s2.p\n",
+  "expect": {
+    "variables": {
+      "lower_p": 250000.0,
+      "lower_w": 214.28571428571013,
+      "pa.w": 214.28571428571013,
+      "s1.h": 112000.0,
+      "s1.mdot": 1.0,
+      "s1.p": 100000.0,
+      "s2.h": 112214.28571428571,
+      "s2.mdot": 1.0,
+      "s2.p": 250000.0,
+      "sk.h": 112214.28571428571,
+      "sk.mdot": 1.0,
+      "sk.p": 250000.0,
+      "upper_w": 214.28571428571013
+    },
+    "display_names": {
+      "eta": "eta",
+      "h": "h",
+      "lower_p": "lower_p",
+      "lower_w": "lower_w",
+      "mdot": "mdot",
+      "p": "P",
+      "pa$w": "pa.w",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "upper_w": "upper_w",
+      "v": "v",
+      "w": "W"
+    },
+    "block_count": 13,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

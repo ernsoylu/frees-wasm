@@ -1,0 +1,18 @@
+{
+  "name": "components_definition_unused_beside_scalars",
+  "source": "COMPONENT pump(in, out)\n  out.P = in.P * 2\nEND\n\nP_in = 1 [bar]\n",
+  "expect": {
+    "variables": {
+      "P_in": 100000.0
+    },
+    "display_names": {
+      "p_in": "P_in"
+    },
+    "block_count": 1,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

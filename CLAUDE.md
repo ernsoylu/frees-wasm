@@ -4,21 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phases 0–5 are implemented** — the Phase-3 wasm boundary is wired, Phase 4
+**Phases 0–6 are implemented** — the Phase-3 wasm boundary is wired, Phase 4
 (differentiator, matrix, complex, procedural, tables, integrals, kernels, latex,
-solver retry ladder) is complete, and Phase 5 ports `props/` in full and gives
-the browser a **working real-fluid property backend**. A Rust workspace ports the
-frees engine to WebAssembly. **1,710 tests** green, including a **268/268**
-golden-corpus parity replay against the real Java engine; wasm 1866.6 KiB raw /
-973.6 KiB gzipped (budget 2048 KiB — **91 % used**). Solve, check, real-fluid
-properties, property diagrams and the language reference all run in-browser with
-**zero `/api/` traffic**. Phase 6 (component/connect layer) is next.
+solver retry ladder) is complete, Phase 5 ports `props/` in full and gives the
+browser a **working real-fluid property backend**, and Phase 6 ports the acausal
+**component / `connect` layer** together with the 295-component standard library
+as embedded `.frees` data. A Rust workspace ports the frees engine to
+WebAssembly. **2,055 tests** green, including a **361/361** golden-corpus parity
+replay against the real Java engine; wasm 2184.5 KiB raw / 1086.2 KiB gzipped
+(budget 3072 KiB — **71 % used**). Solve, check, real-fluid properties, property
+diagrams, component networks, the component datasheet and the language reference
+all run in-browser with **zero `/api/` traffic**. Phase 7 (`PLOT` blocks) is next.
 
 | Document | Contents |
 |---|---|
-| [`docs/status-phase5.md`](docs/status-phase5.md) | **Read first.** What Phase 5 delivers per area, the measured table-vs-CoolProp error, the true gate numbers, fixture counts, and the honest ranked list of what it did *not* deliver |
+| [`docs/status-phase6.md`](docs/status-phase6.md) | **Read first.** What Phase 6 delivers per area, the component-coverage numbers, what the component fuzz found, the true gate numbers, fixture counts, and the honest ranked list of what it did *not* deliver |
+| [`docs/status-phase5.md`](docs/status-phase5.md) | Phase 5 per area, the measured table-vs-CoolProp error, and its pending-fixture table (annotated with what Phase 6 closed) |
 | [`docs/status-phase4.md`](docs/status-phase4.md) | Phase 4 per area; its pending-fixture table is annotated with what Phase 5 closed |
-| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12), plus the Phase 0–3 inventory |
+| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12, Phase 6 items 13–14), plus the Phase 0–3 inventory |
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
@@ -30,9 +33,12 @@ properties, property diagrams and the language reference all run in-browser with
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 268 documents)
+                                       # (--release: the replay solves 361 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
-cargo test -p frees-core --test props_robustness   # the property-surface fuzz
+cargo test -p frees-core --test props_robustness       # the property-surface fuzz
+cargo test -p frees-core --test component_robustness   # the component-surface fuzz
+                                       # (run this one in DEBUG too — the stack-overflow
+                                       #  defect it found only reproduced unoptimised)
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
 cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
 cargo fmt --all --check                                 # CI gate
@@ -66,9 +72,15 @@ The property backend is **linked into the binary**: `crates/frees-core/src/props
 are copies of `fixtures/proptables/*.phtab`, `include_bytes!`d by
 `props/tables.rs` and installed on the first `solve`/`check`. Regenerating the
 tables means copying them across as well as into `fixtures/`. They are 526 KB of
-the wasm bundle's 1866.6 KiB — see
-[`docs/status-phase5.md`](docs/status-phase5.md#what-phase-5-did-not-deliver)
-item 1 before adding a third fluid.
+the wasm bundle's 2184.5 KiB — see
+[`docs/status-phase6.md`](docs/status-phase6.md#bundle-size-against-the-newly-raised-budget)
+before adding a third fluid.
+
+The **component library is also linked in**, the same way and for the same
+reason: `crates/frees-core/src/components/library-data/*.frees` is 122 KB of DSL
+text embedded with `include_str!` and parsed by the ordinary front end. It is
+**data — never hand-translate a component.** `engine.rs::expand_component_layer`
+early-returns before touching any of it when a document declares no components.
 
 Contract files (`ast.rs`, `token.rs`, `diag.rs`, `parser/mod.rs`, `units/quantity.rs`)
 define fixed interfaces; change them deliberately, not incidentally. Unsupported

@@ -1,0 +1,11 @@
+// 3-way translational node via connect: vel equal, sum f = 0.
+ForceSource FS(F = 100)
+TransGround TG()
+TransDamper D1(c = 5)
+TransDamper D2(c = 15)
+connect(FS.a, TG.port, D1.b, D2.b)
+connect(FS.b, D1.a, D2.a)
+vm = D1.a.vel
+f1 = D1.a.f
+f2 = D2.a.f
+fs = FS.b.f

@@ -1,0 +1,16 @@
+// The library Mixer flow-weights the outlet enthalpy: 1 kg/s @ 100 kJ/kg with
+// 3 kg/s @ 400 kJ/kg must give 325 kJ/kg, not 250.
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC1(f1, P = 300000, h = 100000, mdot = 1.0)
+FluidBoundary SRC2(f2, P = 300000, h = 400000, mdot = 3.0)
+Mixer         MX(f1, f2, f3)
+Sink          SK(f3)
+h1 = f1.h
+h2 = f2.h
+h3 = f3.h
+m3 = f3.mdot

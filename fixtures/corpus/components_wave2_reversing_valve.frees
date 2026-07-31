@@ -1,0 +1,29 @@
+// Four-way reversing valve routing, both modes. Cooling (mode=0): discharge d
+// goes to the outdoor coil o and the indoor return i goes to suction s.
+// Heating (mode=1): discharge goes indoors, outdoor return goes to suction.
+// EXPECT rv1.o.h = 450000
+// EXPECT rv1.o.p = 2000000
+// EXPECT rv1.s.h = 410000
+// EXPECT rv1.s.p = 400000
+// EXPECT rv1.o.mdot = 0.1
+// EXPECT rv2.i.h = 450000
+// EXPECT rv2.i.p = 2000000
+// EXPECT rv2.s.h = 410000
+TwoPhaseSourcePH D1(mdot=0.1, P=2000000, h=450000)
+TwoPhaseSourcePH I1(mdot=0.1, P=400000, h=410000)
+ReversingValve   RV1(mode=0)
+TwoPhaseSink     O1()
+TwoPhaseSink     S1()
+connect(D1.out, RV1.d)
+connect(I1.out, RV1.i)
+connect(RV1.o, O1.in)
+connect(RV1.s, S1.in)
+TwoPhaseSourcePH D2(mdot=0.1, P=2000000, h=450000)
+TwoPhaseSourcePH O2S(mdot=0.1, P=400000, h=410000)
+ReversingValve   RV2(mode=1)
+TwoPhaseSink     I2()
+TwoPhaseSink     S2()
+connect(D2.out, RV2.d)
+connect(O2S.out, RV2.o)
+connect(RV2.i, I2.in)
+connect(RV2.s, S2.in)

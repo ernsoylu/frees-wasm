@@ -1,0 +1,31 @@
+{
+  "name": "components_signal_harness_smoke",
+  "source": "// Harness smoke fixture: a chained user-defined signal circuit with hand-derived\n// values (2 -> x3 -> x5 = 30) plus a broadcast node.\n// EXPECT g1.in.sig = 2\n// EXPECT g2.out.sig = 30\n// EXPECT b.out.sig = 10 tol 1e-9\nCOMPONENT KConst(out)\n  PARAM k\n  out.sig = k\nEND\nCOMPONENT KGain(in, out)\n  PARAM k\n  out.sig = k * in.sig\nEND\nKConst SRC(k=2)\nKGain  G1(k=3)\nKGain  G2(k=5)\nKGain  B(k=5)\nconnect(SRC.out, G1.in, B.in)\nconnect(G1.out, G2.in)\n",
+  "expect": {
+    "variables": {
+      "b.in.sig": 2.0,
+      "b.out.sig": 10.0,
+      "g1.in.sig": 2.0,
+      "g1.out.sig": 6.0,
+      "g2.in.sig": 6.0,
+      "g2.out.sig": 30.0,
+      "src.out.sig": 2.0
+    },
+    "display_names": {
+      "b$in$sig": "b.in.sig",
+      "b$out$sig": "b.out.sig",
+      "g1$in$sig": "g1.in.sig",
+      "g1$out$sig": "g1.out.sig",
+      "g2$in$sig": "g2.in.sig",
+      "g2$out$sig": "g2.out.sig",
+      "k": "k",
+      "src$out$sig": "src.out.sig"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

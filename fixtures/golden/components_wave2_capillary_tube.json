@@ -1,0 +1,58 @@
+{
+  "name": "components_wave2_capillary_tube",
+  "source": "// Capillary tube power-law rating with the flashing clamp, replicated from\n// independent property calls.\n// EXPECT d_law = 0 tol 1e-8\nCOMPONENT PHSupply2(out)\n  PARAM P, h, domain$ = twophase\n  out.P = P\n  out.h = h\nEND\nhsub = Enthalpy(R134a, P=1000000, x=0)\nPHSupply2            SC(P=1200000, h=hsub)\nCapillaryTube        CT(fluid$=R134a, C=1e-7, n=0.5)\nTwoPhasePressureSink KC(P=300000)\nconnect(SC.out, CT.in)\nconnect(CT.out, KC.in)\nT_chk  = Temperature(R134a, P=1200000, h=hsub)\nPf_chk = P_sat(R134a, T=T_chk)\nd_law  = CT.in.mdot - 1e-7 * (1200000 - Pf_chk)^0.5\n",
+  "expect": {
+    "variables": {
+      "Pf_chk": 1000626.6517032181,
+      "T_chk": 312.5608960563643,
+      "ct.dp_eff": 199373.34829678189,
+      "ct.in.h": 255495.85605985517,
+      "ct.in.mdot": 4.465124279309389E-5,
+      "ct.in.p": 1200000.0,
+      "ct.out.h": 255495.85605985517,
+      "ct.out.mdot": 4.465124279309389E-5,
+      "ct.out.p": 300000.0,
+      "ct.pf": 1000626.6517032181,
+      "ct.t_in": 312.5608960563643,
+      "d_law": 0.0,
+      "hsub": 255495.85605985517,
+      "kc.in.h": 255495.85605985517,
+      "kc.in.mdot": 4.465124279309389E-5,
+      "kc.in.p": 300000.0,
+      "sc.out.h": 255495.85605985517,
+      "sc.out.mdot": 4.465124279309389E-5,
+      "sc.out.p": 1200000.0
+    },
+    "display_names": {
+      "ct$dp_eff": "ct.dp_eff",
+      "ct$in$h": "ct.in.h",
+      "ct$in$mdot": "ct.in.mdot",
+      "ct$in$p": "ct.in.p",
+      "ct$out$h": "ct.out.h",
+      "ct$out$mdot": "ct.out.mdot",
+      "ct$out$p": "ct.out.p",
+      "ct$pf": "ct.pf",
+      "ct$t_in": "ct.t_in",
+      "d_law": "d_law",
+      "h": "h",
+      "hsub": "hsub",
+      "kc$in$h": "kc.in.h",
+      "kc$in$mdot": "kc.in.mdot",
+      "kc$in$p": "kc.in.p",
+      "p": "P",
+      "pf_chk": "Pf_chk",
+      "r134a": "R134a",
+      "sc$out$h": "sc.out.h",
+      "sc$out$mdot": "sc.out.mdot",
+      "sc$out$p": "sc.out.p",
+      "t_chk": "T_chk",
+      "twophase": "twophase"
+    },
+    "block_count": 19,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

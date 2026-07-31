@@ -1,0 +1,22 @@
+// PVSingleDiode held at 0.5 V (negligible Rs/Rsh): the diode term subtracts
+// 1e-9*(e^10 - 1) = 2.2e-5 from the 6 A photocurrent. MPPT reads the Vmp map.
+// EXPECT i_pv = 5.999978 tol 1e-5
+// EXPECT v_cmd = 30 tol 1e-9
+
+SigConstant   SUN(k=1000)
+VoltageSource HOLD(E=0.5)
+Ground        G1()
+PVSingleDiode PV(Isc_ref=6, Gref=1000, I0d=1e-9, n_d=1.934236, Vt=0.02585, Rs=1e-9, Rsh=1e9)
+connect(PV.p, HOLD.p)
+connect(PV.n, HOLD.n, G1.port)
+connect(SUN.out, PV.G)
+i_pv = -PV.p.I
+
+TABLE vmp(g)
+  0     30
+  2000  30
+END
+SigConstant SUN2(k=800)
+MPPTBlock   MPPT(vmp$=vmp)
+connect(SUN2.out, MPPT.G)
+v_cmd = MPPT.out.sig

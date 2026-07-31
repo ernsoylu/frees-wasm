@@ -1,0 +1,17 @@
+// Domain family: AC / vapour-compression accessories (ac.frees). EXV and EXVCmd
+// are the two leaf components of that file that need no humid-air backend; the
+// signal-driven one also crosses the SIGNAL domain into the twophase bond,
+// which is exactly the multi-domain case the connect rules must keep separate.
+TwoPhaseSourcePH SA(c1, mdot = 0.04, P = 1000000, h = 260000)
+EXV              XV(c1, c2, fluid$ = R134a, CdA_max = 5e-6, u = 0.8)
+TwoPhaseSink     KA(c2)
+
+TwoPhaseSourcePH SB(d1, mdot = 0.04, P = 1000000, h = 260000)
+SigConstant      CMD(u1, k = 0.8)
+EXVCmd           XC(d1, d2, u1, fluid$ = R134a, CdA_max = 5e-6)
+TwoPhaseSink     KB(d2)
+
+rho_xv = XV.rho_in
+dp_xv  = c1.P - c2.P
+rho_xc = XC.rho_in
+u_cmd  = u1.sig

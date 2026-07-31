@@ -1,0 +1,16 @@
+// 3-way heat node: every T equal, sum of Qdot zero.
+ThermalSource S1(T = 400)
+Conduction    C1(k = 10, area = 1, L = 0.1)
+Conduction    C2(k = 20, area = 1, L = 0.1)
+Conduction    C3(k = 30, area = 1, L = 0.1)
+ThermalSource S2(T = 300)
+ThermalSource S3(T = 350)
+ThermalSource S4(T = 320)
+connect(S1.port, C1.a)
+connect(C1.b, C2.a, C3.a)
+connect(C2.b, S2.port)
+connect(C3.b, S3.port)
+q1 = C1.Q
+q2 = C2.Q
+q3 = C3.Q
+tm = C1.b.T

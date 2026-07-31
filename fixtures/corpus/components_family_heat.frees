@@ -1,0 +1,25 @@
+// Domain family: HEAT (heat.frees). Across T, flow Qdot; a connect node
+// equates every T and sums every Qdot to zero.
+// 1000 W/K conduction in series with 5 W/K convection, 400 K to 300 K.
+ThermalSource HOT(T = 400)
+Conduction    CD(k = 50, area = 0.2, L = 0.01)
+Convection    CV(htc = 25, area = 0.2)
+ThermalSource COLD(T = 300)
+ThermalSensor TS()
+connect(HOT.port, CD.a)
+connect(CD.b, CV.a, TS.port)
+connect(CV.b, COLD.port)
+q_wall = CD.Q
+t_mid  = TS.T_meas
+
+// control.frees ships exactly one component, the PI thermostat, and it belongs
+// to this bond. It declares der(integ), so with no DYNAMIC block the engine
+// solves the steady operating point: der -> 0 makes the error zero, which is
+// the statement that the controlled node sits at Tref.
+ThermalSource SRC2(T = 350)
+Conduction    CD2(k = 10, area = 0.1, L = 0.02)
+PIThermostat  PI(Kp = 20, Ki = 5, Tref = 310)
+connect(SRC2.port, CD2.a)
+connect(CD2.b, PI.port)
+t_ctrl = PI.port.T
+q_ctrl = PI.port.Qdot

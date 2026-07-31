@@ -1,0 +1,33 @@
+// E3 — species vector rider: octane combustion products through a mixer with
+// fresh dilution air; every species mass must conserve exactly through the
+// chain (combustor stoichiometry by hand, mixer flow-weighting replicas).
+// EXPECT yco2_cmb = 0.0605435 tol 1e-6
+// EXPECT o2_mix_res = 0 tol 1e-12
+// EXPECT co2_mix_res = 0 tol 1e-12
+// EXPECT h2o_mix_res = 0 tol 1e-12
+// EXPECT n2_mix_res = 0 tol 1e-12
+
+time = 0
+CombustorSpecies CMB(a1, a2, mdot_f=0.01, LHV=44.4e6, eta_b=0.98, dP=3000, xC=8, yH=18)
+a1.P = 400000
+a1.h = 420000
+a1.mdot = 0.5
+a1.yo2 = 0.232
+a1.yco2 = 0
+a1.yh2o = 0
+a1.yn2 = 0.768
+
+GasMixerN MIX(a2, d1, m1)
+d1.P = 397000
+d1.h = 300000
+d1.mdot = 0.3
+d1.yo2 = 0.232
+d1.yco2 = 0
+d1.yh2o = 0
+d1.yn2 = 0.768
+
+yco2_cmb    = a2.yco2
+o2_mix_res  = m1.mdot * m1.yo2  - (a2.mdot * a2.yo2  + 0.3 * 0.232)
+co2_mix_res = m1.mdot * m1.yco2 - (a2.mdot * a2.yco2 + 0)
+h2o_mix_res = m1.mdot * m1.yh2o - (a2.mdot * a2.yh2o + 0)
+n2_mix_res  = m1.mdot * m1.yn2  - (a2.mdot * a2.yn2  + 0.3 * 0.768)

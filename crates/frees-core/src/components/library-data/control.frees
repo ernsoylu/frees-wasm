@@ -1,0 +1,7 @@
+COMPONENT PIThermostat(port)
+  PARAM Kp, Ki, Tref
+  err         = Tref - port.T
+  der(integ)  = err
+  init(integ) = 0
+  port.Qdot   = -(Kp * err + Ki * integ)
+END

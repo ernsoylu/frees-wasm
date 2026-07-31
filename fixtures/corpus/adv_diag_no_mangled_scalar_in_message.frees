@@ -1,0 +1,7 @@
+// A residual failure inside a component: the diagnostic must name the
+// COMPONENT and quote its source line, never a mangled `f1$p` scalar.
+Source SRC(f1, fluid$ = Water, mdot = 2.0, P = 100000, T = 320)
+Valve  VA(f1, f2, Cv = 0.01, rho = -980, u = 1, model$ = fixed)
+Sink   SK(f2)
+f2.P = 500000
+m = f2.mdot

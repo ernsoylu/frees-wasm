@@ -1,0 +1,4 @@
+// Two instances with the same name.
+ThermalSource HOT(T = 400)
+ThermalSource HOT(T = 300)
+t = HOT.port.T

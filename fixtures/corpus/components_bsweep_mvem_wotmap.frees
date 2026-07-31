@@ -1,0 +1,19 @@
+// WOT-map engine against the parabolic twin: at w = 200 rad/s the parabola
+// gives T_wot = 200*(1 - ((200-300)/300)^2) = 177.77778; the table is built so
+// linear interpolation at 200 reproduces exactly that -> identical shaft torque.
+// EXPECT d_tau = 0 tol 1e-4
+TABLE wot(w)
+  100   155.55556
+  300   200
+END
+SpeedSource     SS1(w=200)
+MechGround      G1()
+MeanValueEngine E1(model$=parabolic, throttle=0.6, Tpeak=200, w_peak=300, FMEP_a=5, FMEP_b=0.02)
+connect(SS1.a, E1.shaft)
+connect(SS1.b, G1.port)
+SpeedSource     SS2(w=200)
+MechGround      G2()
+MeanValueEngine E2(model$=wotmap, throttle=0.6, map_wot$=wot, FMEP_a=5, FMEP_b=0.02)
+connect(SS2.a, E2.shaft)
+connect(SS2.b, G2.port)
+d_tau = E1.shaft.tau - E2.shaft.tau

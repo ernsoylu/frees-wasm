@@ -1,0 +1,3 @@
+COMPONENT p(a)
+  a.T = 1
+END

@@ -1,0 +1,10 @@
+// Fluid node with TWO inflows and one outflow, formed by connect (not by the
+// Mixer component): does the node itself flow-weight the enthalpy?
+Source SRC1(fluid$ = Water, mdot = 1.0, P = 300000, T = 300)
+Source SRC2(fluid$ = Water, mdot = 3.0, P = 300000, T = 360)
+Sink   SK()
+connect(SRC1.out, SRC2.out, SK.in)
+h1 = SRC1.out.h
+h2 = SRC2.out.h
+h3 = SK.in.h
+m3 = SK.in.mdot

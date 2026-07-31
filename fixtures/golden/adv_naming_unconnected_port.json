@@ -1,0 +1,34 @@
+{
+  "name": "adv_naming_unconnected_port",
+  "source": "// A dangling port: does the flow variable exist, and is it zero or absent?\nThermalSource HOT(T = 400)\nConduction    CD(k = 10, area = 1, L = 0.1)\nThermalSource FREE(T = 320)\nconnect(HOT.port, CD.a)\nCD.b.T = 300\nq = CD.Q\n",
+  "expect": {
+    "variables": {
+      "cd.a.qdot": 10000.0,
+      "cd.a.t": 400.0,
+      "cd.b.qdot": -10000.0,
+      "cd.b.t": 300.0,
+      "cd.q": 10000.0,
+      "free.port.t": 320.0,
+      "hot.port.qdot": -10000.0,
+      "hot.port.t": 400.0,
+      "q": 10000.0
+    },
+    "display_names": {
+      "cd$a$qdot": "cd.a.qdot",
+      "cd$a$t": "cd.a.t",
+      "cd$b$qdot": "cd.b.qdot",
+      "cd$b$t": "cd.b.t",
+      "cd$q": "cd.q",
+      "free$port$t": "free.port.t",
+      "hot$port$qdot": "hot.port.qdot",
+      "hot$port$t": "hot.port.t",
+      "q": "q"
+    },
+    "block_count": 9,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

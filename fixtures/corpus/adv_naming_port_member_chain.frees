@@ -1,0 +1,9 @@
+// INST.port.member — a two-level access through a declared port name.
+ThermalSource HOT(T = 400)
+Conduction    CD(k = 50, area = 0.2, L = 0.01)
+ThermalSource COLD(T = 300)
+connect(HOT.port, CD.a)
+connect(CD.b, COLD.port)
+t_a  = CD.a.T
+q_a  = CD.a.Qdot
+t_hp = HOT.port.T

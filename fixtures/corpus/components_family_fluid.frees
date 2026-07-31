@@ -1,0 +1,14 @@
+// Domain family: FLUID / thermofluid (fluid.frees). Across P, flow mdot, plus
+// the convective rider h. Water is one of the two tabulated fluids.
+Source     SRC(f1, fluid$ = Water, mdot = 2.5, P = 300000, T = 320)
+FlowSensor FS(f1, f2)
+Splitter   SP(f2, f3, f4)
+Valve      VA(f3, f5, Cv = 0.004, rho = 990, u = 1, model$ = fixed)
+Valve      VB(f4, f6, Cv = 0.004, rho = 990, u = 1, model$ = fixed)
+Mixer      MX(f5, f6, f7)
+Sink       SK(f7)
+
+f3.mdot   = 1.5
+mdot_meas = FS.mdot_meas
+h_out     = SK.h
+p_out     = SK.P

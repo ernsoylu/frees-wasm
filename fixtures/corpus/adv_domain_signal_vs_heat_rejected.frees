@@ -1,0 +1,5 @@
+// A signal port (sig) connected to a heat port (T, Qdot) must fail.
+SigConstant   K1(s1, k = 5)
+ThermalSource HOT(T = 400)
+connect(K1.out, HOT.port)
+t = HOT.port.T

@@ -1,0 +1,17 @@
+{
+  "name": "components_definition_without_instance",
+  "source": "COMPONENT p(a)\n  a.T = 1\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

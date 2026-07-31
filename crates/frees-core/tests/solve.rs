@@ -438,32 +438,105 @@ fn a_square_but_singular_system_is_refused() {
 // Unsupported constructs
 // ---------------------------------------------------------------------------
 
-/// A wrong answer is worse than a refusal: every block form the port has not
+/// A wrong answer is worse than a refusal: every construct the port has not
 /// reached is named explicitly rather than skipped.
+///
+/// Since Phase 6 a `COMPONENT` both **parses and expands**, so the refusal that
+/// used to live here is gone. What replaces it is the reference engine's own
+/// answer to each of the three component forms — the *un*instantiated template
+/// contributes nothing and the document is empty, which is a solver verdict.
 #[test]
-fn an_unsupported_component_block_is_refused_by_name() {
-    let err = failed("COMPONENT pump\n  P_out = P_in * 2\nEND\n\nP_in = 1 [bar]\n");
-    assert!(matches!(err, FreesError::Parse { .. }), "{err:?}");
+fn a_component_layer_answers_like_the_reference_engine() {
+    // A template nobody instantiates contributes no equations and must not
+    // disturb the rest of the document: Java solves this and answers
+    // `P_in = 100000.0`, and so does this port.
+    let solution = solved("COMPONENT pump(in, out)\n  out.P = in.P * 2\nEND\n\nP_in = 1 [bar]\n");
+    assert_eq!(keys(&solution.values), vec!["p_in"]);
+    assert_near(get(&solution, "p_in"), 100_000.0);
 
-    let text = message(&err);
-    assert!(text.contains("COMPONENT"), "{text}");
-    assert!(text.contains("not supported"), "{text}");
-    // Source-mapped: it points at the offending construct.
-    let span = err.span().expect("unsupported constructs carry a span");
-    assert_eq!(span.start, 0);
-    assert!(span.end > span.start);
+    // With nothing else in the document there is genuinely nothing to solve,
+    // and that is a solver verdict, not a parse one (oracle-checked, message
+    // included).
+    let err = failed("COMPONENT pump(in, out)\n  out.P = in.P * 2\nEND\n");
+    assert!(matches!(err, FreesError::Solver { .. }), "{err:?}");
+    assert_eq!(message(&err), "No equations to solve.");
+
+    // An instantiation missing a required parameter is refused at expansion
+    // time by name; the library ships no defaults for physical inputs.
+    let err = failed("Pump P1(s1, s2)\nx = 1\n");
+    assert!(matches!(err, FreesError::Parse { .. }), "{err:?}");
+    assert_eq!(
+        message(&err),
+        "Component 'p1' (pump): parameter 'eta' has no value \
+         (give it a default or pass eta=value)."
+    );
+
+    // A `connect` naming something that is neither a port nor a stream quotes
+    // the declaration back.
+    let err = failed("connect(a.out, b.in)\nx = 1\n");
+    assert!(matches!(err, FreesError::Parse { .. }), "{err:?}");
+    assert!(
+        message(&err)
+            .starts_with("connect(...): 'a.out' is not a port (instance.port) or a stream name."),
+        "{}",
+        message(&err)
+    );
+}
+
+/// The end-to-end shape: a built-in instantiated, wired with `connect`, and
+/// solved through the ordinary Newton/Tarjan path.
+#[test]
+fn a_component_network_solves_through_the_ordinary_pipeline() {
+    let solution = solved(
+        "VoltageSource V1(E = 12)\n\
+         Resistor      R1(R = 10)\n\
+         Resistor      R2(R = 20)\n\
+         Ground        G1()\n\
+         connect(V1.p, R1.a)\n\
+         connect(R1.b, R2.a)\n\
+         connect(R2.b, V1.n, G1.port)\n",
+    );
+    assert_near(get(&solution, "r1$b$v"), 8.0);
+    assert_near(get(&solution, "r1$a$i"), 0.4);
+    // The block listing quotes component bodies and connect nodes by name, never
+    // a mangled scalar — the parent engine's diagnostics invariant.
+    let texts: Vec<&str> = solution
+        .block_equations
+        .iter()
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    assert!(
+        texts
+            .iter()
+            .any(|t| t.starts_with("COMPONENT resistor r1: ")),
+        "{texts:?}"
+    );
+    assert!(texts.iter().any(|t| t.starts_with("CONNECT ")), "{texts:?}");
+}
+
+#[test]
+fn an_unported_block_form_is_source_mapped() {
+    let err = failed("x = 1\nPLOT 'speed'\n  kind = xy\nEND\n");
+    let span = err.span().expect("a refused block form carries a span");
+    assert_eq!(
+        span.line_col("x = 1\nPLOT 'speed'\n  kind = xy\nEND\n"),
+        (2, 1)
+    );
 }
 
 #[test]
 fn every_unported_block_form_is_refused_by_its_own_name() {
     // FUNCTION/PROCEDURE/MODULE/TABLE parse into `Document::defs` since the
-    // Phase-4 procedural pass and are no longer refused here.
+    // Phase-4 procedural pass and are no longer refused here; COMPONENT parses
+    // into `Document::components` and *expands* since Phase 6, so it is not a
+    // refusal of any kind — see
+    // `a_component_layer_answers_like_the_reference_engine`.
     for (source, construct) in [
         ("PLOT 'speed'\n  kind = xy\nEND\n", "PLOT"),
         ("DYNAMIC d(method = ode45)\n  der = 1\nEND\n", "DYNAMIC"),
         ("LINEARIZE plant(block = w)\n  INPUT q\nEND\n", "LINEARIZE"),
         ("PARAMETRIC table\nEND\n", "PARAMETRIC"),
-        ("COMPONENT c\nEND\n", "COMPONENT"),
     ] {
         let err = failed(source);
         assert!(
@@ -484,15 +557,31 @@ fn every_unported_block_form_is_refused_by_its_own_name() {
 /// than an `Err` — the refusal is data the editor can render.
 #[test]
 fn check_refuses_an_unsupported_construct_too() {
-    let report = check("COMPONENT pump\nEND\n").unwrap();
+    let report = check("PLOT 'speed'\n  kind = xy\nEND\n").unwrap();
     assert!(!report.solvable);
-    assert!(report.message.contains("COMPONENT"), "{}", report.message);
+    assert!(report.message.contains("PLOT"), "{}", report.message);
     assert!(
         report.message.starts_with("Syntax error: "),
         "{}",
         report.message
     );
     assert_eq!(report.error_line, Some(1));
+
+    // A `COMPONENT` document is no longer refused: `check` runs the same
+    // expansion `solve` does, so an instantiated network reports its expanded
+    // equation/variable balance and is solvable.
+    let report = check(
+        "VoltageSource V1(E = 12)\n\
+         Resistor      R1(R = 10)\n\
+         Ground        G1()\n\
+         connect(V1.p, R1.a)\n\
+         connect(R1.b, V1.n, G1.port)\n",
+    )
+    .unwrap();
+    assert!(report.solvable, "{}", report.message);
+    assert_eq!(report.equation_count, report.unknown_count);
+    assert!(report.equation_count >= 10, "{}", report.message);
+    assert_eq!(report.error_line, None);
 }
 
 /// `CALL` parses (it is a `Statement`, not a block) and flattens through the

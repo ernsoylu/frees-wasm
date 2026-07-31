@@ -1,0 +1,108 @@
+// Air-conditioning / refrigeration application package (Phase AC) — ready
+// components built ON the twophase standard library, kept in their own namespace.
+// The cross-domain heat-exchanger bridges are HIERARCHICAL: a refrigerant-side
+// moving-boundary half (twophase) and a secondary-side half (liquid / moist air)
+// are separate single-domain sub-instances coupled through a shared WALL heat
+// node — never a direct cross-domain connect (the §2.4 rule). This also sidesteps
+// per-port connector typing: each leaf carries its own domain$.
+
+// EV chiller: refrigerant evaporates against a liquid coolant loop (battery
+// chiller). ref_in/ref_out are twophase; cool_in/cool_out are liquid.
+COMPONENT Chiller(ref_in, ref_out, cool_in, cool_out)
+  PARAM ref$, cool$, U_tp, U_sh, D, L, eps_zone, UA_cool
+  MovingBoundaryEvaporator EV(fluid$=ref$, U_tp=U_tp, U_sh=U_sh, D=D, L=L, eps_zone=eps_zone)
+  LiquidWallHX CL(fluid$=cool$, UA=UA_cool)
+  connect(ref_in, EV.in)
+  connect(EV.out, ref_out)
+  connect(cool_in, CL.in)
+  connect(CL.out, cool_out)
+  connect(EV.wall, CL.wall)
+END
+
+// Electronic expansion valve: a signal-controlled opening fraction u∈[0,1] scales
+// the orifice CdA. Isenthalpic, flashing-valid, odd-symmetric through zero — the
+// controllable counterpart of the passive TwoPhaseExpansionValve.
+COMPONENT EXV(in, out)
+  PARAM fluid$, CdA_max, u, domain$ = twophase
+  out.mdot = in.mdot
+  out.h    = in.h
+  rho_in   = Density(fluid$, P=in.P, h=in.h)
+  in.mdot * abs(in.mdot) = (u * CdA_max)^2 * 2 * rho_in * (in.P - out.P)
+END
+
+// Air coil: refrigerant evaporates against moist air, with sensible + latent
+// (dehumidification) duty. ref_in/ref_out are twophase; air_in/air_out are
+// moist air. Wet-coil moist-air half coupled to the refrigerant evaporator
+// through a shared wall node.
+COMPONENT AirCoil(ref_in, ref_out, air_in, air_out)
+  PARAM ref$, U_tp, U_sh, D, L, eps_zone, eps_air
+  MovingBoundaryEvaporator EV(fluid$=ref$, U_tp=U_tp, U_sh=U_sh, D=D, L=L, eps_zone=eps_zone)
+  MoistAirWallHX AC(eps=eps_air)
+  connect(ref_in, EV.in)
+  connect(EV.out, ref_out)
+  connect(air_in, AC.in)
+  connect(AC.out, air_out)
+  connect(EV.wall, AC.wall)
+END
+
+// Thermostatic expansion valve (TXV): a quasi-static opening that targets a set
+// superheat, governed by TWO first-order states — a bulb thermal lag (the bulb
+// senses the evaporator-outlet superheat through tau_bulb) and a valve-opening
+// lag (the area relaxes toward the quasi-static target through tau_valve). A
+// static map alone cannot produce hunting/hysteresis; these two lags capture the
+// dominant dynamics at the frEES band (§4.4). bulb is a heat (sensing) port.
+COMPONENT TXV(in, out, bulb)
+  PARAM fluid$, Kv, SH_set, CdA0, tau_valve, tau_bulb, domain$ = twophase
+  out.mdot   = in.mdot
+  out.h      = in.h
+  bulb.Qdot  = 0
+  Tsat       = T_sat(fluid$, P=out.P)
+  SH_sensed  = bulb.T - Tsat
+  der(SH_b)  = (SH_sensed - SH_b) / tau_bulb
+  init(SH_b) = SH_set
+  CdA_t      = CdA0 + Kv * (SH_b - SH_set)
+  der(CdA)   = (CdA_t - CdA) / tau_valve
+  init(CdA)  = CdA0
+  rho_in     = Density(fluid$, P=in.P, h=in.h)
+  in.mdot * abs(in.mdot) = CdA^2 * 2 * rho_in * (in.P - out.P)
+END
+
+// Signal-commanded EXV: identical orifice physics to EXV, but the opening
+// fraction arrives on a signal port `u` (u.sig ∈ [0,1]) so a controller
+// (SigPID, SigTable schedule, …) can drive it in closed loop.
+COMPONENT EXVCmd(in, out, u)
+  PARAM fluid$, CdA_max, domain$ = twophase
+  out.mdot = in.mdot
+  out.h    = in.h
+  rho_in   = Density(fluid$, P=in.P, h=in.h)
+  in.mdot * abs(in.mdot) = (u.sig * CdA_max)^2 * 2 * rho_in * (in.P - out.P)
+END
+
+// Radiator: coolant rejects heat to ambient moist air through a shared wall
+// node (hierarchical single-domain halves, per the §2.4 rule). Sized by the
+// coolant-side UA and an air-side effectiveness; UA from the hx correlation
+// functions for a geometry-resolved rating.
+COMPONENT Radiator(cool_in, cool_out, air_in, air_out)
+  PARAM cool$, UA_cool, eps_air
+  LiquidWallHX   CL(fluid$=cool$, UA=UA_cool)
+  MoistAirWallHX AR(model$=eps_t, eps=eps_air)
+  connect(cool_in, CL.in)
+  connect(CL.out, cool_out)
+  connect(air_in, AR.in)
+  connect(AR.out, air_out)
+  connect(CL.wall, AR.wall)
+END
+
+// Heater core: the cabin-heating radiator — hot coolant warms the ventilation
+// air stream through the shared wall node. Same structure as Radiator, named
+// for the application (HVAC schematic clarity).
+COMPONENT HeaterCore(cool_in, cool_out, air_in, air_out)
+  PARAM cool$, UA_cool, eps_air
+  LiquidWallHX   CL(fluid$=cool$, UA=UA_cool)
+  MoistAirWallHX AR(model$=eps_t, eps=eps_air)
+  connect(cool_in, CL.in)
+  connect(CL.out, cool_out)
+  connect(air_in, AR.in)
+  connect(AR.out, air_out)
+  connect(CL.wall, AR.wall)
+END

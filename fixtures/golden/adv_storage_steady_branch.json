@@ -1,0 +1,55 @@
+{
+  "name": "adv_storage_steady_branch",
+  "source": "// hasStorage() with no DYNAMIC block: der(port.T) = port.Qdot/C must take the\n// steady branch (rhs = 0) plus a warning, not integrate.\nThermalSource S1(T = 400)\nConduction    C1(k = 10, area = 1, L = 0.1)\nThermalMass   M1(m1, C = 500, T0 = 300)\nConduction    C2(k = 20, area = 1, L = 0.1)\nThermalSource S2(T = 300)\nconnect(S1.port, C1.a)\nconnect(C1.b, M1.port, C2.a)\nconnect(C2.b, S2.port)\ntm = M1.port.T\nq1 = C1.Q\nq2 = C2.Q\n",
+  "expect": {
+    "variables": {
+      "c1.a.qdot": 6666.666666666667,
+      "c1.a.t": 400.0,
+      "c1.b.qdot": -6666.666666666667,
+      "c1.b.t": 333.3333333333333,
+      "c1.q": 6666.666666666667,
+      "c2.a.qdot": 6666.666666666667,
+      "c2.a.t": 333.3333333333333,
+      "c2.b.qdot": -6666.666666666667,
+      "c2.b.t": 300.0,
+      "c2.q": 6666.666666666667,
+      "m1.qdot": 0.0,
+      "m1.t": 333.3333333333333,
+      "q1": 6666.666666666667,
+      "q2": 6666.666666666667,
+      "s1.port.qdot": -6666.666666666667,
+      "s1.port.t": 400.0,
+      "s2.port.qdot": 6666.666666666667,
+      "s2.port.t": 300.0,
+      "tm": 333.3333333333333
+    },
+    "display_names": {
+      "c1$a$qdot": "c1.a.qdot",
+      "c1$a$t": "c1.a.t",
+      "c1$b$qdot": "c1.b.qdot",
+      "c1$b$t": "c1.b.t",
+      "c1$q": "c1.q",
+      "c2$a$qdot": "c2.a.qdot",
+      "c2$a$t": "c2.a.t",
+      "c2$b$qdot": "c2.b.qdot",
+      "c2$b$t": "c2.b.t",
+      "c2$q": "c2.q",
+      "m1": "m1",
+      "m1$qdot": "m1.qdot",
+      "m1$t": "m1.t",
+      "q1": "q1",
+      "q2": "q2",
+      "s1$port$qdot": "s1.port.qdot",
+      "s1$port$t": "s1.port.t",
+      "s2$port$qdot": "s2.port.qdot",
+      "s2$port$t": "s2.port.t",
+      "tm": "tm"
+    },
+    "block_count": 14,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

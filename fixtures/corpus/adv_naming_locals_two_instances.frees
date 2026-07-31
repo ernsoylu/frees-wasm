@@ -1,0 +1,24 @@
+// Two instances of the same component: every component-local must be mangled
+// per instance (PA.W vs PB.W) and displayed with a dot. No property call, so
+// the values are exact and the naming is the only thing under test.
+COMPONENT Lift(in, out)
+  PARAM v, eta
+  out.mdot = in.mdot
+  out.h    = in.h + v * (out.P - in.P) / eta
+  W        = in.mdot * (out.h - in.h)
+END
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(f1, P = 100000, h = 112000, mdot = 2.0)
+Lift          PA(f1, f2, v = 0.001, eta = 0.8)
+Lift          PB(f2, f3, v = 0.001, eta = 0.6)
+Sink          SK(f3)
+f2.P = 200000
+f3.P = 400000
+wa = PA.W
+wb = PB.W
+va = PA.v

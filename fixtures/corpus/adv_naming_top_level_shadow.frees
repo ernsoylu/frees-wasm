@@ -1,0 +1,20 @@
+// A top-level scalar whose name resembles a component-local mangled name:
+// `PA_W` at top level next to PA.W from the component.
+COMPONENT Lift(in, out)
+  PARAM v, eta
+  out.mdot = in.mdot
+  out.h    = in.h + v * (out.P - in.P) / eta
+  W        = in.mdot * (out.h - in.h)
+END
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(f1, P = 200000, h = 154000, mdot = 1.0)
+Lift          PA(f1, f2, v = 0.001, eta = 0.9)
+Sink          SK(f2)
+f2.P  = 300000
+PA_W  = 7
+ratio = PA.W / PA_W

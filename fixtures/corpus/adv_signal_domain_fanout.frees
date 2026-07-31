@@ -1,0 +1,11 @@
+// A signal node with one driver and three readers: signal is a broadcast
+// domain, so every member takes the same value and there is no flow sum.
+SigConstant K1(k = 2.5)
+SigGain     G1(k = 4)
+SigGain     G2(k = 10)
+SigAbs      A1()
+connect(K1.out, G1.in, G2.in, A1.in)
+g1 = G1.out.sig
+g2 = G2.out.sig
+a1 = A1.out.sig
+s  = K1.out.sig

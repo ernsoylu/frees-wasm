@@ -1,0 +1,21 @@
+// yo2/yco2/yh2o/yn2 ride a node and are flow-weighted at GasMixerN.
+GasMixerN MX(g1, g2, g3)
+g1.P = 200000
+g1.mdot = 1.0
+g1.h = 300000
+g1.yo2  = 0.21
+g1.yco2 = 0.00
+g1.yh2o = 0.01
+g1.yn2  = 0.78
+g2.P = 200000
+g2.mdot = 3.0
+g2.h = 400000
+g2.yo2  = 0.05
+g2.yco2 = 0.12
+g2.yh2o = 0.09
+g2.yn2  = 0.74
+o2  = g3.yo2
+co2 = g3.yco2
+h2o = g3.yh2o
+n2  = g3.yn2
+m3  = g3.mdot

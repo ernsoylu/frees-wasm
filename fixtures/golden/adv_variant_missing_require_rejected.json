@@ -1,0 +1,17 @@
+{
+  "name": "adv_variant_missing_require_rejected",
+  "source": "// VARIANT linear REQUIREs Cv and u; u is not supplied, so the instance must be\n// rejected with a diagnostic that names the COMPONENT, not a mangled scalar.\nSource SRC(f1, fluid$ = Water, mdot = 2.0, P = 500000, T = 320)\nValve  VA(f1, f2, Cv = 0.01, rho = 980, model$ = linear)\nSink   SK(f2)\nm = f2.mdot\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'va' (valve): parameter 'u' has no value (give it a default or pass u=value). (required by the selected 'linear' variant)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "adv_junction_translational_three_way",
+  "source": "// 3-way translational node via connect: vel equal, sum f = 0.\nForceSource FS(F = 100)\nTransGround TG()\nTransDamper D1(c = 5)\nTransDamper D2(c = 15)\nconnect(FS.a, TG.port, D1.b, D2.b)\nconnect(FS.b, D1.a, D2.a)\nvm = D1.a.vel\nf1 = D1.a.f\nf2 = D2.a.f\nfs = FS.b.f\n",
+  "expect": {
+    "variables": {
+      "d1.a.f": -25.0,
+      "d1.a.vel": -5.0,
+      "d1.b.f": 25.0,
+      "d1.b.vel": 0.0,
+      "d2.a.f": -75.0,
+      "d2.a.vel": -5.0,
+      "d2.b.f": 75.0,
+      "d2.b.vel": 0.0,
+      "f1": -25.0,
+      "f2": -75.0,
+      "fs": 100.0,
+      "fs.a.f": -100.0,
+      "fs.a.vel": 0.0,
+      "fs.b.f": 100.0,
+      "fs.b.vel": -5.0,
+      "tg.port.f": 0.0,
+      "tg.port.vel": 0.0,
+      "vm": -5.0
+    },
+    "display_names": {
+      "d1$a$f": "d1.a.f",
+      "d1$a$vel": "d1.a.vel",
+      "d1$b$f": "d1.b.f",
+      "d1$b$vel": "d1.b.vel",
+      "d2$a$f": "d2.a.f",
+      "d2$a$vel": "d2.a.vel",
+      "d2$b$f": "d2.b.f",
+      "d2$b$vel": "d2.b.vel",
+      "f1": "f1",
+      "f2": "f2",
+      "fs": "fs",
+      "fs$a$f": "fs.a.f",
+      "fs$a$vel": "fs.a.vel",
+      "fs$b$f": "fs.b.f",
+      "fs$b$vel": "fs.b.vel",
+      "tg$port$f": "tg.port.f",
+      "tg$port$vel": "tg.port.vel",
+      "vm": "vm"
+    },
+    "block_count": 14,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

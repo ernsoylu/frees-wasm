@@ -1,0 +1,23 @@
+// A VARIANT REQUIRE naming a parameter that has a PARAM default must be
+// satisfied by the default, not rejected.
+COMPONENT Sized(in, out)
+  PARAM a, b = 3, model$ = wide
+  out.mdot = in.mdot
+  out.h    = in.h
+  VARIANT wide REQUIRE a, b
+    out.P = in.P - a * b
+  END
+  VARIANT narrow REQUIRE a
+    out.P = in.P - a
+  END
+END
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(f1, P = 400000, h = 112929, mdot = 1.0)
+Sized         SZ(f1, f2, a = 1000)
+Sink          SK(f2)
+p2 = f2.P

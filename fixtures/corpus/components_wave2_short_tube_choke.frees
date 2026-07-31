@@ -1,0 +1,28 @@
+// Short-tube choking: two identical short tubes with the same subcooled feed
+// (12 bar, saturated-liquid-at-10-bar enthalpy) but DIFFERENT downstream
+// pressures (4 bar vs 2 bar) pass the SAME flow — the flow rides on
+// (P_up - Psat(T_up)), not on the evaporator pressure. The magnitude matches
+// the replicated law exactly.
+// EXPECT r_choke = 1 tol 1e-9
+// EXPECT d_law = 0 tol 1e-8
+COMPONENT PHSupply(out)
+  PARAM P, h, domain$ = twophase
+  out.P = P
+  out.h = h
+END
+hsub = Enthalpy(R134a, P=1000000, x=0)
+PHSupply             SA(P=1200000, h=hsub)
+TwoPhaseShortTube    STA(fluid$=R134a, CdA=2e-6)
+TwoPhasePressureSink KA(P=400000)
+connect(SA.out, STA.in)
+connect(STA.out, KA.in)
+PHSupply             SB(P=1200000, h=hsub)
+TwoPhaseShortTube    STB(fluid$=R134a, CdA=2e-6)
+TwoPhasePressureSink KB(P=200000)
+connect(SB.out, STB.in)
+connect(STB.out, KB.in)
+r_choke = STA.in.mdot / STB.in.mdot
+rho_chk = Density(R134a, P=1200000, h=hsub)
+T_chk   = Temperature(R134a, P=1200000, h=hsub)
+Pf_chk  = P_sat(R134a, T=T_chk)
+d_law   = STA.in.mdot - 2e-6 * sqrt(2 * rho_chk * (1200000 - Pf_chk))

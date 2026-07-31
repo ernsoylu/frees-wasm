@@ -1,0 +1,3 @@
+// An unknown component type: the diagnostic must name the type.
+Frobnicator FR(a, b, k = 1)
+x = FR.k

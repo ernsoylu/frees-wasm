@@ -1,0 +1,6 @@
+// Heat port (T, Qdot) connected to an electrical port (V, I) must HARD-FAIL.
+ThermalSource HOT(T = 400)
+Resistor      R1(a1, b1, R = 100)
+Ground        GND(b1)
+connect(HOT.port, R1.a)
+t = HOT.port.T

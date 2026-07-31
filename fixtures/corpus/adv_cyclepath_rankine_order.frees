@@ -1,0 +1,16 @@
+// A closed loop of four fluid components: the cycle path resolver must order
+// them around the loop.
+Source     SRC(s1, fluid$ = Water, mdot = 1.0, P = 100000, T = 320)
+Pump       PU(s1, s2, eta = 0.75, fluid$ = Water)
+Boiler     BO(s2, s3)
+Turbine    TU(s3, s4, eta = 0.85, fluid$ = Water)
+Condenser  CO(s4, s5)
+Sink       SK(s5)
+s2.P = 3000000
+s3.h = 3200000
+s4.P = 100000
+s5.h = 400000
+w_p = PU.W
+w_t = TU.W
+q_b = BO.Q
+q_c = CO.Q

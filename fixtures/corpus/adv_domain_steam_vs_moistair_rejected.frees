@@ -1,0 +1,6 @@
+// Thermofluid (steam/water) meeting moist air on the shared bond must fail.
+Source       SRC(f1, fluid$ = Water, mdot = 1.0, P = 101325, T = 350)
+HeatingCoil  HTR(a1, a2, Q = 1000)
+MoistAirSink SK(a2)
+connect(SRC.out, HTR.in)
+h = HTR.in.h

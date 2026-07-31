@@ -1,0 +1,10 @@
+// Domain family: PNEUMATIC (pneumatic.frees). Fluid-family (P, mdot, h) bond
+// separated from thermofluid/liquid/oil by the reserved `domain$ = gas`.
+// Uses the species-carrying gas components, which need no property backend.
+GasSource A(g1, y = 0.21, mdot = 0.4, P = 500000, h0 = 300000)
+GasSource B(g2, y = 0.02, mdot = 0.1, P = 500000, h0 = 250000)
+GasMixer  MX(g1, g2, g3)
+GasPipe   PP(g3, g4)
+y_out    = g4.y
+h_out    = g4.h
+mdot_out = g4.mdot

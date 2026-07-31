@@ -1,0 +1,58 @@
+{
+  "name": "adv_userdef_named_output",
+  "source": "// A user-defined component: named outputs are reachable as INST.Local, its\n// locals are per-instance mangled, and its ports infer a domain from members.\nCOMPONENT Divider(in, out)\n  PARAM k\n  out.mdot = in.mdot / k\n  out.P    = in.P\n  out.h    = in.h\n  leak     = in.mdot - out.mdot\nEND\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(f1, P = 200000, h = 154000, mdot = 4.0)\nDivider       D1(f1, f2, k = 2)\nDivider       D2(f2, f3, k = 4)\nSink          SK(f3)\nl1 = D1.leak\nl2 = D2.leak\nm3 = f3.mdot\n",
+  "expect": {
+    "variables": {
+      "d1.leak": 2.0,
+      "d2.leak": 1.5,
+      "f1.h": 154000.0,
+      "f1.mdot": 4.0,
+      "f1.p": 200000.0,
+      "f2.h": 154000.0,
+      "f2.mdot": 2.0,
+      "f2.p": 200000.0,
+      "f3.h": 154000.0,
+      "f3.mdot": 0.5,
+      "f3.p": 200000.0,
+      "l1": 2.0,
+      "l2": 1.5,
+      "m3": 0.5,
+      "sk.h": 154000.0,
+      "sk.mdot": 0.5,
+      "sk.p": 200000.0
+    },
+    "display_names": {
+      "d1$leak": "d1.leak",
+      "d2$leak": "d2.leak",
+      "f1": "f1",
+      "f1$h": "f1.h",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$h": "f2.h",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "f3": "f3",
+      "f3$h": "f3.h",
+      "f3$mdot": "f3.mdot",
+      "f3$p": "f3.p",
+      "h": "h",
+      "k": "k",
+      "l1": "l1",
+      "l2": "l2",
+      "leak": "leak",
+      "m3": "m3",
+      "mdot": "mdot",
+      "p": "P",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p"
+    },
+    "block_count": 17,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

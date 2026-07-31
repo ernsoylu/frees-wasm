@@ -1,0 +1,3 @@
+// A parameter the component does not declare.
+ThermalSource HOT(T = 400, Tmax = 500)
+t = HOT.port.T

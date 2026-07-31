@@ -1,0 +1,14 @@
+// model$ picks the VARIANT body: eqpct must use Cveff = Cv*R^(u-1), so the
+// local Cveff exists and the fixed/linear laws must NOT be emitted.
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(f1, P = 500000, h = 196595, mdot = 2.0)
+Valve         VA(f1, f2, Cv = 0.01, rho = 980, u = 0.5, R = 50, model$ = eqpct)
+Sink          SK(f2)
+dp    = f1.P - f2.P
+cveff = VA.Cveff
+m     = f2.mdot

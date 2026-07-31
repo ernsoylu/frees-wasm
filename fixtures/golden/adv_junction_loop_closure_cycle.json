@@ -1,0 +1,17 @@
+{
+  "name": "adv_junction_loop_closure_cycle",
+  "source": "// Union-find loop closure: connect(a,b), connect(b,c), connect(c,a) must\n// collapse to ONE node, not three, and must not double-count the flow sum.\nThermalSource S1(T = 400)\nConduction    C1(k = 10, area = 1, L = 0.1)\nConduction    C2(k = 10, area = 1, L = 0.1)\nThermalSource S2(T = 300)\nconnect(S1.port, C1.a)\nconnect(C1.b, C2.a)\nconnect(C2.a, C1.b)\nconnect(C2.b, S2.port)\nq1 = C1.Q\nq2 = C2.Q\ntm = C1.b.T\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 18 equations and 17 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): CONNECT c2.a, c1.b: sum(qdot) = 0. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

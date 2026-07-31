@@ -1,0 +1,18 @@
+// One inflow, two outflows on a raw connect node: P equal, sum mdot zero, and
+// h EQUAL on every branch (a split must not weight).
+Source SRC(fluid$ = Water, mdot = 3.0, P = 400000, T = 350)
+Valve  VA(Cv = 0.01, rho = 980, u = 1, model$ = fixed)
+Valve  VB(Cv = 0.02, rho = 980, u = 1, model$ = fixed)
+Sink   SA()
+Sink   SB()
+connect(SRC.out, VA.in, VB.in)
+connect(VA.out, SA.in)
+connect(VB.out, SB.in)
+SA.P    = 300000
+SB.mdot = 1.0
+ha = VA.out.h
+hb = VB.out.h
+h1 = SRC.out.h
+ma = VA.out.mdot
+mb = VB.out.mdot
+pn = SRC.out.P

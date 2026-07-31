@@ -1,0 +1,17 @@
+// Capillary tube power-law rating with the flashing clamp, replicated from
+// independent property calls.
+// EXPECT d_law = 0 tol 1e-8
+COMPONENT PHSupply2(out)
+  PARAM P, h, domain$ = twophase
+  out.P = P
+  out.h = h
+END
+hsub = Enthalpy(R134a, P=1000000, x=0)
+PHSupply2            SC(P=1200000, h=hsub)
+CapillaryTube        CT(fluid$=R134a, C=1e-7, n=0.5)
+TwoPhasePressureSink KC(P=300000)
+connect(SC.out, CT.in)
+connect(CT.out, KC.in)
+T_chk  = Temperature(R134a, P=1200000, h=hsub)
+Pf_chk = P_sat(R134a, T=T_chk)
+d_law  = CT.in.mdot - 1e-7 * (1200000 - Pf_chk)^0.5

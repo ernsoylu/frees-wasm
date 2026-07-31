@@ -1,0 +1,5 @@
+// domain$=liquid meeting domain$=twophase on the same (P, mdot, h) bond.
+LiquidSource   LS(c1, fluid$ = Water, mdot = 0.5, P = 200000, T = 320)
+TwoPhaseSink   TS(r1)
+connect(LS.out, TS.in)
+p = TS.P

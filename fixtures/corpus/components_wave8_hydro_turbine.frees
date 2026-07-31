@@ -1,0 +1,21 @@
+// HydroTurbine: 100 kg/s across 5 bar at eta = 0.85 extracts 42.5 kW; the
+// 30 rad/s shaft loads -1416.667 N·m and the stream loses 425 J/kg. Steady.
+// EXPECT tau_h = -1416.667 tol 0.01
+// EXPECT dh_h = -425 tol 0.01
+
+TABLE etamap(m)
+  0    0.85
+  200  0.85
+END
+LiquidSource HIN(fluid$=Water, mdot=100, P=600000, T=300)
+HydroTurbine HT(fluid$=Water, rho=1000, eta$=etamap, epsw=1e-6)
+LiquidSink   HOUT()
+SpeedSource  HS(w=30)
+MechGround   HG()
+connect(HIN.out, HT.in)
+connect(HT.out, HOUT.in)
+connect(HT.shaft, HS.a)
+connect(HS.b, HG.port)
+HT.out.P = 100000
+tau_h = HT.shaft.tau
+dh_h  = HT.out.h - HT.in.h

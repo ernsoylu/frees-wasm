@@ -25,6 +25,8 @@
 
 use std::collections::BTreeMap;
 
+use frees_core::components::cyclepath;
+use frees_core::components::metadata::{self, VariableRow};
 use frees_core::engine::{CheckReport, Solution};
 use frees_core::eval::Intrinsic;
 use frees_core::units::registry::{UnitRegistry, UnitSystem};
@@ -70,6 +72,12 @@ struct SolveRequest {
     /// `"SI"` | `"ENG_SI"` | `"ENGLISH"` — anything else falls back to SI, the
     /// Java `SolverApiSupport.unitSystem` catch.
     display_unit_system: Option<String>,
+    /// The Preferences "fill missing properties" switch. When on, the solved
+    /// state points are completed from the property backend and the cycle path
+    /// connecting them is returned — the Java
+    /// `SolveController.resolveFillMissing`, which is the *only* producer of
+    /// `cyclePath`.
+    fill_missing: Option<bool>,
 }
 
 /// One row of the Variable Information window
@@ -238,7 +246,21 @@ pub fn solve(source: &str, request_json: &str) -> String {
 
     let started = now_ms();
     match frees_core::solve_with(source, &settings, &overrides) {
-        Ok(solution) => solve_success(&solution, now_ms() - started, system, &explicit_units),
+        Ok(mut solution) => {
+            // `SolveController.resolveFillMissing`, at the Java position:
+            // *before* the variable DTOs are built, so the injected state
+            // properties become ordinary result rows, and before
+            // `ComponentMetadata.build`, which resolves its bindings against
+            // those rows.
+            let cycle_path = fill_missing(&mut solution, source, request.fill_missing);
+            solve_success(
+                &solution,
+                &cycle_path,
+                now_ms() - started,
+                system,
+                &explicit_units,
+            )
+        }
         Err(failure) => match &failure.error {
             FreesError::Parse { .. } => {
                 // The Java 400: "Syntax error:" + message + the 1-based line.
@@ -270,26 +292,141 @@ pub fn solve(source: &str, request_json: &str) -> String {
 /// **absent** from the units map gets `""`, the Java `toVariableDto` fallback
 /// (`unitsByLowerName.getOrDefault(canonicalName, "")`) — the frontend renders
 /// falsy units as its own em-dash placeholder.
-fn variable_entries(
+fn variable_rows(
     solution: &Solution,
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
-) -> Vec<Value> {
+) -> Vec<VariableRow> {
     solution
         .values
         .iter()
         .map(|(name, value)| {
+            // `SolveController.toVariableDto`, exactly: the row's key into both
+            // the units map and the explicit-units map is
+            // `e.getKey().toLowerCase()` where `e.getKey()` is already the
+            // **display** name, not the canonical one.
+            //
+            // For every scalar variable the two are the same string (`T_out` →
+            // `t_out`), which is why this reads as a no-op. It is not one for an
+            // expanded component member: the units map is keyed by the flat
+            // solver name `n1$i` while the display name is `n1.i`, so the lookup
+            // misses and the member reports `""`. That miss is the Java's
+            // behaviour and it is deliberate to reproduce it — `""` renders as
+            // the frontend's em-dash placeholder and, crucially, keeps the value
+            // in SI, whereas honouring the unit here would silently convert port
+            // members into the preferred display unit on a path where the
+            // reference engine does not.
+            //
+            // The check endpoint is where the Java *does* surface them
+            // (`CheckController.addComponentMemberUnits` re-keys the member
+            // units by display name into `inferredUnits`), and `check()` below
+            // matches that; the two endpoints disagree in the reference engine
+            // and they disagree here for the same reason.
+            let display = display_of(&solution.display_names, name);
+            let key = display.to_ascii_lowercase();
             let unit = solution
                 .inferred_units
-                .get(name)
+                .get(&key)
                 .map(String::as_str)
                 .unwrap_or("");
             let (display_value, display_unit) =
-                to_display(name, *value, unit, system, explicit_units);
+                to_display(&key, *value, unit, system, explicit_units);
+            VariableRow {
+                name: display.clone(),
+                value: display_value,
+                units: display_unit,
+            }
+        })
+        .collect()
+}
+
+fn variable_entries(rows: &[VariableRow]) -> Vec<Value> {
+    rows.iter()
+        .map(|row| {
             json!({
-                "name": display_of(&solution.display_names, name),
-                "value": display_value,
-                "units": display_unit,
+                "name": row.name,
+                "value": row.value,
+                "units": row.units,
+            })
+        })
+        .collect()
+}
+
+/// `SolveController.resolveFillMissing` — back-fill the missing fluid
+/// properties of every detected state point and build the cycle path that
+/// connects them.
+///
+/// Returns the cycle path (empty when the switch is off, when no property
+/// backend is installed, or when fewer than two state points exist). The
+/// solution is mutated in place, which is this port's answer to the Java's
+/// rebuilt `Result`: `resolve_missing_properties` reports the names it *added*,
+/// and each of those gets its SI unit stamped from the property identity —
+/// exactly the `result != rawResult` set-difference loop in `computeSolve`,
+/// which exists because fill-missing injects variables the unit checker never
+/// saw in the document text.
+fn fill_missing(solution: &mut Solution, source: &str, requested: Option<bool>) -> Vec<Value> {
+    if requested != Some(true) {
+        return Vec::new();
+    }
+    let added = cyclepath::resolve_missing_properties(
+        &mut solution.values,
+        &mut solution.display_names,
+        source,
+        None,
+        // `STATE TABLE` does not parse yet, so the resolver always takes its
+        // legacy global-index path — the same branch the Java takes for a
+        // document that declares no blocks.
+        &[],
+    );
+    for name in &added {
+        if let Some(unit) = cyclepath::si_unit_for_state_variable(name) {
+            solution
+                .inferred_units
+                .entry(name.clone())
+                .or_insert_with(|| unit.to_string());
+        }
+    }
+    // `PropertyFunctions.detectFluid(cleanText)` with the Java's `"Water"`
+    // default already folded in (see `detect_fluid`'s docs).
+    let fluid = frees_core::props::propfun::detect_fluid(source);
+    cyclepath::generate_cycle_path(&solution.values, fluid)
+        .into_iter()
+        .map(|point| {
+            let map: Map<String, Value> = point
+                .into_iter()
+                .filter(|(_, v)| v.is_finite())
+                .map(|(k, v)| (k, json!(v)))
+                .collect();
+            Value::Object(map)
+        })
+        .collect()
+}
+
+/// `ComponentMetadata.build(cleanText, variableDtos)` — the per-instance
+/// datasheet payload.
+///
+/// The Java re-parses the document here; this port carries the top-level
+/// instance list forward on [`Solution`] instead (`component_instances`), so the
+/// boundary neither re-lexes nor risks disagreeing with the solve. `vars` are
+/// the **display-converted** rows, as the Java passes its `variableDtos` — a
+/// binding like `UA = UA_chl_r` shows the symbol *and* the value the user sees.
+fn component_entries(solution: &Solution, vars: &[VariableRow]) -> Vec<Value> {
+    metadata::build(&solution.component_instances, vars)
+        .into_iter()
+        .map(|component| {
+            json!({
+                "name": component.name,
+                "type": component.type_name,
+                "params": component
+                    .params
+                    .into_iter()
+                    .map(|param| json!({
+                        "name": param.name,
+                        "ref": param.reference,
+                        "value": param.value.filter(|v| v.is_finite()),
+                        "units": param.units,
+                    }))
+                    .collect::<Vec<_>>(),
             })
         })
         .collect()
@@ -346,11 +483,14 @@ fn display_of<'a>(display_names: &'a BTreeMap<String, String>, name: &'a String)
 
 fn solve_success(
     solution: &Solution,
+    cycle_path: &[Value],
     elapsed_ms: f64,
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
 ) -> String {
-    let variables = variable_entries(solution, system, explicit_units);
+    let rows = variable_rows(solution, system, explicit_units);
+    let variables = variable_entries(&rows);
+    let components = component_entries(solution, &rows);
 
     let blocks: Vec<Value> = solution
         .blocks
@@ -404,6 +544,12 @@ fn solve_success(
         "error": null,
         "errorLine": null,
         "failedBlockIndex": null,
+        // Empty unless the request asked to fill missing properties — the Java
+        // `resolveFillMissing` short-circuits to `List.of()` otherwise.
+        "cyclePath": cycle_path,
+        // One entry per top-level COMPONENT instance; empty for a document with
+        // no component layer.
+        "components": components,
     })
     .to_string()
 }
@@ -973,6 +1119,173 @@ mod tests {
         assert_eq!(solutions.len(), 1);
         assert_key(&solutions[0], "variables", Value::is_array);
         assert_key(&solutions[0], "maxResidual", Value::is_f64);
+
+        // Both component fields are always *present* arrays, empty for a
+        // document with no component layer and no fill-missing request —
+        // `api.ts` reads them with `?? []`, but a typed absent field and a
+        // typed empty one are different contracts and this pins the second.
+        assert_key(&v, "cyclePath", Value::is_array);
+        assert_key(&v, "components", Value::is_array);
+        assert!(v["cyclePath"].as_array().unwrap().is_empty(), "{v}");
+        assert!(v["components"].as_array().unwrap().is_empty(), "{v}");
+    }
+
+    // ── SolveResponse.components — the datasheet payload ───────────────────
+
+    /// A 12 V source across a 10/20 ohm divider, written in the library's own
+    /// `connect(...)` idiom: i = 0.4 A, v_mid = 8 V. `R2` binds its parameter to
+    /// a top-level symbol so the datasheet has a resolved binding to show.
+    const RESISTOR_NETWORK: &str = "\
+VoltageSource V1(E = 12)
+Resistor      R1(R = 10)
+Resistor      R2(R = R_load)
+Ground        G1()
+connect(V1.p, R1.a)
+connect(R1.b, R2.a)
+connect(R2.b, V1.n, G1.port)
+R_load = 20
+";
+
+    #[test]
+    fn solve_emits_component_metadata_for_a_component_document() {
+        let v = parsed(&solve(RESISTOR_NETWORK, "{}"));
+        assert_eq!(v["success"], true, "{v}");
+
+        let components = v["components"].as_array().expect("components array");
+        let names: Vec<&str> = components
+            .iter()
+            .map(|c| c["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["V1", "R1", "R2", "G1"], "{v}");
+
+        // ComponentResult: {name, type, params}, identities in their SOURCE
+        // spelling (the AST lowercases both for registry lookup).
+        let r2 = &components[2];
+        assert_eq!(r2["type"], "Resistor", "{v}");
+        let params = r2["params"].as_array().expect("params array");
+        assert_eq!(params.len(), 1, "{v}");
+        // ComponentParamResult: {name, ref, value, units}. `ref` is the binding
+        // as written; `value` is resolved from the solved rows, so a shared
+        // symbol shows both the symbol and its number.
+        assert_eq!(params[0]["name"], "r", "{v}");
+        assert_eq!(params[0]["ref"], "R_load", "{v}");
+        assert_eq!(params[0]["value"], 20.0, "{v}");
+
+        // A literal binding resolves to its own number.
+        assert_eq!(components[1]["params"][0]["value"], 10.0, "{v}");
+        // A component with no parameters still reports an (empty) list.
+        assert!(
+            components[3]["params"].as_array().unwrap().is_empty(),
+            "{v}"
+        );
+    }
+
+    #[test]
+    fn component_port_members_reach_the_variables_table() {
+        let v = parsed(&solve(RESISTOR_NETWORK, "{}"));
+        // The expanded port members surface as ordinary result rows under their
+        // dotted display spelling, which is what the schematic readouts group by.
+        assert_eq!(variable(&v, "r1.b.v")["value"], 8.0, "{v}");
+        assert_eq!(variable(&v, "r1.a.i")["value"], 0.4, "{v}");
+        // …with an EMPTY unit on the solve path, because `toVariableDto` keys
+        // `unitsByLowerName` by the display name (`n1.i`) while the member units
+        // live under the flat name (`n1$i`). Verified against the reference
+        // engine, whose `unitsByLowerName` for this exact document is
+        // `{n1$i=A, n1$v=V, n2$i=A, n2$v=V, n3$i=A, n3$v=V, r_load=Ω}` — the
+        // member entries are there, and the dotted lookup misses every one.
+        assert_eq!(variable(&v, "r1.b.v")["units"], "", "{v}");
+        assert_eq!(variable(&v, "r1.a.i")["units"], "", "{v}");
+        // A variable the document itself named keys identically either way, so
+        // the derived Ω does arrive.
+        assert_eq!(variable(&v, "R_load")["units"], "Ω", "{v}");
+    }
+
+    #[test]
+    fn check_reports_component_member_units_where_solve_does_not() {
+        // `CheckController.addComponentMemberUnits`: the check endpoint puts the
+        // members back into `inferredUnits`, keyed the way the payload keys
+        // them, so the Variable Explorer and the schematic are not dimensionless.
+        let v = parsed(&check(RESISTOR_NETWORK, "{}"));
+        assert_eq!(v["solvable"], true, "{v}");
+        // `check_response` keys `inferredUnits` by the *display* name, exactly
+        // as `addComponentMemberUnits` does, so the frontend can look a unit up
+        // with the name it got in `variables`.
+        let units = &v["inferredUnits"];
+        assert_eq!(units["r1.a.i"], "A", "{v}");
+        assert_eq!(units["r1.b.v"], "V", "{v}");
+    }
+
+    #[test]
+    fn a_component_document_checks_as_solvable() {
+        let v = parsed(&check(RESISTOR_NETWORK, "{}"));
+        assert_eq!(v["solvable"], true, "{v}");
+        // 7 equations / 7 unknowns once the two resistors and the ground have
+        // expanded — the check endpoint must run the same expansion the solve
+        // does, or a component document would report as empty and solvable.
+        assert_eq!(v["equations"], v["unknowns"], "{v}");
+        assert!(v["equations"].as_u64().unwrap() >= 14, "{v}");
+    }
+
+    #[test]
+    fn the_unit_warning_of_a_component_body_matches_the_reference_engine() {
+        // Grounding the port members lets the checker see V on the left and A on
+        // the right of `a.V - b.V = R * a.I` before R has a dimension, and it
+        // warns. The reference engine emits the same single warning for this
+        // document (probed directly against the core jar); unit problems are
+        // warnings by the parent invariant and never block a solve.
+        let v = parsed(&solve(RESISTOR_NETWORK, "{}"));
+        assert_eq!(v["success"], true, "{v}");
+        let warnings = v["unitWarnings"].as_array().unwrap();
+        assert_eq!(warnings.len(), 1, "{v}");
+        let text = warnings[0].as_str().unwrap();
+        assert!(text.contains("COMPONENT resistor r1"), "{text}");
+        assert!(text.contains("do not match the right side [A]"), "{text}");
+    }
+
+    // ── SolveResponse.cyclePath — the property-plot overlay ────────────────
+
+    /// Two Water state points, enough for `generateCyclePath` to interpolate a
+    /// segment between them (it needs at least two).
+    const TWO_STATES: &str = "\
+T1 = 320 [K]
+P1 = 101325 [Pa]
+T2 = 400 [K]
+P2 = 101325 [Pa]
+";
+
+    #[test]
+    fn cycle_path_is_empty_unless_fill_missing_is_requested() {
+        let v = parsed(&solve(TWO_STATES, "{}"));
+        assert!(v["cyclePath"].as_array().unwrap().is_empty(), "{v}");
+        let v = parsed(&solve(TWO_STATES, r#"{"fillMissing": false}"#));
+        assert!(v["cyclePath"].as_array().unwrap().is_empty(), "{v}");
+    }
+
+    #[test]
+    fn fill_missing_completes_the_states_and_returns_a_cycle_path() {
+        let v = parsed(&solve(TWO_STATES, r#"{"fillMissing": true}"#));
+        assert_eq!(v["success"], true, "{v}");
+
+        // The back-filled properties arrive as ordinary rows, unit-stamped from
+        // the property identity (nothing in the text could derive them).
+        let h1 = variable(&v, "h1");
+        assert!(h1["value"].as_f64().unwrap() > 0.0, "{v}");
+        assert_eq!(h1["units"], "J/kg", "{v}");
+        assert_eq!(variable(&v, "s1")["units"], "J/kg-K", "{v}");
+        assert_eq!(variable(&v, "rho1")["units"], "kg/m^3", "{v}");
+
+        // The path is a list of {property: value} maps the plot layer overlays.
+        let path = v["cyclePath"].as_array().expect("cyclePath array");
+        assert!(path.len() >= 2, "expected an interpolated path, got {v}");
+        for point in path {
+            assert!(point.is_object(), "{v}");
+            for value in point.as_object().unwrap().values() {
+                assert!(value.is_f64(), "cyclePath carries only finite numbers: {v}");
+            }
+        }
+        // The first point is state 1 itself.
+        assert!(path[0].get("T").is_some(), "{v}");
+        assert!(path[0].get("P").is_some(), "{v}");
     }
 
     #[test]

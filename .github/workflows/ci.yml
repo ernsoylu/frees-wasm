@@ -10,7 +10,26 @@ env:
   # The wasm bundle is a product constraint, not an afterthought (PLAN.md §3).
   # Gate it from day one, while there is nothing to gate — a budget introduced
   # after the bundle is already large is a budget that gets raised, not met.
-  WASM_BUDGET_KB: 2048
+  #
+  # 2026-07-31: raised 2048 -> 3072 deliberately, to unblock Phase 6 (the
+  # 295-component library). Phase 5 left the module at 1867 KiB, 91% of the old
+  # ceiling, so components would have breached it. This is ACCEPTED DEBT, not a
+  # new normal — two concrete ways to pay it down, in order of value:
+  #   1. Move the 528 KB of linked property tables onto the fetch seam that
+  #      already exists (props/tables.rs::install_from_bytes). Blocked on the
+  #      solver being synchronous; see the deviation note in that module.
+  #   2. Split the engine into lazily-loaded chunks (properties, components)
+  #      so a document that names neither pays for neither.
+  # Do not raise this again without doing one of them first.
+  #
+  # 2026-07-31, end of Phase 6: measured 2184.5 KiB raw / 1086.2 KiB gzipped —
+  # 71.1% of the new ceiling, 887.5 KiB of headroom. The components layer cost
+  # +317.9 KiB (122 KB of it the embedded .frees library text). NEITHER DEBT WAS
+  # PAID. Note for whoever picks up (2): engine.rs::expand_component_layer
+  # already early-returns before parsing a byte of the library when a document
+  # declares no components, so the chunk boundary exists in the code and only
+  # the linker does not know about it.
+  WASM_BUDGET_KB: 3072
 
 jobs:
   native:

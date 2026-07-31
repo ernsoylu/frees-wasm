@@ -1,0 +1,43 @@
+{
+  "name": "components_family_signal",
+  "source": "// Domain family: SIGNAL (signal.frees). Causal one-member `sig` bond.\nSigConstant   K1(s1, k = 3)\nSigConstant   K2(s2, k = 4)\nSigSum        SM(s1, s2, s3)\nSigGain       GN(s3, s4, k = 2.5)\nSigSaturation ST(s4, s5, lo = -10, hi = 12)\nSigProduct    PR(s1, s2, s6)\nSigMin        MN(s5, s6, s7)\ny_sum = s3.sig\ny_sat = s5.sig\ny_min = s7.sig\n",
+  "expect": {
+    "variables": {
+      "s1.sig": 3.0,
+      "s2.sig": 4.0,
+      "s3.sig": 7.0,
+      "s4.sig": 17.5,
+      "s5.sig": 12.0,
+      "s6.sig": 12.0,
+      "s7.sig": 12.0,
+      "y_min": 12.0,
+      "y_sat": 12.0,
+      "y_sum": 7.0
+    },
+    "display_names": {
+      "s1": "s1",
+      "s1$sig": "s1.sig",
+      "s2": "s2",
+      "s2$sig": "s2.sig",
+      "s3": "s3",
+      "s3$sig": "s3.sig",
+      "s4": "s4",
+      "s4$sig": "s4.sig",
+      "s5": "s5",
+      "s5$sig": "s5.sig",
+      "s6": "s6",
+      "s6$sig": "s6.sig",
+      "s7": "s7",
+      "s7$sig": "s7.sig",
+      "y_min": "y_min",
+      "y_sat": "y_sat",
+      "y_sum": "y_sum"
+    },
+    "block_count": 10,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

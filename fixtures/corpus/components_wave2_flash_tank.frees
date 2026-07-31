@@ -1,0 +1,13 @@
+// Flash tank splits exactly at the inlet quality: x=0.4 of 1 kg/s -> 0.4 kg/s
+// saturated vapor, 0.6 kg/s saturated liquid.
+// EXPECT d_v = 0 tol 1e-9
+// EXPECT d_l = 0 tol 1e-9
+TwoPhaseSource SRC(fluid$=R134a, mdot=1, P=400000, x=0.4)
+FlashTank      FT(fluid$=R134a)
+TwoPhaseSink   SL()
+TwoPhaseSink   SV()
+connect(SRC.out, FT.in)
+connect(FT.liq, SL.in)
+connect(FT.vap, SV.in)
+d_v = FT.vap.mdot - 0.4
+d_l = FT.liq.mdot - 0.6

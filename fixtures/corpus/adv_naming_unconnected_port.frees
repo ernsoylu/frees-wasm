@@ -1,0 +1,7 @@
+// A dangling port: does the flow variable exist, and is it zero or absent?
+ThermalSource HOT(T = 400)
+Conduction    CD(k = 10, area = 1, L = 0.1)
+ThermalSource FREE(T = 320)
+connect(HOT.port, CD.a)
+CD.b.T = 300
+q = CD.Q

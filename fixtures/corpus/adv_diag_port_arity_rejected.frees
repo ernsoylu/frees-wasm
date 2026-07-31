@@ -1,0 +1,4 @@
+// Conduction declares two ports; three positional connectors are supplied.
+ThermalSource HOT(T = 400)
+Conduction    CD(n1, n2, n3, k = 10, area = 1, L = 0.1)
+t = CD.a.T

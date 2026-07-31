@@ -1,0 +1,22 @@
+// A component whose body instantiates other components and wires them with
+// connect (the TwoZoneHX pattern): the inner instance names must be scoped to
+// the outer instance and appear in the flat result under the outer prefix.
+COMPONENT DoubleValve(in, out)
+  PARAM Cv, rho
+  Valve V1(Cv = Cv, rho = rho, u = 1, model$ = fixed)
+  Valve V2(Cv = Cv, rho = rho, u = 1, model$ = fixed)
+  connect(in, V1.in)
+  connect(V1.out, V2.in)
+  connect(V2.out, out)
+END
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(f1, P = 500000, h = 196595, mdot = 2.0)
+DoubleValve   DV(f1, f2, Cv = 0.01, rho = 980)
+Sink          SK(f2)
+m = f2.mdot
+p = f2.P

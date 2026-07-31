@@ -1,0 +1,17 @@
+{
+  "name": "adv_junction_fluid_mixer_node",
+  "source": "// Fluid node with TWO inflows and one outflow, formed by connect (not by the\n// Mixer component): does the node itself flow-weight the enthalpy?\nSource SRC1(fluid$ = Water, mdot = 1.0, P = 300000, T = 300)\nSource SRC2(fluid$ = Water, mdot = 3.0, P = 300000, T = 360)\nSink   SK()\nconnect(SRC1.out, SRC2.out, SK.in)\nh1 = SRC1.out.h\nh2 = SRC2.out.h\nh3 = SK.in.h\nm3 = SK.in.mdot\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 18 equations and 16 variables. The problem is overspecified and cannot be solved. Redundant relations (no free variable left to determine): CONNECT src1.out, src2.out, sk.in: src1$out.p = src2$out.p; CONNECT src1.out, src2.out, sk.in: src1$out.h = src2$out.h. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

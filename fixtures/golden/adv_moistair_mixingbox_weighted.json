@@ -1,0 +1,57 @@
+{
+  "name": "adv_moistair_mixingbox_weighted",
+  "source": "// W is flow-weighted only at an explicit mixer: 1 kg/s @ W=0.004 mixed with\n// 3 kg/s @ W=0.012 must give 0.010, not 0.008.\nMixingBox    MIX(a1, a2, a3)\nMoistAirSink SK(a3)\na1.P = 101325\na1.mdot = 1.0\na1.W = 0.004\na1.h = 30000\na2.P = 101325\na2.mdot = 3.0\na2.W = 0.012\na2.h = 60000\nw3 = a3.W\nh3 = a3.h\nm3 = a3.mdot\n",
+  "expect": {
+    "variables": {
+      "a1.h": 30000.0,
+      "a1.mdot": 1.0,
+      "a1.p": 101325.0,
+      "a1.w": 0.004,
+      "a2.h": 60000.0,
+      "a2.mdot": 3.0,
+      "a2.p": 101325.0,
+      "a2.w": 0.012,
+      "a3.h": 52500.0,
+      "a3.mdot": 4.0,
+      "a3.p": 101325.0,
+      "a3.w": 0.010000000000000002,
+      "h3": 52500.0,
+      "m3": 4.0,
+      "sk.h": 52500.0,
+      "sk.mdot": 4.0,
+      "sk.p": 101325.0,
+      "sk.w": 0.010000000000000002,
+      "w3": 0.010000000000000002
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$h": "a1.h",
+      "a1$mdot": "a1.mdot",
+      "a1$p": "a1.p",
+      "a1$w": "a1.w",
+      "a2": "a2",
+      "a2$h": "a2.h",
+      "a2$mdot": "a2.mdot",
+      "a2$p": "a2.p",
+      "a2$w": "a2.w",
+      "a3": "a3",
+      "a3$h": "a3.h",
+      "a3$mdot": "a3.mdot",
+      "a3$p": "a3.p",
+      "a3$w": "a3.w",
+      "h3": "h3",
+      "m3": "m3",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "sk$w": "sk.w",
+      "w3": "w3"
+    },
+    "block_count": 19,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

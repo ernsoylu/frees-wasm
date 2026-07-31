@@ -1,0 +1,38 @@
+{
+  "name": "adv_signal_domain_fanout",
+  "source": "// A signal node with one driver and three readers: signal is a broadcast\n// domain, so every member takes the same value and there is no flow sum.\nSigConstant K1(k = 2.5)\nSigGain     G1(k = 4)\nSigGain     G2(k = 10)\nSigAbs      A1()\nconnect(K1.out, G1.in, G2.in, A1.in)\ng1 = G1.out.sig\ng2 = G2.out.sig\na1 = A1.out.sig\ns  = K1.out.sig\n",
+  "expect": {
+    "variables": {
+      "a1": 2.5,
+      "a1.in.sig": 2.5,
+      "a1.out.sig": 2.5,
+      "g1": 10.0,
+      "g1.in.sig": 2.5,
+      "g1.out.sig": 10.0,
+      "g2": 25.0,
+      "g2.in.sig": 2.5,
+      "g2.out.sig": 25.0,
+      "k1.out.sig": 2.5,
+      "s": 2.5
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$in$sig": "a1.in.sig",
+      "a1$out$sig": "a1.out.sig",
+      "g1": "g1",
+      "g1$in$sig": "g1.in.sig",
+      "g1$out$sig": "g1.out.sig",
+      "g2": "g2",
+      "g2$in$sig": "g2.in.sig",
+      "g2$out$sig": "g2.out.sig",
+      "k1$out$sig": "k1.out.sig",
+      "s": "s"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,9 @@
+// Domain family: HYDRAULIC (hydraulic.frees). Fluid-family (P, mdot, h) bond
+// separated by `domain$ = oil`; the components carry rho as a parameter, so no
+// property backend is involved.
+HydraulicSupply    SUP(o1, P = 21000000)
+HydraulicValve     VLV(o1, o2, CdA_max = 3e-5, rho = 870, u = 0.6)
+HydraulicResistance RES(o2, o3, K = 2.5, rho = 870, D = 0.008)
+HydraulicTank      TNK(o3, P = 100000)
+q_flow = o1.mdot
+p_mid  = o2.P

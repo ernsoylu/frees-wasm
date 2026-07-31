@@ -25,6 +25,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ast;
+pub mod components;
 pub mod curvetable;
 pub mod diag;
 pub mod differentiator;

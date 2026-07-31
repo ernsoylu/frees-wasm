@@ -1,0 +1,19 @@
+// A moist-air node with three members carrying different W: the dry-air mass
+// balance and the W rider at a plain connect node, with the inlet state pinned
+// at top level so no humid-air property call is needed.
+MoistAirDamper DMP(a1, a2, a3, u = 0.3)
+HeatingCoil    H2(a2, a4, Q = 1000)
+HeatingCoil    H3(a3, a5, Q = 2000)
+MixingBox      MIX(a4, a5, a6)
+MoistAirSink   SK(a6)
+a1.P    = 101325
+a1.h    = 50000
+a1.W    = 0.011
+a1.mdot = 4.0
+w4 = a4.W
+w5 = a5.W
+w6 = a6.W
+m4 = a4.mdot
+m5 = a5.mdot
+m6 = a6.mdot
+h6 = a6.h

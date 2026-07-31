@@ -1,0 +1,59 @@
+{
+  "name": "adv_moistair_W_passthrough",
+  "source": "// W rides EQUAL across a pass-through and across a plain connect node.\nMoistAirSource SRC(a1, P = 101325, T = 300, W = 0.010, mdot = 1.5)\nAirFilter      FLT(a1, a2, K = 100, foul = 1.0)\nHeatingCoil    HTR(a2, a3, Q = 3000)\nMoistAirSink   SK(a3)\nw1 = a1.W\nw2 = a2.W\nw3 = a3.W\nh3 = a3.h\n",
+  "expect": {
+    "variables": {
+      "a1.h": 52509.06783599341,
+      "a1.mdot": 1.5,
+      "a1.p": 101325.0,
+      "a1.w": 0.01,
+      "a2.h": 52509.06783599341,
+      "a2.mdot": 1.5,
+      "a2.p": 101100.0,
+      "a2.w": 0.01,
+      "a3.h": 54509.06783599341,
+      "a3.mdot": 1.5,
+      "a3.p": 101100.0,
+      "a3.w": 0.01,
+      "h3": 54509.06783599341,
+      "sk.h": 54509.06783599341,
+      "sk.mdot": 1.5,
+      "sk.p": 101100.0,
+      "sk.w": 0.01,
+      "w1": 0.01,
+      "w2": 0.01,
+      "w3": 0.01
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$h": "a1.h",
+      "a1$mdot": "a1.mdot",
+      "a1$p": "a1.p",
+      "a1$w": "a1.w",
+      "a2": "a2",
+      "a2$h": "a2.h",
+      "a2$mdot": "a2.mdot",
+      "a2$p": "a2.p",
+      "a2$w": "a2.w",
+      "a3": "a3",
+      "a3$h": "a3.h",
+      "a3$mdot": "a3.mdot",
+      "a3$p": "a3.p",
+      "a3$w": "a3.w",
+      "h3": "h3",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "sk$w": "sk.w",
+      "w1": "w1",
+      "w2": "w2",
+      "w3": "w3"
+    },
+    "block_count": 20,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

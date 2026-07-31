@@ -1,0 +1,221 @@
+COMPONENT Engine(shaft)
+  PARAM Tmax, throttle, bf
+  shaft.tau = -(throttle * Tmax - bf * shaft.w)
+END
+
+COMPONENT RoadLoad(shaft)
+  PARAM Crr, Caero
+  shaft.tau = Crr + Caero * shaft.w^2
+END
+
+// Mean-value engine with a WOT-torque fidelity ladder: the original parabolic
+// wide-open-throttle curve, or a tabulated WOT map (dyno data) via map_wot$.
+COMPONENT MeanValueEngine(shaft)
+  PARAM throttle, Tpeak, w_peak, FMEP_a, FMEP_b, FMEP_c, map_wot$, bsfc$, model$ = parabolic
+  T_ind     = throttle * T_wot
+  shaft.tau = -(T_ind - T_fric)
+  VARIANT parabolic REQUIRE Tpeak, w_peak, FMEP_a, FMEP_b
+    T_wot  = Tpeak * (1 - ((shaft.w - w_peak) / w_peak)^2)
+    T_fric = FMEP_a + FMEP_b * shaft.w
+  END
+  VARIANT wotmap REQUIRE map_wot$, FMEP_a, FMEP_b
+    T_wot  = map_wot$(shaft.w)
+    T_fric = FMEP_a + FMEP_b * shaft.w
+  END
+  VARIANT bsfc REQUIRE map_wot$, bsfc$, FMEP_a, FMEP_b
+    T_wot  = map_wot$(shaft.w)
+    T_fric = FMEP_a + FMEP_b * shaft.w
+    P_b    = (T_ind - T_fric) * shaft.w
+    mdot_f = bsfc$(shaft.w, T_ind - T_fric) * P_b
+  END
+  VARIANT chenflynn REQUIRE Tpeak, w_peak, FMEP_a, FMEP_b, FMEP_c
+    T_wot  = Tpeak * (1 - ((shaft.w - w_peak) / w_peak)^2)
+    T_fric = FMEP_a + FMEP_b * shaft.w + FMEP_c * shaft.w^2
+  END
+END
+
+COMPONENT Transmission(in, out)
+  PARAM ratio, eta
+  in.w    = ratio * out.w
+  out.tau = -ratio * eta * in.tau
+END
+
+COMPONENT GradeRoadLoad(shaft)
+  PARAM Crr, Caero, m, g, grade
+  shaft.tau = Crr + Caero * shaft.w^2 + m * g * sin(grade)
+END
+
+// ── Vehicle set (Wave 4) ───────────────────────────────────────────────────
+
+// Torque converter (K-factor form): pump torque (ω_p/K(SR))², torque ratio
+// TR(SR), SR = ω_turbine/ω_pump — both from 1-D TABLEs of the converter sheet.
+COMPONENT TorqueConverter(pump, turb)
+  PARAM Kmap$, TRmap$
+  SR       = turb.w / pump.w
+  tau_p    = (pump.w / Kmap$(SR))^2
+  pump.tau = tau_p
+  turb.tau = -TRmap$(SR) * tau_p
+END
+
+// Longitudinal tire (Pacejka-lite magic formula on longitudinal slip): bridges
+// the wheel (rotational) to the vehicle (translational). Fx = Fz·D·sin(C·atan(B·s)),
+// s = (rω − v)/(|v| + epsv). Drive torque reaction r·Fx loads the wheel.
+COMPONENT TireLongitudinal(wheel, veh)
+  PARAM r, Fz, B, C, D, epsv
+  v_w       = r * wheel.w
+  slip      = (v_w - veh.vel) / (abs(veh.vel) + epsv)
+  Fx        = Fz * D * sin(C * arctan(B * slip))
+  veh.f     = -Fx
+  wheel.tau = r * Fx
+END
+
+// Longitudinal vehicle body: mass with aero drag, rolling resistance
+// (tanh-signed) and grade load; velocity is the state.
+COMPONENT VehicleBody(port)
+  PARAM m, Cd, Af, rhoA, Crr, grade, v0
+  F_res = 0.5 * rhoA * Cd * Af * port.vel * abs(port.vel) + m * 9.80665 * (Crr * tanh(port.vel / 0.1) + sin(grade))
+  der(port.vel)  = (port.f - F_res) / m
+  init(port.vel) = v0
+END
+
+// Drive-cycle source: imposes a tabulated speed trace v = map$(t) on a
+// translational port (WLTP, NEDC, any TABLE over time).
+COMPONENT DriveCycleSource(port)
+  PARAM map$
+  port.vel = map$(time)
+END
+
+// Open differential: splits torque evenly, averages speeds through the final
+// ratio (power-conserving).
+COMPONENT Differential(in, left, right)
+  PARAM ratio
+  in.w      = ratio * 0.5 * (left.w + right.w)
+  left.tau  = -0.5 * ratio * in.tau
+  right.tau = -0.5 * ratio * in.tau
+END
+
+// Quarter-car suspension: sprung/unsprung masses, suspension spring+damper,
+// tire stiffness — a composite of the translational primitives; excite `road`
+// with a speed source or drive-cycle profile.
+COMPONENT QuarterCar(road)
+  PARAM ms, mu, ks, cs, kt
+  TransMass   MS(m=ms, v0=0)
+  TransMass   MU(m=mu, v0=0)
+  TransSpring KS(k=ks, x0=0)
+  TransDamper CS(c=cs)
+  TransSpring KT(k=kt, x0=0)
+  connect(MS.port, KS.a, CS.a)
+  connect(KS.b, CS.b, MU.port, KT.a)
+  connect(KT.b, road)
+END
+
+
+// ── Complete vehicle & powertrain depth (Wave 7) ────────────────────────────
+
+// Scheduled gearbox: the ratio arrives on a signal port (a shift schedule via
+// SigMap on speed, or any command source); torque transfer with efficiency.
+COMPONENT GearboxScheduled(in, out, u)
+  PARAM eta
+  in.w    = u.sig * out.w
+  out.tau = -u.sig * eta * in.tau
+END
+
+// Automatic transmission: torque converter + scheduled gearbox + a commanded
+// lockup clutch bridging pump and turbine (lock = 0 open, 1 locked).
+COMPONENT AutomaticTransmission(in, out, gear, lock)
+  PARAM Kmap$, TRmap$, eta, Tlock, eps
+  TorqueConverter  TC(Kmap$=Kmap$, TRmap$=TRmap$)
+  GearboxScheduled GB(eta=eta)
+  ClutchCmd        LU(Tmax=Tlock, eps=eps)
+  connect(in, TC.pump, LU.a)
+  connect(TC.turb, LU.b, GB.in)
+  connect(GB.out, out)
+  connect(gear, GB.u)
+  connect(lock, LU.u)
+END
+
+// Full Pacejka magic formula on longitudinal slip (B stiffness, C shape,
+// D peak, E curvature) — the fidelity rung above TireLongitudinal, which is
+// recovered exactly at E = 0.
+COMPONENT TirePacejka(wheel, veh)
+  PARAM r, Fz, B, C, D, E, epsv
+  v_w       = r * wheel.w
+  slip      = (v_w - veh.vel) / (abs(veh.vel) + epsv)
+  Bs        = B * slip
+  Fx        = Fz * D * sin(C * arctan(Bs - E * (Bs - arctan(Bs))))
+  veh.f     = -Fx
+  wheel.tau = r * Fx
+END
+
+// Road grade vs distance: the travelled distance integrates from the vehicle
+// speed and the grade (rad) is looked up from a profile TABLE over distance —
+// hilly-route load without scripting time profiles.
+COMPONENT GradeProfile(port)
+  PARAM m, g, map$, s0
+  der(s)  = port.vel
+  init(s) = s0
+  port.f  = m * g * sin(map$(s))
+END
+
+// Catalyst light-off: brick thermal mass heated by the exhaust stream
+// (effectiveness-free UA link) plus the exotherm of converted feed once the
+// brick passes light-off; conversion is a C1 sigmoid in brick temperature.
+COMPONENT CatalystLightOff(in, out)
+  PARAM fluid$, C, UA, T50, k, q_exo, T0
+  T_g      = Temperature(fluid$, P=in.P, h=in.h)
+  eta      = 0.5 * (1 + tanh((Tb - T50) / k))
+  Q        = UA * (T_g - Tb)
+  Qexo     = eta * in.mdot * q_exo
+  der(Tb)  = (Q + Qexo) / C
+  init(Tb) = T0
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h - Q / in.mdot
+END
+
+// Exhaust pipe with thermal wall: gas duct exchanging with a two-node RC wall
+// whose outer face convects (hA) to the ambient heat port (underhood soak
+// studies). The convective link is what lets the ambient side be a plain
+// temperature source — the wall faces are states and must never be T-pinned.
+COMPONENT ExhaustPipeThermal(in, out, amb)
+  PARAM fluid$, UA, hA, C1, C2, R, T10, T20
+  HeatedDuct D(fluid$=fluid$, UA=UA)
+  WallRC     W(C1=C1, C2=C2, R=R, T10=T10, T20=T20)
+  Convection CV(htc=hA, area=1)
+  connect(in, D.in)
+  connect(D.out, out)
+  connect(D.wall, W.a)
+  connect(W.b, CV.a)
+  connect(CV.b, amb)
+END
+
+// Power-split e-CVT: planetary with the engine on the carrier, MG1 on the sun
+// (speeder) and MG2 on the ring/output (torquer), both motors on one DC bus.
+// u1/u2 command the motor torques; heat collects both machines' losses.
+COMPONENT HybridPowerSplit(eng, out, sun, p, n, u1, u2, heat)
+  PARAM g, eff1$, eff2$, epsP
+  Planetary PL(g=g)
+  MotorMap  MG1(eff$=eff1$, epsP=epsP)
+  MotorMap  MG2(eff$=eff2$, epsP=epsP)
+  connect(eng, PL.carrier)
+  connect(PL.sun, MG1.shaft, sun)
+  connect(PL.ring, MG2.shaft, out)
+  connect(MG1.p, MG2.p, p)
+  connect(MG1.n, MG2.n, n)
+  connect(MG1.u, u1)
+  connect(MG2.u, u2)
+  connect(MG1.heat, MG2.heat, heat)
+END
+
+
+// ── Electrochemistry & energy systems (Wave 8) ──────────────────────────────
+
+// Wind rotor: Cp(λ, pitch) from a 2-D map turns the swept-area wind power
+// into shaft torque; tip-speed ratio and torque are eps-regularized at rest.
+COMPONENT WindRotor(shaft, wind, pitch)
+  PARAM rho, R, cp$, epsv, epsw
+  lam       = shaft.w * R / (wind.sig + epsv)
+  Cpw       = cp$(lam, pitch.sig)
+  Pw        = 0.5 * rho * pi# * R^2 * wind.sig^3 * Cpw
+  shaft.tau = -Pw / (shaft.w + epsw)
+END

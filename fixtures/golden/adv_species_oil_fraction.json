@@ -1,0 +1,17 @@
+{
+  "name": "adv_species_oil_fraction",
+  "source": "// The oil-circulation rider oc rides downstream pass-through nodes.\nTwoPhaseSourcePH  SRC(r1, mdot = 0.05, P = 900000, h = 260000)\nTwoPhaseOilRider  ORD(r1, r2, oc_set = 0.03, k_deg = 1.2)\nTwoPhaseSensor    SEN(r2, r3, fluid$ = R134a)\nTwoPhaseSink      SK(r3)\noc1 = r1.oc\noc2 = r2.oc\noc3 = r3.oc\nfd  = ORD.f_deg\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 27 equations and 29 variables. The problem is underspecified and cannot be solved. Free quantities (no defining relation): r1.oc, r3.oc. Coupled to: oc1, oc3. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,19 @@
+// Two inflows of DIFFERENT enthalpy meeting on a raw connect node. If the node
+// equates h (rather than flow-weighting it) this document is inconsistent —
+// which is exactly what it is written to reveal.
+COMPONENT StreamIn(out)
+  PARAM mdot, h
+  out.mdot = -mdot
+  out.h    = h
+END
+COMPONENT PressureOut(in)
+  PARAM P
+  in.P = P
+END
+StreamIn    A(mdot = 1.0, h = 100000)
+StreamIn    B(mdot = 3.0, h = 400000)
+PressureOut C(P = 200000)
+connect(A.out, B.out, C.in)
+hc = C.in.h
+mc = C.in.mdot
+pa = A.out.P

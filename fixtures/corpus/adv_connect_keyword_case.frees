@@ -1,0 +1,8 @@
+// The connect keyword and instance/port names are case-insensitive.
+ThermalSource HOT(T = 400)
+Conduction    CD(k = 10, area = 1, L = 0.1)
+ThermalSource COLD(T = 300)
+CONNECT(hot.PORT, Cd.A)
+Connect(CD.b, cold.port)
+q = cd.Q
+t = CD.A.T

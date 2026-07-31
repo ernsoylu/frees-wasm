@@ -17,7 +17,7 @@
 //! The stage order is the Java order, established by reading
 //! `EquationParser.parseResult` and `EquationSystemSolver.solve`:
 //! `parseResult` lexes/parses, collects `FUNCTION`/`PROCEDURE`/`MODULE`/`TABLE`
-//! definitions, expands components (unported), then **flattens statements** —
+//! definitions, **expands components**, then **flattens statements** —
 //! `CALL` statements become binding equations and matrix constructs become
 //! scalar equations *at parse time* — and `solve` then applies
 //! `ComplexExpansion.expand` (when complex mode is on) before blocking. Hence:
@@ -25,22 +25,29 @@
 //! 1. **Parse.** [`crate::parser::parse_document`]. A block construct the wasm
 //!    port has not reached yet is an explicit error, never a silent skip
 //!    (`SYMBOLIC` is refused here too).
-//! 2. **Flatten CALLs.** [`crate::procedures::flatten_calls`] — the CALL half
+//! 2. **Expand components.** [`expand_component_layer`] — the acausal
+//!    `COMPONENT`/`connect` layer, at `EquationParser.parseResult:292-306`.
+//!    It runs **before** every other expansion pass and seeds the equation
+//!    list, because the Java writes `new BoundedEquationList(componentEquations)`
+//!    and then flattens the statements *into* it. The component layer is a
+//!    parser/expander, not a second solver: what comes out is flat scalar
+//!    equations that take the same Newton/Tarjan path as everything else.
+//! 3. **Flatten CALLs.** [`crate::procedures::flatten_calls`] — the CALL half
 //!    of `EquationParser.flatten`. (Phase-4 stub: refuses CALLs by name.)
-//! 3. **Expand matrices.** [`crate::parser::expand::expand_document`] — the
+//! 4. **Expand matrices.** [`crate::parser::expand::expand_document`] — the
 //!    matrix half of `EquationParser` (multiAssign, rangeAssign, linear-algebra
 //!    intrinsics). Scalar documents pass through byte-identical.
-//! 4. **Expand complex.** [`crate::parser::complex::expand_complex`] with
+//! 5. **Expand complex.** [`crate::parser::complex::expand_complex`] with
 //!    [`SolverSettings::complex_mode`] — `EquationSystemSolver.solve`'s
 //!    `ComplexExpansion.expand` site, *after* parse-time flattening.
-//! 5. **Seed.** Every unknown starts at [`DEFAULT_GUESS`] (`1.0`, the Java
+//! 6. **Seed.** Every unknown starts at [`DEFAULT_GUESS`] (`1.0`, the Java
 //!    `EquationSystemSolver.DEFAULT_GUESS`) with bounds `±∞`; in-text `GUESS`
 //!    directives override the guess and narrow the bounds, and the guess is
 //!    clamped into the bounds exactly as `withTextGuesses` does.
-//! 6. **Block.** [`crate::solver::blocker::block_system`] — degrees of freedom,
+//! 7. **Block.** [`crate::solver::blocker::block_system`] — degrees of freedom,
 //!    maximum bipartite matching, Tarjan SCC. The blocks come out in solve
 //!    order.
-//! 7. **Solve.** [`crate::solver::newton::newton_solve`] per block, in that
+//! 8. **Solve.** [`crate::solver::newton::newton_solve`] per block, in that
 //!    order, inside the Java retry ladder (see `solve_block_with_fallback`
 //!    below): transformed-guess retries, a univariate bracketing rescue, block
 //!    merging, then a best-effort polish pass. Residuals evaluate through
@@ -58,8 +65,8 @@
 //! reaches the solver as a variable and the unit checker can ground downstream
 //! variables from it. [`builtin_constants`] survives as a knowns hook — it
 //! collects nothing on documents from this parser (folding leaves no `#`
-//! variables behind) but keeps hand-built ASTs and the future component
-//! expander honest.
+//! variables behind) but keeps hand-built ASTs and the component expander
+//! honest.
 //!
 //! # Evaluation failures inside the Newton loop
 //!
@@ -173,6 +180,21 @@ pub struct Solution {
     /// Total Newton iterations across every block (same value as
     /// `stats.iterations`, kept for existing callers).
     pub iterations: usize,
+    /// The document's **top-level** `COMPONENT` instantiations, in declaration
+    /// order — the datasheet's input half.
+    ///
+    /// The Java `SolveController` re-parses `cleanText` and calls
+    /// `ComponentMetadata.build(cleanText, variableDtos)`, which reads
+    /// `program.componentInsts()`: the *unflattened*, top-level list. This
+    /// carries the same list forward off the one parse instead, so the boundary
+    /// does not re-lex the document.
+    ///
+    /// Empty for a document with no component layer.
+    pub component_instances: Vec<crate::components::metadata::ComponentInstMeta>,
+    /// The connection topology of the expanded network — the schematic's data
+    /// layer (the Java `ParseResult.componentConnections`). Empty for a document
+    /// with no component layer.
+    pub component_connections: Vec<crate::components::expander::Connection>,
 }
 
 /// Diagnostics captured at the point a block solve gave up — the Java
@@ -418,7 +440,13 @@ pub fn solve_with(
 ) -> std::result::Result<Solution, SolveFailure> {
     crate::props::tables::install_builtin_once();
     let mut doc = parse_document(source)?;
-    reject_unsupported(&doc.statements)?;
+    reject_unsupported(&doc)?;
+
+    // Pipeline stage 1b — the acausal component layer, at the Java position:
+    // `EquationParser.parseResult` expands components *before* `flatten`, and
+    // seeds the equation list with the result. See `expand_component_layer`.
+    let mut diagnostics = doc.diagnostics.clone();
+    let mut components = expand_component_layer(&mut doc, &mut diagnostics)?;
 
     // Pipeline stages 2–4, in the Java order (see the module docs): CALL
     // flattening happens at parse time in `EquationParser.flatten`, matrix
@@ -428,7 +456,12 @@ pub fn solve_with(
     let mut parsed_names = std::mem::take(&mut doc.display_names);
     doc.statements = flatten_calls_into(statements, &doc.defs, &mut parsed_names)?;
     doc.display_names = parsed_names;
-    let equations = crate::parser::expand::expand_document(&doc)?;
+    // The Java: `List<Equation> equations = new BoundedEquationList(componentEquations)`,
+    // then `flatten(statements, …, equations, …)` appends into it. Component
+    // equations therefore come FIRST, and the residual list, block ordering and
+    // `block_equations` all inherit that order.
+    let mut equations = std::mem::take(&mut components.equations);
+    equations.extend(crate::parser::expand::expand_document(&doc)?);
     let defs = &doc.defs;
 
     // Pipeline stage 3b — the Integral pass, at the Java position (`solve`
@@ -476,7 +509,9 @@ pub fn solve_with(
     let (constants, knowns) = builtin_constants(&equations);
     let report = block_system(&equations, &knowns)?;
 
-    let mut diagnostics = doc.diagnostics.clone();
+    // `diagnostics` already carries the parser's own plus anything the component
+    // layer said (it was seeded before expansion so a steady-storage rewrite is
+    // reported even when a later stage fails).
     collect_unit_warnings(&equations, &mut diagnostics);
     let specs = variable_specs(&equations, &knowns, &doc, overrides, &mut diagnostics)?;
 
@@ -560,7 +595,7 @@ pub fn solve_with(
     // `checkUnits` + `unitsByLowerName`): declared units feed the checker, and
     // the result map is the derived units overlaid by the declared ones —
     // a declared unit always wins over a dimensionally derived one.
-    let declared = declared_units(&equations, overrides);
+    let declared = declared_units(&equations, overrides, &components.member_units);
     let unit_report = crate::units::checker::check_units(&equations, &declared);
     let mut inferred_units = unit_report.inferred;
     inferred_units.extend(declared);
@@ -581,6 +616,8 @@ pub fn solve_with(
         unit_warnings: unit_report.warnings,
         diagnostics,
         iterations,
+        component_instances: components.instances,
+        component_connections: components.connections,
     })
 }
 
@@ -614,7 +651,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
     }
 
     let doc = match parse_document(source).and_then(|doc| {
-        reject_unsupported(&doc.statements)?;
+        reject_unsupported(&doc)?;
         Ok(doc)
     }) {
         Ok(doc) => doc,
@@ -634,11 +671,21 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
     // path; the closure below works on a clone of the document, so the names
     // the CALL flattener generates are collected out here.
     let mut parsed_names = doc.display_names.clone();
+    let mut check_diagnostics = doc.diagnostics.clone();
+    let mut member_units: BTreeMap<String, String> = BTreeMap::new();
     let expanded = (|| {
         let mut doc = doc.clone();
+        // Stage 1b — the component layer, at the Java position (see
+        // `expand_component_layer`). `check` runs it for the same reason
+        // `solve` does: without it a component document has zero equations and
+        // would be reported "solvable" with nothing in it.
+        let components = expand_component_layer(&mut doc, &mut check_diagnostics)?;
+        member_units = components.member_units;
+        parsed_names = doc.display_names.clone();
         let statements = std::mem::take(&mut doc.statements);
         doc.statements = flatten_calls_into(statements, &doc.defs, &mut parsed_names)?;
-        let equations = crate::parser::expand::expand_document(&doc)?;
+        let mut equations = components.equations;
+        equations.extend(crate::parser::expand::expand_document(&doc)?);
         // The Integral pass, as in `solve_with` — but `check` builds the
         // *structural view* instead of driving the quadrature: a constant-limit
         // integral contributes a `resultVar = 0` placeholder, a variable-limit
@@ -671,7 +718,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
                 errors: Vec::new(),
                 inferred_units: BTreeMap::new(),
                 unit_warnings: Vec::new(),
-                diagnostics: doc.diagnostics.clone(),
+                diagnostics: check_diagnostics,
             });
         }
     };
@@ -689,7 +736,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         .filter(|name| !crate::parser::toplevel::is_ignored_sink(name))
         .collect();
 
-    let mut diagnostics = doc.diagnostics.clone();
+    let mut diagnostics = check_diagnostics;
     collect_unit_warnings(&equations, &mut diagnostics);
 
     // Dimensional check + SI unit inference (the Java `CheckController` path):
@@ -698,10 +745,20 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
     // *literal*-declared ones only. External units are deliberately left out of
     // the report (the caller already knows them), exactly as the Java check
     // response composes `deriveUnits` + `inferUnits`.
-    let declared = declared_units(&equations, overrides);
+    //
+    // Component stream members are the exception the Java makes explicitly:
+    // `CheckController.addComponentMemberUnits` puts them back into the
+    // *reported* map too (`putIfAbsent`), because a port member's unit comes
+    // from its physical domain and nothing else can derive it.
+    let declared = declared_units(&equations, overrides, &member_units);
     let unit_report = crate::units::checker::check_units(&equations, &declared);
     let mut inferred_units = unit_report.inferred;
     inferred_units.extend(literal_units(&equations));
+    for (name, unit) in &member_units {
+        inferred_units
+            .entry(name.to_ascii_lowercase())
+            .or_insert_with(|| unit.clone());
+    }
 
     let base = CheckReport {
         solvable: false,
@@ -737,6 +794,177 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
 // Pipeline steps
 // ---------------------------------------------------------------------------
 
+/// Refuse anything that parses but that the engine cannot honour.
+fn reject_unsupported(doc: &Document) -> Result<()> {
+    reject_unsupported_statements(&doc.statements)
+}
+
+/// Everything the acausal component layer contributes to a solve.
+///
+/// Built by [`expand_component_layer`] and consumed in three places: the
+/// equations seed the equation list, `member_units` grounds the unit checker,
+/// and the last two fields ride out on [`Solution`] for the datasheet and the
+/// schematic.
+#[derive(Debug, Default)]
+struct ComponentLayer {
+    /// The expanded scalar equations — component bodies then `connect` nodes.
+    equations: Vec<Equation>,
+    /// Flat solver name → SI unit (`s2$p` → `Pa`), the Java
+    /// `ParseResult.componentMemberUnits`.
+    member_units: BTreeMap<String, String>,
+    /// The top-level instantiations, for [`Solution::component_instances`].
+    instances: Vec<crate::components::metadata::ComponentInstMeta>,
+    /// The connection topology, for [`Solution::component_connections`].
+    connections: Vec<crate::components::expander::Connection>,
+}
+
+/// Expand the acausal `COMPONENT`/`connect` layer into flat scalar equations
+/// and rewrite the document's own dotted references onto the same flat names.
+///
+/// # Where this sits in the pipeline, and why
+///
+/// **Established by reading `EquationParser.parseResult`** (`../frEES/backend/
+/// core/src/main/java/com/frees/backend/parser/EquationParser.java:265-345`),
+/// which runs, in order:
+///
+/// ```text
+///   AstBuilder.buildProgram(program)                       // parse
+///   new ComponentExpander(ComponentLibrary.builtins(), …)  // <- HERE
+///   componentEquations = components.expand()
+///   statements         = components.rewriteStatements(statements)
+///   …storage routing (steadyStorageEquations / routeStorageIntoDynamic)…
+///   List<Equation> equations = new BoundedEquationList(componentEquations);
+///   flatten(statements, …, equations, …)                   // CALL + matrix + FOR
+///   equations = StringVariables.resolve(equations, displayNames)
+/// ```
+///
+/// and only then does `EquationSystemSolver.solve` run `ComplexExpansion.expand`
+/// and block. So expansion is **the first expansion pass**: before CALL
+/// flattening, before matrix expansion, before complex, and well before
+/// blocking. Two consequences are load-bearing rather than incidental:
+///
+/// * the component equations are the **seed** of the list (`new
+///   BoundedEquationList(componentEquations)`), so they come *before* every
+///   equation the document itself wrote — this port prepends for the same
+///   reason, and the residual list, block ordering and `block_equations` all
+///   inherit that order;
+/// * `rewriteStatements` runs on the statements *before* they are flattened, so
+///   a dotted `P1.out.h` inside a `FOR` body or a `CALL` argument is rewritten
+///   once, at the AST level, and the later passes only ever see flat names.
+///
+/// # Storage
+///
+/// `hasStorage()` (any component body with `der(member) = …`) routes into the
+/// document's `DYNAMIC` block in the Java. `DYNAMIC` is not parsed by this port
+/// yet (`parser/toplevel.rs` lists it under `unsupported_construct`), so
+/// `dynamicSystems` is always empty here and the Java's *other* branch applies
+/// verbatim: the §8.2 steady/transient duality, where each `der(X) = rhs`
+/// becomes the equilibrium constraint `rhs = 0` and the state is an ordinary
+/// unknown. That is [`steady_storage_equations`].
+fn expand_component_layer(
+    doc: &mut Document,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<ComponentLayer> {
+    // The Java constructs a `ComponentExpander` unconditionally, but its
+    // `ComponentLibrary.builtins()` is a static already paid for at class-load.
+    // Here the 122 KB of embedded library text is parsed lazily on first use, so
+    // a document with no component layer must not touch it at all — otherwise
+    // every scalar solve in the corpus pays for 295 component definitions.
+    if doc.components.is_empty() {
+        return Ok(ComponentLayer::default());
+    }
+
+    let components = std::mem::take(&mut doc.components);
+    let statements = std::mem::take(&mut doc.statements);
+    let mut display_names = std::mem::take(&mut doc.display_names);
+
+    let builtins = crate::components::library::builtins()?;
+    let (equations, statements, member_units, connections) = {
+        let mut expander = crate::components::expander::ComponentExpander::new(
+            builtins.defs(),
+            &components.defs,
+            &components.instances,
+            &components.connects,
+            &mut display_names,
+        )?;
+        let equations = expander.expand()?;
+        let statements = expander.rewrite_statements(statements)?;
+        let member_units = expander
+            .member_units()
+            .into_iter()
+            .map(|(name, unit)| (name, unit.to_string()))
+            .collect();
+        // `hasStorage()` with no DYNAMIC block: the Java's steady branch.
+        let equations = if expander.has_storage() {
+            steady_storage_equations(equations, diagnostics)
+        } else {
+            equations
+        };
+        (equations, statements, member_units, expander.connections())
+    };
+
+    doc.statements = statements;
+    doc.display_names = display_names;
+    let instances = components
+        .instances
+        .iter()
+        .map(crate::components::metadata::ComponentInstMeta::from)
+        .collect();
+
+    Ok(ComponentLayer {
+        equations,
+        member_units,
+        instances,
+        connections,
+    })
+}
+
+/// `der(X) = rhs` → `rhs = 0`, the Java `EquationParser.steadyStorageEquations`.
+///
+/// A storage network with no `DYNAMIC` block solves its **steady operating
+/// point**: the state stops changing, so its derivative equation becomes the
+/// equilibrium constraint and `X` is determined by the rest of the network.
+/// The Java appends `" [steady: der=0]"` to the equation's source text; that is
+/// kept verbatim so the block listing says which equations were rewritten.
+///
+/// The Java is silent about it. This port adds one *warning* diagnostic (never
+/// an error — the parent invariant is that a document like this solves), because
+/// in the browser there is no server log to read afterwards and the answer is
+/// materially different from a transient run.
+fn steady_storage_equations(
+    equations: Vec<Equation>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<Equation> {
+    let mut rewritten = 0usize;
+    let out: Vec<Equation> = equations
+        .into_iter()
+        .map(|eq| {
+            let is_der = matches!(
+                &eq.lhs,
+                Expr::Call { function, args } if function == "der" && args.len() == 1
+            );
+            if !is_der {
+                return eq;
+            }
+            rewritten += 1;
+            Equation::new(
+                eq.rhs,
+                Expr::num(0.0),
+                format!("{} [steady: der=0]", eq.source_text),
+            )
+        })
+        .collect();
+    if rewritten > 0 {
+        diagnostics.push(Diagnostic::warning(format!(
+            "This component network stores energy or mass ({rewritten} der(...) \
+             equation(s)) but the document declares no DYNAMIC block, so it was \
+             solved for its steady operating point (each der(X) = rhs became \
+             rhs = 0)."
+        )));
+    }
+    out
+}
+
 /// Refuse a statement that parses but that the engine cannot honour.
 ///
 /// `Document::equations` walks past `SYMBOLIC` without comment. That is fine
@@ -745,11 +973,11 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
 /// here — they belong to [`crate::procedures::flatten_calls`] (pipeline stage
 /// 2), whose Phase-4 stub still refuses them by name, so nothing is ever
 /// silently dropped.
-fn reject_unsupported(statements: &[Statement]) -> Result<()> {
+fn reject_unsupported_statements(statements: &[Statement]) -> Result<()> {
     for statement in statements {
         match statement {
             Statement::Eq(_) | Statement::CallProc { .. } => {}
-            Statement::For { body, .. } => reject_unsupported(body)?,
+            Statement::For { body, .. } => reject_unsupported_statements(body)?,
             Statement::Symbolic(names) => {
                 return Err(FreesError::parse(format!(
                     "`SYMBOLIC` is not supported by the wasm engine yet (declared: {})",
@@ -981,8 +1209,20 @@ fn literal_units(equations: &[Equation]) -> BTreeMap<String, String> {
 fn declared_units(
     equations: &[Equation],
     overrides: &[VariableOverride],
+    component_member_units: &BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
     let mut units = literal_units(equations);
+    // `SolverApiSupport.effectiveUnits`: inferred literal units, then the
+    // component stream members' domain-derived units (`s2$p` → `Pa`), then the
+    // explicit Variable-Information units, which win over both. A port member is
+    // one of the solver's own unknowns, so nothing in the document derives its
+    // unit — its physical domain is the only thing that fixes it, and without
+    // this the checker would propagate *from* a dimensionless port and warn.
+    units.extend(
+        component_member_units
+            .iter()
+            .map(|(name, unit)| (name.to_ascii_lowercase(), unit.clone())),
+    );
     for o in overrides {
         if let Some(unit) = o.unit.as_deref() {
             if !unit.trim().is_empty() {
@@ -2411,9 +2651,102 @@ mod tests {
 
     #[test]
     fn an_unsupported_block_is_refused_by_name() {
-        let err = solve("COMPONENT pump\nEND\n", &SolverSettings::default()).unwrap_err();
+        let err = solve("PLOT 'x'\n  kind = xy\nEND\n", &SolverSettings::default()).unwrap_err();
         assert!(matches!(err.error, FreesError::Parse { .. }), "{err:?}");
-        assert!(err.to_string_message().contains("COMPONENT"));
+        assert!(err.to_string_message().contains("PLOT"));
+    }
+
+    /// The three component forms after Phase 6 wired the expander in. The
+    /// capability gate that used to refuse all three is gone; each now gets the
+    /// answer the reference engine gives, and each of these three messages was
+    /// checked against the Java oracle character for character (modulo the
+    /// port-wide `source_text` convention, which keeps the user's whitespace
+    /// where ANTLR's `getText()` drops it).
+    #[test]
+    fn the_three_component_forms_answer_like_the_reference_engine() {
+        // A template nobody instantiates contributes nothing, so the document is
+        // empty — a *solver* verdict, not a parse one.
+        let err = solve(
+            "COMPONENT pump(in, out)\n  out.P = in.P\nEND\n",
+            &SolverSettings::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(err.error, FreesError::Solver { .. }), "{err:?}");
+        assert_eq!(err.to_string_message(), "No equations to solve.");
+
+        // An instantiation missing a required parameter is refused by name at
+        // expansion time — the library ships no defaults for physical inputs.
+        let err = solve("Pump P1(s1, s2)\nx = 1\n", &SolverSettings::default()).unwrap_err();
+        assert!(matches!(err.error, FreesError::Parse { .. }), "{err:?}");
+        assert_eq!(
+            err.to_string_message(),
+            "Component 'p1' (pump): parameter 'eta' has no value \
+             (give it a default or pass eta=value)."
+        );
+
+        // A `connect` naming something that is neither an instance port nor a
+        // stream is refused, quoting the declaration.
+        let err = solve("connect(a.out, b.in)\nx = 1\n", &SolverSettings::default()).unwrap_err();
+        assert!(matches!(err.error, FreesError::Parse { .. }), "{err:?}");
+        assert!(
+            err.to_string_message().starts_with(
+                "connect(...): 'a.out' is not a port (instance.port) or a stream name."
+            ),
+            "{err:?}"
+        );
+
+        // …and a document with no component layer never touches the expander.
+        assert!(solve("x = 1\n", &SolverSettings::default()).is_ok());
+    }
+
+    /// The end-to-end shape the gate used to block: a built-in instantiated,
+    /// wired, and solved through the ordinary Newton/Tarjan path.
+    #[test]
+    fn a_component_network_expands_and_solves() {
+        let solution = solve(
+            "Resistor R1(n1, n2, R = 10)\nGround G1(n2)\nn1.V = 12\n",
+            &SolverSettings::default(),
+        )
+        .expect("the network solves");
+        assert_eq!(solution.values["n2$v"], 0.0);
+        assert_eq!(solution.values["n1$i"], 1.2);
+        // Port members carry the display spelling the expander minted…
+        assert_eq!(solution.display_names["n1$i"], "n1.i");
+        // …and the SI unit their physical domain fixes, which nothing in the
+        // document could have derived.
+        assert_eq!(solution.inferred_units["n1$i"], "A");
+        // The datasheet payload rides out on the solution.
+        assert_eq!(solution.component_instances.len(), 2);
+        assert_eq!(solution.component_instances[0].type_name, "resistor");
+    }
+
+    /// A storage network with no `DYNAMIC` block solves its steady operating
+    /// point (`der(X) = rhs` → `rhs = 0`) and says so in a diagnostic.
+    #[test]
+    fn a_storage_network_without_a_dynamic_block_solves_steady() {
+        let solution = solve(
+            "TorqueSource     TQ(T = 5)\n\
+             RotationalDamper DP(c = 0.25)\n\
+             Inertia          IN(J = 0.4, w0 = 0)\n\
+             MechGround       G1()\n\
+             MechGround       G2()\n\
+             connect(TQ.a, IN.port, DP.a)\n\
+             connect(TQ.b, G1.port)\n\
+             connect(DP.b, G2.port)\n",
+            &SolverSettings::default(),
+        )
+        .expect("the steady network solves");
+        // der(w) = tau/J with tau summing to zero at the node: the damper takes
+        // the whole 5 N.m, so w = 5 / 0.25 = 20 rad/s.
+        assert_eq!(solution.values["in$port$w"], 20.0);
+        assert!(
+            solution
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("steady operating point")),
+            "{:?}",
+            solution.diagnostics
+        );
     }
 
     #[test]

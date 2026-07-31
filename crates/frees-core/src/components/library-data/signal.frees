@@ -1,0 +1,269 @@
+// ── Signal & Control library (Wave 1) ─────────────────────────────────────
+// The CAUSAL signal domain: a port member `sig` carries one control/command
+// value. A connect(...) node equates the value at every endpoint and carries NO
+// flow member, so one writer broadcasts to any number of readers — the classic
+// signal-wire semantics. The strict domain-separation guard keeps a signal wire
+// off physical (bond-graph) ports; actuated physical components take commands
+// through a dedicated signal port (EXVCmd, ClutchCmd, …), never a bare connect.
+//
+// Time-driven sources reference the reserved global `time`: inside a DYNAMIC
+// block the integrators pin it to the simulation time (whatever the header
+// names its span variable); in a steady solve `time` is an ordinary global the
+// document pins (time = 0) to evaluate the sources at one instant.
+
+// ── Sources ────────────────────────────────────────────────────────────────
+
+COMPONENT SigConstant(out)
+  PARAM k
+  out.sig = k
+END
+
+// The clock: emits the simulation time itself.
+COMPONENT SigTime(out)
+  out.sig = time
+END
+
+// Smooth step from `before` to `after` at t0. eps [s] is the C∞ tanh edge
+// width — pick it small against the plant's fastest time constant.
+COMPONENT SigStep(out)
+  PARAM t0, before, after, eps
+  out.sig = before + (after - before) * 0.5 * (1 + tanh((time - t0) / eps))
+END
+
+// Ramp of the given slope starting at t0 (C¹ smooth-max hinge of width eps).
+COMPONENT SigRamp(out)
+  PARAM t0, slope, eps
+  dt      = time - t0
+  out.sig = slope * 0.5 * (dt + sqrt(dt^2 + eps^2))
+END
+
+// Sine: bias + amp·sin(2π·freq·t + phase). freq [Hz], phase [rad].
+COMPONENT SigSine(out)
+  PARAM amp, freq, phase, bias
+  out.sig = bias + amp * sin(2 * pi# * freq * time + phase)
+END
+
+// Single rectangular pulse from t0 for `width` seconds, level `low`→`high`,
+// with tanh edges of width eps.
+COMPONENT SigPulse(out)
+  PARAM t0, width, high, low, eps
+  out.sig = low + (high - low) * 0.5 * (tanh((time - t0) / eps) - tanh((time - t0 - width) / eps))
+END
+
+// Tabulated source: sig = map$(time). `map$` names a TABLE/FUNCTION declared in
+// the document — THE drive-cycle primitive (WLTP speed trace, scheduled load,
+// setpoint program).
+COMPONENT SigTable(out)
+  PARAM map$
+  out.sig = map$(time)
+END
+
+// ── Math ───────────────────────────────────────────────────────────────────
+
+COMPONENT SigGain(in, out)
+  PARAM k
+  out.sig = k * in.sig
+END
+
+COMPONENT SigBias(in, out)
+  PARAM b
+  out.sig = in.sig + b
+END
+
+COMPONENT SigSum(in1, in2, out)
+  out.sig = in1.sig + in2.sig
+END
+
+// Difference in1 − in2 (the feedback comparator: connect the setpoint to in1,
+// the measurement to in2).
+COMPONENT SigDiff(in1, in2, out)
+  out.sig = in1.sig - in2.sig
+END
+
+COMPONENT SigProduct(in1, in2, out)
+  out.sig = in1.sig * in2.sig
+END
+
+COMPONENT SigDivide(in1, in2, out)
+  out.sig = in1.sig / in2.sig
+END
+
+COMPONENT SigAbs(in, out)
+  out.sig = abs(in.sig)
+END
+
+COMPONENT SigMin(in1, in2, out)
+  out.sig = min(in1.sig, in2.sig)
+END
+
+COMPONENT SigMax(in1, in2, out)
+  out.sig = max(in1.sig, in2.sig)
+END
+
+COMPONENT SigSaturation(in, out)
+  PARAM lo, hi
+  out.sig = min(max(in.sig, lo), hi)
+END
+
+// Symmetric deadband of half-width w: zero inside ±w, unity-slope outside —
+// the C¹ smooth composition of a positive and a negative hinge (width eps).
+COMPONENT SigDeadband(in, out)
+  PARAM w, eps
+  up      = in.sig - w
+  dn      = in.sig + w
+  out.sig = 0.5 * (up + sqrt(up^2 + eps^2)) + 0.5 * (dn - sqrt(dn^2 + eps^2))
+END
+
+// 1-D lookup: sig = map$(in). `map$` names a document TABLE/FUNCTION —
+// a sensor calibration, a nonlinear gain, an efficiency curve.
+COMPONENT SigMap(in, out)
+  PARAM map$
+  out.sig = map$(in.sig)
+END
+
+// 2-D lookup: sig = map$(in1, in2) on a curve-family TABLE
+// (`TABLE name(x : y = y1, y2, …)`) — a torque map, a compressor map slice.
+COMPONENT SigMap2(in1, in2, out)
+  PARAM map$
+  out.sig = map$(in1.sig, in2.sig)
+END
+
+// ── Dynamics (states integrate in a DYNAMIC block) ─────────────────────────
+
+COMPONENT SigIntegrator(in, out)
+  PARAM y0
+  der(y)  = in.sig
+  init(y) = y0
+  out.sig = y
+END
+
+// First-order lag 1/(1+τs).
+COMPONENT SigFirstOrder(in, out)
+  PARAM tau, y0
+  der(y)  = (in.sig - y) / tau
+  init(y) = y0
+  out.sig = y
+END
+
+// Filtered derivative s/(1+τs): exact derivative in the limit τ→0, realizable
+// (proper) for τ>0. The state tracks the input; the output is the residual.
+COMPONENT SigDerivative(in, out)
+  PARAM tau, y0
+  der(y)  = (in.sig - y) / tau
+  init(y) = y0
+  out.sig = (in.sig - y) / tau
+END
+
+// Lead-lag (1+T1·s)/(1+T2·s), the classical compensator.
+COMPONENT SigLeadLag(in, out)
+  PARAM T1, T2, y0
+  der(x)  = (in.sig - x) / T2
+  init(x) = y0
+  out.sig = x + (T1 / T2) * (in.sig - x)
+END
+
+// Second-order tracking filter ωn²/(s² + 2ζωn·s + ωn²).
+COMPONENT SigSecondOrder(in, out)
+  PARAM wn, zeta, y0, v0
+  der(y)  = v
+  init(y) = y0
+  der(v)  = wn^2 * (in.sig - y) - 2 * zeta * wn * v
+  init(v) = v0
+  out.sig = y
+END
+
+// Rate limiter: tracks the input with slope bounded to ±rate (tanh-smooth;
+// tau [s] is the tracking time constant inside the linear zone).
+COMPONENT SigRateLimiter(in, out)
+  PARAM rate, tau, y0
+  der(y)  = rate * tanh((in.sig - y) / (rate * tau))
+  init(y) = y0
+  out.sig = y
+END
+
+// PID controller on the (sp − pv) error with an integrator state and a
+// realizable filtered derivative (filter τ). The `clamped` variant saturates
+// the output to [umin, umax] and back-calculates the integrator (anti-windup
+// reset time Taw) so the integral unwinds while the output is pinned.
+COMPONENT SigPID(sp, pv, out)
+  PARAM Kp, Ki, Kd, tau, i0, d0, model$ = basic
+  e        = sp.sig - pv.sig
+  der(df)  = (e - df) / tau
+  init(df) = d0
+  dterm    = (e - df) / tau
+  init(ie) = i0
+  u_raw    = Kp * e + Ki * ie + Kd * dterm
+  VARIANT basic
+    der(ie) = e
+    out.sig = u_raw
+  END
+  VARIANT clamped REQUIRE umin, umax, Taw
+    out.sig = min(max(u_raw, umin), umax)
+    der(ie) = e + (out.sig - u_raw) / Taw
+  END
+END
+
+// Smooth relay/comparator: `low` below the threshold, `high` above it, with a
+// tanh transition of width eps. (True hysteresis needs discrete memory —
+// deliberately out of the frees band; schedule the threshold instead.)
+COMPONENT SigRelay(in, out)
+  PARAM thresh, low, high, eps
+  out.sig = low + (high - low) * 0.5 * (1 + tanh((in.sig - thresh) / eps))
+END
+
+// Smooth 2-way switch: routes in1 when ctrl > thresh, in2 below, blended over
+// a tanh width eps.
+COMPONENT SigSwitch(in1, in2, ctrl, out)
+  PARAM thresh, eps
+  wgt     = 0.5 * (1 + tanh((ctrl.sig - thresh) / eps))
+  out.sig = wgt * in1.sig + (1 - wgt) * in2.sig
+END
+
+// ── Physical-to-signal probes (measurement bridges for closed loops) ────────
+
+// Temperature probe: reads the heat-node temperature onto a signal wire,
+// drawing no heat.
+COMPONENT SigThermalProbe(port, out)
+  port.Qdot = 0
+  out.sig   = port.T
+END
+
+// Shaft-speed probe (torque-free).
+COMPONENT SigSpeedProbe(shaft, out)
+  shaft.tau = 0
+  out.sig   = shaft.w
+END
+
+// Translational velocity probe (force-free).
+COMPONENT SigVelProbe(port, out)
+  port.f  = 0
+  out.sig = port.vel
+END
+
+
+// ── Supervisory control (Wave 7) ────────────────────────────────────────────
+
+// ECMS-lite torque-split supervisor: a C1 blend between engine-lean and
+// motor-lean operation driven by battery SOC around its reference — an honest
+// smooth surrogate for the argmin equivalence-cost rule (documented as such).
+// dem is the total demand; mot + eng always reconstruct it exactly.
+COMPONENT SupervisoryECMS(soc, dem, eng, mot)
+  PARAM soc_ref, eps
+  s       = 0.5 * (1 + tanh((soc.sig - soc_ref) / eps))
+  mot.sig = s * dem.sig
+  eng.sig = (1 - s) * dem.sig
+END
+
+
+// ── HVAC, buildings & process-lite (Wave 9) ─────────────────────────────────
+
+// Zone CO2 / IAQ balance (well-mixed): ventilation dilutes toward the ambient
+// concentration while occupants generate. Signal-level block: vent carries the
+// volumetric airflow [m3/s], occ the occupant count; concentration in the
+// same unit family as c_amb/gen_occ (ppm with gen in ppm.m3/s, or kg/m3).
+COMPONENT ZoneCO2(vent, occ, out)
+  PARAM Vz, c_amb, gen_occ, c0
+  der(c)  = (vent.sig * (c_amb - c) + occ.sig * gen_occ) / Vz
+  init(c) = c0
+  out.sig = c
+END

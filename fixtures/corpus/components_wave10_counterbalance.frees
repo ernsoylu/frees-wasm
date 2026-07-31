@@ -1,0 +1,11 @@
+// CounterbalanceValve exactly at its threshold: in.P + R_p*pilot.P = P_set
+// opens the sigmoid to precisely one half. Steady.
+// EXPECT x_o = 0.5 tol 1e-9
+
+CounterbalanceValve CB(c1, c2, cp1, CdA_max=3e-6, rho=870, P_set=3e6, R_p=3, eps_o=5e4)
+c1.P  = 1.5e6
+c1.h  = 0
+c2.P  = 1e5
+cp1.P = 0.5e6
+cp1.h = 0
+x_o = CB.x_o

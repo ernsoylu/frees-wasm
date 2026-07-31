@@ -1,0 +1,17 @@
+{
+  "name": "adv_naming_locals_two_instances",
+  "source": "// Two instances of the same component: every component-local must be mangled\n// per instance (PA.W vs PB.W) and displayed with a dot. No property call, so\n// the values are exact and the naming is the only thing under test.\nCOMPONENT Lift(in, out)\n  PARAM v, eta\n  out.mdot = in.mdot\n  out.h    = in.h + v * (out.P - in.P) / eta\n  W        = in.mdot * (out.h - in.h)\nEND\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(f1, P = 100000, h = 112000, mdot = 2.0)\nLift          PA(f1, f2, v = 0.001, eta = 0.8)\nLift          PB(f2, f3, v = 0.001, eta = 0.6)\nSink          SK(f3)\nf2.P = 200000\nf3.P = 400000\nwa = PA.W\nwb = PB.W\nva = PA.v\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 17 equations and 18 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): va. Coupled to: pa.v. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

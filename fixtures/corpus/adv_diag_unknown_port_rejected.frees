@@ -1,0 +1,5 @@
+// connect() names a port the component does not declare.
+ThermalSource HOT(T = 400)
+Conduction    CD(k = 10, area = 1, L = 0.1)
+connect(HOT.porte, CD.a)
+t = CD.a.T

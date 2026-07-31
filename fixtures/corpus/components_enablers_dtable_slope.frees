@@ -1,0 +1,41 @@
+// E1 — dtable(): analytic derivative of a table interpolant.
+// lin is y = 3x, so the linear-interpolant slope is exactly 3 everywhere,
+// including between knots and at a knot. quad holds y = x^2 at x = 0,1,2;
+// the natural cubic spline through those points has slope exactly 2 at x = 1
+// (hand value: M1 = 3 from the tridiagonal system, y' = 1 + 2*M1/6 = 2).
+// The Cam-style component proves the map$-baking path: dtable(prof$, x)
+// resolves against the document TABLE bound to the prof$ parameter.
+// EXPECT s_mid = 3
+// EXPECT s_knot = 3
+// EXPECT s_spline = 2 tol 1e-9
+// EXPECT c.lift = 9 tol 1e-9
+// EXPECT c.vel = 6 tol 1e-9
+
+TABLE lin(x)
+  0   0
+  1   3
+  2   6
+  4   12
+END
+
+TABLE quad(x)
+  0   0
+  1   1
+  2   4
+END
+
+s_mid    = dtable('lin', 0.5)
+s_knot   = dtable('lin', 2)
+s_spline = dtable1('quad', 1)
+
+COMPONENT CamProfile(out)
+  PARAM prof$, w
+  theta   = time * w
+  lift    = prof$(theta)
+  vel     = dtable(prof$, theta) * w
+  out.sig = lift
+END
+
+time = 1.5
+CamProfile c(prof$=lin, w=2)
+probe = c.out.sig

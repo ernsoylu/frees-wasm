@@ -1,0 +1,13 @@
+// Union-find loop closure: connect(a,b), connect(b,c), connect(c,a) must
+// collapse to ONE node, not three, and must not double-count the flow sum.
+ThermalSource S1(T = 400)
+Conduction    C1(k = 10, area = 1, L = 0.1)
+Conduction    C2(k = 10, area = 1, L = 0.1)
+ThermalSource S2(T = 300)
+connect(S1.port, C1.a)
+connect(C1.b, C2.a)
+connect(C2.a, C1.b)
+connect(C2.b, S2.port)
+q1 = C1.Q
+q2 = C2.Q
+tm = C1.b.T

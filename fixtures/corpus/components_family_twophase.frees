@@ -1,0 +1,16 @@
+// Domain family: TWO-PHASE refrigerant (twophase.frees), `domain$ = twophase`.
+// R134a is the second tabulated fluid. The sensor reads quality, saturation
+// temperature and superheat off the (P,h) surface; the inlet is deliberately
+// superheated so `SH = T - Tsat` is a real number rather than a cancellation
+// of two nearly-equal saturation temperatures.
+TwoPhaseSourcePH       SRC(r1, mdot = 0.05, P = 900000, h = 450000)
+TwoPhaseSensor         SEN(r1, r2, fluid$ = R134a)
+TwoPhaseExpansionValve EXV(r2, r3, fluid$ = R134a, Cv = 1e-5)
+TwoPhaseSink           SNK(r3)
+
+x_in  = SEN.x
+t_in  = SEN.T
+sh_in = SEN.SH
+a_in  = SEN.alpha
+p_out = SNK.P
+h_out = SNK.h

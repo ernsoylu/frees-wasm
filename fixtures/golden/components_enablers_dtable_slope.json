@@ -1,0 +1,40 @@
+{
+  "name": "components_enablers_dtable_slope",
+  "source": "// E1 — dtable(): analytic derivative of a table interpolant.\n// lin is y = 3x, so the linear-interpolant slope is exactly 3 everywhere,\n// including between knots and at a knot. quad holds y = x^2 at x = 0,1,2;\n// the natural cubic spline through those points has slope exactly 2 at x = 1\n// (hand value: M1 = 3 from the tridiagonal system, y' = 1 + 2*M1/6 = 2).\n// The Cam-style component proves the map$-baking path: dtable(prof$, x)\n// resolves against the document TABLE bound to the prof$ parameter.\n// EXPECT s_mid = 3\n// EXPECT s_knot = 3\n// EXPECT s_spline = 2 tol 1e-9\n// EXPECT c.lift = 9 tol 1e-9\n// EXPECT c.vel = 6 tol 1e-9\n\nTABLE lin(x)\n  0   0\n  1   3\n  2   6\n  4   12\nEND\n\nTABLE quad(x)\n  0   0\n  1   1\n  2   4\nEND\n\ns_mid    = dtable('lin', 0.5)\ns_knot   = dtable('lin', 2)\ns_spline = dtable1('quad', 1)\n\nCOMPONENT CamProfile(out)\n  PARAM prof$, w\n  theta   = time * w\n  lift    = prof$(theta)\n  vel     = dtable(prof$, theta) * w\n  out.sig = lift\nEND\n\ntime = 1.5\nCamProfile c(prof$=lin, w=2)\nprobe = c.out.sig\n",
+  "expect": {
+    "variables": {
+      "c.lift": 9.0,
+      "c.out.sig": 9.0,
+      "c.theta": 3.0,
+      "c.vel": 6.0,
+      "probe": 9.0,
+      "s_knot": 3.0,
+      "s_mid": 3.0,
+      "s_spline": 2.0,
+      "time": 1.5
+    },
+    "display_names": {
+      "c$lift": "c.lift",
+      "c$out$sig": "c.out.sig",
+      "c$theta": "c.theta",
+      "c$vel": "c.vel",
+      "lift": "lift",
+      "lin": "lin",
+      "probe": "probe",
+      "prof$": "prof$",
+      "s_knot": "s_knot",
+      "s_mid": "s_mid",
+      "s_spline": "s_spline",
+      "theta": "theta",
+      "time": "time",
+      "vel": "vel",
+      "w": "w"
+    },
+    "block_count": 9,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

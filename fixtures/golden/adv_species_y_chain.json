@@ -1,0 +1,62 @@
+{
+  "name": "adv_species_y_chain",
+  "source": "// The single-species rider .y rides a pneumatic chain and is flow-weighted at\n// the GasMixer: 0.2 kg/s @ y=0.10 with 0.6 kg/s @ y=0.50 -> 0.40.\nGasSource GS1(g1, P = 400000, h0 = 300000, mdot = 0.2, y = 0.10)\nGasSource GS2(g2, P = 400000, h0 = 320000, mdot = 0.6, y = 0.50)\nGasPipe   PP(g1, g3)\nGasMixer  MX(g3, g2, g4)\ny1 = g1.y\ny3 = g3.y\ny4 = g4.y\nm4 = g4.mdot\nh4 = g4.h\n",
+  "expect": {
+    "variables": {
+      "g1.h": 300000.0,
+      "g1.mdot": 0.2,
+      "g1.p": 400000.0,
+      "g1.y": 0.1,
+      "g2.h": 320000.0,
+      "g2.mdot": 0.6,
+      "g2.p": 400000.0,
+      "g2.y": 0.5,
+      "g3.h": 300000.0,
+      "g3.mdot": 0.2,
+      "g3.p": 400000.0,
+      "g3.y": 0.1,
+      "g4.h": 315000.0,
+      "g4.mdot": 0.8,
+      "g4.p": 400000.0,
+      "g4.y": 0.39999999999999997,
+      "h4": 315000.0,
+      "m4": 0.8,
+      "y1": 0.1,
+      "y3": 0.1,
+      "y4": 0.39999999999999997
+    },
+    "display_names": {
+      "g1": "g1",
+      "g1$h": "g1.h",
+      "g1$mdot": "g1.mdot",
+      "g1$p": "g1.p",
+      "g1$y": "g1.y",
+      "g2": "g2",
+      "g2$h": "g2.h",
+      "g2$mdot": "g2.mdot",
+      "g2$p": "g2.p",
+      "g2$y": "g2.y",
+      "g3": "g3",
+      "g3$h": "g3.h",
+      "g3$mdot": "g3.mdot",
+      "g3$p": "g3.p",
+      "g3$y": "g3.y",
+      "g4": "g4",
+      "g4$h": "g4.h",
+      "g4$mdot": "g4.mdot",
+      "g4$p": "g4.p",
+      "g4$y": "g4.y",
+      "h4": "h4",
+      "m4": "m4",
+      "y1": "y1",
+      "y3": "y3",
+      "y4": "y4"
+    },
+    "block_count": 21,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

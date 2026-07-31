@@ -1,0 +1,15 @@
+// Positional stream binding names variables after the STREAM (f1$p); connect
+// binding names them after the PORT (va$in$p). Both in one document.
+Source SRC(f1, fluid$ = Water, mdot = 2.0, P = 400000, T = 330)
+Valve  VA(f1, f2, Cv = 0.01, rho = 980, u = 1)
+Sink   SK(f2)
+f2.P = 350000
+
+ThermalSource HOT(T = 400)
+Conduction    CD(k = 10, area = 1, L = 0.1)
+ThermalSource COLD(T = 300)
+connect(HOT.port, CD.a)
+connect(CD.b, COLD.port)
+m  = f2.mdot
+q  = CD.Q
+ta = CD.a.T

@@ -1,0 +1,5 @@
+// model$ names a VARIANT that does not exist.
+Source SRC(f1, fluid$ = Water, mdot = 2.0, P = 500000, T = 320)
+Valve  VA(f1, f2, Cv = 0.01, rho = 980, u = 1, model$ = quadratic)
+Sink   SK(f2)
+m = f2.mdot

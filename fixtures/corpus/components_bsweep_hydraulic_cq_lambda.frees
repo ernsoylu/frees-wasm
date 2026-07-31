@@ -1,0 +1,29 @@
+// Cq(lambda) orifice: (1) fully turbulent (lambda >> lamc) it equals the
+// square-law twin with CdA = Cqmax*A; (2) in the laminar zone Cq is linear in
+// lambda so the flow is LINEAR in dP: doubling dP (100 -> 200 Pa) doubles the
+// flow (a square-law orifice would only give sqrt(2)).
+// EXPECT d_turb = 0 tol 1e-9
+// EXPECT lin_ratio = 2 tol 2e-3
+HydraulicSupply  S1(P=1000000)
+HydraulicOrifice O1(model$=cq_lambda, rho=850, A=2e-6, D=0.005, nu=4e-5, Cqmax=0.7, lamc=1000, epsP=0.1)
+HydraulicTank    T1(P=100000)
+connect(S1.out, O1.in)
+connect(O1.out, T1.port)
+HydraulicSupply  S2(P=1000000)
+HydraulicOrifice O2(model$=turbulent, rho=850, CdA=1.4e-6)
+HydraulicTank    T2(P=100000)
+connect(S2.out, O2.in)
+connect(O2.out, T2.port)
+d_turb = O1.in.mdot - O2.in.mdot
+
+HydraulicSupply  S3(P=100100)
+HydraulicOrifice O3(model$=cq_lambda, rho=850, A=2e-6, D=0.005, nu=4e-5, Cqmax=0.7, lamc=5000, epsP=0.01)
+HydraulicTank    T3(P=100000)
+connect(S3.out, O3.in)
+connect(O3.out, T3.port)
+HydraulicSupply  S4(P=100200)
+HydraulicOrifice O4(model$=cq_lambda, rho=850, A=2e-6, D=0.005, nu=4e-5, Cqmax=0.7, lamc=5000, epsP=0.01)
+HydraulicTank    T4(P=100000)
+connect(S4.out, O4.in)
+connect(O4.out, T4.port)
+lin_ratio = O4.in.mdot / O3.in.mdot

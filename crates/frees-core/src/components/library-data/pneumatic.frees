@@ -1,0 +1,200 @@
+COMPONENT GasSource(out)
+  PARAM y, mdot, P, h0
+  out.y    = y
+  out.mdot = mdot
+  out.P    = P
+  out.h    = h0
+END
+
+COMPONENT GasPipe(in, out)
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h
+  out.y    = in.y
+END
+
+COMPONENT GasMixer(in1, in2, out)
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+  out.mdot * out.y = in1.mdot * in1.y + in2.mdot * in2.y
+END
+
+COMPONENT PneumaticSupply(out)
+  PARAM fluid$, P, T, domain$ = gas
+  out.P = P
+  out.h = Enthalpy(fluid$, P=P, T=T)
+END
+
+COMPONENT PneumaticAtmosphere(port)
+  PARAM P, domain$ = gas
+  port.P = P
+END
+
+COMPONENT PneumaticOrifice(in, out)
+  PARAM fluid$, C, b, domain$ = gas
+  out.h    = in.h
+  T_in     = Temperature(fluid$, P=in.P, h=in.h)
+  in.mdot  = iso6358(C, b, in.P, T_in, out.P)
+  out.mdot = in.mdot
+END
+
+COMPONENT PneumaticServoValve(in, out)
+  PARAM fluid$, Cmax, b, u, domain$ = gas
+  out.h    = in.h
+  T_in     = Temperature(fluid$, P=in.P, h=in.h)
+  in.mdot  = iso6358(u * Cmax, b, in.P, T_in, out.P)
+  out.mdot = in.mdot
+END
+
+COMPONENT PneumaticVolume(in, out)
+  PARAM V, T, R, P0, domain$ = gas
+  out.P      = in.P
+  out.h      = in.h
+  der(in.P)  = (R * T / V) * (in.mdot - out.mdot)
+  init(in.P) = P0
+END
+
+COMPONENT PneumaticActuator(in, rod)
+  PARAM fluid$, area, Patm, domain$ = gas
+  rho     = Density(fluid$, P=in.P, h=in.h)
+  rod.f   = -(in.P - Patm) * area
+  in.mdot = rho * area * rod.vel
+END
+
+// Signal-commanded servo valve: ISO 6358 flow with the sonic conductance
+// scaled by the spool command u.sig ∈ [0,1] — the closed-loop counterpart of
+// PneumaticServoValve.
+COMPONENT PneumaticServoValveCmd(in, out, u)
+  PARAM fluid$, Cmax, b, domain$ = gas
+  out.h    = in.h
+  T_in     = Temperature(fluid$, P=in.P, h=in.h)
+  in.mdot  = iso6358(u.sig * Cmax, b, in.P, T_in, out.P)
+  out.mdot = in.mdot
+END
+
+// ── Fluid-power pro set (Wave 5) ───────────────────────────────────────────
+
+// Pneumatic check valve: ISO 6358 flow gated to forward ΔP.
+COMPONENT PneumaticCheckValve(in, out)
+  PARAM fluid$, C, b, eps, domain$ = gas
+  out.mdot = in.mdot
+  out.h    = in.h
+  g        = 0.5 * (1 + tanh((in.P - out.P) / eps))
+  T_in     = Temperature(fluid$, P=in.P, h=in.h)
+  in.mdot  = g * iso6358(C, b, in.P, T_in, out.P)
+END
+
+// 3/2 directional valve: the spool command u blends supply->work (u·C) against
+// work->exhaust ((1-u)·C), both ISO 6358 paths — u=1 pressurizes, u=0 vents.
+COMPONENT PneumaticValve32(sup_in, work, exh_out, u)
+  PARAM fluid$, C, b, domain$ = gas
+  T_s          = Temperature(fluid$, P=sup_in.P, h=sup_in.h)
+  T_w          = Temperature(fluid$, P=work.P, h=work.h)
+  m_in         = iso6358(u.sig * C, b, sup_in.P, T_s, work.P)
+  m_out        = iso6358((1 - u.sig) * C, b, work.P, T_w, exh_out.P)
+  sup_in.mdot  = m_in
+  work.mdot    = m_in - m_out
+  exh_out.mdot = m_out
+  work.h       = sup_in.h
+  exh_out.h    = work.h
+END
+
+// 5/2 directional valve: u=1 routes supply->A and B->exhaust; u=0 routes
+// supply->B and A->exhaust (four ISO 6358 paths, complementary commands).
+COMPONENT PneumaticValve52(sup_in, wa, wb, ea_out, eb_out, u)
+  PARAM fluid$, C, b, domain$ = gas
+  T_s         = Temperature(fluid$, P=sup_in.P, h=sup_in.h)
+  T_a         = Temperature(fluid$, P=wa.P, h=wa.h)
+  T_b         = Temperature(fluid$, P=wb.P, h=wb.h)
+  m_sa        = iso6358(u.sig * C, b, sup_in.P, T_s, wa.P)
+  m_be        = iso6358(u.sig * C, b, wb.P, T_b, eb_out.P)
+  m_sb        = iso6358((1 - u.sig) * C, b, sup_in.P, T_s, wb.P)
+  m_ae        = iso6358((1 - u.sig) * C, b, wa.P, T_a, ea_out.P)
+  sup_in.mdot = m_sa + m_sb
+  wa.mdot     = m_sa - m_ae
+  wb.mdot     = m_sb - m_be
+  ea_out.mdot = m_ae
+  eb_out.mdot = m_be
+  wa.h        = sup_in.h
+  wb.h        = sup_in.h
+  ea_out.h    = wa.h
+  eb_out.h    = wb.h
+END
+
+// Double-acting pneumatic cylinder: two isothermal ideal-gas chambers at
+// mid-stroke volumes and the rod force balance.
+COMPONENT PneumaticDoubleActingCylinder(a, b, rod)
+  PARAM Aa, Ab, R, T, Va0, Vb0, Pa0, Pb0, domain$ = gas
+  rod.f     = -(a.P * Aa - b.P * Ab)
+  der(a.P)  = (R * T * a.mdot - a.P * Aa * rod.vel) / Va0
+  init(a.P) = Pa0
+  der(b.P)  = (R * T * b.mdot + b.P * Ab * rod.vel) / Vb0
+  init(b.P) = Pb0
+END
+
+// Thermal gas volume: mass AND temperature states with a heat port — the
+// non-isothermal receiver (charge heating, blow-down cooling); pressure from
+// the ideal-gas law.
+COMPONENT PneumaticThermalVolume(in, out, wall)
+  PARAM fluid$, V, R, cv, cp, m0, T0, domain$ = gas
+  der(m)  = in.mdot - out.mdot
+  init(m) = m0
+  T_in    = Temperature(fluid$, P=in.P, h=in.h)
+  der(T)  = (in.mdot * cp * (T_in - T) + wall.Qdot) / (m * cv)
+  init(T) = T0
+  in.P    = m * R * T / V
+  out.P   = in.P
+  out.h   = Enthalpy(fluid$, P=out.P, T=T)
+  wall.T  = T
+END
+
+// Vacuum ejector: motive ISO 6358 flow entrains ER times its mass flow from
+// the suction port; mass and energy mix exactly at the exhaust.
+COMPONENT VacuumEjector(sup_in, suc_in, exh_out)
+  PARAM fluid$, C, b, ER, domain$ = gas
+  T_s          = Temperature(fluid$, P=sup_in.P, h=sup_in.h)
+  sup_in.mdot  = iso6358(C, b, sup_in.P, T_s, exh_out.P)
+  suc_in.mdot  = ER * sup_in.mdot
+  exh_out.mdot = sup_in.mdot + suc_in.mdot
+  exh_out.mdot * exh_out.h = sup_in.mdot * sup_in.h + suc_in.mdot * suc_in.h
+END
+
+
+// ── Electrochemistry & energy systems (Wave 8) ──────────────────────────────
+
+// NOTE (Program II): there is deliberately no packaged CathodeAirPath —
+// CompressorMap is an efficiency-only machine (no flow-vs-PR characteristic),
+// so a supply -> compressor -> volume chain is genuinely underdetermined: its
+// inlet pressure/flow need a flow-determining element (orifice, valve, or a
+// flow map) or a pressure-pinned discharge. The solver's structural
+// diagnostics explain this; the well-posed filling pattern is fixture-proven
+// in wave8/cathode_path.frees (supply -> orifice -> volume -> orifice -> atm).
+
+// Anode recirculation: the supply ejector entrains stack return (H2 loop) —
+// the VacuumEjector law as a named balance-of-plant stage (direct equations).
+COMPONENT AnodeRecirc(sup_in, ret_in, out)
+  PARAM fluid$, C, b, ER, domain$ = gas
+  T_s         = Temperature(fluid$, P=sup_in.P, h=sup_in.h)
+  sup_in.mdot = iso6358(C, b, sup_in.P, T_s, out.P)
+  ret_in.mdot = ER * sup_in.mdot
+  out.mdot    = sup_in.mdot + ret_in.mdot
+  out.mdot * out.h = sup_in.mdot * sup_in.h + ret_in.mdot * ret_in.h
+END
+
+
+// ── Multi-species gas rider (E3) + Wave 10 ──────────────────────────────────
+
+// Species-conserving mixer: merges two gas branches, flow-weighting enthalpy
+// and every named species fraction exactly (the junction rule for the E3
+// multi-species rider).
+COMPONENT GasMixerN(in1, in2, out)
+  PARAM domain$ = gas
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h    = in1.mdot * in1.h    + in2.mdot * in2.h
+  out.mdot * out.yo2  = in1.mdot * in1.yo2  + in2.mdot * in2.yo2
+  out.mdot * out.yco2 = in1.mdot * in1.yco2 + in2.mdot * in2.yco2
+  out.mdot * out.yh2o = in1.mdot * in1.yh2o + in2.mdot * in2.yh2o
+  out.mdot * out.yn2  = in1.mdot * in1.yn2  + in2.mdot * in2.yn2
+END

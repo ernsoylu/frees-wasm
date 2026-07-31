@@ -1,0 +1,258 @@
+COMPONENT HydraulicSupply(out)
+  PARAM P, domain$ = oil
+  out.P = P
+  out.h = 0
+END
+
+COMPONENT HydraulicTank(port)
+  PARAM P, domain$ = oil
+  port.P = P
+END
+
+// Hydraulic orifice fidelity ladder. `turbulent` is the original square-law on
+// CdA. `cq_lambda` is the Cq(λ) flow law: the flow coefficient rises with the
+// flow number λ = (D/ν)·√(2|ΔP|/ρ) as Cq = Cqmax·tanh(2λ/λc), so the orifice is
+// LINEAR in ΔP in the laminar regime and square-law when fully turbulent, with
+// a C∞ transition — no Reynolds branch switch. epsP [Pa] smooths the flow
+// direction through ΔP = 0.
+COMPONENT HydraulicOrifice(in, out)
+  PARAM CdA, rho, A, D, nu, Cqmax, lamc, epsP, domain$ = oil, model$ = turbulent
+  out.mdot = in.mdot
+  out.h    = in.h
+  VARIANT turbulent REQUIRE CdA
+    in.mdot * abs(in.mdot) = CdA^2 * 2 * rho * (in.P - out.P)
+  END
+  VARIANT cq_lambda REQUIRE A, D, nu, Cqmax, lamc, epsP
+    dP      = in.P - out.P
+    lam     = (D / nu) * sqrt(2 * abs(dP) / rho)
+    Cq      = Cqmax * tanh(2 * lam / lamc)
+    in.mdot = Cq * A * sqrt(2 * rho * abs(dP)) * dP / sqrt(dP^2 + epsP^2)
+  END
+END
+
+COMPONENT HydraulicValve(in, out)
+  PARAM CdA_max, rho, u, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  in.mdot * abs(in.mdot) = (u * CdA_max)^2 * 2 * rho * (in.P - out.P)
+END
+
+COMPONENT ReliefValve(in, out)
+  PARAM Pcrack, K, eps, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  open     = 0.5 * (1 + tanh((in.P - Pcrack) / eps))
+  in.mdot  = K * open * (in.P - out.P)
+END
+
+COMPONENT HydraulicCylinder(in, rod)
+  PARAM rho, beta, V0, area, Patm, P0, domain$ = oil
+  rod.f      = -(in.P - Patm) * area
+  der(in.P)  = (beta / V0) * (in.mdot / rho - area * rod.vel)
+  init(in.P) = P0
+END
+
+COMPONENT HydraulicPump(in, out, shaft)
+  PARAM disp, rho, eta_v, eta_m, domain$ = oil
+  n_rev     = shaft.w / (2 * pi#)
+  out.mdot  = rho * disp * n_rev * eta_v
+  in.mdot   = out.mdot
+  out.h     = in.h
+  shaft.tau = -(disp * (out.P - in.P) / (2 * pi#)) / eta_m
+END
+
+// Signal-commanded proportional valve: spool command u.sig ∈ [0,1] scales the
+// orifice CdA — the closed-loop counterpart of HydraulicValve.
+COMPONENT HydraulicValveCmd(in, out, u)
+  PARAM CdA_max, rho, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  in.mdot * abs(in.mdot) = (u.sig * CdA_max)^2 * 2 * rho * (in.P - out.P)
+END
+
+// ── Fluid-power pro set (Wave 5) ───────────────────────────────────────────
+
+// Check valve: square-law orifice gated smoothly to forward ΔP (width eps).
+COMPONENT HydraulicCheckValve(in, out)
+  PARAM CdA, rho, eps, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  dP       = in.P - out.P
+  g        = 0.5 * (1 + tanh(dP / eps))
+  in.mdot * abs(in.mdot) = g * CdA^2 * 2 * rho * dP
+END
+
+// Pilot-operated check valve: a pilot pressure (ratio rp) can hold the poppet
+// open against reverse ΔP — the load-holding valve. The pilot port draws no
+// flow.
+COMPONENT HydraulicPilotCheckValve(in, out, pilot)
+  PARAM CdA, rho, rp, eps, domain$ = oil
+  pilot.mdot = 0
+  out.mdot   = in.mdot
+  out.h      = in.h
+  dPe        = (in.P - out.P) + rp * (pilot.P - in.P)
+  g          = 0.5 * (1 + tanh(dPe / eps))
+  in.mdot * abs(in.mdot) = g * CdA^2 * 2 * rho * (in.P - out.P)
+END
+
+// Gas-charged accumulator: precharge P0 filling gas volume V0; the oil drives
+// the gas polytropically (P·V^γ = P0·V0^γ) with the gas volume as the state.
+COMPONENT HydraulicAccumulator(port)
+  PARAM P0, V0, gamma, rho, Vg0, domain$ = oil
+  der(Vg)  = -port.mdot / rho
+  init(Vg) = Vg0
+  port.P   = P0 * (V0 / Vg)^gamma
+END
+
+// Fixed-displacement motor: the exact dual of HydraulicPump (volumetric slip
+// divides the flow, mechanical efficiency multiplies the torque).
+COMPONENT HydraulicMotor(in, out, shaft)
+  PARAM disp, rho, eta_v, eta_m, domain$ = oil
+  n_rev     = shaft.w / (2 * pi#)
+  in.mdot   = rho * disp * n_rev / eta_v
+  out.mdot  = in.mdot
+  out.h     = in.h
+  shaft.tau = -(disp * (in.P - out.P) / (2 * pi#)) * eta_m
+END
+
+// Standalone bulk-modulus volume (the hydraulic C-node): der(P) from the net
+// flow against the oil stiffness beta.
+COMPONENT HydraulicVolume(in, out)
+  PARAM V, beta, rho, P0, domain$ = oil
+  out.P      = in.P
+  out.h      = in.h
+  der(in.P)  = (beta / (V * rho)) * (in.mdot - out.mdot)
+  init(in.P) = P0
+END
+
+// Hydraulic line with Darcy friction on the oil kinematic viscosity
+// (laminar-turbulent via the Colebrook friction factor, sign-safe).
+COMPONENT HydraulicPipe(in, out)
+  PARAM rho, nu, L, D, rough, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  A        = pi# / 4 * D^2
+  V        = in.mdot / (rho * A)
+  Re       = reynolds(rho, abs(V) + 1e-9, D, rho * nu)
+  f        = friction_factor(Re, rough / D)
+  out.P    = in.P - f * (L / D) * rho * V * abs(V) / 2
+END
+
+// Ideal pressure-compensated flow control: holds the set volumetric flow
+// regardless of ΔP (within authority — rate it against the circuit).
+COMPONENT HydraulicFlowControl(in, out)
+  PARAM Qset, rho, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  in.mdot  = rho * Qset
+END
+
+// Ideal spool flow divider: forces the flow split frac/(1-frac) regardless of
+// the branch loads; the inlet pressure is the power-conserving mix.
+COMPONENT HydraulicFlowDivider(in, outa, outb)
+  PARAM frac, domain$ = oil
+  outa.mdot = frac * in.mdot
+  outb.mdot = (1 - frac) * in.mdot
+  outa.h    = in.h
+  outb.h    = in.h
+  in.P      = frac * outa.P + (1 - frac) * outb.P
+END
+
+// Sequence valve: passes flow to the secondary circuit only above the primary
+// pressure setpoint (tanh gate).
+COMPONENT HydraulicSequenceValve(in, out)
+  PARAM Pset, CdA, rho, eps, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  g        = 0.5 * (1 + tanh((in.P - Pset) / eps))
+  in.mdot * abs(in.mdot) = g * CdA^2 * 2 * rho * (in.P - out.P)
+END
+
+// Double-acting cylinder: two bulk-modulus chambers (piston/rod areas Aa, Ab)
+// and the rod force balance. Chamber volumes are taken at mid-stroke (Va0,
+// Vb0) — the standard lumped rung.
+COMPONENT HydraulicDoubleActingCylinder(a, b, rod)
+  PARAM Aa, Ab, rho, beta, Va0, Vb0, Pa0, Pb0, domain$ = oil
+  rod.f     = -(a.P * Aa - b.P * Ab)
+  der(a.P)  = (beta / Va0) * (a.mdot / rho - Aa * rod.vel)
+  init(a.P) = Pa0
+  der(b.P)  = (beta / Vb0) * (b.mdot / rho + Ab * rod.vel)
+  init(b.P) = Pb0
+END
+
+// Generic K-factor resistance (bend, tee, sudden expansion — set K from the
+// standard flow-network loss correlations).
+COMPONENT HydraulicResistance(in, out)
+  PARAM K, rho, D, domain$ = oil
+  out.mdot = in.mdot
+  out.h    = in.h
+  A        = pi# / 4 * D^2
+  V        = in.mdot / (rho * A)
+  out.P    = in.P - K * rho * V * abs(V) / 2
+END
+
+
+// ── Hydraulic servo depth (Wave 10) ─────────────────────────────────────────
+
+// Servo valve with 2nd-order spool dynamics: the spool position tracks the
+// command through (wn, zeta) and gates the odd-symmetric square-law flow —
+// the dynamic rung above HydraulicValveCmd.
+COMPONENT ServoValveDynamic(in, out, u)
+  PARAM CdA_max, rho, wn, zeta, xs0, domain$ = oil
+  der(xs)  = vs
+  init(xs) = xs0
+  der(vs)  = wn^2 * (u.sig - xs) - 2 * zeta * wn * vs
+  init(vs) = 0
+  out.mdot = in.mdot
+  out.h    = in.h
+  in.mdot * abs(in.mdot) = (xs * CdA_max)^2 * 2 * rho * (in.P - out.P)
+END
+
+// Counterbalance (overcenter) valve: opens on the spring-referenced blend of
+// load pressure and pilot assist (ratio R_p), then meters with the square
+// law — controlled load lowering.
+COMPONENT CounterbalanceValve(in, out, pilot)
+  PARAM CdA_max, rho, P_set, R_p, eps_o, domain$ = oil
+  x_o      = 0.5 * (1 + tanh((in.P + R_p * pilot.P - P_set) / eps_o))
+  out.mdot = in.mdot
+  out.h    = in.h
+  pilot.mdot = 0
+  in.mdot * abs(in.mdot) = (x_o * CdA_max)^2 * 2 * rho * (in.P - out.P)
+END
+
+// Load-sensing pump: the displacement fraction integrates the compensator
+// error (LS pressure + margin vs outlet), soft-clamped to 0..1 by a logistic;
+// delivery is the effective displacement at the drive speed.
+COMPONENT LoadSensingPump(in, out, ls)
+  PARAM rho, Dv, w_p, dP_margin, tau, d0, domain$ = oil
+  der(dfrac)  = ((ls.P + dP_margin) - out.P) / (tau * dP_margin)
+  init(dfrac) = d0
+  deff     = 1 / (1 + exp(-8 * (dfrac - 0.5)))
+  out.mdot = deff * rho * Dv * w_p / (2 * pi#)
+  in.mdot  = out.mdot
+  out.h    = in.h
+  ls.mdot  = 0
+END
+
+// Oil volume with pressure AND temperature states plus a heat port — the
+// thermal-hydraulic node for warm-up and cooling-loop studies. The cav
+// variant collapses the effective bulk modulus as pressure approaches vapor
+// (aeration/cavitation clamp).
+COMPONENT HydraulicThermalVolume(in, out, wall)
+  PARAM V, rho, cp_o, beta, hA, P0, T0, Pvap, eps_c, model$ = stiff, domain$ = oil
+  der(Pm)  = beta_eff / (rho * V) * (in.mdot - out.mdot)
+  init(Pm) = P0
+  T_in     = in.h / cp_o
+  der(Tm)  = (in.mdot * cp_o * (T_in - Tm) + hA * (wall.T - Tm)) / (rho * V * cp_o)
+  init(Tm) = T0
+  in.P     = Pm
+  out.P    = Pm
+  out.h    = cp_o * Tm
+  wall.Qdot = hA * (wall.T - Tm)
+  VARIANT stiff
+    beta_eff = beta
+  END
+  VARIANT cav REQUIRE Pvap, eps_c
+    beta_eff = beta * 0.5 * (1 + tanh((Pm - Pvap) / eps_c))
+  END
+END

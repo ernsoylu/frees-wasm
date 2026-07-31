@@ -1,0 +1,21 @@
+// Variable names are case-insensitive: PA.w must resolve to the same scalar as
+// PA.W, and s2.p to s2.P. Display names come from the first-seen spelling.
+COMPONENT Lift(in, out)
+  PARAM v, eta
+  out.mdot = in.mdot
+  out.h    = in.h + v * (out.P - in.P) / eta
+  W        = in.mdot * (out.h - in.h)
+END
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(s1, P = 100000, h = 112000, mdot = 1.0)
+Lift          PA(s1, s2, v = 0.001, eta = 0.7)
+Sink          SK(s2)
+s2.P = 250000
+lower_w = PA.w
+upper_w = PA.W
+lower_p = s2.p

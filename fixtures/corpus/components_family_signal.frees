@@ -1,0 +1,11 @@
+// Domain family: SIGNAL (signal.frees). Causal one-member `sig` bond.
+SigConstant   K1(s1, k = 3)
+SigConstant   K2(s2, k = 4)
+SigSum        SM(s1, s2, s3)
+SigGain       GN(s3, s4, k = 2.5)
+SigSaturation ST(s4, s5, lo = -10, hi = 12)
+SigProduct    PR(s1, s2, s6)
+SigMin        MN(s5, s6, s7)
+y_sum = s3.sig
+y_sat = s5.sig
+y_min = s7.sig

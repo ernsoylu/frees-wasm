@@ -1,0 +1,5 @@
+// Untagged fluid meeting an explicit domain$ = liquid line.
+Source     SRC(fluid$ = Water, mdot = 1.0, P = 300000, T = 320)
+LiquidSink LS()
+connect(SRC.out, LS.in)
+m = LS.mdot

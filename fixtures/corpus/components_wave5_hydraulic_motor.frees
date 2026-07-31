@@ -1,0 +1,16 @@
+// Motor at 100 rad/s between 200 bar and 1 bar: flow = rho*disp*n/eta_v =
+// 0.1424018 kg/s; torque = -disp*dP*eta_m/(2pi) = -28.5047 N·m.
+// EXPECT d_mm = 0 tol 1e-8
+// EXPECT d_mt = 0 tol 1e-6
+HydraulicSupply SM(P=20000000)
+HydraulicMotor  HM(disp=1e-5, rho=850, eta_v=0.95, eta_m=0.9)
+HydraulicTank   TM(P=100000)
+SpeedSource     WS(w=100)
+MechGround      MG()
+connect(SM.out, HM.in)
+connect(HM.out, TM.port)
+connect(WS.a, HM.shaft)
+connect(WS.b, MG.port)
+d_mm = HM.in.mdot - 0.1424017912
+d_mt = HM.shaft.tau - (-28.5046503)
+

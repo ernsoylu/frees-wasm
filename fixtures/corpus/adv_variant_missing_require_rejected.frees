@@ -1,0 +1,6 @@
+// VARIANT linear REQUIREs Cv and u; u is not supplied, so the instance must be
+// rejected with a diagnostic that names the COMPONENT, not a mangled scalar.
+Source SRC(f1, fluid$ = Water, mdot = 2.0, P = 500000, T = 320)
+Valve  VA(f1, f2, Cv = 0.01, rho = 980, model$ = linear)
+Sink   SK(f2)
+m = f2.mdot

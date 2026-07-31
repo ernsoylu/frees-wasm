@@ -1,0 +1,25 @@
+// Valve trim ladder. eqpct at u=1 collapses to the fixed law (d=0); at u=0.5
+// with rangeability R=50 the effective Cv is Cv/sqrt(50), so the flow ratio to
+// the u=1 valve is 1/sqrt(50) = 0.1414214.
+// EXPECT d_full = 0 tol 1e-9
+// EXPECT r_half = 0.1414214 tol 1e-6
+Source SR1(fluid$=Water, mdot=mfree1, P=300000, T=300)
+Valve  V1(model$=eqpct, Cv=1e-5, rho=997, u=1, R=50)
+Sink   SK1()
+connect(SR1.out, V1.in)
+connect(V1.out, SK1.in)
+V1.out.P = 100000
+Source SR2(fluid$=Water, mdot=mfree2, P=300000, T=300)
+Valve  V2(model$=fixed, Cv=1e-5, rho=997)
+Sink   SK2()
+connect(SR2.out, V2.in)
+connect(V2.out, SK2.in)
+V2.out.P = 100000
+Source SR3(fluid$=Water, mdot=mfree3, P=300000, T=300)
+Valve  V3(model$=eqpct, Cv=1e-5, rho=997, u=0.5, R=50)
+Sink   SK3()
+connect(SR3.out, V3.in)
+connect(V3.out, SK3.in)
+V3.out.P = 100000
+d_full = V1.in.mdot - V2.in.mdot
+r_half = V3.in.mdot / V1.in.mdot

@@ -1,0 +1,7 @@
+// connect() naming two bare stream names rather than instance ports.
+Source   SRC(f1, fluid$ = Water, mdot = 1.0, P = 200000, T = 310)
+Throttle TH(f2, f3)
+Sink     SK(f3)
+connect(f1, f2)
+m = f3.mdot
+h = f3.h

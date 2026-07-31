@@ -1,0 +1,16 @@
+// Two components with NO domain$ on the (P, mdot, h) bond: the untagged family
+// must be internally compatible.
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(P = 300000, h = 196421, mdot = 1.0)
+Throttle      TH()
+Sink          SK()
+connect(SRC.out, TH.in)
+connect(TH.out, SK.in)
+m = SK.mdot
+h = SK.h
+p = SK.P

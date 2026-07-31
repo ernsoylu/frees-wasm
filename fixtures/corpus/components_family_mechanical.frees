@@ -1,0 +1,27 @@
+// Domain family: MECHANICAL rotational (mechanical.frees). Across w, flow tau.
+// 20 N.m through a 3:1 gear into a 0.5 N.m.s damper against ground.
+TorqueSource     TQ(T = 20)
+Gear             GR(ratio = 3)
+RotationalDamper DP(c = 0.5)
+MechGround       G1()
+MechGround       G2()
+connect(TQ.a, GR.in)
+connect(TQ.b, G1.port)
+connect(GR.out, DP.a)
+connect(DP.b, G2.port)
+w_in    = GR.in.w
+w_out   = GR.out.w
+tau_out = GR.out.tau
+
+// Storage: an Inertia declares der(port.w). With no DYNAMIC block the network
+// solves its steady operating point (der -> 0), so the inertia carries no
+// torque and the damper takes all 5 N.m: w = 20 rad/s.
+TorqueSource     TQ2(T = 5)
+RotationalDamper DP2(c = 0.25)
+Inertia          IN(J = 0.4, w0 = 0)
+MechGround       G3()
+MechGround       G4()
+connect(TQ2.a, IN.port, DP2.a)
+connect(TQ2.b, G3.port)
+connect(DP2.b, G4.port)
+w_steady = IN.port.w

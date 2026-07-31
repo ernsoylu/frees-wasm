@@ -3,9 +3,11 @@
 //! Rules `program`, `topLevel`, `statement`, `statementList`, `forBlock`,
 //! `callStatement`, `multiAssign`, `rangeAssign`, `symbolicDecl`,
 //! `guessDirective`, `equation` from `Frees.g4`, plus the definition blocks
-//! `functionDef`, `procedureDef`, `moduleDef`, `tableDef` and the procedural
-//! body rules `procBody`, `procStatement`, `assignment`, `ifStatement`,
-//! `repeatStatement`, `whileStatement`.
+//! `functionDef`, `procedureDef`, `moduleDef`, `tableDef`, the component rules
+//! `componentDef`, `componentItem`, `componentVariant`, `componentParam`,
+//! `componentInst`, `componentArgList`, `componentArg`, `connectStmt`,
+//! `connectPort`, and the procedural body rules `procBody`, `procStatement`,
+//! `assignment`, `ifStatement`, `repeatStatement`, `whileStatement`.
 //!
 //! Port of `AstBuilder.buildProgram` / `buildStatement` and friends
 //! (`../frEES/backend/core/src/main/java/com/frees/backend/parser/AstBuilder.java`).
@@ -13,12 +15,23 @@
 //! # What this pass covers
 //!
 //! `topLevel` in the grammar admits eleven block constructs on top of the plain
-//! statement forms. `guessDirective`, `statement` and the four definition
-//! blocks (`FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`, filling
-//! [`Document::defs`]) are implemented here; every other leading token produces
-//! [`crate::parser::unsupported`] naming the construct, so a document that uses
-//! one fails loudly instead of being silently mis-parsed (`Document`'s doc
-//! comment: "a wrong answer is worse than a refusal").
+//! statement forms. `guessDirective`, `statement`, the four definition blocks
+//! (`FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`, filling [`Document::defs`])
+//! and the three component forms (`componentDef` / `componentInst` /
+//! `connectStmt`, filling [`Document::components`]) are implemented here; every
+//! other leading token produces [`crate::parser::unsupported`] naming the
+//! construct, so a document that uses one fails loudly instead of being
+//! silently mis-parsed (`Document`'s doc comment: "a wrong answer is worse than
+//! a refusal").
+//!
+//! # The component layer parses; it does not yet run
+//!
+//! Filling [`Document::components`] is a *grammar* milestone. Expansion —
+//! cloning a body per instance, rewriting ports to stream variables, tying a
+//! `connect` node together — is `ComponentExpander`'s job and is a separate
+//! pass. Until it lands, [`crate::engine`] refuses a document that declared any
+//! component rather than quietly solving the equations that remain, which is
+//! the same "loud, not silent" rule the unsupported list enforces.
 //!
 //! # Multi-output `FUNCTION` desugaring
 //!
@@ -56,9 +69,14 @@
 //! * **`rangeAssign` vs. an equation.** `IDENT = signedNumber COLON …` is the
 //!   discriminating prefix; a `:` cannot otherwise appear at the top of an
 //!   expression, so the three-token lookahead is exact.
-//! * **`componentInst`** is `IDENT IDENT (`. It is not implemented, but it is
-//!   detected, because letting it fall through to `equation` would report a
-//!   confusing expression error instead of "not supported".
+//! * **`componentInst`** is `IDENT IDENT (` — a shape the expression grammar
+//!   cannot produce, so the three-token test is exact. It is predicted at
+//!   `topLevel` and inside a `componentItem`, the only two places the grammar
+//!   admits it: `statementList` (a `FOR` or `MODULE` body) does **not** list
+//!   `componentInst`, so `Pump P1(a, b)` inside a `FOR` stays the syntax error
+//!   ANTLR reports there.
+//! * **`componentArg`** is `IDENT EQ expr` (named) or `expr` (positional). An
+//!   `expr` can never contain a top-level `=`, so the two-token test is exact.
 //!
 //! # Range lowering
 //!
@@ -80,6 +98,9 @@
 //! typo like `x = 0:0.0000001:100` is still rejected where the user wrote it.
 
 use crate::ast::{Equation, Expr, Statement};
+use crate::components::def::{
+    ComponentDef, ComponentInst, ConnectDecl, Param, ParamOverrides, Variant,
+};
 use crate::diag::{FreesError, Result, Span};
 use crate::parser::defs::{
     Curve, Definitions, FunctionDef, FunctionTableDef, ModuleDef, ProcStatement, ProcedureDef,
@@ -189,14 +210,29 @@ impl<'a> Parser<'a> {
         Ok(doc)
     }
 
-    /// `topLevel`. `guessDirective`, the four definition blocks and
-    /// `statement` are supported; every other block form is rejected by
-    /// [`Parser::statement`].
+    /// `topLevel`. `guessDirective`, the four definition blocks, the three
+    /// component forms and `statement` are supported; every other block form is
+    /// rejected by [`Parser::statement`].
     fn top_level(&mut self, doc: &mut Document) -> Result<()> {
         match self.c.peek() {
             TokenKind::Guess => {
                 let directive = self.guess_directive()?;
                 doc.guesses.push(directive);
+            }
+            TokenKind::Component => {
+                let def = self.component_def()?;
+                doc.components.defs.push(def);
+            }
+            TokenKind::Connect => {
+                let connect = self.connect_stmt()?;
+                doc.components.connects.push(connect);
+            }
+            // `componentInst` before `statement`: the grammar lists it as its
+            // own `topLevel` alternative, and `IDENT IDENT (` is a shape no
+            // `equation` can take.
+            TokenKind::Ident(_) if self.at_component_inst() => {
+                let inst = self.component_inst()?;
+                doc.components.instances.push(inst);
             }
             TokenKind::Function => {
                 let def = self.function_def()?;
@@ -229,9 +265,6 @@ impl<'a> Parser<'a> {
     fn statement(&mut self) -> Result<Statement> {
         if let Some(construct) = unsupported_construct(self.c.peek()) {
             return Err(unsupported(construct, self.c.span()));
-        }
-        if self.at_component_inst() {
-            return Err(unsupported("COMPONENT instantiation", self.c.span()));
         }
         match self.c.peek().clone() {
             TokenKind::For => self.for_block(),
@@ -474,15 +507,17 @@ impl<'a> Parser<'a> {
 
     /// `equation : expr EQ expr`
     fn equation(&mut self) -> Result<Statement> {
+        Ok(Statement::Eq(self.bare_equation()?))
+    }
+
+    /// `equation : expr EQ expr`, as the bare [`Equation`] the component AST
+    /// stores. [`Parser::equation`] wraps it into a [`Statement`].
+    fn bare_equation(&mut self) -> Result<Equation> {
         let start_pos = self.c.pos();
         let lhs = self.expr()?;
         self.c.expect(&TokenKind::Eq)?;
         let rhs = self.expr()?;
-        Ok(Statement::Eq(Equation::new(
-            lhs,
-            rhs,
-            self.text_since(start_pos),
-        )))
+        Ok(Equation::new(lhs, rhs, self.text_since(start_pos)))
     }
 
     // ── guessDirective ──────────────────────────────────────────────────────
@@ -812,6 +847,280 @@ impl<'a> Parser<'a> {
         Ok((names, units))
     }
 
+    // ── COMPONENT / instantiation / connect ─────────────────────────────────
+
+    /// `componentDef : COMPONENT IDENT LPAREN paramList RPAREN sep
+    ///                 componentItem (sep componentItem)* sep? END`
+    ///
+    /// Port of `AstBuilder.buildComponentDef`. Ports come from the shared
+    /// `paramList` rule, so a port may legally carry a unit annotation that
+    /// `buildParamList` then drops. The `REQUIRE`-to-parameter promotion the
+    /// Java does after the walk lives in [`ComponentDef::new`].
+    fn component_def(&mut self) -> Result<ComponentDef> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Component)?;
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::LParen)?;
+        let (ports, _) = self.param_list()?;
+        self.c.expect(&TokenKind::RParen)?;
+        self.require_sep("after the COMPONENT header")?;
+
+        let mut params = Vec::new();
+        let mut body = Vec::new();
+        let mut variants = Vec::new();
+        let mut sub_instances = Vec::new();
+        let mut sub_connects = Vec::new();
+
+        // `componentItem (sep componentItem)* sep? END`. The grammar demands at
+        // least one item, so an immediate `END` is not a break — it falls into
+        // `bare_equation` and earns the natural "found `END`", the same way
+        // `table_def` handles an empty body.
+        let mut items = 0usize;
+        loop {
+            self.c.skip_separators();
+            if items > 0 && matches!(self.c.peek(), TokenKind::End) {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    format!("unterminated COMPONENT {name} block: expected `END`"),
+                    header,
+                ));
+            }
+            // `componentItem : PARAM … | componentVariant | componentInst
+            //                | connectStmt | equation`
+            if matches!(self.c.peek(), TokenKind::Param) {
+                params.extend(self.component_param_line()?);
+            } else if matches!(self.c.peek(), TokenKind::Variant) {
+                variants.push(self.component_variant()?);
+            } else if matches!(self.c.peek(), TokenKind::Connect) {
+                sub_connects.push(self.connect_stmt()?);
+            } else if self.at_component_inst() {
+                sub_instances.push(self.component_inst()?);
+            } else {
+                body.push(self.bare_equation()?);
+            }
+            items += 1;
+            if !self.c.peek().is_separator()
+                && !matches!(self.c.peek(), TokenKind::End)
+                && !self.c.is_eof()
+            {
+                return Err(FreesError::parse_at(
+                    format!(
+                        "expected end of statement, found {}",
+                        self.c.peek().describe()
+                    ),
+                    self.c.span(),
+                ));
+            }
+        }
+        self.c.expect(&TokenKind::End)?;
+
+        Ok(ComponentDef::new(
+            name,
+            ports,
+            params,
+            body,
+            variants,
+            sub_instances,
+            sub_connects,
+        ))
+    }
+
+    /// `PARAM componentParam (COMMA componentParam)*` — one `PARAM` line, which
+    /// may declare several parameters.
+    fn component_param_line(&mut self) -> Result<Vec<Param>> {
+        self.c.expect(&TokenKind::Param)?;
+        let mut params = vec![self.component_param()?];
+        while self.c.eat(&TokenKind::Comma) {
+            params.push(self.component_param()?);
+        }
+        Ok(params)
+    }
+
+    /// `componentParam : IDENT (EQ expr)?`
+    ///
+    /// The default is optional in the *language*; the standard library
+    /// deliberately supplies none for a physical input, and a parameter left
+    /// without one is refused at expansion time, not here — see
+    /// [`crate::components::def`]'s module docs.
+    fn component_param(&mut self) -> Result<Param> {
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        let default_value = if self.c.eat(&TokenKind::Eq) {
+            Some(self.expr()?)
+        } else {
+            None
+        };
+        Ok(Param::new(name, default_value))
+    }
+
+    /// `componentVariant : VARIANT IDENT (REQUIRE IDENT (COMMA IDENT)*)? sep
+    ///                     (equation sep)* END`
+    ///
+    /// Port of `AstBuilder.buildComponentVariant`. A variant body is equations
+    /// only — no `PARAM`, no nested `VARIANT`, no sub-instance.
+    fn component_variant(&mut self) -> Result<Variant> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Variant)?;
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+
+        let mut require = Vec::new();
+        if self.c.eat(&TokenKind::Require) {
+            require.push(self.c.expect_ident()?.to_ascii_lowercase());
+            while self.c.eat(&TokenKind::Comma) {
+                require.push(self.c.expect_ident()?.to_ascii_lowercase());
+            }
+        }
+        self.require_sep("after the VARIANT header")?;
+
+        let mut body = Vec::new();
+        loop {
+            self.c.skip_separators();
+            if matches!(self.c.peek(), TokenKind::End) {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    format!("unterminated VARIANT {name} block: expected `END`"),
+                    header,
+                ));
+            }
+            body.push(self.bare_equation()?);
+            // `(equation sep)*`: unlike `componentDef`'s trailing `sep?`, the
+            // variant rule spells the separator after *every* equation, so
+            // `x = 1 END` on one line is not a well-formed variant body.
+            self.require_sep("after a VARIANT equation")?;
+        }
+        self.c.expect(&TokenKind::End)?;
+
+        Ok(Variant {
+            name,
+            require,
+            body,
+        })
+    }
+
+    /// `componentInst : IDENT IDENT LPAREN componentArgList RPAREN`
+    ///
+    /// Port of `AstBuilder.buildComponentInst`: leading positional arguments
+    /// bind ports to stream names in declaration order, trailing `name=value`
+    /// arguments override parameters. Both of the Java's rejections are kept.
+    fn component_inst(&mut self) -> Result<ComponentInst> {
+        let start_pos = self.c.pos();
+        let type_name = self.c.expect_ident()?.to_ascii_lowercase();
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::LParen)?;
+
+        let mut port_args = Vec::new();
+        let mut params = ParamOverrides::new();
+        // `componentArgList : (componentArg (COMMA componentArg)*)?` — the list
+        // is optional, as `TransGround G()` in the standard library relies on.
+        if !matches!(self.c.peek(), TokenKind::RParen) {
+            loop {
+                self.component_arg(&name, &mut port_args, &mut params)?;
+                if !self.c.eat(&TokenKind::Comma) {
+                    break;
+                }
+            }
+        }
+        self.c.expect(&TokenKind::RParen)?;
+
+        Ok(ComponentInst {
+            type_name,
+            name,
+            port_args,
+            params,
+            source_text: self.text_since(start_pos),
+        })
+    }
+
+    /// `componentArg : IDENT EQ expr # CompArgNamed | expr # CompArgPos`
+    ///
+    /// An `expr` can never contain a top-level `=`, so `IDENT EQ` decides the
+    /// alternative exactly. Ordering is checked before the positional argument
+    /// is parsed, exactly where `buildComponentInst` checks it.
+    fn component_arg(
+        &mut self,
+        inst_name: &str,
+        port_args: &mut Vec<String>,
+        params: &mut ParamOverrides,
+    ) -> Result<()> {
+        if matches!(self.c.peek(), TokenKind::Ident(_))
+            && matches!(self.c.peek_at(1), TokenKind::Eq)
+        {
+            let name = self.c.expect_ident()?.to_ascii_lowercase();
+            self.c.expect(&TokenKind::Eq)?;
+            let value = self.expr()?;
+            // `LinkedHashMap.put`: a repeated name overwrites in place.
+            params.put(name, value);
+            return Ok(());
+        }
+
+        if !params.is_empty() {
+            return Err(FreesError::parse_at(
+                format!(
+                    "Component '{inst_name}': positional port arguments must come \
+                     before name=value parameters."
+                ),
+                self.c.span(),
+            ));
+        }
+        let start_pos = self.c.pos();
+        let value = self.expr()?;
+        // `Expr.Var` covers both a bare stream name and a dotted one; anything
+        // else (a number, a call, an arithmetic expression) is not a stream.
+        //
+        // The quoted text is the user's, verbatim — the port's convention for
+        // `source_text` everywhere. Java quotes ANTLR's `ctx.getText()`, which
+        // concatenates tokens with the whitespace stripped, so the Java writes
+        // `got: s1+1` where this writes `got: s1 + 1`. Verified against the
+        // oracle; the rejection itself is identical.
+        match value {
+            Expr::Var(stream) => port_args.push(stream),
+            _ => {
+                return Err(FreesError::parse_at(
+                    format!(
+                    "Component '{inst_name}': each port argument must be a stream name, got: {}",
+                    self.text_since(start_pos)
+                ),
+                    self.span_since(start_pos),
+                ))
+            }
+        }
+        Ok(())
+    }
+
+    /// `connectStmt : CONNECT LPAREN connectPort (COMMA connectPort)* RPAREN`
+    ///
+    /// Port of `AstBuilder.buildConnect`.
+    fn connect_stmt(&mut self) -> Result<ConnectDecl> {
+        let start_pos = self.c.pos();
+        self.c.expect(&TokenKind::Connect)?;
+        self.c.expect(&TokenKind::LParen)?;
+        let mut ports = vec![self.connect_port()?];
+        while self.c.eat(&TokenKind::Comma) {
+            ports.push(self.connect_port()?);
+        }
+        self.c.expect(&TokenKind::RParen)?;
+        Ok(ConnectDecl {
+            ports,
+            source_text: self.text_since(start_pos),
+        })
+    }
+
+    /// `connectPort : IDENT (DOT IDENT)*` — an endpoint is a *name*, not an
+    /// expression: `buildConnect` reads the `IDENT` tokens straight off the
+    /// parse tree and joins them with `.`, so a connect endpoint never becomes
+    /// an `Expr::Var` and never registers a display name.
+    fn connect_port(&mut self) -> Result<String> {
+        let mut path = self.c.expect_ident()?.to_ascii_lowercase();
+        while self.c.eat(&TokenKind::Dot) {
+            path.push('.');
+            path.push_str(&self.c.expect_ident()?.to_ascii_lowercase());
+        }
+        Ok(path)
+    }
+
     // ── procedural bodies (inside FUNCTION / PROCEDURE) ─────────────────────
 
     /// `procBody : (procStatement (sep procStatement)* sep?)?` — collects
@@ -1055,7 +1364,8 @@ impl<'a> Parser<'a> {
 
     /// `componentInst : IDENT IDENT LPAREN` — two identifiers in a row. Nothing
     /// in the expression grammar can produce that shape, so the three-token
-    /// test is exact.
+    /// test is exact. Consulted at `topLevel` and inside a `componentItem`; a
+    /// `statementList` body does not admit the rule at all.
     fn at_component_inst(&self) -> bool {
         matches!(self.c.peek(), TokenKind::Ident(_))
             && matches!(self.c.peek_at(1), TokenKind::Ident(_))
@@ -1162,8 +1472,6 @@ fn unsupported_construct(kind: &TokenKind) -> Option<&'static str> {
         TokenKind::Plot => "PLOT",
         TokenKind::Dynamic => "DYNAMIC",
         TokenKind::Linearize => "LINEARIZE",
-        TokenKind::Component => "COMPONENT",
-        TokenKind::Connect => "CONNECT",
         _ => return None,
     })
 }
@@ -2237,8 +2545,6 @@ mod tests {
             ("PLOT 'speed'\n  kind = xy\nEND", "PLOT"),
             ("DYNAMIC d(method = ode45)\n  der = 1\nEND", "DYNAMIC"),
             ("LINEARIZE plant(block = w)\n  INPUT q\nEND", "LINEARIZE"),
-            ("COMPONENT Pump(in, out)\n  a = 1\nEND", "COMPONENT"),
-            ("connect(HP.out, LP.in)", "CONNECT"),
         ];
         for (src, construct) in cases {
             let message = err(src);
@@ -2249,13 +2555,25 @@ mod tests {
         }
     }
 
+    /// `COMPONENT` and `connect` left the refusal list in Phase 6 — the parser
+    /// now builds their AST. (Whether the *engine* can honour the result is a
+    /// separate gate: see `engine::reject_unexpanded_components`.)
     #[test]
-    fn a_component_instantiation_is_detected_rather_than_mis_parsed() {
-        let message = err("Pump P1(s3, s4, eta=0.8)");
-        assert!(
-            message.contains("COMPONENT instantiation") && message.contains("not supported"),
-            "got: {message}"
-        );
+    fn the_component_forms_are_no_longer_refused_by_the_parser() {
+        assert!(unsupported_construct(&TokenKind::Component).is_none());
+        assert!(unsupported_construct(&TokenKind::Connect).is_none());
+        for still_refused in [
+            TokenKind::Parametric,
+            TokenKind::StateTable,
+            TokenKind::Plot,
+            TokenKind::Dynamic,
+            TokenKind::Linearize,
+        ] {
+            assert!(
+                unsupported_construct(&still_refused).is_some(),
+                "{still_refused:?} stays refused until its own phase"
+            );
+        }
     }
 
     #[test]
@@ -2682,5 +3000,449 @@ END
         assert_eq!(doc.defs.functions.len(), 1);
         assert_eq!(doc.defs.procedures.len(), 1);
         assert!(!doc.defs.is_empty());
+    }
+
+    // ── COMPONENT / instantiation / connect ─────────────────────────────────
+    //
+    // Like the definition blocks above, these go through `parse_document`: a
+    // component body is full-fat expression territory (dotted port members,
+    // property calls with named arguments).
+
+    /// The worked example from `Frees.g4`'s own `componentDef` comment.
+    #[test]
+    fn a_component_definition_parses_ports_params_and_body() {
+        let doc = ok_real(
+            "COMPONENT Pump(in, out)\n\
+             \x20 PARAM eta = 0.7, fluid$ = Water\n\
+             \x20 v = Volume(fluid$, P=in.P, h=in.h)\n\
+             \x20 out.mdot = in.mdot\n\
+             \x20 out.h    = in.h + v*(out.P - in.P)/eta\n\
+             \x20 W        = in.mdot*(out.h - in.h)\n\
+             END",
+        );
+        assert!(doc.statements.is_empty(), "a COMPONENT is not a statement");
+        assert_eq!(doc.components.defs.len(), 1);
+
+        let def = doc.components.def("pump").expect("lowercased name");
+        assert_eq!(def.ports, vec!["in", "out"]);
+        assert_eq!(
+            def.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["eta", "fluid$"]
+        );
+        assert_eq!(
+            def.param("eta").unwrap().default_value,
+            Some(Expr::num(0.7))
+        );
+        assert!(!def.param("eta").unwrap().is_string);
+        // A `$` default is an ordinary expression — a bare fluid name is a Var.
+        assert_eq!(
+            def.param("fluid$").unwrap().default_value,
+            Some(Expr::var("water"))
+        );
+        assert!(def.param("fluid$").unwrap().is_string);
+
+        assert_eq!(def.body.len(), 4);
+        // Port members survive whole, so the expander can rewrite them.
+        assert_eq!(def.body[1].lhs, Expr::var("out.mdot"));
+        assert_eq!(def.body[1].rhs, Expr::var("in.mdot"));
+        // Diagnostics quote the user's line verbatim.
+        assert_eq!(def.body[1].source_text, "out.mdot = in.mdot");
+        assert!(def.variants.is_empty());
+        assert!(!def.is_hierarchical());
+    }
+
+    #[test]
+    fn a_parameter_may_be_declared_without_a_default() {
+        // The standard library's rule — "no defaults, every parameter is
+        // required" — is a *library* convention enforced at expansion time.
+        // The grammar's `(EQ expr)?` is optional, and the parser records
+        // exactly what was written.
+        let doc = ok_real("COMPONENT Pump(in, out)\n  PARAM eta, fluid$\n  out.h = in.h\nEND");
+        let def = doc.components.def("pump").unwrap();
+        assert_eq!(def.params.len(), 2);
+        assert!(def.params.iter().all(|p| p.default_value.is_none()));
+        assert_eq!(
+            def.params.iter().map(|p| p.is_string).collect::<Vec<_>>(),
+            vec![false, true]
+        );
+    }
+
+    #[test]
+    fn several_param_lines_accumulate_in_declaration_order() {
+        let doc = ok_real(
+            "COMPONENT C(a)\n  PARAM x = 1, y\n  a.T = x\n  PARAM z$ = Water\n  a.P = y\nEND",
+        );
+        let def = doc.components.def("c").unwrap();
+        assert_eq!(
+            def.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["x", "y", "z$"]
+        );
+        assert_eq!(def.body.len(), 2, "PARAM lines are not equations");
+    }
+
+    #[test]
+    fn variants_carry_their_require_list_and_body() {
+        let doc = ok_real(
+            "COMPONENT Compressor(in, out)\n\
+             \x20 PARAM eta, model$ = isentropic\n\
+             \x20 out.mdot = in.mdot\n\
+             \x20 VARIANT isentropic REQUIRE eta\n\
+             \x20   out.h = in.h + 1/eta\n\
+             \x20 END\n\
+             \x20 VARIANT map REQUIRE map_eta$, rpm\n\
+             \x20   out.h = in.h + rpm\n\
+             \x20 END\n\
+             END",
+        );
+        let def = doc.components.def("compressor").unwrap();
+        // The body outside every VARIANT is shared.
+        assert_eq!(def.body.len(), 1);
+        assert_eq!(def.variants.len(), 2);
+
+        let isentropic = def.variant("isentropic").unwrap();
+        assert_eq!(isentropic.require, vec!["eta"]);
+        assert_eq!(isentropic.body.len(), 1);
+
+        // `AstBuilder.buildComponentDef` promotes every REQUIRE name that is
+        // not already a PARAM into a defaultless parameter, `$` and all.
+        assert_eq!(
+            def.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["eta", "model$", "map_eta$", "rpm"]
+        );
+        assert!(def.param("map_eta$").unwrap().is_string);
+        assert_eq!(def.param("map_eta$").unwrap().default_value, None);
+        assert_eq!(
+            def.param("eta").unwrap().default_value,
+            None,
+            "not clobbered"
+        );
+    }
+
+    #[test]
+    fn a_variant_needs_no_require_clause() {
+        let doc = ok_real(
+            "COMPONENT V(p)\n  PARAM model$ = basic\n  VARIANT basic\n    p.T = 1\n  END\nEND",
+        );
+        let def = doc.components.def("v").unwrap();
+        assert_eq!(def.variant("basic").unwrap().require, Vec::<String>::new());
+        assert_eq!(def.variant("basic").unwrap().body.len(), 1);
+        assert!(def.body.is_empty());
+    }
+
+    #[test]
+    fn an_instantiation_binds_ports_positionally_then_overrides_params() {
+        let doc = ok_real("Pump P1(s3, s4, eta=0.8, fluid$=Water)");
+        assert!(doc.statements.is_empty(), "not an equation");
+        assert_eq!(doc.components.instances.len(), 1);
+
+        let inst = doc.components.instance("p1").expect("lowercased name");
+        assert_eq!(inst.type_name, "pump");
+        assert_eq!(inst.port_args, vec!["s3", "s4"]);
+        assert_eq!(
+            inst.params.iter().map(|(k, _)| k).collect::<Vec<_>>(),
+            vec!["eta", "fluid$"]
+        );
+        assert_eq!(inst.params.get("eta"), Some(&Expr::num(0.8)));
+        assert_eq!(inst.params.get("fluid$"), Some(&Expr::var("water")));
+        assert_eq!(inst.source_text, "Pump P1(s3, s4, eta=0.8, fluid$=Water)");
+    }
+
+    #[test]
+    fn an_instantiation_may_take_no_arguments_at_all() {
+        // `TransGround G()` in the shipped mechanical library.
+        let doc = ok_real("TransGround G()");
+        let inst = doc.components.instance("g").unwrap();
+        assert!(inst.port_args.is_empty());
+        assert!(inst.params.is_empty());
+    }
+
+    #[test]
+    fn a_named_argument_takes_a_full_expression() {
+        let doc = ok_real("HeatExchanger C1(UA=UA/2, hot$=hot$, arr$=arr$)");
+        let inst = doc.components.instance("c1").unwrap();
+        assert!(inst.port_args.is_empty());
+        assert_eq!(
+            inst.params.get("ua"),
+            Some(&Expr::bin(BinOp::Div, Expr::var("ua"), Expr::num(2.0)))
+        );
+        assert_eq!(inst.params.get("hot$"), Some(&Expr::var("hot$")));
+    }
+
+    #[test]
+    fn a_positional_argument_after_a_named_one_is_rejected() {
+        let message = err_real("Pump P1(eta=0.8, s3)");
+        assert!(
+            message.contains("positional port arguments must come before"),
+            "got: {message}"
+        );
+        assert!(
+            message.contains("P1") || message.contains("p1"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_port_argument_that_is_not_a_stream_name_is_rejected() {
+        let message = err_real("Pump P1(s3 + 1, s4)");
+        assert!(
+            message.contains("each port argument must be a stream name"),
+            "got: {message}"
+        );
+        // The rejection quotes what the user wrote.
+        assert!(message.contains("s3 + 1"), "got: {message}");
+        assert!(err_real("Pump P1(3)").contains("must be a stream name"));
+    }
+
+    #[test]
+    fn a_repeated_named_argument_overwrites_in_place() {
+        // `LinkedHashMap.put`: last value, first slot.
+        let inst = ok_real("Pump P1(a, eta=1, fluid$=Water, eta=2)")
+            .components
+            .instances
+            .remove(0);
+        assert_eq!(
+            inst.params.iter().map(|(k, _)| k).collect::<Vec<_>>(),
+            vec!["eta", "fluid$"]
+        );
+        assert_eq!(inst.params.get("eta"), Some(&Expr::num(2.0)));
+    }
+
+    #[test]
+    fn connect_keeps_its_dotted_endpoints_lowercased() {
+        let doc = ok_real("connect(HP.out, LP.in, F1.steam, bare)");
+        assert!(doc.statements.is_empty());
+        assert_eq!(doc.components.connects.len(), 1);
+        let connect = &doc.components.connects[0];
+        assert_eq!(connect.ports, vec!["hp.out", "lp.in", "f1.steam", "bare"]);
+        assert_eq!(
+            connect.source_text,
+            "connect(HP.out, LP.in, F1.steam, bare)"
+        );
+        // An endpoint is a name, not an expression: it never registers a
+        // display name (`AstBuilder.buildConnect` reads the IDENT tokens).
+        assert!(!doc.display_names.contains_key("hp"));
+        assert!(!doc.display_names.contains_key("bare"));
+    }
+
+    /// `connectPort (COMMA connectPort)*` admits a lone endpoint, and the
+    /// parser must let it through: the Java raises *"connect(...) needs at
+    /// least two endpoints"* from `ComponentExpander.expandConnects`, not from
+    /// the builder. Verified against the oracle — refusing it here would fail a
+    /// document one stage earlier than the reference engine does.
+    #[test]
+    fn a_single_endpoint_connect_parses_and_is_the_expanders_problem() {
+        let doc = ok_real("connect(s1)");
+        assert_eq!(doc.components.connects[0].ports, vec!["s1"]);
+        // Zero endpoints is a *grammar* error, though — the rule requires one.
+        assert!(err_real("connect()").contains("expected an identifier"));
+    }
+
+    /// A positional port argument may itself be dotted: `Expr.Var` covers a
+    /// bare stream name and a dotted path alike, and the Java binds the port to
+    /// the dotted name verbatim (oracle: `Probe p1(s1.x)` solves `s1.x.t`).
+    #[test]
+    fn a_positional_port_argument_may_be_a_dotted_path() {
+        let doc = ok_real("Probe p1(s1.x, s2)");
+        assert_eq!(doc.components.instances[0].port_args, vec!["s1.x", "s2"]);
+    }
+
+    #[test]
+    fn a_hierarchical_component_holds_sub_instances_and_internal_connects() {
+        let doc = ok_real(
+            "COMPONENT Chiller(ref_in, ref_out, cool_in, cool_out)\n\
+             \x20 PARAM ref$, cool$, UA_cool\n\
+             \x20 MovingBoundaryEvaporator EV(fluid$=ref$)\n\
+             \x20 LiquidWallHX CL(fluid$=cool$, UA=UA_cool)\n\
+             \x20 connect(ref_in, EV.in)\n\
+             \x20 connect(EV.out, ref_out)\n\
+             \x20 connect(EV.wall, CL.wall)\n\
+             END",
+        );
+        let def = doc.components.def("chiller").unwrap();
+        assert!(def.is_hierarchical());
+        assert!(def.body.is_empty(), "a subsystem carries no equations here");
+        assert_eq!(
+            def.sub_instances
+                .iter()
+                .map(|i| i.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ev", "cl"]
+        );
+        assert_eq!(def.sub_instances[0].type_name, "movingboundaryevaporator");
+        assert_eq!(
+            def.sub_instances[1].params.get("ua"),
+            Some(&Expr::var("ua_cool"))
+        );
+        assert_eq!(def.sub_connects.len(), 3);
+        assert_eq!(def.sub_connects[2].ports, vec!["ev.wall", "cl.wall"]);
+        // Sub-instances and sub-connects belong to the definition, not to the
+        // document's own top-level lists.
+        assert!(doc.components.instances.is_empty());
+        assert!(doc.components.connects.is_empty());
+    }
+
+    /// `componentItem` has five alternatives and they may appear in any order
+    /// and any number — the dispatch must not depend on position.
+    #[test]
+    fn all_five_component_item_kinds_mix_freely_in_one_body() {
+        let doc = ok_real(
+            "COMPONENT Mixed(a, b)\n\
+             \x20 a.T = 1\n\
+             \x20 PARAM k, model$ = one\n\
+             \x20 Sub S1(a, k=k)\n\
+             \x20 VARIANT one REQUIRE k\n\
+             \x20   b.T = a.T * k\n\
+             \x20 END\n\
+             \x20 connect(a, S1.p)\n\
+             \x20 PARAM j\n\
+             \x20 b.P = a.P\n\
+             END",
+        );
+        let def = doc.components.def("mixed").unwrap();
+        assert_eq!(def.body.len(), 2, "the two equations outside the variant");
+        assert_eq!(
+            def.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["k", "model$", "j"],
+            "PARAM lines accumulate wherever they appear; REQUIRE k is already declared"
+        );
+        assert_eq!(def.variants.len(), 1);
+        assert_eq!(def.sub_instances.len(), 1);
+        assert_eq!(def.sub_connects.len(), 1);
+        assert_eq!(def.sub_instances[0].port_args, vec!["a"]);
+        assert_eq!(def.sub_connects[0].ports, vec!["a", "s1.p"]);
+    }
+
+    #[test]
+    fn components_travel_alongside_statements_defs_and_guesses() {
+        let doc = ok_real(
+            "GUESS mdot = 0.5\n\
+             P_in = 1e5\n\
+             COMPONENT Pump(in, out)\n  PARAM eta\n  out.h = in.h/eta\nEND\n\
+             Pump P1(s1, s2, eta=0.8)\n\
+             connect(P1.out, s3)\n",
+        );
+        assert_eq!(doc.guesses.len(), 1);
+        assert_eq!(doc.statements.len(), 1);
+        assert_eq!(doc.components.defs.len(), 1);
+        assert_eq!(doc.components.instances.len(), 1);
+        assert_eq!(doc.components.connects.len(), 1);
+        assert!(!doc.components.is_empty());
+    }
+
+    #[test]
+    fn two_definitions_of_one_name_both_survive_the_parse() {
+        // "Two user definitions collide" is a `ComponentExpander` error, not a
+        // parser one — the parser must not silently drop either.
+        let doc = ok_real("COMPONENT P(a)\n  a.T = 1\nEND\nCOMPONENT P(a, b)\n  a.T = b.T\nEND");
+        assert_eq!(doc.components.defs.len(), 2);
+        assert_eq!(
+            doc.components.def("p").unwrap().ports.len(),
+            1,
+            "first wins"
+        );
+    }
+
+    #[test]
+    fn an_unterminated_component_block_names_the_block() {
+        assert!(err_real("COMPONENT P(a)\n  a.T = 1\n").contains("unterminated COMPONENT p"));
+        assert!(err_real("COMPONENT P(a)\n  VARIANT v\n    a.T = 1\n")
+            .contains("unterminated VARIANT v"));
+    }
+
+    #[test]
+    fn a_component_header_must_be_followed_by_a_line_break() {
+        let message = err_real("COMPONENT P(a) a.T = 1 END");
+        assert!(
+            message.contains("after the COMPONENT header"),
+            "got: {message}"
+        );
+        assert!(err_real("COMPONENT P\n  a = 1\nEND").contains("expected `(`"));
+    }
+
+    /// `componentDef` spells its body `componentItem (sep componentItem)* sep?
+    /// END` while `componentVariant` spells it `(equation sep)* END` — the
+    /// separator before `END` is optional in the first and mandatory in the
+    /// second, and the port keeps that distinction.
+    #[test]
+    fn the_separator_before_end_follows_each_rule_exactly() {
+        assert!(parse_document("COMPONENT P(a)\n  a.T = 1 END").is_ok());
+        let message = err_real("COMPONENT P(a)\n  VARIANT v\n    a.T = 1 END\nEND");
+        assert!(
+            message.contains("after a VARIANT equation"),
+            "got: {message}"
+        );
+    }
+
+    #[test]
+    fn a_component_body_needs_at_least_one_item() {
+        // The grammar demands `componentItem+`; an immediate END earns the
+        // natural expression error, as `TABLE` does for an empty body.
+        let message = err_real("COMPONENT P(a)\nEND");
+        assert!(message.contains("END"), "got: {message}");
+    }
+
+    /// `statementList` does not admit `componentInst`, so the shape stays a
+    /// syntax error inside a `FOR` body — exactly where ANTLR reports one.
+    #[test]
+    fn an_instantiation_inside_a_for_body_is_a_syntax_error() {
+        let message = err_real("FOR i = 1 TO 2\n  Pump P1(s1, s2)\nEND");
+        assert!(!message.contains("not supported"), "got: {message}");
+        assert!(message.contains("expected `=`"), "got: {message}");
+    }
+
+    #[test]
+    fn a_two_identifier_shape_without_parens_is_still_an_equation_error() {
+        // `at_component_inst` needs all three tokens; `Pump P1 = 2` is not one.
+        assert!(err_real("Pump P1 = 2").contains("expected `=`"));
+    }
+
+    /// Which parts of the component grammar feed `ParseResult.displayNames` is
+    /// not guessable — it follows exactly which sub-trees `AstBuilder` runs
+    /// `visit` over. Established against the Java oracle: solving
+    ///
+    /// ```text
+    /// COMPONENT Probe(a)
+    ///   PARAM model$ = basic
+    ///   VARIANT basic
+    ///     a.T = 1
+    ///   END
+    /// END
+    /// Probe p1(s1)
+    /// ```
+    ///
+    /// produced `display_names = {basic: basic, s1: s1, s1$t: s1.t}`, of which
+    /// `s1$t` is added later by the expander. So a `PARAM` default expression
+    /// and a positional port argument register (they are visited as
+    /// expressions); port names, parameter names, variant names, `REQUIRE`
+    /// names, the instance and its type, a dotted body member and a `connect`
+    /// endpoint do not.
+    #[test]
+    fn display_names_come_only_from_the_visited_expressions() {
+        let doc = ok_real(
+            "COMPONENT Probe(a)\n\
+             \x20 PARAM model$ = basic\n\
+             \x20 VARIANT basic\n\
+             \x20   a.T = 1\n\
+             \x20 END\n\
+             END\n\
+             Probe p1(s1)",
+        );
+        assert_eq!(
+            doc.display_names.keys().collect::<Vec<_>>(),
+            vec!["basic", "s1"]
+        );
+        assert_eq!(doc.display_names.get("s1"), Some(&"s1".to_string()));
     }
 }

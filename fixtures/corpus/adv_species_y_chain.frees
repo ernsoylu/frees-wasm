@@ -1,0 +1,11 @@
+// The single-species rider .y rides a pneumatic chain and is flow-weighted at
+// the GasMixer: 0.2 kg/s @ y=0.10 with 0.6 kg/s @ y=0.50 -> 0.40.
+GasSource GS1(g1, P = 400000, h0 = 300000, mdot = 0.2, y = 0.10)
+GasSource GS2(g2, P = 400000, h0 = 320000, mdot = 0.6, y = 0.50)
+GasPipe   PP(g1, g3)
+GasMixer  MX(g3, g2, g4)
+y1 = g1.y
+y3 = g3.y
+y4 = g4.y
+m4 = g4.mdot
+h4 = g4.h

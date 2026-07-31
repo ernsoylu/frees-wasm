@@ -1,0 +1,38 @@
+{
+  "name": "adv_connect_keyword_case",
+  "source": "// The connect keyword and instance/port names are case-insensitive.\nThermalSource HOT(T = 400)\nConduction    CD(k = 10, area = 1, L = 0.1)\nThermalSource COLD(T = 300)\nCONNECT(hot.PORT, Cd.A)\nConnect(CD.b, cold.port)\nq = cd.Q\nt = CD.A.T\n",
+  "expect": {
+    "variables": {
+      "cd.a.qdot": 10000.0,
+      "cd.a.t": 400.0,
+      "cd.b.qdot": -10000.0,
+      "cd.b.t": 300.0,
+      "cd.q": 10000.0,
+      "cold.port.qdot": 10000.0,
+      "cold.port.t": 300.0,
+      "hot.port.qdot": -10000.0,
+      "hot.port.t": 400.0,
+      "q": 10000.0,
+      "t": 400.0
+    },
+    "display_names": {
+      "cd$a$qdot": "cd.a.qdot",
+      "cd$a$t": "cd.a.t",
+      "cd$b$qdot": "cd.b.qdot",
+      "cd$b$t": "cd.b.t",
+      "cd$q": "cd.q",
+      "cold$port$qdot": "cold.port.qdot",
+      "cold$port$t": "cold.port.t",
+      "hot$port$qdot": "hot.port.qdot",
+      "hot$port$t": "hot.port.t",
+      "q": "q",
+      "t": "t"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

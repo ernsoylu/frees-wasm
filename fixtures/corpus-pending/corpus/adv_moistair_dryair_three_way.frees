@@ -1,0 +1,10 @@
+// A 3-way moist-air node: sum of dry-air mass flow zero and W equal on a split.
+MoistAirSource SRC(a1, P = 101325, T = 305, W = 0.009, mdot = 2.0)
+MoistAirDamper DMP(a1, a2, a3, u = 0.25)
+MoistAirSink   S2(a2)
+MoistAirSink   S3(a3)
+w1 = a1.W
+w2 = a2.W
+w3 = a3.W
+m2 = a2.mdot
+m3 = a3.mdot

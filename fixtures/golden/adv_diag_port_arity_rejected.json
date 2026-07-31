@@ -1,0 +1,17 @@
+{
+  "name": "adv_diag_port_arity_rejected",
+  "source": "// Conduction declares two ports; three positional connectors are supplied.\nThermalSource HOT(T = 400)\nConduction    CD(n1, n2, n3, k = 10, area = 1, L = 0.1)\nt = CD.a.T\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'cd' (conduction) binds 3 port(s) but COMPONENT conduction declares 2 (a, b). Bind every port to a stream, or none and wire them with connect(...)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

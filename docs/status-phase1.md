@@ -2,7 +2,8 @@
 
 > **Historical.** This document records the state at the end of Phase 1–3 and
 > is kept for its divergence ledger (below), which is maintained. For the
-> current state read [`docs/status-phase5.md`](status-phase5.md) first, then
+> current state read [`docs/status-phase6.md`](status-phase6.md) first, then
+> [`docs/status-phase5.md`](status-phase5.md) and
 > [`docs/status-phase4.md`](status-phase4.md).
 
 **Date:** 2026-07-30 · Workspace at the time: 644 tests green, clippy
@@ -39,6 +40,9 @@ including divergences that phase *opened* and did not close. Phase 5 closed
 none of items 1–8 and **opened four of its own (9–12)**, recorded below with the
 same rules; the full Phase-5 ledger is
 [`docs/status-phase5.md`](status-phase5.md#what-phase-5-did-not-deliver).
+Phase 6 closed none of items 1–12 and **opened two of its own (13–14)**; the
+full Phase-6 ledger is
+[`docs/status-phase6.md`](status-phase6.md#what-phase-6-did-not-deliver).
 
 1. ~~**No symbolic-Jacobian path**~~ **Closed 2026-07-30 (Phase 4)**:
    `differentiator.rs` ports `Differentiator`, `engine.rs` pre-differentiates
@@ -113,7 +117,39 @@ same rules; the full Phase-5 ledger is
     `SaturationSplitTable::build` — the line-for-line port of the Java
     constructor — still produces the absolute one and nothing else.
 
-Full detail: workflow output `wk1ueuu8a` findings list.
+### Opened by Phase 6 (2026-07-31)
+
+13. **A hierarchical `COMPONENT` may not nest more than 64 subsystems deep.**
+    `ComponentExpander.flattenInstance` recurses once per level and the Java has
+    no guard: it dies with `StackOverflowError`, which a JVM turns into a
+    catchable `Error` on a thread it can abandon. A wasm module cannot — measured
+    before the guard existed, a 600-level document ended a debug test binary with
+    `fatal runtime error: stack overflow` (`SIGABRT`), and a browser stack is
+    smaller than the 2 MiB that took. `expander.rs::MAX_HIERARCHY_DEPTH = 64`
+    now raises a named `ParseException` instead, matching how the port already
+    bounds the two recursive halves of the grammar (`MAX_EXPR_DEPTH`,
+    `MAX_BLOCK_DEPTH = 64`). **Deliberate, and strictly safer than the
+    reference**: the shipped library's deepest subsystem is depth 1, so the
+    ceiling is 64× what any real model needs, and no document the Java accepts
+    within that range is refused. Pinned from both sides by
+    `component_robustness.rs::the_hierarchy_ceiling_holds_exactly_where_it_says`.
+14. **Component parameter substitution is exponential in hierarchy depth, and
+    this port's constant is ~10× the Java's.** Both engines substitute a
+    parameter's *expression* into every occurrence, so a subsystem passing
+    `k = k + k` to a child that uses `k` twice doubles the tree per level. Java's
+    immutable AST nodes are shared by reference and form a DAG; the Rust `Expr`
+    is an owned tree and is deep-cloned. Measured against the oracle: at depth 24
+    both produce `y = 16777216`, the Java in a few seconds and this port in 65 s;
+    at depth 28 the Java still solves; at depth 32 the Java dies with
+    `OutOfMemoryError: Java heap space` and kills the process, where this port
+    would merely be very slow. **Open, and a latent cliff rather than a live
+    problem** — nothing in the 295-component library or the 361-fixture corpus
+    exceeds depth 1. Closing it means structural sharing in `Expr` (a contract
+    file) or memoising `substitute_params`. Pinned at depth 16 by
+    `component_robustness.rs::parameter_substitution_stays_within_its_measured_exponential`.
+
+Full detail: workflow output `wk1ueuu8a` findings list (items 1–12); Phase 6's
+items are recorded in `docs/status-phase6.md`.
 
 ## Commands
 

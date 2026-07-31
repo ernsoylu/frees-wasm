@@ -1,0 +1,17 @@
+{
+  "name": "adv_diag_unknown_component_rejected",
+  "source": "// An unknown component type: the diagnostic must name the type.\nFrobnicator FR(a, b, k = 1)\nx = FR.k\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Unknown component type 'frobnicator' for instance 'fr'. Define it with COMPONENT frobnicator(...)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,265 @@
+// Liquid domain (THH-equivalent) — single-phase coolant / water / glycol / oil /
+// fuel circuits. Connector type domain$ = liquid: the same (P, mdot, h) bond as
+// the generic fluid domain, but a distinct connector type so a coolant line can
+// only meet a refrigerant (twophase) or pneumatic/hydraulic line through a heat
+// exchanger, never a direct connect. Working fluid for property calls is fluid$
+// (e.g. water, MEG[50%]); domain$ only types the connector.
+
+COMPONENT LiquidSource(out)
+  PARAM fluid$, mdot, P, T, domain$ = liquid
+  out.mdot = mdot
+  out.P    = P
+  out.h    = Enthalpy(fluid$, P=P, T=T)
+END
+
+COMPONENT LiquidSink(in)
+  PARAM domain$ = liquid
+  mdot = in.mdot
+  P    = in.P
+  h    = in.h
+END
+
+COMPONENT LiquidPump(in, out)
+  PARAM eta, fluid$, Pvap, NPSHr, eps_n, domain$ = liquid, model$ = basic
+  v        = Volume(fluid$, P=in.P, h=in.h)
+  out.mdot = in.mdot
+  W        = in.mdot * (out.h - in.h)
+  VARIANT basic
+    out.h = in.h + v * (out.P - in.P) / eta
+  END
+  VARIANT npsh REQUIRE Pvap, NPSHr, eps_n
+    NPSH_a  = (in.P - Pvap) * v / 9.80665
+    derate  = 0.5 * (1 + tanh((NPSH_a - NPSHr) / eps_n))
+    out.h   = in.h + v * (out.P - in.P) / (eta * derate)
+  END
+END
+
+COMPONENT LiquidPipe(in, out)
+  PARAM fluid$, L, D, rough, domain$ = liquid
+  out.mdot = in.mdot
+  out.h    = in.h
+  rho      = Density(fluid$, P=in.P, h=in.h)
+  mu       = Viscosity(fluid$, P=in.P, h=in.h)
+  A        = pi# / 4 * D^2
+  V        = in.mdot / (rho * A)
+  Re_d     = reynolds(rho, V, D, mu)
+  f        = friction_factor(Re_d, rough / D)
+  out.P    = in.P - f * (L / D) * rho * V^2 / 2
+END
+
+// Single-phase heat addition to the coolant — a battery cold plate / cold-plate
+// loop load. Duty Q is an input; the coolant warms isobarically (out.P = in.P).
+COMPONENT LiquidColdPlate(in, out)
+  PARAM Q, domain$ = liquid
+  out.mdot = in.mdot
+  out.P    = in.P
+  Q        = in.mdot * (out.h - in.h)
+END
+
+// Lumped liquid volume / compliance: a pressure node with bulk-modulus storage
+// (der(P) from net mass flow). Steady limit recovers in.mdot = out.mdot.
+COMPONENT LiquidVolume(in, out)
+  PARAM C, P0, domain$ = liquid
+  out.h       = in.h
+  der(in.P)   = (in.mdot - out.mdot) / C
+  init(in.P)  = P0
+END
+
+// Liquid-side heat-exchanger half with a wall heat port: the coolant gives up
+// heat to (or takes it from) the wall node. Pairs with a refrigerant-side
+// evaporator/condenser through a shared wall connection to form a cross-domain
+// bridge (the EV chiller). Q>0 when the coolant is warmer than the wall.
+COMPONENT LiquidWallHX(in, out, wall)
+  PARAM fluid$, UA, domain$ = liquid
+  out.mdot  = in.mdot
+  out.P     = in.P
+  T_in      = Temperature(fluid$, P=in.P, h=in.h)
+  Q         = UA * (T_in - wall.T)
+  out.h     = in.h - Q / in.mdot
+  wall.Qdot = -Q
+END
+
+// Liquid mixer that merges two parallel branches into one, equalising the inlet
+// pressures (in2.P = in1.P) so the branch flow split is closed — the orifice
+// flows adapt until both branches reach the merge pressure. Conserves mass and
+// flow-weights enthalpy. (The general no-tie mixer is Mixer.)
+COMPONENT LiquidMixer(in1, in2, out)
+  PARAM domain$ = liquid
+  out.P    = in1.P
+  in2.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+
+// Liquid orifice / restrictor. Default is incompressible turbulent flow
+// (odd-symmetric so it is well-behaved through zero). The optional cavitating
+// model is the THH pressure-driven effect: when the downstream pressure falls
+// below the fluid vapour pressure Pvap the throat flashes and the flow chokes on
+// (in.P - Pvap) rather than the full (in.P - out.P).
+COMPONENT LiquidOrifice(in, out)
+  PARAM CdA, rho, domain$ = liquid, model$ = incompressible
+  out.mdot = in.mdot
+  out.h    = in.h
+  VARIANT incompressible
+    in.mdot * abs(in.mdot) = CdA^2 * 2 * rho * (in.P - out.P)
+  END
+  VARIANT cavitating REQUIRE Pvap
+    dP_eff = in.P - max(out.P, Pvap)
+    in.mdot * abs(in.mdot) = CdA^2 * 2 * rho * dP_eff
+  END
+END
+
+// ── Coolant thermal-management set (Wave 2) ────────────────────────────────
+
+// Diverting three-way valve: routes fraction u of the inlet to outa, the rest
+// to outb, both at the inlet pressure — the TMS loop-splitting staple.
+COMPONENT LiquidThreeWayValve(in, outa, outb)
+  PARAM u, domain$ = liquid
+  outa.P    = in.P
+  outb.P    = in.P
+  outa.h    = in.h
+  outb.h    = in.h
+  outa.mdot = u * in.mdot
+  outb.mdot = (1 - u) * in.mdot
+END
+
+// Check valve: the square-law orifice gated smoothly to forward ΔP only
+// (tanh gate of width eps [Pa]); reverse flow decays to zero, no branch switch.
+COMPONENT LiquidCheckValve(in, out)
+  PARAM CdA, rho, eps, domain$ = liquid
+  out.mdot = in.mdot
+  out.h    = in.h
+  dP       = in.P - out.P
+  fwd      = 0.5 * (1 + tanh(dP / eps))
+  in.mdot * abs(in.mdot) = fwd * CdA^2 * 2 * rho * dP
+END
+
+// Thermal-mass tank (m kg of coolant, perfectly mixed): the outlet leaves at
+// the tank temperature state Tt; a wall heat port exchanges UA·(T_wall − Tt).
+// The loop warm-up element.
+COMPONENT LiquidTank(in, out, wall)
+  PARAM fluid$, m, UA, T0, domain$ = liquid
+  out.P     = in.P
+  out.mdot  = in.mdot
+  out.h     = Enthalpy(fluid$, P=in.P, T=Tt)
+  cp_t      = Cp(fluid$, P=in.P, T=Tt)
+  Q         = UA * (wall.T - Tt)
+  der(Tt)   = (in.mdot * (in.h - out.h) + Q) / (m * cp_t)
+  init(Tt)  = T0
+  wall.Qdot = Q
+END
+
+// Wax thermostat: the element opens smoothly over a temperature band
+// (Topen ± Tband) sensed on the inlet coolant — the engine warm-up bypass
+// switch, no discrete event.
+COMPONENT LiquidThermostat(in, out)
+  PARAM fluid$, CdA, rho, Topen, Tband, domain$ = liquid
+  out.mdot = in.mdot
+  out.h    = in.h
+  T_in     = Temperature(fluid$, P=in.P, h=in.h)
+  u        = 0.5 * (1 + tanh((T_in - Topen) / Tband))
+  in.mdot * abs(in.mdot) = (u * CdA)^2 * 2 * rho * (in.P - out.P)
+END
+
+// Head-curve pump: rise from a tabulated head map [m] vs volumetric flow, with
+// the hydraulic inefficiency heating the coolant (out.h mirrors LiquidPump).
+COMPONENT LiquidPumpMap(in, out)
+  PARAM rho, eta, map$, domain$ = liquid
+  Q        = in.mdot / rho
+  head     = map$(Q)
+  out.P    = in.P + rho * 9.80665 * head
+  out.mdot = in.mdot
+  out.h    = in.h + 9.80665 * head / eta
+  W        = in.mdot * 9.80665 * head / eta
+END
+
+// Expansion tank / degas bottle: pins the loop pressure datum — the one
+// pressure reference every CLOSED coolant loop needs.
+COMPONENT LiquidExpansionTank(port)
+  PARAM P, domain$ = liquid
+  port.P = P
+END
+
+
+// ── Electrochemistry & energy systems (Wave 8) ──────────────────────────────
+
+// Hydro turbine: shaft power eta·(V̇·ΔP) from the head across it, efficiency
+// from a flow map; the extracted work leaves the stream enthalpy.
+COMPONENT HydroTurbine(in, out, shaft)
+  PARAM fluid$, rho, eta$, epsw, domain$ = liquid
+  out.mdot  = in.mdot
+  dP        = in.P - out.P
+  Pf        = (in.mdot / rho) * dP
+  eta       = eta$(in.mdot)
+  Pm        = eta * Pf
+  shaft.tau = -Pm / (shaft.w + epsw)
+  out.h     = in.h - Pm / in.mdot
+END
+
+// Stratified thermal-storage tank: three plug-flow nodes top→bottom with
+// inter-node mixing conductance and shell losses; charge enters the top node,
+// draw leaves the bottom at its temperature. One-directional flow (in→out) by
+// construction — reverse the connections for the discharge circuit.
+COMPONENT ThermalStorageTank(in, out)
+  PARAM fluid$, m_node, cp_f, UA_loss, T_amb, kmix, T10, T20, T30, domain$ = liquid
+  out.mdot = in.mdot
+  out.P    = in.P
+  T_in     = Temperature(fluid$, P=in.P, h=in.h)
+  der(T1)  = (in.mdot * cp_f * (T_in - T1) + kmix * (T2 - T1) - UA_loss * (T1 - T_amb)) / (m_node * cp_f)
+  init(T1) = T10
+  der(T2)  = (in.mdot * cp_f * (T1 - T2) + kmix * (T1 - T2) + kmix * (T3 - T2) - UA_loss * (T2 - T_amb)) / (m_node * cp_f)
+  init(T2) = T20
+  der(T3)  = (in.mdot * cp_f * (T2 - T3) + kmix * (T2 - T3) - UA_loss * (T3 - T_amb)) / (m_node * cp_f)
+  init(T3) = T30
+  out.h    = Enthalpy(fluid$, P=out.P, T=T3)
+END
+
+// Ice/PCM storage on a brine loop: the latent mass sits behind a UA wall in
+// the brine stream — charge below the melt band, discharge above it.
+COMPONENT IceStorageBrine(in, out)
+  PARAM fluid$, UA, m, cp_p, L, Tm, dTm, T0
+  LiquidWallHX HX(fluid$=fluid$, UA=UA)
+  PCMMass      ICE(m=m, cp=cp_p, L=L, Tm=Tm, dTm=dTm, T0=T0)
+  connect(in, HX.in)
+  connect(HX.out, out)
+  connect(HX.wall, ICE.port)
+END
+
+
+// ── HVAC, buildings & process-lite (Wave 9) ─────────────────────────────────
+
+// Cooling tower (Merkel-lite): heat rejection on the enthalpy potential
+// between saturated air at the water inlet temperature and ambient air at its
+// wet-bulb (signal port), with a tower effectiveness and design air flow.
+COMPONENT CoolingTower(in, out, wb)
+  PARAM fluid$, eps_t, mdot_a, Patm, domain$ = liquid
+  T_in   = Temperature(fluid$, P=in.P, h=in.h)
+  h_s_in = Enthalpy(AirH2O, T=T_in, P=Patm, R=1)
+  h_wb   = Enthalpy(AirH2O, T=wb.sig, P=Patm, R=1)
+  Q      = eps_t * mdot_a * (h_s_in - h_wb)
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h - Q / in.mdot
+END
+
+// Open (vented) tank: level state from the flow imbalance; the inlet sees the
+// free surface (P0), the outlet the gravity head at the base. Well-mixed and
+// adiabatic in enthalpy.
+COMPONENT OpenTank(in, out)
+  PARAM A_t, P0, rho, L0, domain$ = liquid
+  der(lvl)  = (in.mdot - out.mdot) / (rho * A_t)
+  init(lvl) = L0
+  in.P  = P0
+  out.P = P0 + rho * 9.80665 * lvl
+  out.h = in.h
+END
+
+// Gravity drain (Torricelli): the C1 odd-symmetric flow law
+// mdot|mdot| = (Cd*A)^2 * 2*rho*dP — smooth through zero head, reversible.
+COMPONENT GravityDrain(in, out)
+  PARAM Cd, A_d, rho, domain$ = liquid
+  dP = in.P - out.P
+  in.mdot * abs(in.mdot) = (Cd * A_d)^2 * 2 * rho * dP
+  out.mdot = in.mdot
+  out.h    = in.h
+END

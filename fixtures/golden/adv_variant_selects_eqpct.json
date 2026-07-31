@@ -1,0 +1,48 @@
+{
+  "name": "adv_variant_selects_eqpct",
+  "source": "// model$ picks the VARIANT body: eqpct must use Cveff = Cv*R^(u-1), so the\n// local Cveff exists and the fixed/linear laws must NOT be emitted.\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(f1, P = 500000, h = 196595, mdot = 2.0)\nValve         VA(f1, f2, Cv = 0.01, rho = 980, u = 0.5, R = 50, model$ = eqpct)\nSink          SK(f2)\ndp    = f1.P - f2.P\ncveff = VA.Cveff\nm     = f2.mdot\n",
+  "expect": {
+    "variables": {
+      "cveff": 0.001414213562373095,
+      "dp": 2040.816326530592,
+      "f1.h": 196595.0,
+      "f1.mdot": 2.0,
+      "f1.p": 500000.0,
+      "f2.h": 196595.0,
+      "f2.mdot": 2.0,
+      "f2.p": 497959.1836734694,
+      "m": 2.0,
+      "sk.h": 196595.0,
+      "sk.mdot": 2.0,
+      "sk.p": 497959.1836734694,
+      "va.cveff": 0.001414213562373095
+    },
+    "display_names": {
+      "cveff": "cveff",
+      "dp": "dp",
+      "eqpct": "eqpct",
+      "f1": "f1",
+      "f1$h": "f1.h",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$h": "f2.h",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "h": "h",
+      "m": "m",
+      "mdot": "mdot",
+      "p": "P",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "va$cveff": "va.cveff"
+    },
+    "block_count": 13,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

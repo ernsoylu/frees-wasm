@@ -1,0 +1,19 @@
+// Domain family: MOIST AIR (moistair.frees). The fluid-family bond plus the
+// humidity-ratio rider W on a dry-air mass basis: equal across a pass-through,
+// flow-weighted at an explicit mixer. `domain$ = moistair` separates it.
+// The boundary streams are pinned at top level, so no humid-air property call
+// is needed to exercise the domain rules.
+MoistAirDamper DMP(a1, a2, a3, u = 0.7)
+AirFilter      FLT(a2, a4, K = 120, foul = 1.4)
+HeatingCoil    HTR(a4, a5, Q = 2500)
+MixingBox      MIX(a5, a3, a6)
+
+a1.P    = 101325
+a1.h    = 45000
+a1.W    = 0.008
+a1.mdot = 1.2
+
+w_out    = a6.W
+h_out    = a6.h
+mdot_out = a6.mdot
+p_filter = a4.P

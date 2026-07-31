@@ -1,0 +1,17 @@
+{
+  "name": "adv_domain_gas_vs_oil_rejected",
+  "source": "// The domain$ family separation: pneumatic (domain$=gas) meeting hydraulic\n// (domain$=oil) on the shared (P, mdot, h) bond must be a hard error.\nPneumaticSupply  PS(g1, fluid$ = Air, P = 500000, T = 300)\nHydraulicOrifice HO(o1, o2, CdA = 1e-5, rho = 870, model$ = turbulent)\nHydraulicTank    TK(o2, P = 100000)\nconnect(PS.out, HO.in)\np = HO.in.P\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "connect(ps.out, ho.in): cannot connect a 'gas' line (ps.out) to a 'oil' line (ho.in). Thermofluid ('fluid'), liquid ('liquid'), two-phase ('twophase'), pneumatic ('gas'), hydraulic ('oil') and humid-air ('moistair') are incompatible fluid connector types; couple them only through a heat exchanger."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

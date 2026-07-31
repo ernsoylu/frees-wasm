@@ -1,0 +1,41 @@
+{
+  "name": "components_wave10_counterbalance",
+  "source": "// CounterbalanceValve exactly at its threshold: in.P + R_p*pilot.P = P_set\n// opens the sigmoid to precisely one half. Steady.\n// EXPECT x_o = 0.5 tol 1e-9\n\nCounterbalanceValve CB(c1, c2, cp1, CdA_max=3e-6, rho=870, P_set=3e6, R_p=3, eps_o=5e4)\nc1.P  = 1.5e6\nc1.h  = 0\nc2.P  = 1e5\ncp1.P = 0.5e6\ncp1.h = 0\nx_o = CB.x_o\n",
+  "expect": {
+    "variables": {
+      "c1.h": 0.0,
+      "c1.mdot": 0.0740337760755184,
+      "c1.p": 1500000.0,
+      "c2.h": 0.0,
+      "c2.mdot": 0.0740337760755184,
+      "c2.p": 100000.0,
+      "cb.x_o": 0.5,
+      "cp1.h": 0.0,
+      "cp1.mdot": 0.0,
+      "cp1.p": 500000.0,
+      "x_o": 0.5
+    },
+    "display_names": {
+      "c1": "c1",
+      "c1$h": "c1.h",
+      "c1$mdot": "c1.mdot",
+      "c1$p": "c1.p",
+      "c2": "c2",
+      "c2$h": "c2.h",
+      "c2$mdot": "c2.mdot",
+      "c2$p": "c2.p",
+      "cb$x_o": "cb.x_o",
+      "cp1": "cp1",
+      "cp1$h": "cp1.h",
+      "cp1$mdot": "cp1.mdot",
+      "cp1$p": "cp1.p",
+      "x_o": "x_o"
+    },
+    "block_count": 11,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

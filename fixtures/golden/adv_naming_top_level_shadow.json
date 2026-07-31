@@ -1,0 +1,48 @@
+{
+  "name": "adv_naming_top_level_shadow",
+  "source": "// A top-level scalar whose name resembles a component-local mangled name:\n// `PA_W` at top level next to PA.W from the component.\nCOMPONENT Lift(in, out)\n  PARAM v, eta\n  out.mdot = in.mdot\n  out.h    = in.h + v * (out.P - in.P) / eta\n  W        = in.mdot * (out.h - in.h)\nEND\nCOMPONENT FluidBoundary(out)\n  PARAM P, h, mdot\n  out.P    = P\n  out.h    = h\n  out.mdot = mdot\nEND\nFluidBoundary SRC(f1, P = 200000, h = 154000, mdot = 1.0)\nLift          PA(f1, f2, v = 0.001, eta = 0.9)\nSink          SK(f2)\nf2.P  = 300000\nPA_W  = 7\nratio = PA.W / PA_W\n",
+  "expect": {
+    "variables": {
+      "PA_W": 7.0,
+      "f1.h": 154000.0,
+      "f1.mdot": 1.0,
+      "f1.p": 200000.0,
+      "f2.h": 154111.11111111112,
+      "f2.mdot": 1.0,
+      "f2.p": 300000.0,
+      "pa.w": 111.11111111112405,
+      "ratio": 15.87301587301772,
+      "sk.h": 154111.11111111112,
+      "sk.mdot": 1.0,
+      "sk.p": 300000.0
+    },
+    "display_names": {
+      "eta": "eta",
+      "f1": "f1",
+      "f1$h": "f1.h",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$h": "f2.h",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "h": "h",
+      "mdot": "mdot",
+      "p": "P",
+      "pa$w": "pa.w",
+      "pa_w": "PA_W",
+      "ratio": "ratio",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "v": "v",
+      "w": "W"
+    },
+    "block_count": 12,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

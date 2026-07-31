@@ -1,0 +1,9 @@
+// The oil-circulation rider oc rides downstream pass-through nodes.
+TwoPhaseSourcePH  SRC(r1, mdot = 0.05, P = 900000, h = 260000)
+TwoPhaseOilRider  ORD(r1, r2, oc_set = 0.03, k_deg = 1.2)
+TwoPhaseSensor    SEN(r2, r3, fluid$ = R134a)
+TwoPhaseSink      SK(r3)
+oc1 = r1.oc
+oc2 = r2.oc
+oc3 = r3.oc
+fd  = ORD.f_deg

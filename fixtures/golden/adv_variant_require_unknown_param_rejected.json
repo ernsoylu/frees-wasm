@@ -1,0 +1,17 @@
+{
+  "name": "adv_variant_require_unknown_param_rejected",
+  "source": "// A VARIANT REQUIREs a name that is not a PARAM of the component at all.\nCOMPONENT Bad(in, out)\n  PARAM a, model$ = only\n  out.mdot = in.mdot\n  out.h    = in.h\n  VARIANT only REQUIRE a, ghost\n    out.P = in.P - a\n  END\nEND\nSource SRC(f1, fluid$ = Water, mdot = 1.0, P = 400000, T = 300)\nBad    BD(f1, f2, a = 100)\nSink   SK(f2)\np2 = f2.P\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'bd' (bad): parameter 'ghost' has no value (give it a default or pass ghost=value). (required by the selected 'only' variant)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

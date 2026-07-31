@@ -1,0 +1,21 @@
+// Smooth relay & 2-way switch, steady (no time dependence).
+// EXPECT r1.out.sig = 10 tol 1e-6
+// EXPECT r2.out.sig = 0 tol 1e-6
+// EXPECT sw1.out.sig = 7 tol 1e-6
+// EXPECT sw2.out.sig = -2 tol 1e-6
+SigConstant HIGHIN(k=3)
+SigConstant LOWIN(k=1)
+SigConstant CTRL1(k=1)
+SigConstant CTRL0(k=0)
+SigConstant V7(k=7)
+SigConstant VM2(k=-2)
+SigRelay R1(thresh=2, low=0, high=10, eps=0.001)
+SigRelay R2(thresh=2, low=0, high=10, eps=0.001)
+SigSwitch SW1(thresh=0.5, eps=0.001)
+SigSwitch SW2(thresh=0.5, eps=0.001)
+connect(HIGHIN.out, R1.in)
+connect(LOWIN.out, R2.in)
+connect(V7.out, SW1.in1, SW2.in1)
+connect(VM2.out, SW1.in2, SW2.in2)
+connect(CTRL1.out, SW1.ctrl)
+connect(CTRL0.out, SW2.ctrl)

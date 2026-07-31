@@ -1,0 +1,31 @@
+// AutomaticTransmission, lockup open: pump pinned at 250 rad/s, output at
+// 62.5 with gear ratio 3 -> turbine at 187.5, SR = 0.75. K = 25 flat gives
+// pump torque (250/25)^2 = 100 N·m; TR(0.75) interpolates to 1.3 -> 130 N·m
+// on the turbine; through the 0.9-efficient gearbox the output node receives
+// 3*0.9*130 = 351 N·m; the holding source's reaction is signed into the
+// source, so the probe reads -351.
+// EXPECT tq_hold = -351 tol 1e-6
+
+TABLE kmap(sr)
+  0   25
+  1   25
+END
+TABLE trmap(sr)
+  0    2.0
+  0.5  1.6
+  1    1.0
+END
+SigConstant GEAR(k=3)
+SigConstant LOCK(k=0)
+SpeedSource SI(w=250)
+MechGround  GI()
+SpeedSource SO(w=62.5)
+MechGround  GO()
+AutomaticTransmission AT(Kmap$=kmap, TRmap$=trmap, eta=0.9, Tlock=5000, eps=0.5)
+connect(SI.a, AT.in)
+connect(SI.b, GI.port)
+connect(AT.out, SO.a)
+connect(SO.b, GO.port)
+connect(GEAR.out, AT.gear)
+connect(LOCK.out, AT.lock)
+tq_hold = SO.a.tau

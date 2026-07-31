@@ -1,0 +1,32 @@
+{
+  "name": "components_signal_lookup_maps",
+  "source": "// TABLE-driven lookup blocks: 1-D map (slope-2 line -> 6 at 3) and a 2-D\n// curve family (midway between U=x and U=3x at x=5 -> 10).\n// EXPECT m1.out.sig = 6\n// EXPECT m2.out.sig = 10\nTABLE lin(x)\n  0   0\n  10  20\nEND\nTABLE fam(x : y = 0, 10)\n  0    0    0\n  10   10   30\nEND\nSigConstant X(k=3)\nSigConstant X2(k=5)\nSigMap   M1(map$=lin)\nSigMap2  M2(map$=fam)\nconnect(X.out, M1.in)\nconnect(X2.out, M2.in1, M2.in2)\n",
+  "expect": {
+    "variables": {
+      "m1.in.sig": 3.0,
+      "m1.out.sig": 6.0,
+      "m2.in1.sig": 5.0,
+      "m2.in2.sig": 5.0,
+      "m2.out.sig": 10.0,
+      "x.out.sig": 3.0,
+      "x2.out.sig": 5.0
+    },
+    "display_names": {
+      "fam": "fam",
+      "lin": "lin",
+      "m1$in$sig": "m1.in.sig",
+      "m1$out$sig": "m1.out.sig",
+      "m2$in1$sig": "m2.in1.sig",
+      "m2$in2$sig": "m2.in2.sig",
+      "m2$out$sig": "m2.out.sig",
+      "x$out$sig": "x.out.sig",
+      "x2$out$sig": "x2.out.sig"
+    },
+    "block_count": 7,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

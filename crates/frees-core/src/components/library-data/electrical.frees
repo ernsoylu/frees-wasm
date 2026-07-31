@@ -1,0 +1,345 @@
+COMPONENT VoltageSource(p, n)
+  PARAM E
+  p.V - n.V = E
+  p.I + n.I = 0
+END
+
+COMPONENT Resistor(a, b)
+  PARAM R
+  a.V - b.V = R * a.I
+  a.I + b.I = 0
+END
+
+COMPONENT Ground(port)
+  port.V = 0
+END
+
+COMPONENT Battery(p, n)
+  PARAM Voc, R0
+  p.V - n.V = Voc + R0 * p.I
+  p.I + n.I = 0
+  W = (p.V - n.V) * (0 - p.I)
+END
+
+COMPONENT HeatingResistor(p, n, heat)
+  PARAM R
+  p.V - n.V = R * p.I
+  p.I + n.I = 0
+  Q         = (p.V - n.V) * p.I
+  heat.Qdot = -Q
+END
+
+COMPONENT BatteryThermal(p, n, heat)
+  PARAM Voc, R0
+  p.V - n.V = Voc + R0 * p.I
+  p.I + n.I = 0
+  Q         = R0 * p.I^2
+  heat.Qdot = -Q
+  W         = (p.V - n.V) * (0 - p.I)
+END
+
+COMPONENT Capacitor(p, n)
+  PARAM C, V0
+  Vc       = p.V - n.V
+  der(Vc)  = p.I / C
+  init(Vc) = V0
+  p.I + n.I = 0
+END
+
+COMPONENT Inductor(p, n)
+  PARAM L, I0
+  der(IL)  = (p.V - n.V) / L
+  init(IL) = I0
+  p.I = IL
+  p.I + n.I = 0
+END
+
+COMPONENT BatteryTransient(p, n, heat)
+  PARAM Voc, R0, Q0, C_th, SOC0, T0
+  p.V - n.V = Voc + R0 * p.I
+  p.I + n.I = 0
+  Qgen      = R0 * p.I^2
+  heat.T    = T
+  der(T)    = (Qgen + heat.Qdot) / C_th
+  init(T)   = T0
+  der(SOC)  = p.I / (3600 * Q0)
+  init(SOC) = SOC0
+END
+
+COMPONENT DCMotor(p, n, shaft)
+  PARAM Kt, Ke, R
+  p.V - n.V  = R * p.I + Ke * shaft.w
+  p.I + n.I  = 0
+  shaft.tau  = -Kt * p.I
+END
+
+COMPONENT BatteryRC(p, n)
+  PARAM Voc, R0, R1, C1, Vrc0
+  p.V - n.V = Voc + R0 * p.I - Vrc
+  der(Vrc)  = -p.I / C1 - Vrc / (R1 * C1)
+  init(Vrc) = Vrc0
+  p.I + n.I = 0
+END
+
+COMPONENT Diode(p, n)
+  PARAM Gon, eps
+  vd  = p.V - n.V
+  p.I = Gon * vd * (0.5 + 0.5 * tanh(vd / eps))
+  p.I + n.I = 0
+END
+
+COMPONENT PMSM(p, n, shaft)
+  PARAM Rs, lambda_pm, poles
+  Kt        = 1.5 * poles * lambda_pm
+  p.V - n.V = Rs * p.I + Kt * shaft.w
+  p.I + n.I = 0
+  shaft.tau = -Kt * p.I
+END
+
+COMPONENT CurrentSource(p, n)
+  PARAM I
+  p.I = -I
+  p.I + n.I = 0
+END
+
+COMPONENT Battery2RC(p, n)
+  PARAM Voc, R0, R1, C1, R2, C2, Vrc1_0, Vrc2_0
+  p.V - n.V  = Voc + R0 * p.I - Vrc1 - Vrc2
+  der(Vrc1)  = -p.I / C1 - Vrc1 / (R1 * C1)
+  init(Vrc1) = Vrc1_0
+  der(Vrc2)  = -p.I / C2 - Vrc2 / (R2 * C2)
+  init(Vrc2) = Vrc2_0
+  p.I + n.I  = 0
+END
+
+COMPONENT FuelCellStack(p, n, heat)
+  PARAM ncells, area, i0, ilim, Rohm, E0, alpha, Eth, T
+  I_cell    = -p.I
+  i         = I_cell / area
+  V_cell    = E0 - (8.314 * T / (alpha * 96485)) * ln(i / i0) - i * Rohm - (8.314 * T / (2 * 96485)) * ln(ilim / (ilim - i))
+  p.V - n.V = ncells * V_cell
+  p.I + n.I = 0
+  Q         = I_cell * ncells * (Eth - V_cell)
+  heat.Qdot = -Q
+END
+
+// ── Electrification set (Wave 3) ───────────────────────────────────────────
+
+// Map-based battery cell — the real ECM rung: open-circuit voltage from an
+// OCV(SOC) TABLE, ohmic resistance with an Arrhenius temperature law, and the
+// Bernardi heat Q = I²R − I·T·(dU/dT)(SOC) (entropic term from a dU/dT map).
+// SOC and cell temperature are states; the `aging` variant adds Ah-throughput
+// capacity fade (Qcap = Q0·(1 − k_age·Ah)). Discharge current is positive
+// (I = −p.I, matching the Battery sign convention).
+COMPONENT BatteryCellMap(p, n, heat)
+  PARAM ocv$, dudt$, R0ref, Tref, Ea, Q0, C_th, SOC0, T0, k_age, R1, C1, k_cal, Ea_cal, model$ = static
+  I         = -p.I
+  R0        = R0ref * exp((Ea / 8.314) * (1 / T - 1 / Tref))
+  Voc       = ocv$(SOC)
+  p.I + n.I = 0
+  der(SOC)  = -I / (3600 * Qcap)
+  init(SOC) = SOC0
+  Qgen      = R0 * I^2 - I * T * dudt$(SOC)
+  heat.T    = T
+  der(T)    = (Qgen + heat.Qdot) / C_th
+  init(T)   = T0
+  VARIANT static
+    Qcap      = Q0
+    p.V - n.V = Voc - R0 * I
+  END
+  VARIANT aging REQUIRE k_age
+    der(Ah)   = abs(I) / 3600
+    init(Ah)  = 0
+    Qcap      = Q0 * (1 - k_age * Ah)
+    p.V - n.V = Voc - R0 * I
+  END
+  VARIANT rc_map REQUIRE R1, C1
+    der(v1)   = I / C1 - v1 / (R1 * C1)
+    init(v1)  = 0
+    Qcap      = Q0
+    p.V - n.V = Voc - R0 * I - v1
+  END
+  VARIANT aging_cal REQUIRE k_age, k_cal, Ea_cal
+    der(Ah)   = abs(I) / 3600
+    init(Ah)  = 0
+    der(fcal) = k_cal * exp(-Ea_cal / (8.314 * T))
+    init(fcal) = 0
+    Qcap      = Q0 * (1 - k_age * Ah - fcal)
+    p.V - n.V = Voc - R0 * I
+  END
+END
+
+// Battery pack: Ns series × Np parallel of the map cell, lumped (uniform SOC
+// and temperature — the standard pack-level rung). C_th is the PACK thermal
+// mass; heat generation scales with the cell count.
+COMPONENT BatteryPack(p, n, heat)
+  PARAM Ns, Np, ocv$, dudt$, R0ref, Tref, Ea, Q0, C_th, SOC0, T0
+  I_cell    = -p.I / Np
+  R0        = R0ref * exp((Ea / 8.314) * (1 / T - 1 / Tref))
+  p.V - n.V = Ns * (ocv$(SOC) - R0 * I_cell)
+  p.I + n.I = 0
+  der(SOC)  = -I_cell / (3600 * Q0)
+  init(SOC) = SOC0
+  Qgen      = Ns * Np * (R0 * I_cell^2 - I_cell * T * dudt$(SOC))
+  heat.T    = T
+  der(T)    = (Qgen + heat.Qdot) / C_th
+  init(T)   = T0
+END
+
+// Map-efficiency e-machine: torque command on the signal port u [N·m], losses
+// from a 2-D efficiency map eff$(ω, τ). Four-quadrant: motoring draws
+// P_mech/η from the DC bus, generating returns P_mech·η, blended smoothly
+// through zero mechanical power (width epsP [W]). Loss heat exits `heat`.
+COMPONENT MotorMap(p, n, shaft, heat, u)
+  PARAM eff$, epsP
+  tau_e     = u.sig
+  shaft.tau = -tau_e
+  Pm        = tau_e * shaft.w
+  eff       = eff$(shaft.w, tau_e)
+  s         = 0.5 * (1 + tanh(Pm / epsP))
+  Pe        = s * Pm / eff + (1 - s) * Pm * eff
+  (p.V - n.V) * p.I = Pe
+  p.I + n.I = 0
+  Q         = Pe - Pm
+  heat.Qdot = -Q
+END
+
+// Series inverter loss element: conduction (device drop V0 + r·I) plus
+// switching loss folded into an equivalent drop Vsw = Esw·fsw·Vnom/(Iref·Vref)
+// — energy-consistent (Q = ΔV·I exactly), tanh-smooth through zero current.
+COMPONENT InverterLoss(in_p, out_p, heat)
+  PARAM V0, r, Esw, fsw, Iref, Vref, Vnom, epsI
+  I         = in_p.I
+  in_p.I + out_p.I = 0
+  Vsw       = Esw * fsw * Vnom / (Iref * Vref)
+  dV        = (V0 + Vsw) * tanh(I / epsI) + r * I
+  out_p.V   = in_p.V - dV
+  Q         = dV * I
+  heat.Qdot = -Q
+END
+
+// Ideal-transformer DC/DC converter with a fixed voltage ratio and a
+// four-quadrant efficiency (forward power / eta, reverse power · eta).
+COMPONENT DCDCConverter(in_p, in_n, out_p, out_n)
+  PARAM ratio, eta, epsP
+  out_p.V - out_n.V = ratio * (in_p.V - in_n.V)
+  in_p.I + in_n.I   = 0
+  out_p.I + out_n.I = 0
+  Pout = (out_p.V - out_n.V) * (0 - out_p.I)
+  s    = 0.5 * (1 + tanh(Pout / epsP))
+  Pin  = s * Pout / eta + (1 - s) * Pout * eta
+  Pin  = (in_p.V - in_n.V) * in_p.I
+END
+
+// Supercapacitor: ideal capacitance with an equivalent series resistance.
+COMPONENT Supercapacitor(p, n)
+  PARAM C, R_esr, V0
+  der(Vc)   = p.I / C
+  init(Vc)  = V0
+  p.V - n.V = Vc + R_esr * p.I
+  p.I + n.I = 0
+END
+
+// CC-CV charger: sources Imax until the terminal voltage approaches Vmax,
+// then tapers (tanh, width epsV) — the constant-current / constant-voltage
+// profile with no mode switch.
+COMPONENT ChargerCCCV(p, n)
+  PARAM Imax, Vmax, epsV
+  V   = p.V - n.V
+  p.I = -Imax * 0.5 * (1 + tanh((Vmax - V) / epsV))
+  p.I + n.I = 0
+END
+
+// Thermal fuse: the element resistance multiplies by (1 + kR) once |I|
+// exceeds the blow rating (tanh, width epsI) — a continuous overcurrent trip.
+COMPONENT ThermalFuse(p, n)
+  PARAM R0, Iblow, kR, epsI
+  m         = 1 + kR * 0.5 * (1 + tanh((abs(p.I) - Iblow) / epsI))
+  p.V - n.V = R0 * m * p.I
+  p.I + n.I = 0
+END
+
+// Harness/busbar resistance with the copper temperature coefficient, sensing
+// its temperature on the heat port and dissipating I²R there.
+COMPONENT HarnessResistance(a, b, heat)
+  PARAM R20, alphaT
+  R         = R20 * (1 + alphaT * (heat.T - 293.15))
+  a.V - b.V = R * a.I
+  a.I + b.I = 0
+  Q         = R * a.I^2
+  heat.Qdot = -Q
+END
+
+// PEM electrolyzer stack (reverse fuel cell): reversible potential + activation
+// (ln(i/i0 + 1), regular at zero current) + ohmic overpotentials; hydrogen
+// production from Faraday's law; heat above the thermoneutral voltage Eth.
+COMPONENT Electrolyzer(p, n, heat)
+  PARAM ncells, area, i0, Rohm, E0, alpha, Eth, T
+  I_cell    = p.I
+  i         = I_cell / area
+  V_cell    = E0 + (8.314 * T / (alpha * 96485)) * ln(i / i0 + 1) + i * Rohm
+  p.V - n.V = ncells * V_cell
+  p.I + n.I = 0
+  mdot_h2   = ncells * I_cell * 2.016e-3 / (2 * 96485)
+  Q         = I_cell * ncells * (V_cell - Eth)
+  heat.Qdot = -Q
+END
+
+// Solar array: photocurrent proportional to the irradiance signal G [W/m²],
+// with a smooth open-circuit clamp at Voc — the constant-current PV rung.
+COMPONENT SolarArray(p, n, G)
+  PARAM Isc_ref, Gref, Voc, epsV
+  Iph = Isc_ref * G.sig / Gref
+  V   = p.V - n.V
+  p.I = -Iph * 0.5 * (1 + tanh((Voc - V) / epsV))
+  p.I + n.I = 0
+END
+
+
+// ── Electrochemistry & energy systems (Wave 8) ──────────────────────────────
+
+// Single-diode PV module: I = Iph − I0·(exp(Vd/(n·Vt)) − 1) − Vd/Rsh with the
+// series-resistance diode voltage Vd = V + I·Rs — the physics rung above
+// SolarArray's clamp model. Current is signed out of p (sourcing).
+COMPONENT PVSingleDiode(p, n, G)
+  PARAM Isc_ref, Gref, I0d, n_d, Vt, Rs, Rsh
+  V   = p.V - n.V
+  I   = -p.I
+  Iph = Isc_ref * G.sig / Gref
+  Vd  = V + I * Rs
+  I   = Iph - I0d * (exp(Vd / (n_d * Vt)) - 1) - Vd / Rsh
+  p.I + n.I = 0
+END
+
+// PEM stack with a coolant jacket: the electrochemical stack's waste heat
+// crosses into a liquid loop through a UA wall (drop-in for FuelCellStack
+// when the thermal loop matters).
+COMPONENT FuelCellStackCooled(p, n, cool_in, cool_out)
+  PARAM ncells, area, i0, ilim, Rohm, E0, alpha, Eth, T, fluid$, UA
+  FuelCellStack FC(ncells=ncells, area=area, i0=i0, ilim=ilim, Rohm=Rohm, E0=E0, alpha=alpha, Eth=Eth, T=T)
+  LiquidWallHX  HX(fluid$=fluid$, UA=UA)
+  connect(p, FC.p)
+  connect(n, FC.n)
+  connect(FC.heat, HX.wall)
+  connect(cool_in, HX.in)
+  connect(HX.out, cool_out)
+END
+
+// Electrolyzer with a coolant jacket (same pattern as the cooled stack).
+COMPONENT ElectrolyzerThermal(p, n, cool_in, cool_out)
+  PARAM ncells, area, i0, Rohm, E0, alpha, Eth, T, fluid$, UA
+  Electrolyzer EL(ncells=ncells, area=area, i0=i0, Rohm=Rohm, E0=E0, alpha=alpha, Eth=Eth, T=T)
+  LiquidWallHX HX(fluid$=fluid$, UA=UA)
+  connect(p, EL.p)
+  connect(n, EL.n)
+  connect(EL.heat, HX.wall)
+  connect(cool_in, HX.in)
+  connect(HX.out, cool_out)
+END
+
+// Map-referenced maximum-power-point command: Vmp from an irradiance map
+// (perturb-free analytic tracking; pair with PVSingleDiode + a DC-DC stage).
+COMPONENT MPPTBlock(G, out)
+  PARAM vmp$
+  out.sig = vmp$(G.sig)
+END

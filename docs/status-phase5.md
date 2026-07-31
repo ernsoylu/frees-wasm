@@ -1,5 +1,11 @@
 # Status — Phase 5 complete (properties)
 
+> **Superseded as the current state by
+> [`docs/status-phase6.md`](status-phase6.md) (2026-07-31).** Kept for its
+> property-backend detail and its measured table-error tables, which Phase 6 did
+> not change. The pending-fixture table below is annotated with what Phase 6
+> closed and what it moved.
+
 **Date:** 2026-07-30 · Read after [`docs/status-phase4.md`](status-phase4.md),
 which this supersedes as the current state.
 
@@ -276,8 +282,8 @@ see non-delivery 4.
 ## Fixtures
 
 ```
-fixtures/corpus + fixtures/golden   268 promoted (was 204)
-fixtures/corpus-pending             29 staged
+fixtures/corpus + fixtures/golden   268 promoted (was 204)   → 361 after Phase 6
+fixtures/corpus-pending             29 staged                → 31  after Phase 6
 ```
 
 ### Promoted this phase (64)
@@ -301,6 +307,13 @@ ported area against the oracle:
 
 ### Pending: 29, replayed document-by-document
 
+> **Phase-6 annotation (2026-07-31).** The list is now **31** — see
+> [`docs/status-phase6.md`](status-phase6.md#pending-31-replayed-document-by-document)
+> for the current, re-replayed classification. Deltas: the three
+> `COMPONENT`-blocked documents all get past the component layer now and have
+> moved to other rows; two humid-air component documents were newly staged.
+> Row-level annotations are inline below; nothing is deleted.
+
 Every staged document was replayed through the current Rust engine and its
 failure classified. **1 solves, 3 both-refuse-with-different-classification,
 25 the Rust engine refuses.**
@@ -309,17 +322,19 @@ failure classified. **1 solves, 3 both-refuse-with-different-classification,
 |---|---|---|
 | 6 | **Phase-9 control-systems CALLs** (`lqr`, `lqe`, `c2d`, `routh`, `residue`, `tf2ss` — refused by name from `UNPORTED_CALL_INTRINSICS`) | `controller-design-lqr-pid`, `estimator-gramian-balreal`, `digital-control-c2d`, `routh-stability`, `inverse-laplace-residue`, `multi-output-destructuring` |
 | 5 | **`PLOT` blocks** (Phase 7) | `control-analysis-report`, `cruise-control`, `nichols-chart`, `root-locus-analysis`, `step-impulse-response` |
-| 5 | **`DYNAMIC` (ODE/DAE) blocks** (Phase 8) | `damped-oscillator-ode`, `engine-cycle-wiebe`, `newton-cooling-transient`, `sounding-rocket-trajectory`, `transient-heat-rod` |
-| 3 | **`COMPONENT` instantiation** (Phase 6) — all three *also* need Phase-8 `DYNAMIC` and, for `ev-thermal-management`, incompressible `EG50` and R1234yf tables | `ev-battery-cooling-pid`, `ev-thermal-management`, `pressure-cooker` |
+| 5 | **`DYNAMIC` (ODE/DAE) blocks** (Phase 8) · *Phase 6: now **7** — joined by `ev-battery-cooling-pid` and `pressure-cooker` from the row below* | `damped-oscillator-ode`, `engine-cycle-wiebe`, `newton-cooling-transient`, `sounding-rocket-trajectory`, `transient-heat-rod` |
+| 3 | ~~**`COMPONENT` instantiation** (Phase 6)~~ **Closed 2026-07-31 (Phase 6)** — all three now expand cleanly through the component layer and fail later: `ev-battery-cooling-pid` and `pressure-cooker` on `DYNAMIC` alone, `ev-thermal-management` on the missing `INCOMP::MEG[0.50]` property table (it reaches block 3 of 89 equations). None is promoted; each moved to a different blocker | `ev-battery-cooling-pid`, `ev-thermal-management`, `pressure-cooker` |
 | 3 | **`PARAMETRIC` blocks** — error fixtures where the classifications still disagree: Java raises `SolverException` (underspecified when solved directly), Rust raises `ParseException` (block type unsupported). Both refuse; the gate compares classification | `damped-oscillator`, `driving-cycle-energy`, `projectile-trajectory` |
-| 2 | **Transport properties the tables do not store** — `Viscosity`, `Conductivity`, `Cp`, `CompressibilityFactor`. These are now the *only* two blocked on Phase 5 itself | `hx-correlations-fluid`, `thermo-compliance` |
+| 2 | **Transport properties the tables do not store** — `Viscosity`, `Conductivity`, `Cp`, `CompressibilityFactor`. These are now the *only* two blocked on Phase 5 itself · *Phase 6: now **5**, joined by `ev-thermal-management` (glycol) and the two newly staged humid-air documents `adv_moistair_W_passthrough` / `adv_moistair_dryair_three_way`, which need `HAPropsSI`. Read the row as "real-fluid coverage the tables do not have", not just transport* | `hx-correlations-fluid`, `thermo-compliance` |
 | 1 | **`STATE TABLE` block type** (plus the transport properties above) | `state-tables-multifluid` |
 | 1 | **`SYMBOLIC` / CAS** — Symja replacement undecided (Phase 9) | `partial-fractions` |
 | 1 | **String variables** — `geom$ = 'wall'` not ported | `heisler-transient` |
 | 1 | **`MODULE` inside `FOR`** — pipeline-ordering deviation carried from Phase 4 | `module_inside_for_loop` |
 | 1 | **Ill-posed by construction — held deliberately.** Structurally square but rank-deficient, so the solution set is a *line*. It passes today (Rust within 6.6e-2 of the Java point) but promoting it would freeze an arbitrary point of a continuum into the gate | `solver_singular_linear_cycle` |
 
-**29 total.** Phase 4 listed 13 documents across its "CoolProp-poisoned" (8) and
+**29 total** *(31 after Phase 6 staged two humid-air component documents; no
+pending document was promoted by Phase 6)*. Phase 4 listed 13 documents across
+its "CoolProp-poisoned" (8) and
 "property / material kernels" (5) groups. Phase 5 **promoted 8 of them**
 (`rankine-cycle`, `rankine-cycle-2`, `refrigeration-vcr`,
 `adiabatic-flame-temp`, `cubic-eos-properties`, `karman-rocket`,

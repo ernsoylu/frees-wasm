@@ -1,0 +1,17 @@
+{
+  "name": "adv_junction_fluid_node_h_is_equality",
+  "source": "// Two inflows of DIFFERENT enthalpy meeting on a raw connect node. If the node\n// equates h (rather than flow-weighting it) this document is inconsistent —\n// which is exactly what it is written to reveal.\nCOMPONENT StreamIn(out)\n  PARAM mdot, h\n  out.mdot = -mdot\n  out.h    = h\nEND\nCOMPONENT PressureOut(in)\n  PARAM P\n  in.P = P\nEND\nStreamIn    A(mdot = 1.0, h = 100000)\nStreamIn    B(mdot = 3.0, h = 400000)\nPressureOut C(P = 200000)\nconnect(A.out, B.out, C.in)\nhc = C.in.h\nmc = C.in.mdot\npa = A.out.P\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "error": {
+      "type": "SolverException",
+      "message": "There are 13 equations and 12 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): CONNECT a.out, b.out, c.in: a$out.h = b$out.h. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

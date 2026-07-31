@@ -1,0 +1,11 @@
+// 3-way rotational node via connect: w equal, sum tau = 0.
+TorqueSource     TS(T = 50)
+MechGround       MG()
+RotationalDamper D1(c = 2)
+RotationalDamper D2(c = 3)
+connect(TS.a, MG.port, D1.b, D2.b)
+connect(TS.b, D1.a, D2.a)
+wm = D1.a.w
+t1 = D1.a.tau
+t2 = D2.a.tau
+ts = TS.b.tau

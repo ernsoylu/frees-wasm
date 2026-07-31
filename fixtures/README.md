@@ -151,6 +151,39 @@ Add the document to `corpus/`, rerun `run.sh`, and commit both the source and
 the generated golden file. **Review the generated fixture before committing** —
 it encodes whatever the Java engine does, including any bug.
 
+### The `components_*` group (Phase 6)
+
+46 fixtures whose stem starts with `components_`, in three provenance classes:
+
+| Prefix | Count | Where it came from |
+|---|---|---|
+| `components_family_<domain>` | 12 | **Hand-authored here**, one per domain family (`ac`, `electrical`, `fluid`, `heat`, `hydraulic`, `liquid`, `mechanical`, `moistair`, `pneumatic`, `powertrain`, `signal`, `twophase`). `control.frees` ships one component, `PIThermostat`, which rides the heat bond and is exercised from `components_family_heat`. |
+| `components_<wave>_<name>` | 31 | **Harvested** from `../frEES/backend/core/src/test/resources/component-fixtures/`, renamed `<directory>_<stem>`. Only documents that reproduce the Java answer are here; the reference set's transient (`DYNAMIC`) documents are not, because the ODE engine is Phase 7/8. |
+| `components_definition_*`, `components_user_defined_type` | 3 | Edge cases: a template that is never instantiated (empty document, and beside an unrelated scalar), and a user-declared `COMPONENT` shadowing nothing. |
+
+Two things about this group differ from the rest of the corpus and are worth
+knowing before extending it:
+
+* **The golden's variable keys are display names.**
+  `EquationSystemSolver.buildResult` keys `Result.variables()` with
+  `displayNames.getOrDefault(name, name)`. For a scalar document that is the
+  canonical name once lowercased, which is why folding the golden was enough for
+  the pre-component corpus. For a component document it is not: the canonical
+  name is `s2$p` and the display name is `s2.P`. `tests/parity.rs` therefore
+  routes the *Rust* side through the same map before comparing — a no-op on
+  every non-component fixture.
+* **`crates/frees-core/tests/component_families.rs` measures coverage** over
+  exactly this group, and pins two floors: how many of the 295 built-ins the
+  corpus instantiates, and how many expand from a bare probe instantiation.
+  Adding a document here can only raise those numbers.
+
+Of the 92 documents in the reference component-fixture set, 51 are steady (the
+rest need `DYNAMIC`); of those 51, **31 reproduce the Java answer** and are
+promoted, and the other 20 fail on a property-backend limit, not the component
+layer — `Air`/`CO2`/`Hydrogen`/`INCOMP::MEG` are not tabulated, `HAPropsSI` is
+not implemented, and `Cpmass`/`viscosity` are not stored by the split `(P,h)`
+table. Every one of those 20 names the missing capability in its error.
+
 ## Pending corpus
 
 `corpus-pending/` is a staging area with the same shape as the promoted corpus
@@ -195,6 +228,26 @@ document that starts passing because someone fixed the engine is the point.
 > none is installed`), because `prop$` dispatch reaches a real call instead of
 > refusing the family. Only the rank-deficient `solver_singular_linear_cycle`
 > is still a deliberate withhold.
+>
+> **Re-check 2026-07-31, Phase 6 component expansion — 29 staged, 0 promoted.**
+> Wiring the expander into `engine.rs` moved the three component-bearing
+> documents past expansion but not past their *other* blocker, so none of them
+> is promotable and the pending set is unchanged in size:
+>
+> | Document | Now blocked on |
+> |---|---|
+> | `ev-battery-cooling-pid` | `DYNAMIC` — Phase 7/8 |
+> | `pressure-cooker` | `DYNAMIC` — Phase 7/8 |
+> | `ev-thermal-management` | **expands and blocks correctly** (89-equation block 3), then fails on `no property table for fluid 'INCOMP::MEG[0.50]'` — the D1 table limit, not the component layer |
+> | `thermo-compliance` | `Z(R134a, P=1, T=1)` outside the generated table — D1 |
+> | `state-tables-multifluid` | `STATE TABLE` block type still unparsed |
+> | `hx-correlations-fluid` | `viscosity` is not a tabulated output — D1 |
+> | `heisler-transient` | string variables (`geom$ = 'wall'`) |
+> | `solver_singular_linear_cycle` | still the deliberate rank-deficient withhold |
+> | the other 21 | `PLOT` (5), `DYNAMIC` (5 more), `PARAMETRIC` (3), `SYMBOLIC` (1), CAS/control `CALL`s (6), `MODULE` inside `FOR` (1) |
+>
+> Component coverage grew instead through a **new** group of 46 `components_*`
+> fixtures (see "The `components_*` group" above), not by promoting from here.
 
 ```bash
 tools/golden-dumper/run.sh fixtures/corpus-pending/corpus fixtures/corpus-pending/golden

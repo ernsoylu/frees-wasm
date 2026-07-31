@@ -1,0 +1,5 @@
+// Fluid port (P, mdot, h) connected to a rotational mechanical port must fail.
+Source     SRC(f1, fluid$ = Water, mdot = 1.0, P = 100000, T = 300)
+Inertia    J1(m1, J = 0.5, w0 = 0)
+connect(SRC.out, J1.port)
+w = J1.port.w

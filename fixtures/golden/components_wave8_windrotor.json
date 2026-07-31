@@ -1,0 +1,49 @@
+{
+  "name": "components_wave8_windrotor",
+  "source": "// WindRotor on a flat Cp = 0.45 map at 12 m/s and R = 40 m: wind power\n// 0.5*rho*pi*R^2*v^3*Cp = 2.394044e6 W; at 2 rad/s the shaft torque is\n// -1.197022e6 N·m (eps-regularized).\n// EXPECT tau_w = -1197022 tol 5\n\nTABLE cpmap(lam : beta = 0, 20)\n  0    0.45  0.45\n  20   0.45  0.45\nEND\nSigConstant WIND(k=12)\nSigConstant PITCH(k=0)\nSpeedSource WS(w=2)\nMechGround  WG()\nWindRotor   WR(rho=1.225, R=40, cp$=cpmap, epsv=1e-6, epsw=1e-6)\nconnect(WR.shaft, WS.a)\nconnect(WS.b, WG.port)\nconnect(WIND.out, WR.wind)\nconnect(PITCH.out, WR.pitch)\ntau_w = WR.shaft.tau\n",
+  "expect": {
+    "variables": {
+      "pitch.out.sig": 0.0,
+      "tau_w": -1197021.6007305973,
+      "wg.port.tau": 1197021.6007305973,
+      "wg.port.w": 0.0,
+      "wind.out.sig": 12.0,
+      "wr.cpw": 0.45,
+      "wr.lam": 6.666666111111158,
+      "wr.pitch.sig": 0.0,
+      "wr.pw": 2394044.3984827953,
+      "wr.shaft.tau": -1197021.6007305973,
+      "wr.shaft.w": 2.0,
+      "wr.wind.sig": 12.0,
+      "ws.a.tau": 1197021.6007305973,
+      "ws.a.w": 2.0,
+      "ws.b.tau": -1197021.6007305973,
+      "ws.b.w": 0.0
+    },
+    "display_names": {
+      "cpmap": "cpmap",
+      "pitch$out$sig": "pitch.out.sig",
+      "tau_w": "tau_w",
+      "wg$port$tau": "wg.port.tau",
+      "wg$port$w": "wg.port.w",
+      "wind$out$sig": "wind.out.sig",
+      "wr$cpw": "wr.cpw",
+      "wr$lam": "wr.lam",
+      "wr$pitch$sig": "wr.pitch.sig",
+      "wr$pw": "wr.pw",
+      "wr$shaft$tau": "wr.shaft.tau",
+      "wr$shaft$w": "wr.shaft.w",
+      "wr$wind$sig": "wr.wind.sig",
+      "ws$a$tau": "ws.a.tau",
+      "ws$a$w": "ws.a.w",
+      "ws$b$tau": "ws.b.tau",
+      "ws$b$w": "ws.b.w"
+    },
+    "block_count": 16,
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

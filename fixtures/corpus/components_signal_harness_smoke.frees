@@ -1,0 +1,19 @@
+// Harness smoke fixture: a chained user-defined signal circuit with hand-derived
+// values (2 -> x3 -> x5 = 30) plus a broadcast node.
+// EXPECT g1.in.sig = 2
+// EXPECT g2.out.sig = 30
+// EXPECT b.out.sig = 10 tol 1e-9
+COMPONENT KConst(out)
+  PARAM k
+  out.sig = k
+END
+COMPONENT KGain(in, out)
+  PARAM k
+  out.sig = k * in.sig
+END
+KConst SRC(k=2)
+KGain  G1(k=3)
+KGain  G2(k=5)
+KGain  B(k=5)
+connect(SRC.out, G1.in, B.in)
+connect(G1.out, G2.in)

@@ -1,0 +1,19 @@
+// WindRotor on a flat Cp = 0.45 map at 12 m/s and R = 40 m: wind power
+// 0.5*rho*pi*R^2*v^3*Cp = 2.394044e6 W; at 2 rad/s the shaft torque is
+// -1.197022e6 N·m (eps-regularized).
+// EXPECT tau_w = -1197022 tol 5
+
+TABLE cpmap(lam : beta = 0, 20)
+  0    0.45  0.45
+  20   0.45  0.45
+END
+SigConstant WIND(k=12)
+SigConstant PITCH(k=0)
+SpeedSource WS(w=2)
+MechGround  WG()
+WindRotor   WR(rho=1.225, R=40, cp$=cpmap, epsv=1e-6, epsw=1e-6)
+connect(WR.shaft, WS.a)
+connect(WS.b, WG.port)
+connect(WIND.out, WR.wind)
+connect(PITCH.out, WR.pitch)
+tau_w = WR.shaft.tau

@@ -9,6 +9,17 @@
 //! * `variables` — relative tolerance `1e-9`, absolute `1e-12` near zero.
 //!   Golden keys carry the Java first-seen spelling (`T_out`); the Rust engine
 //!   keys by lowercase canonical name, so keys are folded before matching.
+//!
+//!   The fold is the Java's own: `EquationSystemSolver.buildResult` keys
+//!   `Result.variables()` with `displayNames.getOrDefault(name, name)`, so the
+//!   golden's key is a *display* name, not a canonical one. For a scalar
+//!   document the two coincide once lowercased (`T_out` → `t_out`), which is
+//!   why folding the golden alone worked for the whole pre-component corpus.
+//!   It stops coinciding the moment components expand: the canonical name is
+//!   `s2$p` and its display name is `s2.P`. So this replay routes the **Rust**
+//!   side through the same `display_names` map before lowercasing — identical
+//!   to the previous behaviour on every non-component fixture, and the only
+//!   thing that makes a component fixture comparable at all.
 //! * `display_names` — **exact**: keys and values must match the Java
 //!   `ParseResult.displayNames` map the dumper recorded, spelling included.
 //! * `block_count` — exact. A different blocking is a real divergence.
@@ -184,9 +195,20 @@ fn replay(
                 .map(|(k, v)| (k.to_ascii_lowercase(), as_f64(v)))
                 .collect();
 
+            // The Rust side keyed the way `Result.variables()` is keyed: through
+            // `displayNames`, then lowercased. See the module docs.
+            let actual_vars: BTreeMap<String, f64> = solution
+                .values
+                .iter()
+                .map(|(name, value)| {
+                    let display = solution.display_names.get(name).unwrap_or(name);
+                    (display.to_ascii_lowercase(), *value)
+                })
+                .collect();
+
             let mut worst = 0.0f64;
             for (var, &expected) in &golden_vars {
-                match solution.values.get(var) {
+                match actual_vars.get(var) {
                     None => fail(format!("missing variable `{var}` (expected {expected})")),
                     Some(&actual) => {
                         worst = worst.max(rel_diff(actual, expected));
@@ -211,7 +233,7 @@ fn replay(
                     used.insert(name.clone());
                 }
             }
-            for var in solution.values.keys() {
+            for var in actual_vars.keys() {
                 if !golden_vars.contains_key(var) {
                     fail(format!("extra variable `{var}` not in the golden fixture"));
                 }

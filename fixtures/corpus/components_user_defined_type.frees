@@ -1,0 +1,10 @@
+{ A COMPONENT template that IS instantiated but whose ports are never
+  connected: each free port becomes its own synthetic stream, so the
+  network is well posed on its own. }
+COMPONENT Divider(a, b)
+  PARAM k
+  b.sig = k * a.sig
+END
+Divider D1(s1, s2, k = 4)
+s1.sig = 3
+y = s2.sig

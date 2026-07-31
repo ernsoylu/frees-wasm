@@ -146,9 +146,16 @@ fn check_json(source: &str) -> Outcome {
 }
 
 fn solution_value(solution: &Solution) -> Value {
+    // Key by the DISPLAY spelling, as the Java `Result.variables()` does. This
+    // matters most for the component layer: a port member is solved as the flat
+    // `s1$h` but the engine — and every other surface, including the wasm
+    // boundary — reports it as `s1.h`. Emitting the canonical key here made the
+    // CLI disagree with both Java and the product, which is a trap when the CLI
+    // is what you reach for to diagnose a suspected divergence.
     let mut variables = Map::new();
     for (name, value) in &solution.values {
-        variables.insert(name.clone(), number(*value));
+        let display = solution.display_names.get(name).unwrap_or(name);
+        variables.insert(display.clone(), number(*value));
     }
     let blocks: Vec<Value> = solution
         .blocks
@@ -407,13 +414,46 @@ mod tests {
 
     #[test]
     fn an_unsupported_block_is_reported_as_a_parse_error() {
-        let (payload, ok) = solve_json("COMPONENT p\nEND\n", &SolverSettings::default());
+        // `PLOT` is still an unported block type, and the parser refuses it by
+        // name rather than skipping it.
+        let (payload, ok) = solve_json("PLOT 'p'\nEND\n", &SolverSettings::default());
         assert!(!ok);
         assert_eq!(payload["error"]["type"], json!("ParseException"));
         assert!(payload["error"]["message"]
             .as_str()
             .unwrap()
-            .contains("COMPONENT"));
+            .contains("PLOT"));
+    }
+
+    #[test]
+    fn a_component_definition_with_no_instance_has_nothing_to_solve() {
+        // Phase 6 removed the capability gate that used to refuse this as a
+        // ParseException. A `COMPONENT` template that is never instantiated
+        // contributes no equations, so the document is empty and the *solver*
+        // says so. Verified against the oracle, message included: Java answers
+        // `SolverException: "No equations to solve."` for this exact source.
+        let (payload, ok) = solve_json(
+            "COMPONENT p(a)\n  a.T = 1\nEND\n",
+            &SolverSettings::default(),
+        );
+        assert!(!ok);
+        assert_eq!(payload["error"]["type"], json!("SolverException"));
+        assert_eq!(payload["error"]["message"], json!("No equations to solve."));
+    }
+
+    #[test]
+    fn a_component_network_solves_end_to_end() {
+        // The other half of removing that gate: a document that *does*
+        // instantiate solves, and its port members come back under the DISPLAY
+        // spelling — `n2.v`, not the flat `n2$v` the solver works in. Verified
+        // against the Java oracle, which reports exactly these four keys.
+        let (payload, ok) = solve_json(
+            "Resistor R1(n1, n2, R = 10)\nGround G1(n2)\nn1.V = 12\n",
+            &SolverSettings::default(),
+        );
+        assert!(ok, "{payload}");
+        assert_eq!(payload["variables"]["n2.v"], json!(0.0));
+        assert_eq!(payload["variables"]["n1.i"], json!(1.2));
     }
 
     #[test]
@@ -482,8 +522,10 @@ mod tests {
 
     #[test]
     fn units_are_si_in_the_output() {
+        // Keyed by the display spelling `P`, matching the Java oracle's
+        // `{"P": 140000.0}` — not the lowercase canonical name.
         let payload = solve_out("P = 140 [kPa]\n");
-        assert_eq!(payload["variables"]["p"], json!(140000.0));
+        assert_eq!(payload["variables"]["P"], json!(140000.0));
     }
 
     #[test]

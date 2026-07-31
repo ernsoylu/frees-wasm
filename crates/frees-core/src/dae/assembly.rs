@@ -318,9 +318,8 @@ impl DaeRootFn for EquationRootFn<'_> {
             y,
             yp,
         );
-        for r in 0..self.lhs.len() {
-            gout[r] =
-                eval_with(&self.lhs[r], &v, self.ctx)? - eval_with(&self.rhs[r], &v, self.ctx)?;
+        for (r, slot) in gout.iter_mut().enumerate().take(self.lhs.len()) {
+            *slot = eval_with(&self.lhs[r], &v, self.ctx)? - eval_with(&self.rhs[r], &v, self.ctx)?;
         }
         Ok(())
     }
@@ -427,6 +426,22 @@ pub fn assemble<'a>(spec: AssemblySpec<'a>) -> Result<DaeAssembly<'a>> {
     let n = ns + spec.aux.len();
     if spec.template.len() != n {
         return Err(FreesError::solver(non_square_diagnostic(&spec, n)));
+    }
+    // The Java builds `y0` inside the classifier so this cannot mismatch there;
+    // here the spec is caller-built, so a mismatch is diagnosed rather than
+    // becoming a slice-length panic.
+    if spec.state_initials.len() != ns {
+        return Err(FreesError::solver(format!(
+            "DYNAMIC {}: {} initial value{} for {ns} state{}.",
+            spec.block_name,
+            spec.state_initials.len(),
+            if spec.state_initials.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+            if ns == 1 { "" } else { "s" }
+        )));
     }
 
     let mut variables = spec.states.clone();
@@ -695,6 +710,14 @@ mod tests {
         let dae = assemble(cooling_spec()).unwrap();
         assert!(dae.root_fn.is_none());
         assert_eq!(dae.event_count(), 0);
+    }
+
+    #[test]
+    fn a_state_initials_length_mismatch_is_diagnosed_not_a_panic() {
+        let mut spec = cooling_spec();
+        spec.state_initials = vec![95.0, 1.0];
+        let err = assemble(spec).unwrap_err().to_string();
+        assert!(err.contains("2 initial values for 1 state"), "{err}");
     }
 
     #[test]

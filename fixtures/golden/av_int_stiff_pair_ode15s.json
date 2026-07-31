@@ -1,0 +1,52 @@
+{
+  "name": "av_int_stiff_pair_ode15s",
+  "source": "{ A two-state STIFF LINEAR system through the BDF integrator — the coupled\n  case the scalar stiff probes do not reach. Eigenvalues -100 and -1, so the\n  fast mode dies in ~0.05 s and the slow one governs the rest.\n\n  The Van der Pol version of this probe (0..20, 201 points) agrees with the\n  oracle too, but costs 28.6 s here and 32 s in Java: `maxstep` defaults to\n  span/100, which pins ~100 implicit steps whatever the span, and every step's\n  Newton residual re-blocks the algebraic system. It is left out of the corpus\n  as a gate-budget decision, not a correctness one. }\nDYNAMIC pair (method = ode15s, time = 0 .. 5, points = 21)\n  der(Ya) = -100*Ya + 99*Yb\n  der(Yb) = -Yb\n  Ya(0) = 2\n  Yb(0) = 1\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "ya": "Ya",
+      "yb": "Yb"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "pair",
+        "method": "ode15s",
+        "stopped": false,
+        "end_time": 5.0,
+        "columns": ["time", "ya", "yb"],
+        "rows": [
+          [0.0, 2.0, 1.0],
+          [0.25, 0.778800851595314, 0.7788008515804309],
+          [0.5, 0.6065307950743962, 0.6065307950743963],
+          [0.75, 0.4723667221696512, 0.4723667221696511],
+          [1.0, 0.36787962290456877, 0.3678796229045687],
+          [1.25, 0.28650497724887763, 0.28650497724887763],
+          [1.5, 0.22313033091916645, 0.22313033091916654],
+          [1.75, 0.17377410001746876, 0.17377410001746876],
+          [2.0, 0.13533542358109923, 0.13533542358109926],
+          [2.25, 0.10539934822599191, 0.10539934822599192],
+          [2.5, 0.08208510614109171, 0.0820851061410917],
+          [2.75, 0.06392795370278456, 0.06392795370278456],
+          [3.0, 0.04978714724943712, 0.04978714724943712],
+          [3.25, 0.038774274624921175, 0.038774274624921175],
+          [3.5, 0.03019743963732078, 0.03019743963732078],
+          [3.75, 0.023517792933426006, 0.023517792933426006],
+          [4.0, 0.018315678150044465, 0.01831567815004448],
+          [4.25, 0.014264266529733753, 0.014264266529733755],
+          [4.5, 0.011109023565657688, 0.011109023565657688],
+          [4.75, 0.008651717540596382, 0.008651717540596382],
+          [5.0, 0.006737965424014222, 0.006737965424014222]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

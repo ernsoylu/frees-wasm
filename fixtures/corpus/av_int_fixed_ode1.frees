@@ -1,0 +1,8 @@
+{ Fixed-step explicit Euler — the crudest method, so any step-loop or output
+  sampling difference shows up at 1e-3 rather than 1e-12. }
+DYNAMIC ring (method = ode1, time = 0 .. 10, points = 51, step = 0.05)
+  der(Yp) = Yv
+  der(Yv) = -Yp
+  Yp(0) = 1
+  Yv(0) = 0
+END

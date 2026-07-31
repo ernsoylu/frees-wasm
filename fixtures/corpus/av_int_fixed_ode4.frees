@@ -1,0 +1,7 @@
+{ Fixed-step classical RK4: no adaptivity, no interpolation. }
+DYNAMIC ring (method = ode4, time = 0 .. 10, points = 51, step = 0.01)
+  der(Yp) = Yv
+  der(Yv) = -Yp
+  Yp(0) = 1
+  Yv(0) = 0
+END

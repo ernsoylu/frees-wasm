@@ -1,0 +1,6 @@
+{ An active equation reads the uncertainty of a variable that depends on it —
+  the fixed point the second solve pass exists to resolve. }
+x = 5
+UncertaintyOf(x) = 0.4
+y = x^2 + 3*UncertaintyOf(y)
+uy = UncertaintyOf(y)

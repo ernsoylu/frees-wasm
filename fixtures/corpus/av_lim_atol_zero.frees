@@ -1,0 +1,6 @@
+{ atol = 0: the weight becomes purely relative, so a state passing through zero
+  makes the weight vanish. }
+DYNAMIC atol0 (method = ode45, time = 0 .. 4, points = 9, rtol = 1e-6, atol = 0)
+  der(Yv) = cos(time)
+  Yv(0) = 0
+END

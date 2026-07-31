@@ -26,6 +26,12 @@
 //! converges to, but reproducing the oracle's iterate sequence is what keeps
 //! the step/order history — and therefore the trajectory — identical.
 
+// Transcription of `DaeJacobian.java`: the sweeps index `j[row][c]`, `y[c]`,
+// `yp[c]` and `eps[c]` in lockstep against a *pattern* (`col_rows[c]`), so an
+// iterator rewrite would obscure which array the pattern applies to. The Java
+// index form stays, exactly as it does in `crate::eval`.
+#![allow(clippy::needless_range_loop)]
+
 use crate::dae::assembly::DaeResidual;
 use crate::diag::Result;
 
@@ -56,7 +62,10 @@ pub fn ida_dense_increment(y_j: f64, yp_j: f64, h: f64, inv_ewt_j: f64) -> f64 {
 /// difference, reusing the already-evaluated base residual `f0`. Returns the
 /// `ε` used.
 ///
-/// Port of `DaeJacobian.column`.
+/// Port of `DaeJacobian.column`. The argument list is the Java signature
+/// unchanged — `f0` and `out` are caller-owned buffers precisely so a Jacobian
+/// sweep allocates once, which is why they are not bundled into a struct.
+#[allow(clippy::too_many_arguments)]
 pub fn column(
     res: &dyn DaeResidual,
     t: f64,

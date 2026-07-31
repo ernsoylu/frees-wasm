@@ -1,0 +1,30 @@
+{
+  "name": "av_unc_kinetic_energy",
+  "source": "{ KE = m*v^2/2 with both m and v uncertain — the classic contribution split. }\nm = 2\nv = 10\nUncertaintyOf(m) = 0.05\nUncertaintyOf(v) = 0.3\nke = m*v^2/2\nuke = UncertaintyOf(ke)\n",
+  "expect": {
+    "variables": {
+      "ke": 100.0,
+      "m": 2.0,
+      "uke": 6.500000052818885,
+      "uncertaintyof$ke": 6.500000052818885,
+      "uncertaintyof$m": 0.05,
+      "uncertaintyof$uke": 0.0,
+      "uncertaintyof$v": 0.3,
+      "v": 10.0
+    },
+    "display_names": {
+      "ke": "ke",
+      "m": "m",
+      "uke": "uke",
+      "v": "v"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

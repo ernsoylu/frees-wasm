@@ -1,0 +1,14 @@
+{ The live accessor with the ODE input present in the analytic system: the
+  solver sizes k through the analytic tie k = kmin + dk so the transient ends
+  at 30. }
+Tinf = 20
+Temp0 = 95
+kmin = 0.001
+k = kmin + dk
+
+FinalValue('Temp') = 30
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 21)
+  der(Temp) = -k*(Temp - Tinf)
+  Temp(0) = Temp0
+END

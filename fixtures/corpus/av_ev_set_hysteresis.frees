@@ -1,0 +1,11 @@
+{ A thermostat: heat while below 60, cool while above 80, switched by a latch
+  state that a pair of set events flips. Every set restarts the integration
+  from the modified state, so this exercises the restart path 27 times. }
+DYNAMIC thermostat (method = ode45, time = 0 .. 200, points = 41)
+  der(Temp) = 0.05*(Heat*120 - Temp)
+  der(Heat) = 0
+  Temp(0) = 20
+  Heat(0) = 1
+  EVENT hot:  Temp = 80 | rising  -> set Heat = 0
+  EVENT cold: Temp = 60 | falling -> set Heat = 1
+END

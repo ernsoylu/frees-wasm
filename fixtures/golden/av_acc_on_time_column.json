@@ -1,0 +1,51 @@
+{
+  "name": "av_acc_on_time_column",
+  "source": "{ The accessors applied to column 0 — the independent variable itself. }\nTend = FinalValue('time')\nTavg = ODEAvg('time')\nTstd = ODEStdDev('time')\nTsum = ODESum('time')\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 13)\n  der(Temp) = -0.05*(Temp - 20)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Tavg": 30.0,
+      "Tend": 60.0,
+      "Tstd": 18.708286933869708,
+      "Tsum": 390.0
+    },
+    "display_names": {
+      "tavg": "Tavg",
+      "temp": "Temp",
+      "tend": "Tend",
+      "tstd": "Tstd",
+      "tsum": "Tsum"
+    },
+    "block_count": 4,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [5.0, 78.41005860853919],
+          [10.0, 65.48979945910143],
+          [15.0, 55.42749142432856],
+          [20.0, 47.59095803046333],
+          [25.0, 41.487859755490334],
+          [30.0, 36.734761996461124],
+          [35.0, 33.03304573174144],
+          [40.0, 30.15014623853744],
+          [45.0, 27.904941835251808],
+          [50.0, 26.15637488405151],
+          [55.0, 24.794589588540664],
+          [60.0, 23.734030127668667]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

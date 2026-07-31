@@ -1,0 +1,65 @@
+{
+  "name": "dyn_accessor_read",
+  "source": "{ The analytic system reads the solved ODE table through the accessors. }\nk = 0.05\nTinf = 20\n\nTlast   = FinalValue('Temp')\nTspan   = MaxValue('Temp') - MinValue('Temp')\nThalf   = ODEValue('Temp', 30)\nTcross  = TimeAt('Temp', 50)\nTmean   = ODEAvg('Temp')\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 21)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Tcross": 18.34801895160751,
+      "Thalf": 36.734761996461124,
+      "Tinf": 20.0,
+      "Tlast": 23.734030127668667,
+      "Tmean": 44.54114148753955,
+      "Tspan": 71.26596987233134,
+      "k": 0.05
+    },
+    "display_names": {
+      "k": "k",
+      "tcross": "Tcross",
+      "temp": "Temp",
+      "thalf": "Thalf",
+      "tinf": "Tinf",
+      "tlast": "Tlast",
+      "tmean": "Tmean",
+      "tspan": "Tspan"
+    },
+    "block_count": 7,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [3.0, 84.55309817466741],
+          [6.0, 75.56136650194527],
+          [9.0, 67.82211132935129],
+          [12.0, 61.160872670703654],
+          [15.0, 55.42749142432856],
+          [18.0, 50.49272445368242],
+          [21.0, 46.24533116024385],
+          [24.0, 42.589565873563075],
+          [27.0, 39.443019531375754],
+          [30.0, 36.734761996461124],
+          [33.0, 34.403743133944374],
+          [36.0, 32.397416605776804],
+          [39.0, 30.670555359667926],
+          [42.0, 29.184232110961126],
+          [45.0, 27.904941835251808],
+          [48.0, 26.803846490784622],
+          [51.0, 25.856124944996203],
+          [54.0, 25.04041345110536],
+          [57.0, 24.33832406185116],
+          [60.0, 23.734030127668667]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

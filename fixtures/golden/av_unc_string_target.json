@@ -1,0 +1,27 @@
+{
+  "name": "av_unc_string_target",
+  "source": "{ The declaration names its target with a string literal rather than a bare\n  identifier — `getUncertaintyTarget` admits both. }\nx = 3\nUncertaintyOf('X') = 0.1\ny = x^2\nuy = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$x": 0.1,
+      "uncertaintyof$y": 0.6000000039736431,
+      "uy": 0.6000000039736431,
+      "x": 3.0,
+      "y": 9.0
+    },
+    "display_names": {
+      "uy": "uy",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

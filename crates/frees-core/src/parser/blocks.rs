@@ -196,6 +196,36 @@ pub struct StateTableDef {
     pub fluid: Option<String>,
 }
 
+/// A `LINEARIZE name(block = blk, a = A, …) … END` block.
+///
+/// Port of `ast/LinearizeSystem.java`. It names a transient network (a
+/// `DYNAMIC` block, by [`dynamic_name`](LinearizeSystem::dynamic_name)) plus the
+/// exogenous inputs and observed outputs; the solver linearizes that block about
+/// its operating point into `A`/`B`/`C`/`D` and **injects the matrix entries as
+/// equations**, which is why this record does not live in
+/// [`DeclarativeBlocks`] — unlike a plot or a parametric table it does reach the
+/// equation system.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinearizeSystem {
+    /// Block name, lowercased (`AstBuilder.buildLinearizeDef` lowercases it,
+    /// unlike the `DYNAMIC` name it points at).
+    pub name: String,
+    /// The `DYNAMIC` block being linearized, lowercased.
+    pub dynamic_name: String,
+    /// Result matrix variable names, in the case the header wrote them;
+    /// defaulting to the upper-case `A`/`B`/`C`/`D`.
+    pub a_name: String,
+    pub b_name: String,
+    pub c_name: String,
+    pub d_name: String,
+    /// Exogenous inputs, dotted display names kept verbatim but lowercased.
+    pub inputs: Vec<String>,
+    /// Observed outputs, same spelling rule.
+    pub outputs: Vec<String>,
+    /// Original block text, for diagnostics.
+    pub source_text: String,
+}
+
 /// Every declarative block one document contains.
 ///
 /// The three lists mirror the three fields `AstBuilder.ParseResult` carries

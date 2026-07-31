@@ -1,0 +1,6 @@
+{ rtol = 0 with a finite atol — the error controller divides by the weight, so
+  a zero relative tolerance is a real edge. }
+DYNAMIC tol0 (method = ode45, time = 0 .. 1, points = 6, rtol = 0, atol = 1e-8)
+  der(Yv) = -Yv
+  Yv(0) = 1
+END

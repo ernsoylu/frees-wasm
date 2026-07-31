@@ -1,0 +1,16 @@
+{ The steady limit of av_stor_two_masses_dynamic: with NO DYNAMIC block the
+  storage equations take the rhs = 0 branch, which must recover exactly the
+  algebraic operating point the transient converges to (446.667 / 406.667). }
+Q_in = 800
+Tamb = 300
+HeatSource    HS(Q = Q_in)
+ThermalMass   M1(C = 5000, T0 = 300)
+Conduction    w12(k = 2, area = 1, L = 0.1)
+ThermalMass   M2(C = 8000, T0 = 310)
+Conduction    w2a(k = 1.5, area = 1, L = 0.2)
+ThermalSource amb(T = Tamb)
+connect(HS.port, M1.port, w12.a)
+connect(w12.b, M2.port, w2a.a)
+connect(w2a.b, amb.port)
+t1 = M1.port.T
+t2 = M2.port.T

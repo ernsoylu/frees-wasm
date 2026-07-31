@@ -1,0 +1,37 @@
+{
+  "name": "av_ev_two_stop_race",
+  "source": "{ Two stop guards racing in the same step: the earlier crossing must win and\n  the later one must not be reported at all. }\nDYNAMIC ramp (method = ode45, time = 0 .. 10, points = 6)\n  der(Yv) = 1\n  Yv(0) = 0\n  EVENT late: Yv = 5.002 | rising -> stop\n  EVENT early: Yv = 5 | rising -> stop\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "ramp",
+        "method": "ode45",
+        "stopped": true,
+        "end_time": 5.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 1.0],
+          [2.0, 1.9999999999999998],
+          [3.0, 3.0000000000000004],
+          [4.0, 3.9999999999999996],
+          [5.0, 5.000000000000001]
+        ],
+        "events": [
+          {"name": "early", "time": 5.0}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,8 @@
+{ Two stop guards racing in the same step: the earlier crossing must win and
+  the later one must not be reported at all. }
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 6)
+  der(Yv) = 1
+  Yv(0) = 0
+  EVENT late: Yv = 5.002 | rising -> stop
+  EVENT early: Yv = 5 | rising -> stop
+END

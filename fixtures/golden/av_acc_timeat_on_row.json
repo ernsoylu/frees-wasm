@@ -1,0 +1,43 @@
+{
+  "name": "av_acc_timeat_on_row",
+  "source": "{ The target sits exactly on a sampled row (Level = 4 at time = 4 on a unit\n  ramp sampled every second) — the `a == 0` branch. }\nTcross = TimeAt('Level', 4)\n\nDYNAMIC ramp (method = ode45, time = 0 .. 10, points = 11)\n  der(Level) = 1\n  Level(0) = 0\nEND\n",
+  "expect": {
+    "variables": {
+      "Tcross": 4.0
+    },
+    "display_names": {
+      "level": "Level",
+      "tcross": "Tcross"
+    },
+    "block_count": 1,
+    "ode_tables": [
+      {
+        "name": "ramp",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "level"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 1.0],
+          [2.0, 1.9999999999999998],
+          [3.0, 3.0000000000000004],
+          [4.0, 3.9999999999999996],
+          [5.0, 5.000000000000001],
+          [6.0, 6.000000000000001],
+          [7.0, 7.000000000000002],
+          [8.0, 8.000000000000002],
+          [9.0, 9.0],
+          [10.0, 10.0]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

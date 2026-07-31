@@ -1,0 +1,11 @@
+{ Live accessor on TimeAt: size the ramp slope so the level reaches 5 at
+  time = 2. TimeAt interpolates between sampled rows. }
+slope = base + ds
+base = 1
+
+TimeAt('Level', 5) = 2
+
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 11)
+  der(Level) = slope
+  Level(0) = 0
+END

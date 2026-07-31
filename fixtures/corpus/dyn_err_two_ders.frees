@@ -1,0 +1,5 @@
+DYNAMIC twice (method = ode45, time = 0 .. 10, points = 3)
+  der(Level) = 1
+  der(Level) = 2
+  Level(0) = 0
+END

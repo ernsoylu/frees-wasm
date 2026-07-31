@@ -1,0 +1,14 @@
+{ A storage network with an event declared in the DYNAMIC block: the block body
+  comes from the components but the event is authored, and the guard names a
+  mangled port member. }
+Q_in = 1000
+HeatSource    HS(Q = Q_in)
+ThermalMass   M(C = 5000, T0 = 300)
+Conduction    wall(k = 2, area = 1, L = 0.1)
+ThermalSource amb(T = 300)
+connect(HS.port, M.port, wall.a)
+connect(wall.b, amb.port)
+
+DYNAMIC warmup (method = ode45, time = 0 .. 4000, points = 21)
+  EVENT hot: m.port.T = 340 | rising -> stop
+END

@@ -1,0 +1,39 @@
+{
+  "name": "av_lim_ic_expression",
+  "source": "{ The initial condition is an expression over solved analytic variables, with\n  a unit-annotated term. }\nTstart = 95\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 7)\n  der(Temp) = -0.05*(Temp - 20)\n  Temp(0) = Tstart - 15 [C] + 288.15\nEND\n",
+  "expect": {
+    "variables": {
+      "Tstart": 95.0
+    },
+    "display_names": {
+      "temp": "Temp",
+      "tstart": "Tstart"
+    },
+    "block_count": 1,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [10.0, 65.48979945910143],
+          [20.0, 47.59095803046333],
+          [30.0, 36.734761996461124],
+          [40.0, 30.15014623853744],
+          [50.0, 26.15637488405151],
+          [60.0, 23.734030127668667]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

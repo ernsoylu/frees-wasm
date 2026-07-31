@@ -1,0 +1,18 @@
+{
+  "name": "av_unc_rhs_form_not_a_declaration",
+  "source": "{ `expr = UncertaintyOf(X)` is recognised by the LEFT-hand side only, so this\n  is an ordinary equation (a query), not a declaration. }\nx = 3\nUncertaintyOf(x) = 0.2\n0.6 = UncertaintyOf(y)\ny = x^2\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 3 equations and 2 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): y=x^2. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

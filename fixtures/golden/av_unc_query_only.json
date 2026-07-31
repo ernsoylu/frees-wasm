@@ -1,0 +1,27 @@
+{
+  "name": "av_unc_query_only",
+  "source": "{ A query with no declaration anywhere: everything is 0 and the second pass\n  still runs (mentionsUncertaintyOf is true). }\nx = 3\ny = x^2\nuy = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$x": 0.0,
+      "uncertaintyof$y": 0.0,
+      "uy": 0.0,
+      "x": 3.0,
+      "y": 9.0
+    },
+    "display_names": {
+      "uy": "uy",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

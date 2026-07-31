@@ -1,0 +1,22 @@
+{ A single-column B: the Java emits the 1-subscript form as well as the
+  2-subscript one, so both spellings must exist and agree. }
+Q_in = 1000
+HeatSource    HS(Q = Q_in)
+ThermalMass   M1(C = 5000, T0 = 300)
+Conduction    w12(k = 2, area = 1, L = 0.1)
+ThermalMass   M2(C = 8000, T0 = 310)
+Conduction    w2a(k = 1.5, area = 1, L = 0.2)
+ThermalSource amb(T = 300)
+connect(HS.port, M1.port, w12.a)
+connect(w12.b, M2.port, w2a.a)
+connect(w2a.b, amb.port)
+DYNAMIC warmup(time = 0 .. 1)
+END
+LINEARIZE plant(block = warmup, a = Am, b = Bm, c = Cm, d = Dm)
+  INPUT  Q_in
+  OUTPUT m1.port.T
+END
+b_first  = Bm[1]
+b_second = Bm[2]
+b_11 = Bm[1,1]
+b_21 = Bm[2,1]

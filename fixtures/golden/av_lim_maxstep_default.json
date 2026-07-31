@@ -1,0 +1,41 @@
+{
+  "name": "av_lim_maxstep_default",
+  "source": "{ No maxstep given: the default span/100 cap governs, so a problem whose error\n  controller wants a much larger step is entirely maxstep-driven. Any\n  difference in the default is a visible row-value difference. }\nDYNAMIC slow (method = ode45, time = 0 .. 1000, points = 11)\n  der(Yv) = -0.0001*Yv\n  Yv(0) = 1000\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "slow",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 1000.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 1000.0],
+          [100.0, 990.0498337491653],
+          [200.0, 980.1986733067525],
+          [300.0, 970.4455335485053],
+          [400.0, 960.7894391523206],
+          [500.0, 951.229424500712],
+          [600.0, 941.7645335842467],
+          [700.0, 932.3938199059461],
+          [800.0, 923.116346386634],
+          [900.0, 913.9311852712262],
+          [1000.0, 904.8374180359592]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1487,7 +1487,110 @@ pub const INTRINSICS: &[Intrinsic] = &[
             a[7],
         )
     }),
+    // ----- ODE Table accessors (Phase 7) ---------------------------------
+    //
+    // `Evaluator.evalCall`'s ten-name arm:
+    //
+    //     String column = evalString(args.get(0));
+    //     Double arg    = args.size() > 1 ? eval(args.get(1), …) : null;
+    //     yield DynamicAccessorContext.resolve(c.function(), column, arg, values);
+    //
+    // Every one takes the column name lazily (it is a *string*, and `ODEValue`
+    // / `TimeAt` take one further numeric argument), so all ten are `lazy!`.
+    // The arity is `Range(1, 2)` across the board because that is what the
+    // Java's `args.size() > 1` test admits — an aggregate called with a stray
+    // second argument silently ignores it there, and does here too.
+    //
+    // With no `DYNAMIC` block in the document the context is `None` and
+    // `accessors::resolve` yields `0.0` rather than an error: the Java's
+    // null-thread-local answer, and the reason an accessor is harmless in a
+    // steady document.
+    lazy!("odevalue", Arity::Range(1, 2), ode_accessor),
+    lazy!("finalvalue", Arity::Range(1, 2), ode_accessor),
+    lazy!("maxvalue", Arity::Range(1, 2), ode_accessor),
+    lazy!("minvalue", Arity::Range(1, 2), ode_accessor),
+    lazy!("timeat", Arity::Range(1, 2), ode_accessor),
+    lazy!("odeavg", Arity::Range(1, 2), ode_accessor),
+    lazy!("odesum", Arity::Range(1, 2), ode_accessor),
+    lazy!("odestddev", Arity::Range(1, 2), ode_accessor),
+    lazy!("odemin", Arity::Range(1, 2), ode_accessor),
+    lazy!("odemax", Arity::Range(1, 2), ode_accessor),
+    // ----- parametric-table accessors (Phase 8) --------------------------
+    //
+    // `Evaluator.evalParametricAccessor`. `TableRun#`/`NParametricRuns` take
+    // no arguments; the five aggregates take a column-name string;
+    // `TableValue` takes two *rounded* indices and `IntegralValue` two column
+    // names. Each delegates to `crate::analysis::parametric`, whose free
+    // functions already carry the Java's null-context defaults.
+    lazy!("tablerun#", Arity::Any, |_, _, env| Ok(
+        crate::analysis::parametric::current_run(env.ctx().parametric)
+    )),
+    lazy!("tablerun", Arity::Any, |_, _, env| Ok(
+        crate::analysis::parametric::current_run(env.ctx().parametric)
+    )),
+    lazy!("nparametricruns", Arity::Any, |_, _, env| Ok(
+        crate::analysis::parametric::run_count(env.ctx().parametric)
+    )),
+    lazy!("tablevalue", Arity::Exact(2), |n, args, env| {
+        // `(int) Math.round(...)` on both indices — `reduction_bound` is the
+        // same cast with the silent `int` truncation turned into an error.
+        let run = reduction_bound(n, "run", eval_in(&args[0], env)?)?;
+        let col = reduction_bound(n, "column", eval_in(&args[1], env)?)?;
+        crate::analysis::parametric::cell(env.ctx().parametric, run, col)
+    }),
+    lazy!("tablesum", Arity::Exact(1), |n, args, env| table_aggregate(
+        "sum", n, args, env
+    )),
+    lazy!("tableavg", Arity::Exact(1), |n, args, env| table_aggregate(
+        "avg", n, args, env
+    )),
+    lazy!("tablemin", Arity::Exact(1), |n, args, env| table_aggregate(
+        "min", n, args, env
+    )),
+    lazy!("tablemax", Arity::Exact(1), |n, args, env| table_aggregate(
+        "max", n, args, env
+    )),
+    lazy!("tablestddev", Arity::Exact(1), |n, args, env| {
+        table_aggregate("stddev", n, args, env)
+    }),
+    lazy!("integralvalue", Arity::Exact(2), |n, args, env| {
+        let y = string_arg(n, &args[0])?;
+        let x = string_arg(n, &args[1])?;
+        Ok(crate::analysis::parametric::integral(
+            env.ctx().parametric,
+            &y,
+            &x,
+        ))
+    }),
 ];
+
+/// The ten ODE Table accessors share one body — `Evaluator.evalCall`'s
+/// `case "odevalue", "finalvalue", …` arm, which dispatches on the function
+/// name inside [`crate::ode::accessors::compute`].
+fn ode_accessor<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let column = string_arg(function, &args[0])?;
+    let arg = match args.get(1) {
+        Some(expr) => Some(eval_in(expr, env)?),
+        None => None,
+    };
+    crate::ode::accessors::resolve(env.ctx().ode, function, &column, arg, &env.to_scope())
+}
+
+/// `TableSum`/`TableAvg`/`TableMin`/`TableMax`/`TableStdDev` — one column-name
+/// string, dispatched by the aggregate keyword the Java hard-codes per arm.
+fn table_aggregate<'a>(
+    op: &str,
+    function: &str,
+    args: &'a [Expr],
+    env: &'a Env<'a>,
+) -> Result<f64> {
+    let column = string_arg(function, &args[0])?;
+    Ok(crate::analysis::parametric::aggregate(
+        env.ctx().parametric,
+        op,
+        &column,
+    ))
+}
 
 /// The heat-exchanger correlations' view of the installed property backend.
 const FLUID_BACKEND: crate::props::propfun::InstalledFluids =
@@ -1568,28 +1671,13 @@ pub fn intrinsic_names() -> Vec<&'static str> {
 /// the distinction the parent engine cares about: a refusal is honest, a wrong
 /// answer is not.
 const UNPORTED: &[(&str, &str)] = &[
-    // Parametric-table accessors
-    ("tablerun#", "parametric table"),
-    ("tablerun", "parametric table"),
-    ("nparametricruns", "parametric table"),
-    ("tablevalue", "parametric table"),
-    ("tablesum", "parametric table"),
-    ("tableavg", "parametric table"),
-    ("tablemin", "parametric table"),
-    ("tablemax", "parametric table"),
-    ("tablestddev", "parametric table"),
-    ("integralvalue", "parametric table"),
-    // DYNAMIC / ODE result accessors
-    ("odevalue", "ODE results"),
-    ("finalvalue", "ODE results"),
-    ("maxvalue", "ODE results"),
-    ("minvalue", "ODE results"),
-    ("timeat", "ODE results"),
-    ("odeavg", "ODE results"),
-    ("odesum", "ODE results"),
-    ("odestddev", "ODE results"),
-    ("odemin", "ODE results"),
-    ("odemax", "ODE results"),
+    // Phase 7/8 emptied two sections: the ten ODE Table accessors
+    // (`ODEValue`/`FinalValue`/`MaxValue`/`MinValue`/`TimeAt`/`ODEAvg`/
+    // `ODESum`/`ODEStdDev`/`ODEMin`/`ODEMax`) and the ten parametric-table
+    // accessors (`TableRun#`/`TableRun`/`NParametricRuns`/`TableValue`/
+    // `TableSum`/`TableAvg`/`TableMin`/`TableMax`/`TableStdDev`/
+    // `IntegralValue`) are all registered above and dispatch through
+    // `EvalContext::ode` / `EvalContext::parametric`.
     // Matrices
     ("inv", "matrices"),
     ("det", "matrices"),
@@ -1678,9 +1766,60 @@ pub fn eval(expr: &Expr, scope: &Scope) -> Result<f64> {
 /// third argument. Phase-4 contract: the evaluator dispatches unknown call
 /// names into `defs` (user `FUNCTION`s via [`crate::procedures::call_function`],
 /// `TABLE`s via [`crate::curvetable::lookup`]) when a context is supplied.
-#[derive(Debug, Clone, Copy, Default)]
+///
+/// Phase 7 adds two more optional channels, and both follow the same rule: an
+/// **absent** channel is not an error, it is the documented no-context answer.
+///
+/// * `ode` — the live ODE Table bridge. `MaxValue('h')` with no context
+///   evaluates to `0.0`, exactly as `DynamicAccessorContext.resolve` returns
+///   when its thread-local is null. That is what makes an accessor harmless in
+///   a document with no `DYNAMIC` block.
+/// * `parametric` — the `TableValue`/`TableRun#`/`TableSum`/… accessors, whose
+///   Java null-defaults [`crate::analysis::parametric`] already reproduces per
+///   accessor (`current_run` → 0, `run_count` → 0, `cell` → 0.0, …).
+///
+/// The Java hangs both on thread-locals; this port threads them explicitly.
+#[derive(Clone, Copy, Default)]
 pub struct EvalContext<'a> {
     pub defs: Option<&'a crate::parser::defs::Definitions>,
+    /// The live ODE Table bridge, installed by [`crate::engine`] for the
+    /// second-solve pass. `None` is the Java's null thread-local.
+    ///
+    /// Held as a **trait object** rather than as
+    /// `&'a DynamicAccessorContext<'a>` on purpose: that concrete type holds
+    /// `RefCell`s over `'a` data, which makes it invariant in `'a` and would
+    /// make `EvalContext<'a>` invariant with it — and `eval_with(expr, scope,
+    /// ctx)` needs `ctx` to shorten to the call's borrow. Erasing to
+    /// `&'a dyn OdeTableAccessors` drops the inner lifetime and restores
+    /// covariance.
+    pub ode: Option<&'a dyn crate::ode::accessors::OdeTableAccessors>,
+    /// The parametric-sweep accessors, installed by
+    /// [`crate::analysis::parametric`] while a row is being re-solved.
+    pub parametric: Option<&'a crate::analysis::parametric::ParametricAccessors>,
+}
+
+impl<'a> EvalContext<'a> {
+    /// The common case: a document context that carries only its definitions.
+    pub fn with_defs(defs: &'a crate::parser::defs::Definitions) -> EvalContext<'a> {
+        EvalContext {
+            defs: Some(defs),
+            ode: None,
+            parametric: None,
+        }
+    }
+}
+
+// `DynamicAccessorContext` holds `RefCell`s and a boxed runner, so it has no
+// `Debug`; formatting the *presence* of each channel is all any caller needs
+// (the one consumer is a `{ctx:?}` in a solver diagnostic).
+impl std::fmt::Debug for EvalContext<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EvalContext")
+            .field("defs", &self.defs)
+            .field("ode", &self.ode.map(|_| "<installed>"))
+            .field("parametric", &self.parametric.map(|_| "<installed>"))
+            .finish()
+    }
 }
 
 /// [`eval`] with a document context. With an empty context this is exactly
@@ -5736,8 +5875,6 @@ mod tests {
     #[test]
     fn unported_java_arms_are_refused_by_name_and_family() {
         for (name, family) in [
-            ("tablevalue", "parametric table"),
-            ("odevalue", "ODE results"),
             ("det", "matrices"),
             ("bode", "control systems"),
             ("lqr", "control systems"),
@@ -5749,6 +5886,75 @@ mod tests {
             );
             assert!(message.contains(family), "{name}: {message}");
         }
+    }
+
+    /// The twenty accessors Phase 7/8 registered must be *reachable*, and with
+    /// no context installed each must answer the Java's null-context default
+    /// rather than erroring — that is what makes `MaxValue('h')` harmless in a
+    /// document with no `DYNAMIC` block.
+    #[test]
+    fn the_accessors_are_registered_and_default_to_the_null_context_answer() {
+        let scope = Scope::new();
+        for name in [
+            "odevalue",
+            "finalvalue",
+            "maxvalue",
+            "minvalue",
+            "timeat",
+            "odeavg",
+            "odesum",
+            "odestddev",
+            "odemin",
+            "odemax",
+        ] {
+            assert!(lookup_intrinsic(name).is_some(), "{name} is not registered");
+            // One column argument, plus the numeric second argument the two
+            // time-indexed accessors take — `Arity::Range(1, 2)` accepts both.
+            let call = Expr::call(name, vec![Expr::Str("h".into()), n(1.0)]);
+            assert_eq!(eval(&call, &scope).unwrap(), 0.0, "{name}");
+        }
+
+        for (name, args, expected) in [
+            // `TableRun#` reports **1** outside a sweep, not 0 — a document that
+            // is not being swept is conceptually on its only run. The other nine
+            // default to 0. Both defaults are `analysis::parametric`'s, which
+            // transcribed them from `ParametricAccessorContext`.
+            ("tablerun#", vec![], 1.0),
+            ("tablerun", vec![], 1.0),
+            ("nparametricruns", vec![], 0.0),
+            ("tablevalue", vec![n(1.0), n(1.0)], 0.0),
+            ("tablesum", vec![Expr::Str("x".into())], 0.0),
+            ("tableavg", vec![Expr::Str("x".into())], 0.0),
+            ("tablemin", vec![Expr::Str("x".into())], 0.0),
+            ("tablemax", vec![Expr::Str("x".into())], 0.0),
+            ("tablestddev", vec![Expr::Str("x".into())], 0.0),
+            (
+                "integralvalue",
+                vec![Expr::Str("y".into()), Expr::Str("x".into())],
+                0.0,
+            ),
+        ] {
+            assert!(lookup_intrinsic(name).is_some(), "{name} is not registered");
+            assert_eq!(
+                eval(&Expr::call(name, args), &scope).unwrap(),
+                expected,
+                "{name}"
+            );
+        }
+    }
+
+    /// An accessor's column argument goes through `string_arg`, which accepts a
+    /// quoted literal *or* a bare identifier — the Java `evalString`'s
+    /// backward-compatible pair — and refuses anything else by name.
+    #[test]
+    fn an_accessor_column_must_be_a_string_or_a_bare_name() {
+        let scope = Scope::new();
+        assert_eq!(
+            eval(&Expr::call("finalvalue", vec![Expr::var("temp")]), &scope).unwrap(),
+            0.0
+        );
+        let message = err(&Expr::call("finalvalue", vec![n(3.0)]));
+        assert!(message.contains("expected a string argument"), "{message}");
     }
 
     /// The self-consistency invariant this table has broken twice: a name may
@@ -6250,7 +6456,7 @@ mod tests {
     }
 
     fn eval_ctx(e: &Expr, scope: &Scope, defs: &Definitions) -> Result<f64> {
-        eval_with(e, scope, EvalContext { defs: Some(defs) })
+        eval_with(e, scope, EvalContext::with_defs(defs))
     }
 
     #[test]
@@ -6678,13 +6884,7 @@ mod tests {
     fn ev_in_doc(source: &str, e: &Expr) -> Result<f64> {
         let doc = crate::parser::parse_document(source)
             .unwrap_or_else(|err| panic!("parse failed: {err}"));
-        eval_with(
-            e,
-            &Scope::new(),
-            EvalContext {
-                defs: Some(&doc.defs),
-            },
-        )
+        eval_with(e, &Scope::new(), EvalContext::with_defs(&doc.defs))
     }
 
     const SWAP_DOC: &str = "PROCEDURE p(a : b, c)\n  b := a * 2\n  c := a + 1\nEND\n";
@@ -6705,14 +6905,7 @@ mod tests {
             "proc$p$0",
             vec![Expr::bin(BinOp::Add, Expr::var("q"), n(1.0))],
         );
-        let got = eval_with(
-            &e,
-            &scope,
-            EvalContext {
-                defs: Some(&doc.defs),
-            },
-        )
-        .unwrap();
+        let got = eval_with(&e, &scope, EvalContext::with_defs(&doc.defs)).unwrap();
         assert_eq!(got, 12.0);
     }
 

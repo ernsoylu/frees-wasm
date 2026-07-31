@@ -1,0 +1,15 @@
+{ A two-state STIFF LINEAR system through the BDF integrator — the coupled
+  case the scalar stiff probes do not reach. Eigenvalues -100 and -1, so the
+  fast mode dies in ~0.05 s and the slow one governs the rest.
+
+  The Van der Pol version of this probe (0..20, 201 points) agrees with the
+  oracle too, but costs 28.6 s here and 32 s in Java: `maxstep` defaults to
+  span/100, which pins ~100 implicit steps whatever the span, and every step's
+  Newton residual re-blocks the algebraic system. It is left out of the corpus
+  as a gate-budget decision, not a correctness one. }
+DYNAMIC pair (method = ode15s, time = 0 .. 5, points = 21)
+  der(Ya) = -100*Ya + 99*Yb
+  der(Yb) = -Yb
+  Ya(0) = 2
+  Yb(0) = 1
+END

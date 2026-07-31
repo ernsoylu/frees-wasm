@@ -1,0 +1,27 @@
+{
+  "name": "av_unc_negative_spec",
+  "source": "{ A negative uncertainty. }\nx = 2\nUncertaintyOf(x) = -0.5\ny = 4*x\nuy = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$x": 0.0,
+      "uncertaintyof$y": 0.0,
+      "uy": 0.0,
+      "x": 2.0,
+      "y": 8.0
+    },
+    "display_names": {
+      "uy": "uy",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

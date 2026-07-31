@@ -1,0 +1,37 @@
+{
+  "name": "av_ev_at_t0",
+  "source": "{ The guard is exactly zero at t0. Whether that counts as a crossing is a\n  genuine design choice; both engines must make the same one. }\nDYNAMIC start (method = ode45, time = 0 .. 5, points = 6)\n  der(Yv) = 1\n  Yv(0) = 0\n  EVENT origin: Yv = 0 | rising -> record\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "start",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 5.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 1.0],
+          [2.0, 2.0000000000000004],
+          [3.0, 3.0000000000000004],
+          [4.0, 4.0],
+          [5.0, 5.0]
+        ],
+        "events": [
+          {"name": "origin", "time": 9.999999999999999E-5}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

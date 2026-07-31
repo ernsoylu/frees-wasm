@@ -1,0 +1,6 @@
+{ Finite-time blow-up: y' = y^2 from y(0) = 1 escapes at time = 1. Both engines
+  must report the step-size underflow at the same t, not emit Infinity rows. }
+DYNAMIC blowup (method = ode45, time = 0 .. 3, points = 7)
+  der(Yv) = Yv*Yv
+  Yv(0) = 1
+END

@@ -1,0 +1,35 @@
+{
+  "name": "av_lim_step_exceeds_span",
+  "source": "{ A fixed step larger than the whole span. }\nDYNAMIC big (method = ode4, time = 0 .. 1, points = 5, step = 10)\n  der(Yv) = -Yv\n  Yv(0) = 1\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "big",
+        "method": "ode4",
+        "stopped": false,
+        "end_time": 1.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 1.0],
+          [0.25, 0.7788007830877653],
+          [0.5, 0.6065306597381175],
+          [0.75, 0.47236655277078493],
+          [1.0, 0.36787944120235555]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

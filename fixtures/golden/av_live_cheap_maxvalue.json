@@ -1,0 +1,48 @@
+{
+  "name": "av_live_cheap_maxvalue",
+  "source": "{ Live accessor on an extremum: size the launch speed so the peak height is\n  20 m. MaxValue is a max over sampled rows, so the answer depends on the\n  sampling grid as well as the trajectory — a good parity probe. }\ng = 9.80665\nV0 = Vbase + dv\nVbase = 1\n\nMaxValue('Height') = 20\n\nDYNAMIC toss (method = ode45, time = 0 .. 4, points = 9)\n  der(Height) = Vel\n  der(Vel) = -g\n  Height(0) = 0\n  Vel(0) = V0\nEND\n",
+  "expect": {
+    "variables": {
+      "V0": 19.806649999999973,
+      "Vbase": 1.0,
+      "dv": 18.806649999999973,
+      "g": 9.80665
+    },
+    "display_names": {
+      "dv": "dv",
+      "g": "g",
+      "height": "Height",
+      "v0": "V0",
+      "vbase": "Vbase",
+      "vel": "Vel"
+    },
+    "block_count": 4,
+    "ode_tables": [
+      {
+        "name": "toss",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 4.0,
+        "columns": ["time", "height", "vel"],
+        "rows": [
+          [0.0, 0.0, 19.806649999999973],
+          [0.5, 8.677493749999996, 14.903324999999992],
+          [1.0, 14.903324999999986, 10.000000000000004],
+          [1.5, 18.67749374999999, 5.096675000000016],
+          [2.0, 20.000000000000004, 0.19335000000002103],
+          [2.5, 18.870843750000017, -4.709974999999978],
+          [3.0, 15.29002500000003, -9.613299999999965],
+          [3.5, 9.257543750000057, -14.516624999999955],
+          [4.0, 0.7734000000000865, -19.419949999999943]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

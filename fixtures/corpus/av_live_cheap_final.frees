@@ -1,0 +1,14 @@
+{ Live accessor, cheap: the ODE input reaches the analytic system through the
+  tie kk = kmin + dk, so `dk` is a real analytic unknown and the second-solve
+  pass integrates once per Newton iterate. }
+Tinf = 20
+Temp0 = 95
+kmin = 0.01
+kk = kmin + dk
+
+FinalValue('Temp') = 60
+
+DYNAMIC cooling (method = ode45, time = 0 .. 1, points = 3)
+  der(Temp) = -kk*(Temp - Tinf)
+  Temp(0) = Temp0
+END

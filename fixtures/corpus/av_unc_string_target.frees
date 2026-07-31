@@ -1,0 +1,6 @@
+{ The declaration names its target with a string literal rather than a bare
+  identifier — `getUncertaintyTarget` admits both. }
+x = 3
+UncertaintyOf('X') = 0.1
+y = x^2
+uy = UncertaintyOf(y)

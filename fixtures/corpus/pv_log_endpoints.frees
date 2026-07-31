@@ -1,0 +1,6 @@
+{ Log spacing: start:count:stop, with the last point pinned exactly to stop. }
+PARAMETRIC logs (f, g, h)
+  f = 1:5:10000 | Log
+  g = 0.001:4:1 | log
+  h = 2:3:8 | LOG
+END

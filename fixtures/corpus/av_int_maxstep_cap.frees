@@ -1,0 +1,6 @@
+{ An explicit maxstep smaller than what the error controller would pick — the
+  step loop must clamp, and the clamped steps must land identically. }
+DYNAMIC capped (method = ode45, time = 0 .. 10, points = 21, maxstep = 0.037)
+  der(Yv) = -0.3*Yv
+  Yv(0) = 100
+END

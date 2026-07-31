@@ -1,0 +1,6 @@
+{ Uncertainty alongside an Integral — the extraction happens BEFORE
+  findIntegrals, so the declaration must not reach the quadrature driver. }
+c = 2
+UncertaintyOf(c) = 0.05
+F = Integral(c*tt^2, tt, 0, 3)
+uF = UncertaintyOf(F)

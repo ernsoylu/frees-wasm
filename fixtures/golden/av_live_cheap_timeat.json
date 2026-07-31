@@ -1,0 +1,47 @@
+{
+  "name": "av_live_cheap_timeat",
+  "source": "{ Live accessor on TimeAt: size the ramp slope so the level reaches 5 at\n  time = 2. TimeAt interpolates between sampled rows. }\nslope = base + ds\nbase = 1\n\nTimeAt('Level', 5) = 2\n\nDYNAMIC ramp (method = ode45, time = 0 .. 10, points = 11)\n  der(Level) = slope\n  Level(0) = 0\nEND\n",
+  "expect": {
+    "variables": {
+      "base": 1.0,
+      "ds": 1.5,
+      "slope": 2.5
+    },
+    "display_names": {
+      "base": "base",
+      "ds": "ds",
+      "level": "Level",
+      "slope": "slope"
+    },
+    "block_count": 3,
+    "ode_tables": [
+      {
+        "name": "ramp",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "level"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 2.5000000000000018],
+          [2.0, 5.0],
+          [3.0, 7.499999999999998],
+          [4.0, 9.999999999999993],
+          [5.0, 12.500000000000005],
+          [6.0, 15.000000000000012],
+          [7.0, 17.50000000000002],
+          [8.0, 20.00000000000003],
+          [9.0, 22.500000000000043],
+          [10.0, 25.00000000000005]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

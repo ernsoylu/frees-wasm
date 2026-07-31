@@ -1,0 +1,18 @@
+{
+  "name": "dyn_err_index2",
+  "source": "{ Two inertias rigidly coupled: index-2, no algebraic unknown left. }\nTq = 1\n\nDYNAMIC rigid (method = ode45, time = 0 .. 10, points = 3)\n  der(W1) = Tq\n  der(W2) = Tq\n  W1 = W2\n  W1(0) = 0\n  W2(0) = 0\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 7 equations and 6 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): w1 = 0.0. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

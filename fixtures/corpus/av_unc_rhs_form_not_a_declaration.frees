@@ -1,0 +1,6 @@
+{ `expr = UncertaintyOf(X)` is recognised by the LEFT-hand side only, so this
+  is an ordinary equation (a query), not a declaration. }
+x = 3
+UncertaintyOf(x) = 0.2
+0.6 = UncertaintyOf(y)
+y = x^2

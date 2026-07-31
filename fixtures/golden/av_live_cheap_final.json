@@ -1,0 +1,43 @@
+{
+  "name": "av_live_cheap_final",
+  "source": "{ Live accessor, cheap: the ODE input reaches the analytic system through the\n  tie kk = kmin + dk, so `dk` is a real analytic unknown and the second-solve\n  pass integrates once per Newton iterate. }\nTinf = 20\nTemp0 = 95\nkmin = 0.01\nkk = kmin + dk\n\nFinalValue('Temp') = 60\n\nDYNAMIC cooling (method = ode45, time = 0 .. 1, points = 3)\n  der(Temp) = -kk*(Temp - Tinf)\n  Temp(0) = Temp0\nEND\n",
+  "expect": {
+    "variables": {
+      "Temp0": 95.0,
+      "Tinf": 20.0,
+      "dk": 0.6186086594223718,
+      "kk": 0.6286086594223718,
+      "kmin": 0.01
+    },
+    "display_names": {
+      "dk": "dk",
+      "kk": "kk",
+      "kmin": "kmin",
+      "temp": "Temp",
+      "temp0": "Temp0",
+      "tinf": "Tinf"
+    },
+    "block_count": 5,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 1.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [0.5, 74.77225575051662],
+          [1.0, 59.99999999999999]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,7 @@
+{ The initial condition is an expression over solved analytic variables, with
+  a unit-annotated term. }
+Tstart = 95
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 7)
+  der(Temp) = -0.05*(Temp - 20)
+  Temp(0) = Tstart - 15 [C] + 288.15
+END

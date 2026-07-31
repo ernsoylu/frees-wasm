@@ -1,0 +1,5 @@
+{ An unrecognised header option. }
+DYNAMIC bad (method = ode45, time = 0 .. 1, points = 3, wibble = 3)
+  der(Yv) = -Yv
+  Yv(0) = 1
+END

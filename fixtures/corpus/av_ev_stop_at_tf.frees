@@ -1,0 +1,7 @@
+{ The crossing lands exactly on tf. Whether the run is "stopped" there is a
+  boundary case both engines must call the same way. }
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 6)
+  der(Yv) = 1
+  Yv(0) = 0
+  EVENT edge: Yv = 10 | rising -> stop
+END

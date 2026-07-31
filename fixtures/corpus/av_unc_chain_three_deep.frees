@@ -1,0 +1,9 @@
+{ A three-link chain: the sigma must ride all the way through. }
+a = 2
+UncertaintyOf(a) = 0.01
+b = 3*a
+c = b^2
+d = c + a
+ub = UncertaintyOf(b)
+uc = UncertaintyOf(c)
+ud = UncertaintyOf(d)

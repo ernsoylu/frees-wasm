@@ -1,0 +1,7 @@
+{ The column crosses the target twice; TimeAt must return the FIRST crossing. }
+Tcross = TimeAt('Hump', 0.5)
+
+DYNAMIC arc (method = ode45, time = 0 .. 4, points = 41)
+  der(Hump) = 2 - 2*time
+  Hump(0) = 0
+END

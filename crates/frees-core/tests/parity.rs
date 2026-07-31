@@ -25,6 +25,31 @@
 //! * `block_count` — exact. A different blocking is a real divergence.
 //! * `error` — the *classification* must agree (both solve, or both fail with
 //!   the equivalent error type). Messages are not compared verbatim.
+//! * `ode_tables` — one entry per `DYNAMIC` block, compared in declaration
+//!   order. `name`/`method`/`columns`/`stopped` and the event `name`s are
+//!   **exact**; `end_time`, every row cell and every event `time` go through
+//!   the same numeric tolerance as `variables`.
+//!
+//! # Why the `ode_tables` comparison is not optional
+//!
+//! **A solved `DYNAMIC` block puts nothing in `variables`.** The trajectory is a
+//! first-class ODE Table, so a transient document's `variables` map holds only
+//! its analytic parameters — `dyn_plain_ode` has exactly `{k, Tinf}` in it. A
+//! fixture that compared `variables` alone would therefore pass *vacuously* on
+//! every transient document in the corpus: the whole integration could be wrong,
+//! or absent, and the gate would stay green.
+//!
+//! The comparison was validated the way the harness itself was in Phase 1 — by
+//! perturbing a golden and watching the gate go red. Perturbing
+//! `dyn_plain_ode`'s row `[20, 47.59095803046333]` to `47.6` produces
+//!
+//! ```text
+//!   [dyn_plain_ode] ode_tables[0] `cooling` row 1 col `temp` = 47.59095803046333
+//!   but Java got 47.6 (rel 1.9e-4, tolerance 1e-9)
+//! ```
+//!
+//! and dropping the table entirely produces "Java recorded 1 ODE table(s), Rust
+//! produced 0". Both were observed, then the golden was restored.
 //!
 //! # Per-fixture tolerance
 //!
@@ -150,6 +175,177 @@ struct Failure {
     detail: String,
 }
 
+/// Compare the golden's `ode_tables` array against what the engine integrated.
+///
+/// A golden dumped before the dumper grew this section has `ode_tables` absent
+/// (`Value::Null`), which is **not** the same as an empty array: absent means
+/// "this fixture predates the section", empty means "the Java engine produced no
+/// tables". Only the second is a claim, so only the second is checked against a
+/// Rust engine that produced tables — otherwise every pre-Phase-7 fixture in the
+/// corpus would fail the moment a `DYNAMIC` block started working.
+fn compare_ode_tables(
+    golden: &serde_json::Value,
+    actual: &[frees_core::ode::problem::OdeTableResult],
+    rel_tol: f64,
+    fail: &mut impl FnMut(String),
+) {
+    let Some(expected) = golden.as_array() else {
+        if !actual.is_empty() {
+            fail(format!(
+                "Rust produced {} ODE table(s) but the golden has no `ode_tables` section — \
+                 re-dump this fixture with tools/golden-dumper so the trajectory is compared \
+                 instead of ignored",
+                actual.len()
+            ));
+        }
+        return;
+    };
+
+    if expected.len() != actual.len() {
+        fail(format!(
+            "Java recorded {} ODE table(s), Rust produced {}",
+            expected.len(),
+            actual.len()
+        ));
+        return;
+    }
+
+    for (i, (want, got)) in expected.iter().zip(actual).enumerate() {
+        let at = |what: &str| format!("ode_tables[{i}] `{}` {what}", got.name);
+
+        // Identity and shape are exact: a renamed block, a different solver or a
+        // reordered column set is a real divergence, not a rounding difference.
+        for (field, expected_str, actual_str) in [
+            (
+                "name",
+                want["name"].as_str().unwrap_or("?"),
+                got.name.as_str(),
+            ),
+            (
+                "method",
+                want["method"].as_str().unwrap_or("?"),
+                got.method.as_str(),
+            ),
+        ] {
+            if expected_str != actual_str {
+                fail(format!(
+                    "{} = {actual_str:?} but Java got {expected_str:?}",
+                    at(field)
+                ));
+            }
+        }
+        let want_columns: Vec<&str> = want["columns"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|c| c.as_str()).collect())
+            .unwrap_or_default();
+        if want_columns != got.columns {
+            fail(format!(
+                "{} = {:?} but Java got {want_columns:?}",
+                at("columns"),
+                got.columns
+            ));
+            // Every row comparison below indexes by column, so a shape mismatch
+            // would only produce noise.
+            continue;
+        }
+        if want["stopped"].as_bool().unwrap_or(false) != got.stopped {
+            fail(format!(
+                "{} = {} but Java got {}",
+                at("stopped"),
+                got.stopped,
+                want["stopped"]
+            ));
+        }
+        let want_end = as_f64(&want["end_time"]);
+        if !close(got.end_time, want_end, rel_tol) {
+            fail(format!(
+                "{} = {} but Java got {want_end} (rel {:e}, tolerance {rel_tol:e})",
+                at("end_time"),
+                got.end_time,
+                rel_diff(got.end_time, want_end)
+            ));
+        }
+
+        let want_rows = want["rows"].as_array().cloned().unwrap_or_default();
+        if want_rows.len() != got.rows.len() {
+            fail(format!(
+                "{} — Java sampled {} row(s), Rust produced {}",
+                at("rows"),
+                want_rows.len(),
+                got.rows.len()
+            ));
+            continue;
+        }
+        for (r, (want_row, got_row)) in want_rows.iter().zip(&got.rows).enumerate() {
+            let cells = want_row.as_array().cloned().unwrap_or_default();
+            if cells.len() != got_row.len() {
+                fail(format!(
+                    "{} row {r} has {} cell(s), Java had {}",
+                    at("rows"),
+                    got_row.len(),
+                    cells.len()
+                ));
+                continue;
+            }
+            for (c, (want_cell, &got_cell)) in cells.iter().zip(got_row).enumerate() {
+                let want_value = as_f64(want_cell);
+                if !close(got_cell, want_value, rel_tol) {
+                    fail(format!(
+                        "{} row {r} col `{}` = {got_cell} but Java got {want_value} \
+                         (rel {:e}, tolerance {rel_tol:e})",
+                        at("rows"),
+                        got.columns.get(c).map(String::as_str).unwrap_or("?"),
+                        rel_diff(got_cell, want_value)
+                    ));
+                }
+            }
+        }
+
+        // Events: the recorded name keeps its *source* case (the Java reads
+        // `ctx.IDENT(0).getText()` raw), so it is compared exactly; the crossing
+        // time is a solve output and takes the numeric tolerance.
+        let want_events = want["events"].as_array().cloned().unwrap_or_default();
+        if want_events.len() != got.events.len() {
+            fail(format!(
+                "{} — Java recorded {} event hit(s) ({:?}), Rust recorded {} ({:?})",
+                at("events"),
+                want_events.len(),
+                want_events
+                    .iter()
+                    .map(|e| e["name"].as_str().unwrap_or("?"))
+                    .collect::<Vec<_>>(),
+                got.events.len(),
+                got.events
+                    .iter()
+                    .map(|e| e.name.as_str())
+                    .collect::<Vec<_>>()
+            ));
+            continue;
+        }
+        for (e, (want_hit, got_hit)) in want_events.iter().zip(&got.events).enumerate() {
+            let want_name = want_hit["name"].as_str().unwrap_or("?");
+            if want_name != got_hit.name {
+                fail(format!(
+                    "{} hit {e} named `{}` but Java recorded `{want_name}`",
+                    at("events"),
+                    got_hit.name
+                ));
+            }
+            let want_time = as_f64(&want_hit["time"]);
+            if !close(got_hit.time, want_time, rel_tol) {
+                fail(format!(
+                    "{} hit {e} (`{}`) fired at {} but Java got {want_time} \
+                     (rel {:e}, tolerance {rel_tol:e})",
+                    at("events"),
+                    got_hit.name,
+                    got_hit.time,
+                    rel_diff(got_hit.time, want_time)
+                ));
+            }
+        }
+    }
+}
+
 fn replay(
     path: &Path,
     tolerances: &BTreeMap<String, f64>,
@@ -267,6 +463,13 @@ fn replay(
                     solution.blocks.len()
                 ));
             }
+
+            compare_ode_tables(
+                &expect["ode_tables"],
+                &solution.ode_tables,
+                rel_tol,
+                &mut fail,
+            );
         }
         Err(err) => {
             if expected_error.is_null() {

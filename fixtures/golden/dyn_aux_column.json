@@ -1,0 +1,39 @@
+{
+  "name": "dyn_aux_column",
+  "source": "{ An algebraic auxiliary becomes an extra ODE-table column. }\nk = 0.05\nTinf = 20\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 4)\n  der(Temp) = -Qdot\n  Qdot = k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Tinf": 20.0,
+      "k": 0.05
+    },
+    "display_names": {
+      "k": "k",
+      "qdot": "Qdot",
+      "temp": "Temp",
+      "tinf": "Tinf"
+    },
+    "block_count": 2,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp", "qdot"],
+        "rows": [
+          [0.0, 95.0, 3.75],
+          [20.0, 47.59095803046333, 1.3795479015231664],
+          [40.0, 30.15014623853744, 0.5075073119268722],
+          [60.0, 23.734030127668667, 0.18670150638343339]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

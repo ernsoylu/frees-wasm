@@ -1,0 +1,8 @@
+{ Uncertainty propagated through an implicit 2x2 Newton block rather than an
+  explicit chain — the Jacobian, not a closed form, carries the sensitivity. }
+c1 = 3
+UncertaintyOf(c1) = 0.15
+p^2 + q^3 = 77
+p/q = c1
+up = UncertaintyOf(p)
+uq = UncertaintyOf(q)

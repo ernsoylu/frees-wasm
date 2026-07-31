@@ -1,0 +1,7 @@
+{ No maxstep given: the default span/100 cap governs, so a problem whose error
+  controller wants a much larger step is entirely maxstep-driven. Any
+  difference in the default is a visible row-value difference. }
+DYNAMIC slow (method = ode45, time = 0 .. 1000, points = 11)
+  der(Yv) = -0.0001*Yv
+  Yv(0) = 1000
+END

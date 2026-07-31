@@ -1,0 +1,18 @@
+{
+  "name": "pv_unknown_spacing",
+  "source": "PARAMETRIC bad (t)\n  t = 1:1:5 | Quadratic\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Unknown range spacing 'Quadratic' in PARAMETRIC bad. Supported: Linear, Log."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

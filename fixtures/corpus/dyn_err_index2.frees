@@ -1,0 +1,10 @@
+{ Two inertias rigidly coupled: index-2, no algebraic unknown left. }
+Tq = 1
+
+DYNAMIC rigid (method = ode45, time = 0 .. 10, points = 3)
+  der(W1) = Tq
+  der(W2) = Tq
+  W1 = W2
+  W1(0) = 0
+  W2(0) = 0
+END

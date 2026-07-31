@@ -1,0 +1,7 @@
+{ Ragged columns: the longest wins and short ones pad with nulls at the END,
+  not the start. Row order is the thing under test. }
+PARAMETRIC ragged (A, b, C)
+  a = [1, 2, 3, 4, 5]
+  B = [9, 8]
+  c = 10:2:14
+END

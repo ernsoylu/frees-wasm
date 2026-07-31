@@ -1,0 +1,38 @@
+{
+  "name": "av_lim_stop_row_grid",
+  "source": "{ A stop event at 1/3 of the span: how many rows the table carries and what\n  grid they sit on (t0..tf, or t0..endTime) is the thing under test. }\nDYNAMIC ramp (method = ode45, time = 0 .. 30, points = 7)\n  der(Level) = 1\n  Level(0) = 0\n  EVENT quit: Level = 10 | rising -> stop\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "level": "Level"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "ramp",
+        "method": "ode45",
+        "stopped": true,
+        "end_time": 10.0,
+        "columns": ["time", "level"],
+        "rows": [
+          [0.0, 0.0],
+          [1.6666666666666667, 1.6666666666666665],
+          [3.3333333333333335, 3.3333333333333335],
+          [5.0, 4.999999999999998],
+          [6.666666666666667, 6.666666666666666],
+          [8.333333333333334, 8.333333333333334],
+          [10.0, 9.999999999999998]
+        ],
+        "events": [
+          {"name": "quit", "time": 10.0}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

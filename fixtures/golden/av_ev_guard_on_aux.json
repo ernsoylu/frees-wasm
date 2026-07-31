@@ -1,0 +1,41 @@
+{
+  "name": "av_ev_guard_on_aux",
+  "source": "{ The guard reads an algebraic auxiliary, not a state. }\nk = 0.05\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 7)\n  der(Temp) = -Qdot\n  Qdot = k*(Temp - 20)\n  Temp(0) = 95\n  EVENT weak: Qdot = 1.5 | falling -> record\nEND\n",
+  "expect": {
+    "variables": {
+      "k": 0.05
+    },
+    "display_names": {
+      "k": "k",
+      "qdot": "Qdot",
+      "temp": "Temp"
+    },
+    "block_count": 1,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp", "qdot"],
+        "rows": [
+          [0.0, 95.0, 3.75],
+          [10.0, 65.48979945910143, 2.2744899729550716],
+          [20.0, 47.59095803046333, 1.3795479015231664],
+          [30.0, 36.734761996461124, 0.8367380998230562],
+          [40.0, 30.15014623853744, 0.5075073119268722],
+          [50.0, 26.15637488405151, 0.3078187442025755],
+          [60.0, 23.734030127668667, 0.18670150638343339]
+        ],
+        "events": [
+          {"name": "weak", "time": 18.325814613429316}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

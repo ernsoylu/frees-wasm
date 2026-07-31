@@ -111,12 +111,18 @@
 //! pointing the wrong way, element-count ceiling, log-range preconditions), so a
 //! typo like `x = 0:0.0000001:100` is still rejected where the user wrote it.
 
+use std::collections::BTreeMap;
+
 use crate::ast::{Equation, Expr, Statement};
 use crate::components::def::{
     ComponentDef, ComponentInst, ConnectDecl, Param, ParamOverrides, Variant,
 };
 use crate::diag::{FreesError, Result, Span};
-use crate::parser::blocks::{ParametricTable, PlotAttributes, PlotDef, StateTableDef};
+use crate::ode::dynamic::{DynamicOptions, DynamicSystem, InitialCondition};
+use crate::ode::events::DynamicEvent;
+use crate::parser::blocks::{
+    LinearizeSystem, ParametricTable, PlotAttributes, PlotDef, StateTableDef,
+};
 use crate::parser::defs::{
     Curve, Definitions, FunctionDef, FunctionTableDef, ModuleDef, ProcStatement, ProcedureDef,
 };
@@ -276,6 +282,14 @@ impl<'a> Parser<'a> {
             TokenKind::StateTable => {
                 let table = self.state_table_def()?;
                 doc.blocks.state_tables.push(table);
+            }
+            TokenKind::Dynamic => {
+                let system = self.dynamic_def()?;
+                doc.dynamics.push(system);
+            }
+            TokenKind::Linearize => {
+                let system = self.linearize_def()?;
+                doc.linearizes.push(system);
             }
             _ => {
                 let statement = self.statement()?;
@@ -1287,6 +1301,452 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    // ── DYNAMIC / LINEARIZE (transient blocks) ──────────────────────────────
+
+    /// `dynamicDef : DYNAMIC IDENT LPAREN dynamicHeader RPAREN sep
+    ///               (dynamicItem (sep dynamicItem)* sep?)? END`
+    ///
+    /// Port of `AstBuilder.buildDynamicDef`. The body items are sorted into four
+    /// lists — events, initial conditions, method-of-lines `FOR` loops and the
+    /// `der(X) = …` / `aux = …` equations — with **no classification here**: a
+    /// variable is only known to be a state once the analytic solve has resolved
+    /// the constants the `FOR` loops range over. That is
+    /// [`crate::ode::dynamic::DynamicSolver`]'s job.
+    ///
+    /// The block name keeps its source case (`ctx.IDENT().getText()`, not
+    /// lowercased) because it is the ODE Table's title.
+    fn dynamic_def(&mut self) -> Result<DynamicSystem> {
+        let start_pos = self.c.pos();
+        let header = self.c.span();
+        self.enter_block(header)?;
+        let result = self.dynamic_def_inner(start_pos, header);
+        self.block_depth -= 1;
+        result
+    }
+
+    fn dynamic_def_inner(&mut self, start_pos: usize, header: Span) -> Result<DynamicSystem> {
+        self.c.expect(&TokenKind::Dynamic)?;
+        let name = self.c.expect_ident()?;
+        self.c.expect(&TokenKind::LParen)?;
+        let options = self.dynamic_header(&name, header)?;
+        self.c.expect(&TokenKind::RParen)?;
+        self.require_sep("after the DYNAMIC header")?;
+
+        let mut body_equations = Vec::new();
+        let mut for_blocks = Vec::new();
+        let mut initials = Vec::new();
+        let mut events = Vec::new();
+
+        // `(dynamicItem (sep dynamicItem)* sep?)?` — unlike `PARAMETRIC` the
+        // body is optional, so an immediate `END` is legal grammar (the solver
+        // then rejects the block for having no state).
+        loop {
+            self.c.skip_separators();
+            if matches!(self.c.peek(), TokenKind::End) {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    format!("unterminated DYNAMIC {name} block: expected `END`"),
+                    header,
+                ));
+            }
+            match self.c.peek() {
+                TokenKind::Event => events.push(self.dynamic_event()?),
+                TokenKind::For => for_blocks.push(self.for_block()?),
+                // `# DynItemInit` sits *before* `# DynItemEq` in the grammar, so
+                // ANTLR prefers it whenever `IDENT [idx]? ( num ) =` matches.
+                // `at_dynamic_init` is that same decision made with lookahead.
+                _ if self.at_dynamic_init() => initials.push(self.dynamic_init()?),
+                _ => {
+                    let eq_start = self.c.pos();
+                    let mut eq = self.bare_equation()?;
+                    // `new Equation(…, eq.getText())`: an ANTLR rule's `getText()`
+                    // concatenates its tokens with no separators, so a DYNAMIC
+                    // body equation's `source_text` is whitespace-stripped
+                    // (`W1=W2`), unlike a top-level statement's verbatim slice.
+                    // The index-2 diagnostic quotes it, so the spelling is
+                    // observable.
+                    eq.source_text = self.tokens_text_since(eq_start);
+                    body_equations.push(eq);
+                }
+            }
+            self.require_item_end()?;
+        }
+        self.c.expect(&TokenKind::End)?;
+
+        Ok(DynamicSystem {
+            name,
+            options,
+            body_equations,
+            for_blocks,
+            initials,
+            events,
+            source_text: self.tokens_text_since(start_pos),
+        })
+    }
+
+    /// `dynamicHeader : (dynamicOpt (COMMA dynamicOpt)*)?`, built into
+    /// [`DynamicOptions`].
+    ///
+    /// Port of `AstBuilder.buildDynamicOptions`, including its five rejections:
+    /// a time key that is not a range, a numeric option that is not a number, a
+    /// method that is not a name, an unknown key, and a missing time span.
+    fn dynamic_header(&mut self, block: &str, span: Span) -> Result<DynamicOptions> {
+        let mut method = DynamicOptions::DEFAULT_METHOD.to_string();
+        let mut time_var = "t".to_string();
+        let mut t0: Option<f64> = None;
+        let mut tf: Option<f64> = None;
+        let mut points: Option<usize> = None;
+        let mut step: Option<f64> = None;
+        let mut rtol = DynamicOptions::DEFAULT_RTOL;
+        let mut atol = DynamicOptions::DEFAULT_ATOL;
+        let mut max_step: Option<f64> = None;
+
+        while !matches!(self.c.peek(), TokenKind::RParen) {
+            let key = self.c.expect_ident()?.to_ascii_lowercase();
+            self.c.expect(&TokenKind::Eq)?;
+            let value = self.dynamic_opt_val()?;
+            match key.as_str() {
+                "t" | "time" | "tspan" => {
+                    let DynOptVal::Range(a, b) = value else {
+                        return Err(FreesError::parse_at(
+                            format!(
+                                "DYNAMIC {block}: '{key}' must be a range, e.g. t = 0 .. 600 [s]."
+                            ),
+                            span,
+                        ));
+                    };
+                    // `tspan` is an alias that still names the variable `t`.
+                    time_var = if key == "tspan" { "t".into() } else { key };
+                    t0 = Some(a);
+                    tf = Some(b);
+                }
+                "method" | "solver" => {
+                    let DynOptVal::Ident(id) = value else {
+                        return Err(FreesError::parse_at(
+                            format!(
+                                "DYNAMIC {block}: option '{key}' must be a name \
+                                 (e.g. {key} = ode45)."
+                            ),
+                            span,
+                        ));
+                    };
+                    method = id.to_ascii_lowercase();
+                }
+                "points" | "n" => {
+                    // `(int) Math.round(...)`: a negative or absurd count is
+                    // clamped by `OdeProblem::sample_count`, not here.
+                    let n = opt_number(block, &key, value, span)?.round();
+                    points = Some(if n <= 0.0 { 0 } else { n as usize });
+                }
+                "step" | "dt" | "fixedstep" => step = Some(opt_number(block, &key, value, span)?),
+                "rtol" | "reltol" => rtol = opt_number(block, &key, value, span)?,
+                "atol" | "abstol" => atol = opt_number(block, &key, value, span)?,
+                "maxstep" => max_step = Some(opt_number(block, &key, value, span)?),
+                other => {
+                    return Err(FreesError::parse_at(
+                        format!(
+                            "DYNAMIC {block}: unknown option '{other}'. Supported: method, t, \
+                             points, step, rtol, atol, maxstep."
+                        ),
+                        span,
+                    ))
+                }
+            }
+            if !self.c.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+
+        let (Some(t0), Some(tf)) = (t0, tf) else {
+            return Err(FreesError::parse_at(
+                format!("DYNAMIC {block}: missing required time span 't = t0 .. tf'."),
+                span,
+            ));
+        };
+        Ok(DynamicOptions {
+            method,
+            time_var,
+            t0,
+            tf,
+            points,
+            step,
+            rtol,
+            atol,
+            max_step,
+        })
+    }
+
+    /// `dynamicOptVal : signedNumber DOTDOT signedNumber unit? # DynOptRange
+    ///                | signedNumber unit?                     # DynOptNum
+    ///                | IDENT                                  # DynOptIdent`
+    ///
+    /// A unit annotation converts to SI with the same `value * factor + offset`
+    /// the number atom uses, and an *unknown* unit degrades to `1.0`/`0.0`
+    /// rather than failing the parse (`AstBuilder.unitFactor` swallows
+    /// `UnknownUnitException`).
+    fn dynamic_opt_val(&mut self) -> Result<DynOptVal> {
+        if let TokenKind::Ident(name) = self.c.peek().clone() {
+            self.c.advance();
+            return Ok(DynOptVal::Ident(name));
+        }
+        let first = self.signed_number()?;
+        if self.c.eat(&TokenKind::DotDot) {
+            let second = self.signed_number()?;
+            let (factor, offset) = unit_factor_offset(parse_unit_annotation(&mut self.c)?);
+            return Ok(DynOptVal::Range(
+                first * factor + offset,
+                second * factor + offset,
+            ));
+        }
+        let (factor, offset) = unit_factor_offset(parse_unit_annotation(&mut self.c)?);
+        Ok(DynOptVal::Num(first * factor + offset))
+    }
+
+    /// `IDENT (LBRACKET arrayIndexList RBRACKET)? LPAREN signedNumber RPAREN
+    ///  EQ expr   # DynItemInit`
+    ///
+    /// Port of `AstBuilder.buildDynamicInit`. The state name **is** lowercased
+    /// (unlike the block name and the event name), and the parenthesised number
+    /// — the `t0` the Java parses and then discards — is not stored: an initial
+    /// condition always applies at the block's start time.
+    fn dynamic_init(&mut self) -> Result<InitialCondition> {
+        let state = self.c.expect_ident()?.to_ascii_lowercase();
+        let mut indices = Vec::new();
+        if self.c.eat(&TokenKind::LBracket) {
+            loop {
+                indices.push(self.array_index()?);
+                if !self.c.eat(&TokenKind::Comma) {
+                    break;
+                }
+            }
+            self.c.expect(&TokenKind::RBracket)?;
+        }
+        self.c.expect(&TokenKind::LParen)?;
+        let _t0 = self.signed_number()?;
+        self.c.expect(&TokenKind::RParen)?;
+        self.c.expect(&TokenKind::Eq)?;
+        let value = self.expr()?;
+        Ok(InitialCondition {
+            state,
+            indices,
+            value,
+        })
+    }
+
+    /// `arrayIndex : expr (COLON expr)?` — the colon form is an index range.
+    /// The same rule `parser::expr` uses for an array atom, spelled here because
+    /// that one is private to the expression grammar.
+    fn array_index(&mut self) -> Result<Expr> {
+        let start = self.expr()?;
+        if self.c.eat(&TokenKind::Colon) {
+            let end = self.expr()?;
+            return Ok(Expr::Range {
+                start: Box::new(start),
+                end: Box::new(end),
+            });
+        }
+        Ok(start)
+    }
+
+    /// `dynamicEvent : EVENT IDENT COLON equation (PIPE IDENT)? ARROW IDENT
+    ///                 (IDENT EQ expr)?`
+    ///
+    /// Port of `AstBuilder.buildDynamicEvent`, with its three rejections: an
+    /// assignment on a non-`set` action, a `set` with no assignment, and an
+    /// action that is none of `stop` / `record` / `set`.
+    ///
+    /// The event **name keeps its source case** — the Java reads
+    /// `ctx.IDENT(0).getText()` raw while lowercasing the direction, the action
+    /// and the `set` target — and the recorded hit carries it verbatim into the
+    /// ODE Table, so the spelling is observable in a golden.
+    fn dynamic_event(&mut self) -> Result<DynamicEvent> {
+        let span = self.c.span();
+        self.c.expect(&TokenKind::Event)?;
+        let name = self.c.expect_ident()?;
+        self.c.expect(&TokenKind::Colon)?;
+        let crossing = self.bare_equation()?;
+        let direction = if self.c.eat(&TokenKind::Pipe) {
+            self.c.expect_ident()?.to_ascii_lowercase()
+        } else {
+            // The Java default is the *string* "any", not a null.
+            "any".to_string()
+        };
+        self.c.expect(&TokenKind::Arrow)?;
+        let action = self.c.expect_ident()?.to_ascii_lowercase();
+
+        let mut set_var = None;
+        let mut set_expr = None;
+        if matches!(self.c.peek(), TokenKind::Ident(_)) {
+            let target = self.c.expect_ident()?.to_ascii_lowercase();
+            self.c.expect(&TokenKind::Eq)?;
+            let value = self.expr()?;
+            if action != "set" {
+                return Err(FreesError::parse_at(
+                    format!(
+                        "EVENT {name}: only the 'set' action takes an assignment \
+                         (got '-> {action} … = …')."
+                    ),
+                    span,
+                ));
+            }
+            set_var = Some(target);
+            set_expr = Some(value);
+        } else if action == "set" {
+            return Err(FreesError::parse_at(
+                format!(
+                    "EVENT {name}: the 'set' action needs an assignment — \
+                     EVENT {name}: g1 = g2 -> set <state> = <expr>."
+                ),
+                span,
+            ));
+        }
+        if action != "stop" && action != "record" && action != "set" {
+            return Err(FreesError::parse_at(
+                format!(
+                    "EVENT {name}: unknown action '{action}' — use stop, record, \
+                     or set <state> = <expr>."
+                ),
+                span,
+            ));
+        }
+        Ok(DynamicEvent {
+            name,
+            lhs: crossing.lhs,
+            rhs: crossing.rhs,
+            direction: Some(direction),
+            action,
+            set_var,
+            set_expr,
+        })
+    }
+
+    /// `linearizeDef : LINEARIZE IDENT LPAREN dynamicHeader RPAREN sep
+    ///                 linearizeItem (sep linearizeItem)* sep? END`
+    ///
+    /// Port of `AstBuilder.buildLinearizeDef`. The header reuses the `DYNAMIC`
+    /// option rule but is read as raw *text* per key (`opt.dynamicOptVal()
+    /// .getText()`), never as numbers — so `block = warmup` and `a = Amat` are
+    /// both just strings, and a range in this header would come out as the
+    /// concatenated `0..600`.
+    fn linearize_def(&mut self) -> Result<LinearizeSystem> {
+        let start_pos = self.c.pos();
+        let header = self.c.span();
+        self.enter_block(header)?;
+        let result = self.linearize_def_inner(start_pos, header);
+        self.block_depth -= 1;
+        result
+    }
+
+    fn linearize_def_inner(&mut self, start_pos: usize, header: Span) -> Result<LinearizeSystem> {
+        self.c.expect(&TokenKind::Linearize)?;
+        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::LParen)?;
+        let mut opts: BTreeMap<String, String> = BTreeMap::new();
+        while !matches!(self.c.peek(), TokenKind::RParen) {
+            let key = self.c.expect_ident()?.to_ascii_lowercase();
+            self.c.expect(&TokenKind::Eq)?;
+            let value_start = self.c.pos();
+            self.dynamic_opt_val()?;
+            opts.insert(key, self.tokens_text_since(value_start));
+            if !self.c.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        self.c.expect(&TokenKind::RParen)?;
+        self.require_sep("after the LINEARIZE header")?;
+
+        let Some(dynamic_name) = opts.get("block").map(|b| b.to_ascii_lowercase()) else {
+            return Err(FreesError::parse_at(
+                format!(
+                    "LINEARIZE {name}: header needs 'block = <name>' naming the DYNAMIC \
+                     component network to linearize."
+                ),
+                header,
+            ));
+        };
+
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+        let mut items = 0usize;
+        loop {
+            self.c.skip_separators();
+            if items > 0 && matches!(self.c.peek(), TokenKind::End) {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    format!("unterminated LINEARIZE {name} block: expected `END`"),
+                    header,
+                ));
+            }
+            let into = match self.c.peek() {
+                TokenKind::Input => {
+                    self.c.advance();
+                    &mut inputs
+                }
+                TokenKind::Output => {
+                    self.c.advance();
+                    &mut outputs
+                }
+                other => {
+                    return Err(FreesError::parse_at(
+                        format!(
+                            "LINEARIZE {name}: expected `INPUT` or `OUTPUT`, found {}",
+                            other.describe()
+                        ),
+                        self.c.span(),
+                    ))
+                }
+            };
+            loop {
+                // `linVar : IDENT (DOT IDENT)*` — a dotted member path kept
+                // verbatim (lowercased) and resolved against the network later.
+                let mut path = String::new();
+                loop {
+                    if !path.is_empty() {
+                        path.push('.');
+                    }
+                    match self.c.peek().clone() {
+                        TokenKind::Ident(segment) => {
+                            self.c.advance();
+                            path.push_str(&segment);
+                        }
+                        other => {
+                            return Err(FreesError::parse_at(
+                                format!("expected an identifier, found {}", other.describe()),
+                                self.c.span(),
+                            ))
+                        }
+                    }
+                    if !self.c.eat(&TokenKind::Dot) {
+                        break;
+                    }
+                }
+                into.push(path.to_ascii_lowercase());
+                if !self.c.eat(&TokenKind::Comma) {
+                    break;
+                }
+            }
+            items += 1;
+            self.require_item_end()?;
+        }
+        self.c.expect(&TokenKind::End)?;
+
+        Ok(LinearizeSystem {
+            name,
+            dynamic_name,
+            a_name: opts.get("a").cloned().unwrap_or_else(|| "A".into()),
+            b_name: opts.get("b").cloned().unwrap_or_else(|| "B".into()),
+            c_name: opts.get("c").cloned().unwrap_or_else(|| "C".into()),
+            d_name: opts.get("d").cloned().unwrap_or_else(|| "D".into()),
+            inputs,
+            outputs,
+            source_text: self.tokens_text_since(start_pos),
+        })
+    }
+
     // ── COMPONENT / instantiation / connect ─────────────────────────────────
 
     /// `componentDef : COMPONENT IDENT LPAREN paramList RPAREN sep
@@ -1788,6 +2248,33 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// The tokens from `start_pos` up to the cursor, concatenated **with no
+    /// separators** — ANTLR's `ParserRuleContext.getText()`.
+    ///
+    /// Distinct from [`Parser::text_since`], which slices the source verbatim
+    /// (keeping the user's spacing and inline comments). Both spellings are
+    /// observable: a top-level statement's `source_text` is the verbatim slice,
+    /// while everything the Java builds from `ctx.getText()` — a `DYNAMIC` body
+    /// equation, a whole `DYNAMIC`/`LINEARIZE` block — is stripped.
+    fn tokens_text_since(&self, start_pos: usize) -> String {
+        let end_pos = self.c.pos();
+        let mut out = String::new();
+        for token in self.tokens.get(start_pos..end_pos).unwrap_or(&[]) {
+            // Newlines are `sep` tokens; ANTLR routes them off the default
+            // channel, so they contribute nothing to `getText()`.
+            if matches!(token.kind, TokenKind::Newline) {
+                continue;
+            }
+            out.push_str(
+                self.c
+                    .source()
+                    .get(token.span.start as usize..token.span.end as usize)
+                    .unwrap_or(""),
+            );
+        }
+        out
+    }
+
     /// The span covered by the tokens from `start_pos` up to the cursor.
     fn span_since(&self, start_pos: usize) -> Span {
         let end_pos = self.c.pos();
@@ -1801,6 +2288,55 @@ impl<'a> Parser<'a> {
     }
 
     // ── lookahead predicates ────────────────────────────────────────────────
+
+    /// True when the cursor sits on a `DynItemInit` rather than a `DynItemEq`:
+    /// `IDENT (LBRACKET … RBRACKET)? LPAREN signedNumber RPAREN EQ`.
+    ///
+    /// ANTLR resolves this by alternative order — `# DynItemInit` is listed
+    /// before `# DynItemEq`, so `T(0) = 95` is an initial condition even though
+    /// it is also a syntactically valid equation with `T` called as a function.
+    /// This is that decision made with lookahead instead. The trailing `EQ` is
+    /// part of the test because without it `Q = f(0)` — a call in an *rhs* — is
+    /// indistinguishable from an initial condition by its prefix alone.
+    fn at_dynamic_init(&self) -> bool {
+        if !matches!(self.c.peek(), TokenKind::Ident(_)) {
+            return false;
+        }
+        let mut i = 1;
+        if matches!(self.c.peek_at(i), TokenKind::LBracket) {
+            let mut depth = 0usize;
+            loop {
+                match self.c.peek_at(i) {
+                    TokenKind::LBracket => depth += 1,
+                    TokenKind::RBracket => {
+                        depth -= 1;
+                        if depth == 0 {
+                            i += 1;
+                            break;
+                        }
+                    }
+                    // An unbalanced `[` is a syntax error either way; letting it
+                    // fall through to `equation` puts the diagnostic on the
+                    // expression grammar, which quotes the offending token.
+                    TokenKind::Eof | TokenKind::Newline | TokenKind::Semi => return false,
+                    _ => {}
+                }
+                i += 1;
+            }
+        }
+        if !matches!(self.c.peek_at(i), TokenKind::LParen) {
+            return false;
+        }
+        i += 1;
+        if matches!(self.c.peek_at(i), TokenKind::Plus | TokenKind::Minus) {
+            i += 1;
+        }
+        if !matches!(self.c.peek_at(i), TokenKind::Number { .. }) {
+            return false;
+        }
+        matches!(self.c.peek_at(i + 1), TokenKind::RParen)
+            && matches!(self.c.peek_at(i + 2), TokenKind::Eq)
+    }
 
     /// `componentInst : IDENT IDENT LPAREN` — two identifiers in a row. Nothing
     /// in the expression grammar can produce that shape, so the three-token
@@ -1903,16 +2439,55 @@ impl<'a> Parser<'a> {
 // ── free helpers ────────────────────────────────────────────────────────────
 
 /// The block constructs `topLevel` admits that this pass does not implement,
-/// keyed by their leading token. `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`
-/// parse into [`Document::defs`], the component forms into
-/// [`Document::components`] and `PARAMETRIC` / `PLOT` / `STATE TABLE` into
-/// [`Document::blocks`], so none of them is here any more.
+/// keyed by their leading token.
+///
+/// **The list is empty.** `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE` parse
+/// into [`Document::defs`], the component forms into [`Document::components`],
+/// `PARAMETRIC` / `PLOT` / `STATE TABLE` into [`Document::blocks`], and Phase 7
+/// took the last two — `DYNAMIC` into [`Document::dynamics`] and `LINEARIZE`
+/// into [`Document::linearizes`].
+///
+/// The function stays rather than being deleted with its callers: it is the
+/// single place a *new* grammar alternative gets refused by name instead of
+/// being silently mis-parsed as an equation, and the two call sites
+/// ([`Parser::statement`] and the block-body loops) are the two places that
+/// matters. `unsupported_construct` returning `None` for a token whose rule is
+/// only legal at `topLevel` is also what makes `DYNAMIC` inside a `FOR` body a
+/// plain syntax error, exactly as ANTLR reports it.
 fn unsupported_construct(kind: &TokenKind) -> Option<&'static str> {
-    Some(match kind {
-        TokenKind::Dynamic => "DYNAMIC",
-        TokenKind::Linearize => "LINEARIZE",
-        _ => return None,
-    })
+    let _ = kind;
+    None
+}
+
+/// One `dynamicOptVal` alternative, already unit-converted to SI.
+enum DynOptVal {
+    /// `# DynOptRange` — `t = 0 .. 600 [s]`.
+    Range(f64, f64),
+    /// `# DynOptNum` — `rtol = 1e-8`.
+    Num(f64),
+    /// `# DynOptIdent` — `method = ode45`.
+    Ident(String),
+}
+
+/// `AstBuilder.optNumber`: a numeric option must be a `# DynOptNum`.
+fn opt_number(block: &str, key: &str, value: DynOptVal, span: Span) -> Result<f64> {
+    match value {
+        DynOptVal::Num(v) => Ok(v),
+        _ => Err(FreesError::parse_at(
+            format!("DYNAMIC {block}: option '{key}' must be a number."),
+            span,
+        )),
+    }
+}
+
+/// `(AstBuilder.unitFactor, AstBuilder.unitOffset)` of an optional annotation:
+/// an absent **or unparseable** unit is the identity conversion, because both
+/// Java helpers catch `UnknownUnitException` and fall back.
+fn unit_factor_offset(raw: Option<String>) -> (f64, f64) {
+    match raw.and_then(|r| UnitRegistry::parse_with_offset(&r).ok()) {
+        Some(q) => (q.factor, q.offset),
+        None => (1.0, 0.0),
+    }
 }
 
 /// `LinkedHashMap.put` over the parametric columns: a repeated column name
@@ -3074,61 +3649,37 @@ mod tests {
 
     // ── unsupported constructs ──────────────────────────────────────────────
 
+    /// Every block form the grammar admits now parses into the `Document`, so
+    /// the refusal list is empty. The function survives as the seam a *new*
+    /// alternative is refused through — see its own docs — and this test pins
+    /// the claim that nothing is currently on it, so re-adding a name is a
+    /// deliberate act with a failing test behind it.
     #[test]
-    fn every_unimplemented_block_is_named_in_its_error() {
-        let cases = [
-            ("DYNAMIC d(method = ode45)\n  der = 1\nEND", "DYNAMIC"),
-            ("LINEARIZE plant(block = w)\n  INPUT q\nEND", "LINEARIZE"),
-        ];
-        for (src, construct) in cases {
-            let message = err(src);
-            assert!(
-                message.contains(construct) && message.contains("not supported"),
-                "`{construct}` should be refused by name, got: {message}"
-            );
-        }
-    }
-
-    /// `COMPONENT` and `connect` left the refusal list in Phase 6, and
-    /// `PARAMETRIC` / `PLOT` / `STATE TABLE` in Phase 8 — the parser now builds
-    /// their AST. (Whether the *engine* can honour the result is a separate
-    /// gate: see `engine::reject_unexpanded_components`. The three declarative
-    /// blocks need no such gate — they are not equations.)
-    #[test]
-    fn the_component_and_declarative_forms_are_no_longer_refused_by_the_parser() {
+    fn no_block_form_is_refused_by_the_parser_any_more() {
         for parsed in [
             TokenKind::Component,
             TokenKind::Connect,
             TokenKind::Parametric,
             TokenKind::StateTable,
             TokenKind::Plot,
+            TokenKind::Dynamic,
+            TokenKind::Linearize,
         ] {
             assert!(
                 unsupported_construct(&parsed).is_none(),
                 "{parsed:?} parses now"
             );
         }
-        for still_refused in [TokenKind::Dynamic, TokenKind::Linearize] {
-            assert!(
-                unsupported_construct(&still_refused).is_some(),
-                "{still_refused:?} stays refused until its own phase"
-            );
-        }
     }
 
+    /// `DYNAMIC` is a `topLevel` alternative only. A `FOR` or `MODULE` body is a
+    /// `statementList`, which does not list it, so ANTLR reports a syntax error
+    /// there — and so does this port, now by falling through to `equation`
+    /// rather than by the unsupported-construct list.
     #[test]
-    fn unsupported_errors_are_anchored_to_the_offending_token() {
-        let src = "x = 1\nDYNAMIC d(method = ode45)\n  der = 1\nEND";
-        let error = parse(src).unwrap_err();
-        let span = error.span().expect("an unsupported error carries a span");
-        assert_eq!(span.slice(src), "DYNAMIC");
-        assert_eq!(span.line_col(src), (2, 1));
-    }
-
-    #[test]
-    fn an_unsupported_block_inside_a_for_body_is_still_refused_by_name() {
-        let message = err("FOR i = 1 TO 2\n  DYNAMIC d(m = ode45)\n  END\nEND");
-        assert!(message.contains("DYNAMIC"), "got: {message}");
+    fn a_dynamic_block_inside_a_for_body_is_a_syntax_error() {
+        let message = err("FOR i = 1 TO 2\n  DYNAMIC d(t = 0 .. 1)\n  END\nEND");
+        assert!(message.contains("expected an expression"), "got: {message}");
     }
 
     /// A declarative block is a `topLevel` alternative only. `statementList` —
@@ -3218,10 +3769,12 @@ END
             vec![Statement::Symbolic(vec!["s".into(), "z".into()])]
         );
 
-        let error = parse_document("DYNAMIC d(method = ode45)\n  der = 1\nEND").unwrap_err();
+        let doc = parse_document("DYNAMIC d(t = 0 .. 1)\n  der(x) = 1\n  x(0) = 0\nEND").unwrap();
+        assert_eq!(doc.dynamics.len(), 1);
+        assert_eq!(doc.dynamics[0].name, "d");
         assert!(
-            error.to_string().contains("DYNAMIC") && error.to_string().contains("not supported"),
-            "got: {error}"
+            doc.statements.is_empty(),
+            "a DYNAMIC block is not a statement"
         );
 
         assert!(parse_document("END")
@@ -3235,6 +3788,208 @@ END
         assert!(is_ignored_sink("~ignored~0"));
         assert!(!is_ignored_sink("ignored0"));
         assert!(!is_ignored_sink("x"));
+    }
+
+    // ── DYNAMIC / LINEARIZE ─────────────────────────────────────────────────
+
+    fn dyn_of(src: &str) -> DynamicSystem {
+        let mut doc = ok(src);
+        assert_eq!(
+            doc.dynamics.len(),
+            1,
+            "expected one DYNAMIC block in {src:?}"
+        );
+        doc.dynamics.remove(0)
+    }
+
+    #[test]
+    fn a_dynamic_header_carries_every_option_key_and_its_aliases() {
+        let d = dyn_of(
+            "DYNAMIC Cooling (method = ODE23s, time = 0 .. 60, points = 41, \
+             rtol = 1e-8, atol = 1e-11, maxstep = 0.5)\nEND",
+        );
+        // The block name keeps its source case — it is the ODE Table's title —
+        // while the method is lowercased.
+        assert_eq!(d.name, "Cooling");
+        assert_eq!(d.options.method, "ode23s");
+        assert_eq!(d.options.time_var, "time");
+        assert_eq!((d.options.t0, d.options.tf), (0.0, 60.0));
+        assert_eq!(d.options.points, Some(41));
+        assert_eq!(d.options.rtol, 1e-8);
+        assert_eq!(d.options.atol, 1e-11);
+        assert_eq!(d.options.max_step, Some(0.5));
+        assert_eq!(d.options.step, None);
+
+        // The alias set: solver/n/dt|fixedstep/reltol/abstol, and `tspan`,
+        // which names the variable `t` rather than `tspan`.
+        let d = dyn_of("DYNAMIC d (solver = heun, tspan = 1 .. 2, n = 5, dt = 0.1, reltol = 1e-3, abstol = 1e-4)\nEND");
+        assert_eq!(d.options.method, "heun");
+        assert_eq!(d.options.time_var, "t");
+        assert_eq!(d.options.points, Some(5));
+        assert_eq!(d.options.step, Some(0.1));
+        assert_eq!((d.options.rtol, d.options.atol), (1e-3, 1e-4));
+        assert_eq!(
+            dyn_of("DYNAMIC d(t = 0 .. 1, fixedstep = 0.2)\nEND")
+                .options
+                .step,
+            Some(0.2)
+        );
+
+        // Omitted options fall back to the Java defaults.
+        let d = dyn_of("DYNAMIC d(t = 0 .. 1)\nEND");
+        assert_eq!(d.options.method, DynamicOptions::DEFAULT_METHOD);
+        assert_eq!(d.options.rtol, DynamicOptions::DEFAULT_RTOL);
+        assert_eq!(d.options.atol, DynamicOptions::DEFAULT_ATOL);
+        assert_eq!(d.options.points, None);
+        assert_eq!(d.options.max_step, None);
+    }
+
+    #[test]
+    fn a_dynamic_time_span_converts_through_its_unit_annotation() {
+        // `AstBuilder.unitFactor`/`unitOffset` apply to *both* endpoints.
+        let d = dyn_of("DYNAMIC d(t = 0 .. 10 [min])\nEND");
+        assert_eq!((d.options.t0, d.options.tf), (0.0, 600.0));
+        // An offset unit shifts both, too.
+        let d = dyn_of("DYNAMIC d(t = 0 .. 100 [C])\nEND");
+        assert_eq!((d.options.t0, d.options.tf), (273.15, 373.15));
+        // An *unknown* unit degrades to the identity rather than failing the
+        // parse — the Java swallows `UnknownUnitException` in both helpers.
+        let d = dyn_of("DYNAMIC d(t = 0 .. 5 [flurbles])\nEND");
+        assert_eq!((d.options.t0, d.options.tf), (0.0, 5.0));
+    }
+
+    #[test]
+    fn the_five_dynamic_header_rejections_are_the_javas() {
+        assert!(err("DYNAMIC d(method = ode45)\nEND").contains("missing required time span"));
+        assert!(err("DYNAMIC d(t = 5)\nEND").contains("'t' must be a range"));
+        assert!(err("DYNAMIC d(t = 0 .. 1, points = n)\nEND").contains("must be a number"));
+        assert!(err("DYNAMIC d(t = 0 .. 1, method = 3)\nEND").contains("must be a name"));
+        let message = err("DYNAMIC d(t = 0 .. 1, wobble = 3)\nEND");
+        assert!(message.contains("unknown option 'wobble'"), "{message}");
+        assert!(
+            message.contains("Supported: method, t, points"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_dynamic_body_sorts_into_equations_initials_events_and_for_loops() {
+        let d = dyn_of(
+            "DYNAMIC d(t = 0 .. 1)\n  der(T) = -k*T\n  T(0) = 95\n  q = m*cp*der(T)\n  \
+             FOR i = 2 TO 4\n    der(x[i]) = 0\n  END\n  EVENT Cold: T = 20 | falling -> stop\nEND",
+        );
+        assert_eq!(d.body_equations.len(), 2);
+        assert_eq!(d.initials.len(), 1);
+        assert_eq!(d.for_blocks.len(), 1);
+        assert_eq!(d.events.len(), 1);
+        // The initial condition's state IS lowercased (unlike the block name).
+        assert_eq!(d.initials[0].state, "t");
+        assert!(d.initials[0].indices.is_empty());
+        // `Equation.sourceText` here is ANTLR's `getText()` — whitespace-stripped,
+        // unlike a top-level statement's verbatim source slice.
+        assert_eq!(d.body_equations[0].source_text, "der(T)=-k*T");
+        assert!(matches!(d.for_blocks[0], Statement::For { .. }));
+    }
+
+    #[test]
+    fn an_array_initial_condition_keeps_its_subscripts() {
+        let d = dyn_of("DYNAMIC d(t = 0 .. 1)\n  T[1](0) = 300\n  T[2:5](0) = 290\nEND");
+        assert_eq!(d.initials.len(), 2);
+        assert_eq!(d.initials[0].state, "t");
+        assert_eq!(d.initials[0].indices, vec![Expr::num(1.0)]);
+        assert!(matches!(d.initials[1].indices[0], Expr::Range { .. }));
+    }
+
+    /// `# DynItemInit` precedes `# DynItemEq` in the grammar, so `T(0) = 95` is
+    /// an initial condition. A call in an *rhs* is not: only the full
+    /// `IDENT (num) =` prefix decides.
+    #[test]
+    fn an_initial_condition_is_distinguished_from_an_equation_by_lookahead() {
+        let d = dyn_of("DYNAMIC d(t = 0 .. 1)\n  T(0) = 95\n  q = f(0)\n  g(0) = h(0)\nEND");
+        assert_eq!(d.initials.len(), 2, "T(0)= and g(0)= are initials");
+        assert_eq!(d.body_equations.len(), 1, "q = f(0) is an equation");
+        assert_eq!(d.body_equations[0].source_text, "q=f(0)");
+    }
+
+    #[test]
+    fn an_event_keeps_its_source_case_and_lowercases_everything_else() {
+        let d = dyn_of("DYNAMIC d(t = 0 .. 1)\n  EVENT Apogee: V = 0 | FALLING -> STOP\nEND");
+        let ev = &d.events[0];
+        assert_eq!(ev.name, "Apogee");
+        assert_eq!(ev.direction.as_deref(), Some("falling"));
+        assert_eq!(ev.action, "stop");
+        assert!(ev.stops());
+
+        // No `| direction` means the *string* "any", not a null.
+        let d = dyn_of("DYNAMIC d(t = 0 .. 1)\n  EVENT hit: h = 0 -> record\nEND");
+        assert_eq!(d.events[0].direction.as_deref(), Some("any"));
+        assert_eq!(d.events[0].direction_code(), 0);
+
+        // A `set` action's target is lowercased and its expression parsed.
+        let d = dyn_of("DYNAMIC d(t = 0 .. 1)\n  EVENT bounce: H = 0 -> set V = -0.8*V\nEND");
+        assert!(d.events[0].is_set());
+        assert_eq!(d.events[0].set_var.as_deref(), Some("v"));
+        assert!(d.events[0].set_expr.is_some());
+    }
+
+    #[test]
+    fn the_three_event_rejections_are_the_javas() {
+        assert!(err("DYNAMIC d(t = 0 .. 1)\n  EVENT e: h = 0 -> set\nEND")
+            .contains("the 'set' action needs an assignment"));
+        assert!(
+            err("DYNAMIC d(t = 0 .. 1)\n  EVENT e: h = 0 -> stop v = 1\nEND")
+                .contains("only the 'set' action takes an assignment")
+        );
+        assert!(
+            err("DYNAMIC d(t = 0 .. 1)\n  EVENT e: h = 0 -> explode\nEND")
+                .contains("unknown action 'explode'")
+        );
+    }
+
+    #[test]
+    fn an_unterminated_dynamic_block_is_anchored_to_its_header() {
+        let message = err("DYNAMIC cooling(t = 0 .. 1)\n  der(T) = 1");
+        assert!(
+            message.contains("unterminated DYNAMIC cooling"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_linearize_block_reads_its_header_as_text_and_its_items_as_dotted_names() {
+        let doc = ok("LINEARIZE Plant(block = Warmup, a = Am, b = Bm)\n  \
+                      INPUT Q_in, u2\n  OUTPUT M.port.T\nEND");
+        let ls = &doc.linearizes[0];
+        // The LINEARIZE name IS lowercased (unlike the DYNAMIC name it points at).
+        assert_eq!(ls.name, "plant");
+        assert_eq!(ls.dynamic_name, "warmup");
+        // Matrix names keep the header's case; unnamed ones default upper-case.
+        assert_eq!((ls.a_name.as_str(), ls.b_name.as_str()), ("Am", "Bm"));
+        assert_eq!((ls.c_name.as_str(), ls.d_name.as_str()), ("C", "D"));
+        assert_eq!(ls.inputs, vec!["q_in", "u2"]);
+        assert_eq!(ls.outputs, vec!["m.port.t"]);
+    }
+
+    #[test]
+    fn a_linearize_block_without_a_target_is_rejected() {
+        let message = err("LINEARIZE plant(a = A)\n  INPUT q\nEND");
+        assert!(message.contains("needs 'block = <name>'"), "{message}");
+        let message = err("LINEARIZE plant(block = w)\n  x = 1\nEND");
+        assert!(
+            message.contains("expected `INPUT` or `OUTPUT`"),
+            "{message}"
+        );
+    }
+
+    /// `tokens_text_since` is ANTLR's `getText()`: token texts concatenated with
+    /// no separators, comments and line breaks dropped. `text_since` is the
+    /// verbatim source slice. Both spellings are observable, so the difference
+    /// is pinned rather than left to chance.
+    #[test]
+    fn a_block_source_text_is_the_stripped_antlr_spelling() {
+        let d = dyn_of("DYNAMIC d(t = 0 .. 1)\n  der(T) = -k * T   { comment }\n  T(0) = 1\nEND");
+        assert_eq!(d.body_equations[0].source_text, "der(T)=-k*T");
+        assert_eq!(d.source_text, "DYNAMICd(t=0..1)der(T)=-k*TT(0)=1END");
     }
 
     // ── FUNCTION / PROCEDURE / MODULE / TABLE definitions ───────────────────
@@ -4213,6 +4968,13 @@ END
         assert!(
             message.contains("e.g. xrefg1 or xrefg[1]"),
             "got: {message}"
+        );
+        // The check runs after the block parses, where `buildStateTableDef`
+        // runs it: a block that is *also* malformed reports the syntax error
+        // first, as ANTLR does.
+        assert!(
+            err_real("STATE TABLE circuit(xrefg)\n  FLUID =\nEND").contains("expected a name"),
+            "the syntax error should win"
         );
         // Numbered forms, with and without the separating underscore.
         for ok in ["T1", "P_2", "h_10", "a1"] {

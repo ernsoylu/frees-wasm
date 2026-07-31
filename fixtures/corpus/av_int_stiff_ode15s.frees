@@ -1,0 +1,8 @@
+{ Classic stiff test: y' = lam*(y - cos(time)) - sin(time), lam = -2000.
+  The transient decays in ~1/2000 s and the solution then tracks cos(time). }
+lam = -2000
+
+DYNAMIC stiffy (method = ode15s, time = 0 .. 2, points = 101)
+  der(Yv) = lam*(Yv - cos(time)) - sin(time)
+  Yv(0) = 0
+END

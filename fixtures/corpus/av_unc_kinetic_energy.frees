@@ -1,0 +1,7 @@
+{ KE = m*v^2/2 with both m and v uncertain — the classic contribution split. }
+m = 2
+v = 10
+UncertaintyOf(m) = 0.05
+UncertaintyOf(v) = 0.3
+ke = m*v^2/2
+uke = UncertaintyOf(ke)

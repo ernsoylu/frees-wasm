@@ -1,0 +1,56 @@
+{
+  "name": "av_acc_two_blocks",
+  "source": "{ Two DYNAMIC blocks each own a distinct column; the accessor must resolve the\n  column to the right table. }\nAfin = FinalValue('Alpha')\nBfin = FinalValue('Beta')\n\nDYNAMIC first (method = ode45, time = 0 .. 4, points = 5)\n  der(Alpha) = 1\n  Alpha(0) = 0\nEND\n\nDYNAMIC second (method = ode45, time = 0 .. 4, points = 5)\n  der(Beta) = -2\n  Beta(0) = 10\nEND\n",
+  "expect": {
+    "variables": {
+      "Afin": 3.9999999999999614,
+      "Bfin": 2.0000000000000755
+    },
+    "display_names": {
+      "afin": "Afin",
+      "alpha": "Alpha",
+      "beta": "Beta",
+      "bfin": "Bfin"
+    },
+    "block_count": 2,
+    "ode_tables": [
+      {
+        "name": "first",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 4.0,
+        "columns": ["time", "alpha"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 1.0000000000000004],
+          [2.0, 2.0000000000000058],
+          [3.0, 2.9999999999999836],
+          [4.0, 3.9999999999999614]
+        ],
+        "events": [
+        ]
+      },
+      {
+        "name": "second",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 4.0,
+        "columns": ["time", "beta"],
+        "rows": [
+          [0.0, 10.0],
+          [1.0, 7.999999999999998],
+          [2.0, 6.000000000000043],
+          [3.0, 4.000000000000086],
+          [4.0, 2.0000000000000755]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,5 @@
+{ An unrecognised method name. }
+DYNAMIC bad (method = ode99, time = 0 .. 1, points = 3)
+  der(Yv) = -Yv
+  Yv(0) = 1
+END

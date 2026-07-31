@@ -1,0 +1,4 @@
+{ Log spacing from a non-positive start. }
+PARAMETRIC bad (t)
+  t = 0:3:100 | Log
+END

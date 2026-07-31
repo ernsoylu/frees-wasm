@@ -1,0 +1,7 @@
+{ The uncertainty is itself an expression over solved variables — a 2 % relative
+  spec, which only resolves once the value is known. }
+p = 250000
+UncertaintyOf(p) = 0.02*p
+rho = p/(287*T)
+T = 300
+urho = UncertaintyOf(rho)

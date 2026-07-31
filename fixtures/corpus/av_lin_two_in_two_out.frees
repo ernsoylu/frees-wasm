@@ -1,0 +1,19 @@
+{ A 2-state, 2-input, 2-output linearization — every matrix is genuinely 2x2,
+  so a transposition or column-ordering difference is visible. }
+Q_in = 1000
+Tamb = 300
+HeatSource    HS(Q = Q_in)
+ThermalMass   M1(C = 5000, T0 = 300)
+Conduction    w12(k = 2, area = 1, L = 0.1)
+ThermalMass   M2(C = 8000, T0 = 310)
+Conduction    w2a(k = 1.5, area = 1, L = 0.2)
+ThermalSource amb(T = Tamb)
+connect(HS.port, M1.port, w12.a)
+connect(w12.b, M2.port, w2a.a)
+connect(w2a.b, amb.port)
+DYNAMIC warmup(time = 0 .. 1)
+END
+LINEARIZE plant(block = warmup, a = Am, b = Bm, c = Cm, d = Dm)
+  INPUT  Q_in, Tamb
+  OUTPUT m1.port.T, m2.port.T
+END

@@ -1,0 +1,18 @@
+{
+  "name": "av_lim_unknown_method",
+  "source": "{ An unrecognised method name. }\nDYNAMIC bad (method = ode99, time = 0 .. 1, points = 3)\n  der(Yv) = -Yv\n  Yv(0) = 1\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "DYNAMIC: unknown method 'ode99'. Supported: ode1, ode2, ode3, ode4, ode5, ode45, ode23, ode23s (stiff), ode15s (stiff)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

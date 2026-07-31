@@ -2,13 +2,15 @@
 
 > **Historical.** This document records the state at the end of Phase 1–3 and
 > is kept for its divergence ledger (below), which is maintained. For the
-> current state read [`docs/status-phase6.md`](status-phase6.md) first, then
+> current state read [`docs/status-phase78.md`](status-phase78.md) first, then
+> [`docs/status-phase7.md`](status-phase7.md),
+> [`docs/status-phase6.md`](status-phase6.md),
 > [`docs/status-phase5.md`](status-phase5.md) and
 > [`docs/status-phase4.md`](status-phase4.md).
 
 **Date:** 2026-07-30 · Workspace at the time: 644 tests green, clippy
 `-D warnings` clean, `cargo fmt` clean, wasm release bundle **397 KiB raw /
-175 KiB gzipped** (budget 2 MiB). Current numbers are in `status-phase4.md`.
+175 KiB gzipped** (budget 2 MiB). Current numbers are in `status-phase78.md`.
 
 ## What exists and works
 
@@ -43,6 +45,11 @@ same rules; the full Phase-5 ledger is
 Phase 6 closed none of items 1–12 and **opened two of its own (13–14)**; the
 full Phase-6 ledger is
 [`docs/status-phase6.md`](status-phase6.md#what-phase-6-did-not-deliver).
+Phase 7 closed none and **opened four (15–18)**; the Phase 7–8 robustness pass
+closed none and **opened five (19–23)** — four of them ceilings the Java does
+not have, added because the Java's *caller* has a guard this port has no
+equivalent of. Their full write-up is
+[`docs/status-phase78.md`](status-phase78.md#what-these-phases-did-not-deliver--ranked-honestly).
 
 1. ~~**No symbolic-Jacobian path**~~ **Closed 2026-07-30 (Phase 4)**:
    `differentiator.rs` ports `Differentiator`, `engine.rs` pre-differentiates
@@ -148,8 +155,92 @@ full Phase-6 ledger is
     file) or memoising `substitute_params`. Pinned at depth 16 by
     `component_robustness.rs::parameter_substitution_stays_within_its_measured_exponential`.
 
+### Opened by Phase 7 (2026-07-31)
+
+15. **`complete_display_names` is `putIfAbsent`, not `put`.** Composing
+    `base_display + suffix` for every array element downcased the `A[1,1]`
+    spellings `emit_matrix` registers from a `LINEARIZE` header. Element names
+    are otherwise always absent — the parser registers only an array's base
+    spelling — so every pre-existing fixture is unaffected, confirmed by the
+    390-fixture replay. **Deliberate.**
+16. **No `changeInVariables` in `relaxed_ode_settings`.** The Java clamps
+    `Math.max(base.changeInVariables(), 1e-9)`; this port's Newton has no such
+    knob (its stop rule is the residual only), so only `rel_tolerance` is
+    transcribed. **Open, and invisible to the corpus.**
+17. **The accessor bridge is dropped before the final `solveDynamicSystems`.**
+    The Java reaches there with its thread-local still installed. Re-integrating
+    from scratch against the final values is the safer reading — a cached table
+    from a Newton iterate must not become the published trajectory — and no
+    fixture distinguishes the two. **Deliberate.**
+18. **`ode_tables` absent from a golden means "not a claim", not "no tables".**
+    A pre-Phase-7 golden asserts nothing about trajectories. A Rust engine that
+    *produces* a table where the golden is silent fails with a "re-dump this
+    fixture" message, so absence can never hide a transient. **Deliberate.**
+
+### Opened by the Phase 7–8 robustness pass (2026-07-31)
+
+Four are new ceilings the Java does not have. All four exist because the Java's
+*caller* has a guard this port has no equivalent of — `SolveController` /
+`OptimizeController` clamp their request DTOs before core ever sees them, and
+`OdeProblem` carries a `deadlineNanos` this port cannot check (`ode/problem.rs`,
+*No clock*). Each was chosen as the Java's own upstream number where one exists,
+so no in-range request behaves differently. Each is pinned from both sides by
+`crates/frees-core/tests/dynamics_robustness.rs`.
+
+19. **`ode::problem::MAX_OUTPUT_SAMPLES = 100_000` bounds a `DYNAMIC` block's
+    output rows.** `OdeIntegrator.integrate` sizes `double[sampleCount]` plus a
+    `double[dimension]` per sample straight from the header's `points`, with no
+    ceiling. Measured: `points = 1e9` **aborted the process** —
+    `memory allocation of 8000000000 bytes failed` — before taking one step. On
+    the JVM that is an `OutOfMemoryError` the web layer turns into a 500; under
+    the wasm `panic = "abort"` profile it kills the worker, which no `Result`
+    can catch. The value is `MAX_RANGE_ELEMENTS`, the ceiling the parser already
+    applies to a materialised `PARAMETRIC` sweep. **Deliberate, and strictly
+    safer than the reference**: the largest `points` in the 500-document corpus
+    is 1 201, so the ceiling is 83× what any real model asks for.
+20. **`ode::integrator::MAX_CONSECUTIVE_SET_RESTARTS = 1_000` bounds a
+    non-progressing `set`-event loop.** A `set` whose assigned value re-arms its
+    own crossing turns the time loop into a restart loop that advances `t` by
+    ~0 while spending 60 RHS evaluations per pass bisecting. `MAX_STEPS` does
+    bound it, but only after 10^6 passes: measured, two such documents were
+    still running when killed at a 45 s CPU limit, against 182 s for the
+    stiff-on-explicit case that reaches the same ceiling without bisecting.
+    **The guard is a rate test, not a firing count** — the first cut counted
+    consecutive restarts and wrongly refused a legitimate 500 s sawtooth, whose
+    adaptive step outgrows its 0.1-wide switching period so that *every* step
+    brackets a crossing. What decides it is whether the window advanced time
+    fast enough to finish inside the remaining step budget; the margin between
+    the two cases is ~4×10^3 projected steps against ~9×10^10. **Deliberate.**
+21. **A non-finite time span is refused; the Java silently answers it.**
+    `tf = inf` passes `tf <= t0` (it is greater than any `t0`) and `tf = NaN`
+    passes it too (every NaN comparison is false). `span` and `min_step` then go
+    non-finite, the loop condition is false on the first pass so nothing is
+    integrated, and `integrate` publishes a full-height table anyway. Measured
+    before the screen: **200 rows of `[NaN, inf, inf, …]`, returned as a
+    trajectory** — the only *silent wrong answer* this audit found, and the
+    worst of the three failure modes. Unreachable from a document (the parser's
+    `signedNumber` admits no infinite literal) but `OdeProblem` is public API.
+    **Deliberate.**
+22. **The initial *state* is checked for finiteness, not just the initial
+    derivative.** The Java checks only the derivative. A NaN `y0` with a finite
+    RHS poisons `scale = atol + rtol*|y|`, so every error test and every
+    `h_use < min_step` comparison is false, nothing is ever rejected, and the
+    run burns all 10^6 steps before blaming stiffness. One comparison up front
+    is both faster and true. **Deliberate; strictly a better diagnostic.**
+23. **`montecarlo::run` and `pareto::optimize_multi` no longer pre-allocate on
+    an untrusted count.** `new ArrayList<>(sampleCount)` and the NSGA-II
+    population vector are transcribed faithfully, but the Java's controllers
+    clamp first — `frees.solver.max-mc-samples` defaults to **1000** and
+    `clampPositive(populationSize, 40, 200)` caps the population at **200**.
+    Measured: `samples = 1e9` reserved **56 GB** and aborted the process, before
+    the deadline predicate was consulted once. Both now bound the reservation at
+    the controller's own number. **Deliberate.** *Note this is a symptom of a
+    larger gap, not just a bug: none of `analysis/` is reachable from a document
+    or the wasm boundary yet, so its validation has no upstream owner.*
+
 Full detail: workflow output `wk1ueuu8a` findings list (items 1–12); Phase 6's
-items are recorded in `docs/status-phase6.md`.
+items are recorded in `docs/status-phase6.md`, Phase 7's in
+`docs/status-phase7.md`, and items 19–23 in `docs/status-phase78.md`.
 
 ## Commands
 

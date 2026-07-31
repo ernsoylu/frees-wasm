@@ -1,0 +1,40 @@
+{
+  "name": "av_ev_tangential",
+  "source": "{ The guard touches zero without changing sign (a double root at time = 2).\n  A sign-change detector finds nothing; a minimum-tracking one finds a hit. }\nDYNAMIC touch (method = ode45, time = 0 .. 4, points = 9)\n  der(Yv) = 2*(time - 2)\n  Yv(0) = 4\n  EVENT graze: Yv = 0 -> record\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "time": "time",
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "touch",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 4.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 4.0],
+          [0.5, 2.250000000000001],
+          [1.0, 1.0000000000000018],
+          [1.5, 0.25000000000000216],
+          [2.0, 2.416924728104398E-15],
+          [2.5, 0.25000000000000233],
+          [3.0, 1.0000000000000018],
+          [3.5, 2.250000000000001],
+          [4.0, 3.9999999999999987]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1053,9 +1053,174 @@ mod tests {
         )
         .expect("fit");
         // `TooManyEvaluationsException` is not truncation: the budget was the
-        // point, and the best tracked iterate stands.
+        // point, and the best tracked iterate stands. Six optimizer evaluations
+        // plus the feasibility probe, which Java counts but does not budget.
         assert!(!out.truncated);
         assert_eq!(out.evaluations, 7);
+    }
+
+    // -- end to end, against the reference engine ---------------------------
+
+    /// The reference `ParameterFitTest`'s model, verbatim.
+    const DECAY_MODEL: &str = "k = 0.3\nx0 = 5\nDYNAMIC decay(t = 0 .. 5, points = 120)\nder(x) = -k * x\nx(0) = x0\nEND\n";
+
+    /// The reference test's synthetic measurement: an exponential decay plus a
+    /// deterministic ripple, sampled 60 times over `t` in `[0, 5]`. Note the
+    /// ripple is indexed by *sample number*, not by time — transcribed as-is.
+    fn synthetic_decay(k_true: f64, x0: f64) -> (Vec<f64>, Vec<f64>) {
+        let n = 60;
+        (0..n)
+            .map(|i| {
+                let t = 5.0 * i as f64 / (n - 1) as f64;
+                (t, x0 * (-k_true * t).exp() + 0.01 * (13.0 * i as f64).sin())
+            })
+            .unzip()
+    }
+
+    /// The last `name = <number>` line of the overridden document, or the
+    /// fallback when the document never assigns it.
+    fn assigned(text: &str, name: &str, fallback: f64) -> f64 {
+        let prefix = format!("{name} = ");
+        text.lines()
+            .rev()
+            .find_map(|line| line.trim().strip_prefix(&prefix))
+            .and_then(|rest| rest.trim().parse().ok())
+            .unwrap_or(fallback)
+    }
+
+    /// `DYNAMIC decay(t = 0 .. 5, points = 120)` solved analytically.
+    ///
+    /// Standing in for the transient integrator is honest here rather than
+    /// convenient: the reference engine's own table for this document ends at
+    /// `x(5) = 1.1156508007425125` against the closed form's
+    /// `5·e^-1.5 = 1.1156508007421491` — agreement to 3 parts in 10^13, which is
+    /// far below anything the fit's tolerances can see.
+    fn decay_table(text: &str) -> Vec<OdeTableView> {
+        let k = assigned(text, "k", 0.3);
+        let x0 = assigned(text, "x0", 5.0);
+        vec![OdeTableView {
+            name: "decay".into(),
+            columns: vec!["t".into(), "x".into()],
+            rows: (0..120)
+                .map(|i| {
+                    let t = 5.0 * i as f64 / 119.0;
+                    vec![Some(t), Some(x0 * (-k * t).exp())]
+                })
+                .collect(),
+        }]
+    }
+
+    #[test]
+    fn oracle_one_parameter_calibration_reproduces_the_reference_run() {
+        // `ParameterFit.run(solver, DECAY_MODEL, DEFAULTS, {}, {}, ["k"],
+        //                   [0.3], [0.05], [3.0], "decay", "x", t, v, 120, …)`
+        //   fitted      [0.700091670038771]
+        //   rmse        0.0069698589277249106
+        //   initialRmse 1.2395454095368792
+        //   evaluations 16
+        // The evaluation count is the strong claim: it is decided entirely by
+        // the Brent path, which is transcribed rather than substituted.
+        let (t, v) = synthetic_decay(0.7, 5.0);
+        let parameters = ["k".to_string()];
+        let out = run(
+            &FitRequest {
+                text: DECAY_MODEL,
+                parameters: &parameters,
+                initial: &[0.3],
+                lower: &[0.05],
+                upper: &[3.0],
+                ode_block: "decay",
+                column: "x",
+                measured_t: &t,
+                measured_v: &v,
+                max_evaluations: 120,
+            },
+            |text| Some(decay_table(text)),
+            || false,
+        )
+        .expect("fit");
+
+        assert_eq!(out.evaluations, 16);
+        assert!(!out.truncated);
+        close(out.fitted[0], 0.700091670038771, 1e-6);
+        close(out.rmse, 0.0069698589277249106, 1e-6);
+        close(out.initial_rmse, 1.2395454095368792, 1e-9);
+        assert_eq!(out.fitted_series.t.len(), 60);
+        close(out.fitted_series.v[0], 5.0, 1e-9);
+        close(out.fitted_series.v[59], 0.15091772809465526, 1e-5);
+    }
+
+    #[test]
+    fn oracle_two_parameter_calibration_lands_on_the_reference_optimum() {
+        // Same reference run with ["k", "x0"]:
+        //   fitted      [0.7009254245691521, 4.204854659927836]
+        //   rmse        0.006837653868351035
+        //   initialRmse 1.4391421696594269
+        //   evaluations 39
+        // `evaluations` is deliberately NOT asserted: this is the Nelder-Mead
+        // path standing in for BOBYQA (see the module docs), so the route to the
+        // optimum differs even though the optimum does not.
+        let (t, v) = synthetic_decay(0.7, 4.2);
+        let parameters = ["k".to_string(), "x0".to_string()];
+        let out = run(
+            &FitRequest {
+                text: DECAY_MODEL,
+                parameters: &parameters,
+                initial: &[0.3, 5.0],
+                lower: &[0.05, 1.0],
+                upper: &[3.0, 10.0],
+                ode_block: "decay",
+                column: "x",
+                measured_t: &t,
+                measured_v: &v,
+                max_evaluations: 250,
+            },
+            |text| Some(decay_table(text)),
+            || false,
+        )
+        .expect("fit");
+
+        close(out.initial_rmse, 1.4391421696594269, 1e-9);
+        // The reference test's own acceptance tolerances on the true values.
+        assert!((out.fitted[0] - 0.7).abs() < 0.03, "k = {}", out.fitted[0]);
+        assert!((out.fitted[1] - 4.2).abs() < 0.05, "x0 = {}", out.fitted[1]);
+        // And, more tightly, agreement with the Java's own optimum.
+        close(out.fitted[0], 0.7009254245691521, 1e-3);
+        close(out.fitted[1], 4.204854659927836, 1e-3);
+        assert!(
+            out.rmse <= 0.006837653868351035 * 1.001,
+            "rmse {} must reach the reference optimum",
+            out.rmse
+        );
+    }
+
+    #[test]
+    fn oracle_a_wrong_column_is_an_infeasible_start() {
+        // The reference test `infeasibleStartIsReportedNotReturned`.
+        let (t, v) = synthetic_decay(0.7, 5.0);
+        let parameters = ["k".to_string()];
+        let err = run(
+            &FitRequest {
+                text: DECAY_MODEL,
+                parameters: &parameters,
+                initial: &[0.3],
+                lower: &[0.05],
+                upper: &[3.0],
+                ode_block: "decay",
+                column: "no_such_column",
+                measured_t: &t,
+                measured_v: &v,
+                max_evaluations: 50,
+            },
+            |text| Some(decay_table(text)),
+            || false,
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string_message().contains("initial parameter values"),
+            "{}",
+            err.to_string_message()
+        );
     }
 
     // -- request validation ------------------------------------------------

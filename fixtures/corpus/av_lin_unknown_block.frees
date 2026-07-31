@@ -1,0 +1,12 @@
+{ LINEARIZE naming a DYNAMIC block that does not exist. }
+Q_in = 1000
+HeatSource    HS(Q = Q_in)
+ThermalMass   M(C = 5000, T0 = 300)
+ThermalSource amb(T = 300)
+connect(HS.port, M.port, amb.port)
+DYNAMIC warmup(time = 0 .. 1)
+END
+LINEARIZE plant(block = nosuchblock, a = A, b = B, c = C, d = D)
+  INPUT  Q_in
+  OUTPUT m.port.T
+END

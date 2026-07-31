@@ -1,0 +1,36 @@
+{
+  "name": "av_unc_two_sources_rss",
+  "source": "{ Two independent uncertain inputs combine in root-sum-square. }\na = 4\nb = 3\nUncertaintyOf(a) = 0.2\nUncertaintyOf(b) = 0.5\nz = a + b\nw = a*b\nuz = UncertaintyOf(z)\nuw = UncertaintyOf(w)\n",
+  "expect": {
+    "variables": {
+      "a": 4.0,
+      "b": 3.0,
+      "uncertaintyof$a": 0.2,
+      "uncertaintyof$b": 0.5,
+      "uncertaintyof$uw": 0.0,
+      "uncertaintyof$uz": 0.0,
+      "uncertaintyof$w": 2.08806130178211,
+      "uncertaintyof$z": 0.5385164807134505,
+      "uw": 2.08806130178211,
+      "uz": 0.5385164807134505,
+      "w": 12.0,
+      "z": 7.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "uw": "uw",
+      "uz": "uz",
+      "w": "w",
+      "z": "z"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

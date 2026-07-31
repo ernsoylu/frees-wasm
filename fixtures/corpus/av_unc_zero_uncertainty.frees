@@ -1,0 +1,5 @@
+{ A declared uncertainty of exactly zero. }
+x = 7
+UncertaintyOf(x) = 0
+y = x^3
+uy = UncertaintyOf(y)

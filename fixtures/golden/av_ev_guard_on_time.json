@@ -1,0 +1,43 @@
+{
+  "name": "av_ev_guard_on_time",
+  "source": "{ The guard is on the independent variable itself. }\nDYNAMIC clock (method = ode45, time = 0 .. 10, points = 11)\n  der(Yv) = -0.1*Yv\n  Yv(0) = 50\n  EVENT tick: time = 3.7 | rising -> record\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "time": "time",
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "clock",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 50.0],
+          [1.0, 45.24187090091065],
+          [2.0, 40.936537653096345],
+          [3.0, 37.04091103335964],
+          [4.0, 33.51600230112491],
+          [5.0, 30.32653298503721],
+          [6.0, 27.4405818041635],
+          [7.0, 24.829265189083905],
+          [8.0, 22.466448205420868],
+          [9.0, 20.32848298663169],
+          [10.0, 18.393972058572608]
+        ],
+        "events": [
+          {"name": "tick", "time": 3.7}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

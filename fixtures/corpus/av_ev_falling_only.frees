@@ -1,0 +1,6 @@
+{ Same sinusoid, falling direction only. }
+DYNAMIC wave (method = ode45, time = 0 .. 10, points = 11)
+  der(Yv) = cos(time)
+  Yv(0) = 0
+  EVENT down: Yv = 0.5 | falling -> record
+END

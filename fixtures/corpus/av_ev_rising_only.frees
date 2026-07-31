@@ -1,0 +1,7 @@
+{ A sinusoid crosses 0.5 both ways. `| rising` must record only the upward
+  crossings — the downward ones must not appear. }
+DYNAMIC wave (method = ode45, time = 0 .. 10, points = 11)
+  der(Yv) = cos(time)
+  Yv(0) = 0
+  EVENT up: Yv = 0.5 | rising -> record
+END

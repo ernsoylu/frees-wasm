@@ -1,0 +1,14 @@
+{ An accessor constraint whose only unknown lives inside the DYNAMIC block:
+  `augmentAccessorDependencies` adds `+ 0*v` only for variables the ANALYTIC
+  system already has, so `kk` never becomes one and the document is
+  overspecified. Contrast fixtures/corpus-pending/dyn_accessor_live, where the
+  tie `k = kmin + dk` puts the unknown in the analytic system. }
+Tinf = 20
+Temp0 = 95
+
+FinalValue('Temp') = 60
+
+DYNAMIC cooling (method = ode45, time = 0 .. 1, points = 3)
+  der(Temp) = -kk*(Temp - Tinf)
+  Temp(0) = Temp0
+END

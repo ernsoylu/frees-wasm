@@ -1,0 +1,36 @@
+{
+  "name": "av_lim_rtol_zero",
+  "source": "{ rtol = 0 with a finite atol — the error controller divides by the weight, so\n  a zero relative tolerance is a real edge. }\nDYNAMIC tol0 (method = ode45, time = 0 .. 1, points = 6, rtol = 0, atol = 1e-8)\n  der(Yv) = -Yv\n  Yv(0) = 1\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "tol0",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 1.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 1.0],
+          [0.2, 0.8187307530779865],
+          [0.4, 0.6703200460356473],
+          [0.6, 0.5488116360940359],
+          [0.8, 0.449328964117232],
+          [1.0, 0.36787944117145294]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

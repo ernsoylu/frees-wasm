@@ -1,0 +1,38 @@
+{
+  "name": "av_ev_two_wide_apart",
+  "source": "{ The same two guards, now far enough apart that they cannot share a step:\n  both must fire, in time order. Read against av_ev_two_in_one_step this\n  brackets the one-hit-per-step rule. }\nDYNAMIC ramp (method = ode45, time = 0 .. 10, points = 6)\n  der(Yv) = 1\n  Yv(0) = 0\n  EVENT a: Yv = 3 | rising -> record\n  EVENT b: Yv = 7 | rising -> record\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "ramp",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 0.0],
+          [2.0, 1.9999999999999998],
+          [4.0, 3.9999999999999996],
+          [6.0, 6.000000000000001],
+          [8.0, 8.000000000000002],
+          [10.0, 10.0]
+        ],
+        "events": [
+          {"name": "a", "time": 3.0},
+          {"name": "b", "time": 7.0}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

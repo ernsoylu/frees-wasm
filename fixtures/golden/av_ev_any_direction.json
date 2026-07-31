@@ -1,0 +1,46 @@
+{
+  "name": "av_ev_any_direction",
+  "source": "{ No direction given: defaults to `any`, so both crossings fire and the hit\n  list must interleave them in time order. }\nDYNAMIC wave (method = ode45, time = 0 .. 10, points = 11)\n  der(Yv) = cos(time)\n  Yv(0) = 0\n  EVENT cross: Yv = 0.5 -> record\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "time": "time",
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "wave",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 0.8414708808086516],
+          [2.0, 0.9092973171972031],
+          [3.0, 0.14111999360828775],
+          [4.0, -0.756802401281678],
+          [5.0, -0.9589241585921444],
+          [6.0, -0.2794154667841062],
+          [7.0, 0.6569865166090124],
+          [8.0, 0.9893581264945774],
+          [9.0, 0.41211843755401256],
+          [10.0, -0.5440211108603137]
+        ],
+        "events": [
+          {"name": "cross", "time": 0.5235989244178452},
+          {"name": "cross", "time": 2.617993741671042},
+          {"name": "cross", "time": 6.806784186383105},
+          {"name": "cross", "time": 8.901179112247103}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

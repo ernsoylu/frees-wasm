@@ -58,6 +58,9 @@ const SBX_GENE_GATE: f64 = 0.5;
 const SBX_GENE_EPS: f64 = 1e-14;
 /// Two Pareto points closer than this (relative) are treated as one.
 const DEDUPE_EPS: f64 = 1e-9;
+/// Population ceiling — `OptimizeController.clampPositive(populationSize, 40, 200)`.
+/// See [`optimize_multi`] for why the port enforces it here rather than upstream.
+const MAX_POPULATION: usize = 200;
 
 // ---------------------------------------------------------------------------
 // Problem / result records
@@ -167,7 +170,15 @@ impl Individual {
 /// full violation, so an infeasible corner of the box simply loses.
 pub fn optimize_multi(p: &Problem) -> Result<ParetoResult> {
     let n = p.decisions.len();
-    let pop_size = p.population_size.max(8);
+    // `Math.max(8, populationSize)` in the Java, plus the ceiling its caller
+    // applies. `OptimizeController` clamps the request to `[1, 200]` before
+    // constructing the problem; this port has no controller and `optimize_multi`
+    // is a public entry point, so a `population_size` of `usize::MAX` would
+    // reserve `MAX * size_of::<Individual>()` and abort the process — the same
+    // defect `montecarlo::run` had with its sample count, and unrecoverable for
+    // the same reason (`panic = "abort"` on wasm32). The ceiling is the
+    // controller's own, so no in-range request behaves differently.
+    let pop_size = p.population_size.clamp(8, MAX_POPULATION);
     let mut rng = JavaRandom::new(p.seed);
     let mut evaluations = 0usize;
     let constraints = parse_constraints(&p.constraints)?;

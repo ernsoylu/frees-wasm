@@ -1,0 +1,18 @@
+{
+  "name": "dyn_accessor_inverse",
+  "source": "{ The live accessor: the analytic solver sizes an ODE input (the cooling\n  coefficient k) so the transient hits a target. This is the second-solve pass. }\nTinf = 20\nTemp0 = 95\n\nFinalValue('Temp') = 30\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 21)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = Temp0\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 3 equations and 2 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): FinalValue('Temp')=30. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

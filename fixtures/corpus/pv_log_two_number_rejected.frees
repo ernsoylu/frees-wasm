@@ -1,0 +1,4 @@
+{ Log needs the three-number form. }
+PARAMETRIC bad (t)
+  t = 1:100 | Log
+END

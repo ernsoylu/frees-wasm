@@ -1,0 +1,14 @@
+{ LINEARIZE with no matrix names in the header — the defaults A/B/C/D. }
+Q_in = 1000
+HeatSource    HS(Q = Q_in)
+ThermalMass   M(C = 5000, T0 = 300)
+Conduction    wall(k = 2, area = 1, L = 0.1)
+ThermalSource amb(T = 300)
+connect(HS.port, M.port, wall.a)
+connect(wall.b, amb.port)
+DYNAMIC warmup(time = 0 .. 1)
+END
+LINEARIZE plant(block = warmup)
+  INPUT  Q_in
+  OUTPUT m.port.T
+END

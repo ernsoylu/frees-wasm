@@ -1,0 +1,30 @@
+{
+  "name": "av_unc_expression_spec",
+  "source": "{ The uncertainty is itself an expression over solved variables — a 2 % relative\n  spec, which only resolves once the value is known. }\np = 250000\nUncertaintyOf(p) = 0.02*p\nrho = p/(287*T)\nT = 300\nurho = UncertaintyOf(rho)\n",
+  "expect": {
+    "variables": {
+      "T": 300.0,
+      "p": 250000.0,
+      "rho": 2.9036004645760745,
+      "uncertaintyof$p": 5000.0,
+      "uncertaintyof$rho": 0.05807200929152149,
+      "uncertaintyof$t": 9.670932236129174E-18,
+      "uncertaintyof$urho": 0.0,
+      "urho": 0.05807200929152149
+    },
+    "display_names": {
+      "p": "p",
+      "rho": "rho",
+      "t": "T",
+      "urho": "urho"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

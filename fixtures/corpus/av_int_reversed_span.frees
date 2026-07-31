@@ -1,0 +1,5 @@
+{ tf < t0 — backwards integration, or a rejection. Both engines must agree. }
+DYNAMIC backwards (method = ode45, time = 5 .. 0, points = 6)
+  der(Yv) = -Yv
+  Yv(0) = 1
+END

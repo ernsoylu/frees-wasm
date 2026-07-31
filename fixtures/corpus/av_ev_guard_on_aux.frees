@@ -1,0 +1,9 @@
+{ The guard reads an algebraic auxiliary, not a state. }
+k = 0.05
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 7)
+  der(Temp) = -Qdot
+  Qdot = k*(Temp - 20)
+  Temp(0) = 95
+  EVENT weak: Qdot = 1.5 | falling -> record
+END

@@ -1,0 +1,9 @@
+{ Two independent uncertain inputs combine in root-sum-square. }
+a = 4
+b = 3
+UncertaintyOf(a) = 0.2
+UncertaintyOf(b) = 0.5
+z = a + b
+w = a*b
+uz = UncertaintyOf(z)
+uw = UncertaintyOf(w)

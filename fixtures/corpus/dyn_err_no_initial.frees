@@ -1,0 +1,3 @@
+DYNAMIC noinit (method = ode45, time = 0 .. 10, points = 3)
+  der(Level) = 1
+END

@@ -1,0 +1,22 @@
+{
+  "name": "av_unc_no_query",
+  "source": "{ An uncertainty declared but never queried: the second pass must NOT run, so\n  no uncertaintyof$ rows appear in the result at all. }\nx = 3\nUncertaintyOf(x) = 0.1\ny = x^2\n",
+  "expect": {
+    "variables": {
+      "x": 3.0,
+      "y": 9.0
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

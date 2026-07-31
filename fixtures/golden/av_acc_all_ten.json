@@ -1,0 +1,67 @@
+{
+  "name": "av_acc_all_ten",
+  "source": "{ Every ODE accessor read off one solved table. ODEStdDev is population, not\n  sample; ODESum has no time weighting; both are pinned here. }\nk = 0.05\nTinf = 20\n\nVfinal = FinalValue('Temp')\nVmax   = MaxValue('Temp')\nVmin   = MinValue('Temp')\nVomax  = ODEMax('Temp')\nVomin  = ODEMin('Temp')\nVavg   = ODEAvg('Temp')\nVsum   = ODESum('Temp')\nVstd   = ODEStdDev('Temp')\nVat    = ODEValue('Temp', 17.5)\nVtime  = TimeAt('Temp', 50)\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 13)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Tinf": 20.0,
+      "Vat": 51.509224727395946,
+      "Vavg": 45.07031212924427,
+      "Vfinal": 23.734030127668667,
+      "Vmax": 95.0,
+      "Vmin": 23.734030127668667,
+      "Vomax": 95.0,
+      "Vomin": 23.734030127668667,
+      "Vstd": 21.668204311136748,
+      "Vsum": 585.9140576801756,
+      "Vtime": 18.46294155307079,
+      "k": 0.05
+    },
+    "display_names": {
+      "k": "k",
+      "temp": "Temp",
+      "tinf": "Tinf",
+      "vat": "Vat",
+      "vavg": "Vavg",
+      "vfinal": "Vfinal",
+      "vmax": "Vmax",
+      "vmin": "Vmin",
+      "vomax": "Vomax",
+      "vomin": "Vomin",
+      "vstd": "Vstd",
+      "vsum": "Vsum",
+      "vtime": "Vtime"
+    },
+    "block_count": 12,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [5.0, 78.41005860853919],
+          [10.0, 65.48979945910143],
+          [15.0, 55.42749142432856],
+          [20.0, 47.59095803046333],
+          [25.0, 41.487859755490334],
+          [30.0, 36.734761996461124],
+          [35.0, 33.03304573174144],
+          [40.0, 30.15014623853744],
+          [45.0, 27.904941835251808],
+          [50.0, 26.15637488405151],
+          [55.0, 24.794589588540664],
+          [60.0, 23.734030127668667]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

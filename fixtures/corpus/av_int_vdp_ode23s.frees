@@ -1,0 +1,9 @@
+{ Same Van der Pol problem through the Rosenbrock (2,3) pair. }
+mu = 1
+
+DYNAMIC vdp (method = ode23s, time = 0 .. 20, points = 201)
+  der(Yp) = Yv
+  der(Yv) = mu*(1 - Yp*Yp)*Yv - Yp
+  Yp(0) = 2
+  Yv(0) = 0
+END

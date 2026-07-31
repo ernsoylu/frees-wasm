@@ -343,7 +343,7 @@ fn execute_one(statement: &ProcStatement, locals: &mut Scope, defs: &Definitions
 /// all dispatch lives in `Evaluator.evalCall`.
 fn eval_proc_expr(expr: &Expr, locals: &Scope, defs: &Definitions) -> Result<f64> {
     let resolved = resolve_user_calls(expr, locals, defs)?;
-    eval_with(&resolved, locals, EvalContext { defs: Some(defs) })
+    eval_with(&resolved, locals, EvalContext::with_defs(defs))
 }
 
 /// Rewrite `expr` with every user-`FUNCTION` call in a strict (eagerly

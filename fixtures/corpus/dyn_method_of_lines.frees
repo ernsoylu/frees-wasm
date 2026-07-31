@@ -1,0 +1,12 @@
+{ Method of lines: der(T[i]) array states expanded by the FOR machinery. A
+  three-node bar with a fixed hot end, explicit conduction between nodes. }
+N = 3
+alpha = 0.01
+
+DYNAMIC bar (method = ode45, time = 0 .. 50, points = 6)
+  FOR i = 1 TO N
+    der(Node[i]) = alpha*(Hot - Node[i])
+  END
+  Node[1:3](0) = 20
+END
+Hot = 100

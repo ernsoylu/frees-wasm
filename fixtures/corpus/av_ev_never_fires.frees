@@ -1,0 +1,6 @@
+{ A guard that never crosses: no hits, not stopped, full span. }
+DYNAMIC decay (method = ode45, time = 0 .. 10, points = 11)
+  der(Yv) = -Yv
+  Yv(0) = 1
+  EVENT impossible: Yv = -5 -> stop
+END

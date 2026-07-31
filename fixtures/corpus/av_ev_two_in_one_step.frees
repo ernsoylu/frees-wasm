@@ -1,0 +1,10 @@
+{ Two guards that cross 2 ms apart, well inside one adaptive step of a smooth
+  linear ramp. `earliestEvent` returns ONE hit per step and a `record` action
+  accepts the whole step, so the later crossing is swallowed — that is the
+  behaviour under test, in both engines. }
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 6)
+  der(Yv) = 1
+  Yv(0) = 0
+  EVENT a: Yv = 5 | rising -> record
+  EVENT b: Yv = 5.002 | rising -> record
+END

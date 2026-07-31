@@ -1,0 +1,18 @@
+{
+  "name": "pv_linear_wrong_way",
+  "source": "PARAMETRIC bad (t)\n  t = 5:1:0\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Range step points the wrong way in t = 5.0:1.0:0.0."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

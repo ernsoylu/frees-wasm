@@ -30,10 +30,17 @@
 //!
 //! # Verified against the oracle
 //!
-//! `fixtures/corpus/linearize-*.frees` are solved by the real Java engine and
-//! the emitted `A[i,j]` values are the goldens the tests below replay. The
-//! second one is a two-state / two-input / two-output chain, so every matrix
-//! shape is exercised rather than just the SISO diagonal.
+//! `fixtures/corpus-pending/corpus/linearize-thermal-{siso,2x2}.frees` are
+//! solved by the real Java engine (`tools/golden-dumper/run.sh`) and the
+//! `A[i,j]` values it emits are the goldens the tests below replay. The 2x2 one
+//! is a two-state / two-input / two-output chain, so every matrix shape is
+//! exercised rather than just the SISO diagonal.
+//!
+//! They are **staged**, not promoted: the Rust front end has no `DYNAMIC` /
+//! `LINEARIZE` grammar yet, so replaying them end-to-end is not yet possible and
+//! `tests/parity.rs` must not see them. The tests below therefore drive this
+//! module's API with the same plant written out by hand, which grades the
+//! numerics but not the parsing. Promote both documents once the grammar lands.
 
 use crate::ast::{Equation, Expr};
 use crate::diag::{FreesError, Result};
@@ -346,7 +353,7 @@ mod tests {
     // ── the oracle ──────────────────────────────────────────────────────────
     //
     // From the real Java engine (tools/golden-dumper over the two documents in
-    // fixtures/corpus/linearize-*.frees). The physical plant:
+    // fixtures/corpus-pending/corpus/linearize-thermal-*.frees). The plant:
     //
     //   HeatSource Q_in ─ ThermalMass M1(C=5000) ─ Conduction w12(k·A/L = 20)
     //                   ─ ThermalMass M2(C=8000) ─ Conduction w2a(k·A/L = 7.5)

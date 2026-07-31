@@ -1,0 +1,11 @@
+{ The set target is an expression in the current state, not a literal — a
+  partially elastic bounce, which restarts integration 11 times. }
+g = 9.80665
+
+DYNAMIC bounce (method = ode45, time = 0 .. 6, points = 61)
+  der(Height) = Vel
+  der(Vel) = -g
+  Height(0) = 5
+  Vel(0) = 0
+  EVENT hit: Height = 0 | falling -> set Vel = -0.7*Vel
+END

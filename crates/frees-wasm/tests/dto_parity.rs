@@ -121,6 +121,47 @@ fn assert_solve_envelope(v: &Value) {
         assert_key(s, "variables", Value::is_array);
         assert_key(s, "maxResidual", Value::is_f64);
     }
+    // `OdeTableDto[]`: present on every success envelope (empty for a document
+    // with no `DYNAMIC` block), absent from a failure envelope — `mapSolveData`
+    // defaults it to `[]` there. Field names are the DTO's, not core's:
+    // `vars`/`endTime`, and `rows` cells are `number | null` because a
+    // non-finite sample has no JSON literal.
+    if v["success"] == true {
+        assert_key(v, "odeTables", Value::is_array);
+        for table in v["odeTables"].as_array().unwrap() {
+            assert_key(table, "name", Value::is_string);
+            assert_key(table, "method", Value::is_string);
+            assert_key(table, "stopped", Value::is_boolean);
+            assert_key(table, "endTime", Value::is_f64);
+            assert_key(table, "vars", |e| {
+                e.as_array().is_some_and(|a| a.iter().all(Value::is_string))
+            });
+            assert_key(table, "units", |e| {
+                e.as_array().is_some_and(|a| a.iter().all(Value::is_string))
+            });
+            let columns = table["vars"].as_array().unwrap().len();
+            assert_eq!(
+                table["units"].as_array().unwrap().len(),
+                columns,
+                "units must be aligned to vars: {table}"
+            );
+            for row in table["rows"].as_array().unwrap() {
+                let cells = row.as_array().expect("an ODE row is an array");
+                assert_eq!(cells.len(), columns, "row width must match vars: {table}");
+                for cell in cells {
+                    assert!(
+                        cell.is_f64() || cell.is_null(),
+                        "ODE cell must be number|null: {cell}"
+                    );
+                }
+            }
+            for hit in table["events"].as_array().unwrap() {
+                assert_key(hit, "name", Value::is_string);
+                assert_key(hit, "time", Value::is_f64);
+            }
+        }
+    }
+
     if let Some(stats) = v["stats"].as_object() {
         for key in [
             "equations",
@@ -193,6 +234,76 @@ fn checked(source: &str) -> Value {
 // ─────────────────────────────────────────────────────────────────────────────
 // The exact request bodies api.ts sends today
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// A solved `DYNAMIC` block reaches the frontend as an `OdeTableDto`, and it is
+/// the **only** place its answer appears: `variables` holds the analytic
+/// parameters and nothing else, so a Tables/Plots window fed from `variables`
+/// alone would show an empty transient.
+///
+/// The values are the Java oracle's (`fixtures/golden/dyn_plain_ode.json`).
+#[test]
+fn a_solved_dynamic_block_reaches_the_frontend_as_an_ode_table() {
+    let v = solved(
+        "k = 0.05\nTinf = 20\n\n\
+         DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 4)\n  \
+         der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+    );
+    assert_eq!(v["success"], true, "{v}");
+
+    let names: Vec<&str> = v["variables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["k", "Tinf"], "a state is not a result variable");
+
+    let tables = v["odeTables"].as_array().unwrap();
+    assert_eq!(tables.len(), 1, "{v}");
+    let table = &tables[0];
+    assert_eq!(table["name"], "cooling");
+    assert_eq!(table["method"], "ode45");
+    assert_eq!(table["stopped"], false);
+    assert_eq!(table["endTime"], 60.0);
+    assert_eq!(table["vars"], serde_json::json!(["time", "temp"]));
+    assert!(table["events"].as_array().unwrap().is_empty());
+
+    let rows = table["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 4);
+    for (row, want) in rows.iter().zip([
+        [0.0, 95.0],
+        [20.0, 47.59095803046333],
+        [40.0, 30.15014623853744],
+        [60.0, 23.734030127668667],
+    ]) {
+        for (cell, want) in row.as_array().unwrap().iter().zip(want) {
+            let got = cell.as_f64().expect("a finite sample is a JSON number");
+            assert!(
+                (got - want).abs() <= 1e-9 * want.abs().max(got.abs()),
+                "{got} vs {want}"
+            );
+        }
+    }
+}
+
+/// A stop event rides out on the table: `stopped` flips, `endTime` is the
+/// crossing rather than the header's `tf`, and the hit keeps the event's
+/// **source case** (`AstBuilder.buildDynamicEvent` reads `IDENT(0)` raw).
+#[test]
+fn a_stop_event_is_reported_on_the_ode_table_dto() {
+    let v = solved(
+        "DYNAMIC fall (time = 0 .. 100, points = 5)\n  \
+         der(H) = -1\n  H(0) = 10\n  EVENT Landed: H = 0 | falling -> stop\nEND\n",
+    );
+    let table = &v["odeTables"].as_array().unwrap()[0];
+    assert_eq!(table["stopped"], true, "{table}");
+    let end = table["endTime"].as_f64().unwrap();
+    assert!((end - 10.0).abs() < 1e-6, "stopped at {end}, want 10");
+    let hits = table["events"].as_array().unwrap();
+    assert_eq!(hits.len(), 1, "{table}");
+    assert_eq!(hits[0]["name"], "Landed", "the source case survives");
+    assert!((hits[0]["time"].as_f64().unwrap() - 10.0).abs() < 1e-6);
+}
 
 /// `solve()` in api.ts serializes this full body (minus `text`). Unknown
 /// fields must be ignored, not rejected — the frontend keeps sending the
@@ -504,4 +615,18 @@ fn blank_requests_mean_defaults() {
         assert_solve_envelope(&v);
         assert_eq!(v["success"], true, "request {request:?}: {v}");
     }
+}
+
+/// Prints the boundary payload used as the `SOLVE_WITH_ODE_TABLE` fixture in
+/// `web/src/api.wasm.test.ts`. Run with `--ignored --nocapture` to regenerate.
+#[test]
+#[ignore = "generator, not an assertion"]
+fn print_the_ode_table_payload_for_the_web_fixture() {
+    println!(
+        "{}",
+        solve(
+            "k = 0.05\nTinf = 20\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 4)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+            "{}"
+        )
+    );
 }

@@ -1,0 +1,12 @@
+{ An electrical RC: the storage component is a Capacitor, so this checks the
+  storage -> DYNAMIC routing is domain-agnostic rather than heat-specific. }
+VoltageSource SRC(E = 12)
+Resistor      R1(R = 100)
+Capacitor     C1(C = 0.001, V0 = 0)
+Ground        GND()
+connect(SRC.p, R1.a)
+connect(R1.b, C1.p)
+connect(C1.n, SRC.n, GND.port)
+
+DYNAMIC charge (method = ode45, time = 0 .. 0.5, points = 26)
+END

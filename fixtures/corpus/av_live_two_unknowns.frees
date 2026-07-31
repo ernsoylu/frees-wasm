@@ -1,0 +1,12 @@
+{ Two live accessor constraints, two unknowns: a 2x2 Newton block whose every
+  residual evaluation costs a full integration. }
+kk = 0.01 + dk
+Tsink = 10 + ds
+
+FinalValue('Temp') = 55
+ODEValue('Temp', 0.5) = 70
+
+DYNAMIC cooling (method = ode45, time = 0 .. 1, points = 3)
+  der(Temp) = -kk*(Temp - Tsink)
+  Temp(0) = 100
+END

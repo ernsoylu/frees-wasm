@@ -1,0 +1,9 @@
+{ A stop event: integration ends at the falling crossing of Temp = 50. }
+k = 0.05
+Tinf = 20
+
+DYNAMIC coolstop (method = ode45, time = 0 .. 60, points = 7)
+  der(Temp) = -k*(Temp - Tinf)
+  Temp(0) = 95
+  EVENT cold: Temp = 50 | falling -> stop
+END

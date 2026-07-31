@@ -438,12 +438,46 @@ impl<'a> DynamicAccessorContext<'a> {
     }
 }
 
+/// The one thing the evaluator needs from the live bridge, as an object-safe
+/// trait.
+///
+/// [`crate::eval::EvalContext`] stores `&dyn OdeTableAccessors` rather than
+/// `&DynamicAccessorContext<'a>` because the concrete type is *invariant* in its
+/// lifetime (it holds `RefCell`s over `'a` data), which would infect
+/// `EvalContext<'a>` and stop it shortening at a call site. Erasing here keeps
+/// `EvalContext` covariant and keeps `eval.rs` free of any dependency on how the
+/// bridge is built.
+pub trait OdeTableAccessors {
+    /// Resolve one accessor call against the block owning `column`.
+    fn resolve_accessor(
+        &self,
+        function: &str,
+        column: &str,
+        arg: Option<f64>,
+        values: &Scope,
+    ) -> Result<f64>;
+}
+
+impl OdeTableAccessors for DynamicAccessorContext<'_> {
+    fn resolve_accessor(
+        &self,
+        function: &str,
+        column: &str,
+        arg: Option<f64>,
+        values: &Scope,
+    ) -> Result<f64> {
+        self.resolve(function, column, arg, values)
+    }
+}
+
 /// [`DynamicAccessorContext::resolve`] with the Java's null-context behaviour:
 /// no context installed means `0.0`, never an error.
 ///
-/// Port of the static `DynamicAccessorContext.resolve`.
+/// Port of the static `DynamicAccessorContext.resolve`. This *is* the arm the
+/// evaluator takes for every accessor call, which is why a document with no
+/// `DYNAMIC` block gets `0.0` instead of a diagnostic.
 pub fn resolve(
-    ctx: Option<&DynamicAccessorContext<'_>>,
+    ctx: Option<&dyn OdeTableAccessors>,
     function: &str,
     column: &str,
     arg: Option<f64>,
@@ -451,7 +485,7 @@ pub fn resolve(
 ) -> Result<f64> {
     match ctx {
         None => Ok(0.0),
-        Some(ctx) => ctx.resolve(function, column, arg, values),
+        Some(ctx) => ctx.resolve_accessor(function, column, arg, values),
     }
 }
 

@@ -1,0 +1,18 @@
+{
+  "name": "av_int_zero_span",
+  "source": "{ Degenerate span t0 == tf. }\nDYNAMIC flat (method = ode45, time = 3 .. 3, points = 5)\n  der(Yv) = -Yv\n  Yv(0) = 7\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "DYNAMIC: the time span must satisfy t0 < tf (got 3.0 .. 3.0)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,18 @@
+{ OUTPUT names the state itself, so C should be the identity row. }
+Q_in = 1000
+HeatSource    HS(Q = Q_in)
+ThermalMass   M(C = 5000, T0 = 300)
+Conduction    wall(k = 2, area = 1, L = 0.1)
+ThermalSource amb(T = 300)
+connect(HS.port, M.port, wall.a)
+connect(wall.b, amb.port)
+DYNAMIC warmup(time = 0 .. 1)
+END
+LINEARIZE plant(block = warmup, a = A, b = B, c = C, d = D)
+  INPUT  Q_in
+  OUTPUT m.port.T
+END
+c11 = C[1,1]
+d11 = D[1,1]
+a11 = A[1,1]
+b11 = B[1,1]

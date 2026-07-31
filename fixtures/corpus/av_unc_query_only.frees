@@ -1,0 +1,5 @@
+{ A query with no declaration anywhere: everything is 0 and the second pass
+  still runs (mentionsUncertaintyOf is true). }
+x = 3
+y = x^2
+uy = UncertaintyOf(y)

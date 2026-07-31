@@ -1,0 +1,5 @@
+{ The rhs goes NaN once the state crosses zero (sqrt of a negative). }
+DYNAMIC nanny (method = ode45, time = 0 .. 4, points = 9)
+  der(Yv) = -sqrt(Yv)
+  Yv(0) = 1
+END

@@ -1,0 +1,8 @@
+{ Accessors in a document with NO DYNAMIC block: the Java's null-context
+  defaults, not an error. }
+a = FinalValue('Anything')
+b = MaxValue('Anything')
+c = ODEAvg('Anything')
+d = TableRun#
+e = NParametricRuns
+f = TableValue('x', 1)

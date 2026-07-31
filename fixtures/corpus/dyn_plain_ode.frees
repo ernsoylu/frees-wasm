@@ -1,0 +1,9 @@
+{ Newton cooling: the plain-ODE reference. States are named Temp and the
+  header's independent variable is `time`, so `T`/`t` cannot collide. }
+k = 0.05
+Tinf = 20
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 4)
+  der(Temp) = -k*(Temp - Tinf)
+  Temp(0) = 95
+END

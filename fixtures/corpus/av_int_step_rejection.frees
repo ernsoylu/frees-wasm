@@ -1,0 +1,8 @@
+{ A narrow Gaussian pulse in the rhs at time = 1. An adaptive controller that
+  walks in with a large step MUST reject and retry; the rejection policy
+  (factor, min/max clamp, whether the rejected step is counted) is what this
+  document compares. }
+DYNAMIC pulse (method = ode45, time = 0 .. 2, points = 41)
+  der(Yv) = 200*exp(-20000*(time - 1)^2) - 0.5*Yv
+  Yv(0) = 0
+END

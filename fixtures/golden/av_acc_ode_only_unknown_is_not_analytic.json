@@ -1,0 +1,18 @@
+{
+  "name": "av_acc_ode_only_unknown_is_not_analytic",
+  "source": "{ An accessor constraint whose only unknown lives inside the DYNAMIC block:\n  `augmentAccessorDependencies` adds `+ 0*v` only for variables the ANALYTIC\n  system already has, so `kk` never becomes one and the document is\n  overspecified. Contrast fixtures/corpus-pending/dyn_accessor_live, where the\n  tie `k = kmin + dk` puts the unknown in the analytic system. }\nTinf = 20\nTemp0 = 95\n\nFinalValue('Temp') = 60\n\nDYNAMIC cooling (method = ode45, time = 0 .. 1, points = 3)\n  der(Temp) = -kk*(Temp - Tinf)\n  Temp(0) = Temp0\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 3 equations and 2 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): FinalValue('Temp')=60. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

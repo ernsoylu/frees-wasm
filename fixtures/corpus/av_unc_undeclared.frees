@@ -1,0 +1,6 @@
+{ UncertaintyOf on a variable nobody declared an uncertainty for. }
+x = 7
+y = x^3
+uy = UncertaintyOf(y)
+ux = UncertaintyOf(x)
+uz = UncertaintyOf('nosuchvar')

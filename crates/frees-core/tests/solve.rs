@@ -515,38 +515,173 @@ fn a_component_network_solves_through_the_ordinary_pipeline() {
     assert!(texts.iter().any(|t| t.starts_with("CONNECT ")), "{texts:?}");
 }
 
+/// A malformed `DYNAMIC` header is still a *parse* error anchored at the block —
+/// the refusal list is empty now, but a block whose grammar does not check out
+/// must still name its own line.
 #[test]
-fn an_unported_block_form_is_source_mapped() {
-    let source = "x = 1\nDYNAMIC d(method = ode45)\n  der = 1\nEND\n";
+fn a_malformed_dynamic_header_is_source_mapped() {
+    let source = "x = 1\nDYNAMIC d(method = ode45)\n  der(y) = 1\nEND\n";
     let err = failed(source);
-    let span = err.span().expect("a refused block form carries a span");
+    assert!(matches!(err, FreesError::Parse { .. }), "{err:?}");
+    assert!(
+        message(&err).contains("missing required time span"),
+        "{}",
+        message(&err)
+    );
+    let span = err.span().expect("a refused header carries a span");
     assert_eq!(span.line_col(source), (2, 1));
 }
 
+/// Every block form the grammar admits now reaches the engine. `DYNAMIC`
+/// integrates and publishes an ODE Table; `LINEARIZE` injects `A`/`B`/`C`/`D`
+/// equations. Neither is a refusal any more — what is still refused is a
+/// `LINEARIZE` naming a block that does not exist, and that is a *solver*
+/// error, not a parse one.
 #[test]
-fn every_unported_block_form_is_refused_by_its_own_name() {
-    // FUNCTION/PROCEDURE/MODULE/TABLE parse into `Document::defs` since the
-    // Phase-4 procedural pass and are no longer refused here; COMPONENT parses
-    // into `Document::components` and *expands* since Phase 6, so it is not a
-    // refusal of any kind — see
-    // `a_component_layer_answers_like_the_reference_engine`; PARAMETRIC / PLOT
-    // / STATE TABLE parse into `Document::blocks` since Phase 8 — see
-    // `a_declarative_block_neither_solves_nor_blocks_a_solve`.
-    for (source, construct) in [
-        ("DYNAMIC d(method = ode45)\n  der = 1\nEND\n", "DYNAMIC"),
-        ("LINEARIZE plant(block = w)\n  INPUT q\nEND\n", "LINEARIZE"),
-    ] {
-        let err = failed(source);
-        assert!(
-            matches!(err, FreesError::Parse { .. }),
-            "{construct}: {err:?}"
-        );
-        assert!(
-            message(&err).contains(construct),
-            "{construct} not named in: {}",
-            message(&err)
-        );
+fn a_linearize_block_naming_no_dynamic_block_is_refused_by_name() {
+    let err = failed("LINEARIZE plant(block = w)\n  INPUT q\nEND\n");
+    assert!(matches!(err, FreesError::Solver { .. }), "{err:?}");
+    let message = message(&err);
+    assert!(message.contains("LINEARIZE plant"), "{message}");
+    assert!(message.contains("no DYNAMIC block named 'w'"), "{message}");
+}
+
+/// The end-to-end transient path, against the value the Java oracle produced for
+/// this exact document (`fixtures/golden/dyn_plain_ode.json`).
+///
+/// This is the *shape* assertion the parity replay cannot make on its own: a
+/// solved `DYNAMIC` block puts **nothing** in `values` — the trajectory is a
+/// first-class table — so `values` here is `{k, Tinf}` and the answer lives in
+/// `ode_tables[0]`.
+#[test]
+fn a_dynamic_block_publishes_an_ode_table_and_no_variables() {
+    let solution = solved(
+        "k = 0.05\nTinf = 20\n\n\
+         DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 4)\n  \
+         der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+    );
+    assert_eq!(keys(&solution.values), vec!["k", "tinf"]);
+    assert_eq!(solution.ode_tables.len(), 1);
+
+    let table = &solution.ode_tables[0];
+    assert_eq!(table.name, "cooling");
+    assert_eq!(table.method, "ode45");
+    assert_eq!(table.columns, vec!["time", "temp"]);
+    assert_eq!(table.end_time, 60.0);
+    assert!(!table.stopped);
+    assert!(table.events.is_empty());
+    // The Java oracle's own rows, transcribed from the golden.
+    let oracle = [
+        [0.0, 95.0],
+        [20.0, 47.59095803046333],
+        [40.0, 30.15014623853744],
+        [60.0, 23.734030127668667],
+    ];
+    assert_eq!(table.rows.len(), oracle.len());
+    for (row, want) in table.rows.iter().zip(oracle) {
+        for (&got, want) in row.iter().zip(want) {
+            assert!(
+                (got - want).abs() <= 1e-9 * want.abs().max(got.abs()),
+                "{got} vs oracle {want}"
+            );
+        }
     }
+}
+
+/// A document whose *only* content is a `DYNAMIC` block has no analytic
+/// equations at all — the Java's ODE-only shortcut, which returns before the
+/// blocker (an empty system would otherwise be rejected as unsolvable).
+#[test]
+fn a_document_that_is_only_a_dynamic_block_solves_through_the_ode_only_path() {
+    let solution =
+        solved("DYNAMIC free (time = 0 .. 1, points = 3)\n  der(x) = 2\n  x(0) = 0\nEND\n");
+    assert!(solution.values.is_empty());
+    assert!(solution.blocks.is_empty());
+    assert_eq!(solution.ode_tables.len(), 1);
+    let rows = &solution.ode_tables[0].rows;
+    assert_eq!(rows.len(), 3);
+    // ẋ = 2 from 0 — the exact answer, so the integrator has nowhere to hide.
+    for row in rows {
+        assert!((row[1] - 2.0 * row[0]).abs() < 1e-9, "{row:?}");
+    }
+
+    // `check` takes the same shortcut and reports the block's own balance
+    // rather than running the blocker over an empty system.
+    let report = frees_core::check(
+        "DYNAMIC free (time = 0 .. 1, points = 3)\n  der(x) = 2\n  x(0) = 0\nEND\n",
+    )
+    .expect("check succeeds");
+    assert!(report.solvable);
+    assert_eq!(report.equation_count, 2);
+    assert_eq!(report.unknown_count, 2);
+    assert!(
+        report.message.contains("DYNAMIC system with 2 equation(s)"),
+        "{}",
+        report.message
+    );
+}
+
+/// The **steady ↔ transient duality** (§8.2), which is the invariant tying the
+/// Phase-6 component layer to this phase: the *same* storage network solves its
+/// steady operating point with no `DYNAMIC` block, and integrates under one.
+/// Letting the transient run long enough must recover the steady answer.
+#[test]
+fn the_steady_limit_of_a_storage_network_recovers_the_phase_one_operating_point() {
+    // A thermal mass driven by a fixed heat input through a conduction path to
+    // ambient. At steady state the mass stops changing, so Q_in = (T - T_amb)/R
+    // and T settles at T_amb + Q_in·R = 300 + 1000·(0.1 / (2·1)) = 350 K.
+    const NETWORK: &str = "COMPONENT HeatSource(port)\n  PARAM Q\n  port.Qdot = -Q\nEND\n\
+         Q_in = 1000\n\
+         HeatSource    HS(Q=Q_in)\n\
+         ThermalMass   M(C=5000, T0=300)\n\
+         Conduction    wall(k=2, area=1, L=0.1)\n\
+         ThermalSource amb(T=300)\n\
+         connect(HS.port, M.port, wall.a)\n\
+         connect(wall.b, amb.port)\n";
+
+    // Phase 1: no DYNAMIC block → `steadyStorageEquations` turns every
+    // `der(X) = rhs` into `rhs = 0` and the state is an ordinary unknown.
+    let steady = solved(NETWORK);
+    let operating_point = get(&steady, "m$port$t");
+    assert!(
+        (operating_point - 350.0).abs() < 1e-6,
+        "steady operating point {operating_point}"
+    );
+    assert!(
+        steady.ode_tables.is_empty(),
+        "no DYNAMIC block means no ODE table"
+    );
+    assert!(
+        steady
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("solved for its steady operating point")),
+        "the steady rewrite is reported: {:?}",
+        steady.diagnostics
+    );
+
+    // Phase 7: the *same* network under a DYNAMIC block long enough to settle.
+    // Time constant is R·C = 0.05 · 5000 = 250 s, so 4000 s is 16 τ.
+    let transient = solved(&format!(
+        "{NETWORK}DYNAMIC warmup(time = 0 .. 4000, points = 5)\nEND\n"
+    ));
+    assert_eq!(transient.ode_tables.len(), 1);
+    let table = &transient.ode_tables[0];
+    let column = table
+        .columns
+        .iter()
+        .position(|c| c == "m$port$t")
+        .unwrap_or_else(|| panic!("no state column in {:?}", table.columns));
+    let start = table.rows[0][column];
+    let settled = table.rows[table.rows.len() - 1][column];
+    assert!(
+        (start - 300.0).abs() < 1e-9,
+        "T(0) = {start}, want the init"
+    );
+    assert!(
+        (settled - operating_point).abs() < 1e-3,
+        "the transient settled at {settled}, but the steady solve says {operating_point}"
+    );
 }
 
 /// A `PARAMETRIC`, `PLOT` or `STATE TABLE` block describes a run or a view, not
@@ -1451,4 +1586,78 @@ fn settings_are_honoured() {
         },
     );
     assert!(starved.is_err(), "{starved:?}");
+}
+
+// ---------------------------------------------------------------------------
+// `UncertaintyOf(X) = expr` is a declaration, not an equation
+// ---------------------------------------------------------------------------
+
+/// `EquationSystemSolver.check` runs `extractUncertaintyEquations` between
+/// `hoistNested` and `findIntegrals`, so a document that states an uncertainty
+/// must report the same balance it solves at. Verified against the Java oracle
+/// driven through `EquationSystemSolver.check(source)`: `solvable=true eq=3
+/// vars=3`, message "No syntax errors were detected. There are 3 equations and
+/// 3 variables." Without the extraction this is 4 equations in 3 variables and
+/// the document is reported overspecified.
+#[test]
+fn check_does_not_count_an_uncertainty_declaration_as_an_equation() {
+    let report = check("x = 3\nUncertaintyOf(x) = 0.1\ny = x^2\nuy = UncertaintyOf(y)\n").unwrap();
+    assert!(report.solvable, "{}", report.message);
+    assert_eq!(report.equation_count, 3);
+    assert_eq!(report.unknown_count, 3);
+}
+
+/// The mirror image: the declaration is recognised by its **left-hand side
+/// only**, so `0.6 = UncertaintyOf(y)` stays an ordinary equation and the
+/// document is overspecified. Oracle: `solvable=false eq=3 vars=2`.
+#[test]
+fn only_the_left_hand_side_makes_an_uncertainty_declaration() {
+    let report = check("x = 3\nUncertaintyOf(x) = 0.2\n0.6 = UncertaintyOf(y)\ny = x^2\n").unwrap();
+    assert!(!report.solvable, "{}", report.message);
+    assert_eq!(report.equation_count, 3);
+    assert_eq!(report.unknown_count, 2);
+}
+
+/// The propagated sigma of every variable rides out on [`Solution`], and a
+/// document that declares nothing still reports a zero for every variable —
+/// the Java `partitionVariables` zero-fills the map before it reads a spec.
+#[test]
+fn a_solved_document_publishes_its_propagated_uncertainties() {
+    // 2*x*u(x) = 2*3*0.1 = 0.6; the oracle's finite-difference Jacobian gives
+    // 0.6000000039736431, which `fixtures/golden/av_unc_square_law.json` pins.
+    let solution = solved("x = 3\nUncertaintyOf(x) = 0.1\ny = x^2\nuy = UncertaintyOf(y)\n");
+    assert_near(solution.uncertainties["x"], 0.1);
+    assert!(
+        (solution.uncertainties["y"] - 0.6).abs() < 1e-6,
+        "{}",
+        solution.uncertainties["y"]
+    );
+    let sources = &solution.uncertainty_contributions["y"];
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].source, "x");
+
+    let none = solved("x = 3\ny = x^2\n");
+    assert_eq!(none.uncertainties["y"], 0.0);
+    assert!(none.uncertainty_contributions.is_empty());
+}
+
+/// An externally supplied `±` (the Variable Information window's column) makes
+/// the variable a source too, and scales by the unit's **factor only** — a
+/// sigma is an interval width, so `[C]`'s additive offset must not touch it.
+#[test]
+fn an_override_uncertainty_is_a_source_and_ignores_the_unit_offset() {
+    let solution = solve_with(
+        "Tin = 20 [C]\nTout = 2*Tin\n",
+        &SolverSettings::default(),
+        &[VariableOverride {
+            name: "Tin".into(),
+            unit: Some("C".into()),
+            uncertainty: Some(1.0),
+            ..VariableOverride::default()
+        }],
+    )
+    .unwrap();
+    // 1 [C] of uncertainty is 1 K, not 274.15 K.
+    assert_near(solution.uncertainties["tin"], 1.0);
+    assert_near(solution.uncertainties["tout"], 2.0);
 }

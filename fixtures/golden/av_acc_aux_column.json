@@ -1,0 +1,48 @@
+{
+  "name": "av_acc_aux_column",
+  "source": "{ An accessor reading an algebraic auxiliary column rather than a state. }\nQmax = MaxValue('Qdot')\nQend = FinalValue('Qdot')\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 13)\n  der(Temp) = -Qdot\n  Qdot = 0.05*(Temp - 20)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Qend": 0.18670150638343339,
+      "Qmax": 3.75
+    },
+    "display_names": {
+      "qdot": "Qdot",
+      "qend": "Qend",
+      "qmax": "Qmax",
+      "temp": "Temp"
+    },
+    "block_count": 2,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp", "qdot"],
+        "rows": [
+          [0.0, 95.0, 3.75],
+          [5.0, 78.41005860853919, 2.9205029304269594],
+          [10.0, 65.48979945910143, 2.2744899729550716],
+          [15.0, 55.42749142432856, 1.771374571216428],
+          [20.0, 47.59095803046333, 1.3795479015231664],
+          [25.0, 41.487859755490334, 1.0743929877745166],
+          [30.0, 36.734761996461124, 0.8367380998230562],
+          [35.0, 33.03304573174144, 0.651652286587072],
+          [40.0, 30.15014623853744, 0.5075073119268722],
+          [45.0, 27.904941835251808, 0.39524709176259043],
+          [50.0, 26.15637488405151, 0.3078187442025755],
+          [55.0, 24.794589588540664, 0.23972947942703318],
+          [60.0, 23.734030127668667, 0.18670150638343339]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

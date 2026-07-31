@@ -1,0 +1,6 @@
+{ A record event does not stop the run. }
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 6)
+  der(Level) = 1
+  Level(0) = 0
+  EVENT half: Level = 5 | rising -> record
+END

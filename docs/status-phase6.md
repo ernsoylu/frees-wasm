@@ -383,8 +383,8 @@ which is progress and not a promotion:
 
 | Document | Was blocked on | Now blocked on |
 |---|---|---|
-| `ev-battery-cooling-pid` | COMPONENT + DYNAMIC | **DYNAMIC only** (Phase 8) |
-| `pressure-cooker` | COMPONENT + DYNAMIC | **DYNAMIC only** (Phase 8) |
+| `ev-battery-cooling-pid` | COMPONENT + DYNAMIC | **DYNAMIC only** ~~(Phase 8)~~ → **Phase 7** *(label corrected 2026-07-31)*. **Phase 7 update:** `DYNAMIC` is no longer the blocker; it now fails in the property backend (`HAPropsSI` / uncovered states), so it has moved to the real-fluid row |
+| `pressure-cooker` | COMPONENT + DYNAMIC | **DYNAMIC only** ~~(Phase 8)~~ → **Phase 7** *(label corrected 2026-07-31)*. **Phase 7 update:** `DYNAMIC` parses and reaches the engine; it now asks for `method = ida`, and the implicit-DAE path is assembled but not routed |
 | `ev-thermal-management` | COMPONENT + DYNAMIC + `EG50` | **`INCOMP::MEG[0.50]` has no property table** (Phase 5, divergence 9) — it now reaches block 3 of 89 equations before failing |
 
 ### Pending: 31, replayed document-by-document
@@ -396,10 +396,10 @@ its failure classified. **1 solves, 3 both-refuse-with-different-classification,
 | # | Blocked on | Documents |
 |---|---|---|
 | 6 | **Phase-9 control-systems CALLs** (`lqr`, `lqe`, `c2d`, `routh`, `residue`, `tf2ss`) | `controller-design-lqr-pid`, `estimator-gramian-balreal`, `digital-control-c2d`, `routh-stability`, `inverse-laplace-residue`, `multi-output-destructuring` |
-| 5 | **`PLOT` blocks** (Phase 7) | `control-analysis-report`, `cruise-control`, `nichols-chart`, `root-locus-analysis`, `step-impulse-response` |
-| 7 | **`DYNAMIC` (ODE/DAE) blocks** (Phase 8) | `damped-oscillator-ode`, `engine-cycle-wiebe`, `newton-cooling-transient`, `sounding-rocket-trajectory`, `transient-heat-rod`, **`ev-battery-cooling-pid`**, **`pressure-cooker`** |
+| 5 | **`PLOT` blocks** ~~(Phase 7)~~ → the real blocker is **control-systems `CALL`s (Phase 9)** *(label corrected 2026-07-31)* | `control-analysis-report`, `cruise-control`, `nichols-chart`, `root-locus-analysis`, `step-impulse-response` |
+| 7 | **`DYNAMIC` (ODE/DAE) blocks** ~~(Phase 8)~~ → **Phase 7** *(label corrected 2026-07-31)*. **Closed 2026-07-31 (Phase 7)**: the first five were promoted; `ev-battery-cooling-pid` and `pressure-cooker` are no longer blocked on `DYNAMIC` and have moved to the property-backend and `method = ida` rows respectively | `damped-oscillator-ode`, `engine-cycle-wiebe`, `newton-cooling-transient`, `sounding-rocket-trajectory`, `transient-heat-rod`, **`ev-battery-cooling-pid`**, **`pressure-cooker`** |
 | 4 | **Real-fluid coverage the tables do not have** — humid air (`HAPropsSI`), transport properties, `Z`, and the `INCOMP::MEG[0.50]` glycol. All four are Phase-5 divergence 9 | **`adv_moistair_W_passthrough`**, **`adv_moistair_dryair_three_way`** (both new this phase), `hx-correlations-fluid`, `thermo-compliance`, and `ev-thermal-management` |
-| 3 | **`PARAMETRIC` blocks** — error fixtures where the classifications still disagree: Java raises `SolverException`, Rust raises `ParseException`. Both refuse; the gate compares classification | `damped-oscillator`, `driving-cycle-energy`, `projectile-trajectory` |
+| 3 | **`PARAMETRIC` blocks** — error fixtures where the classifications still disagree: Java raises `SolverException`, Rust raises `ParseException`. Both refuse; the gate compares classification. **Closed 2026-07-31 (Phase 7)** — `PARAMETRIC` now has a home on `Document`, both engines classify alike, and all three were promoted | `damped-oscillator`, `driving-cycle-energy`, `projectile-trajectory` |
 | 1 | **`STATE TABLE` block type** | `state-tables-multifluid` |
 | 1 | **`SYMBOLIC` / CAS** — Symja replacement undecided (Phase 9) | `partial-fractions` |
 | 1 | **String variables** — `geom$ = 'wall'` not ported | `heisler-transient` |
@@ -408,6 +408,21 @@ its failure classified. **1 solves, 3 both-refuse-with-different-classification,
 
 (The counts sum to more than 31 because `ev-thermal-management` and
 `ev-battery-cooling-pid` appear under two blockers each; 31 distinct documents.)
+
+> **Phase-7/8 annotation (2026-07-31).** This table's two phase labels were
+> wrong and are struck through above: per [`PLAN.md`](../PLAN.md) §5, **Phase 7
+> is Dynamics** and **Phase 8 is Analysis & design**; **Phase 9** is CAS &
+> control systems. The `DYNAMIC` row was labelled Phase 8 and belongs to Phase 7
+> (which has since closed it), and the `PLOT` row was labelled Phase 7 but its
+> five documents are control-systems documents needing Phase 9 — `PLOT` is not
+> the operative blocker, the `rlocus` / `nichols` / `step` / `pole` / `tf`
+> `CALL`s are.
+>
+> The list is now **23** — see
+> [`docs/status-phase78.md`](status-phase78.md#fixtures-promoted-and-still-pending)
+> for the current classification. Phase 7 promoted 29 fixtures (361 → 390),
+> closing the `DYNAMIC` and `PARAMETRIC` rows outright. **Phases 7–8's
+> robustness pass promoted none** — it added regression tests, not fixtures.
 
 **Two documents were staged, not promoted, by this phase**:
 `adv_moistair_W_passthrough` and `adv_moistair_dryair_three_way`. Both are

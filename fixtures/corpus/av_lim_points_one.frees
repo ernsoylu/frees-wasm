@@ -1,0 +1,5 @@
+{ points = 1 — a degenerate output grid; the default 200 takes over. }
+DYNAMIC one (method = ode45, time = 0 .. 5, points = 1)
+  der(Yv) = -Yv
+  Yv(0) = 1
+END

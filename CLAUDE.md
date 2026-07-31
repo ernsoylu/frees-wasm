@@ -4,24 +4,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phases 0–6 are implemented** — the Phase-3 wasm boundary is wired, Phase 4
+**Phases 0–7 are implemented** — the Phase-3 wasm boundary is wired, Phase 4
 (differentiator, matrix, complex, procedural, tables, integrals, kernels, latex,
 solver retry ladder) is complete, Phase 5 ports `props/` in full and gives the
-browser a **working real-fluid property backend**, and Phase 6 ports the acausal
+browser a **working real-fluid property backend**, Phase 6 ports the acausal
 **component / `connect` layer** together with the 295-component standard library
-as embedded `.frees` data. A Rust workspace ports the frees engine to
-WebAssembly. **2,055 tests** green, including a **361/361** golden-corpus parity
-replay against the real Java engine; wasm 2184.5 KiB raw / 1086.2 KiB gzipped
-(budget 3072 KiB — **71 % used**). Solve, check, real-fluid properties, property
-diagrams, component networks, the component datasheet and the language reference
-all run in-browser with **zero `/api/` traffic**. Phase 7 (`PLOT` blocks) is next.
+as embedded `.frees` data, and Phase 7 wires the **transient path**: `DYNAMIC`
+and `LINEARIZE` parse and reach the engine, ODE Tables publish on the wasm
+boundary, and the parity replay compares them. A Rust workspace ports the frees
+engine to WebAssembly. **2,534 tests** green, including a **500/500**
+golden-corpus parity replay against the real Java engine; wasm 2450.0 KiB raw /
+1177.8 KiB gzipped (budget 3072 KiB — **80 % used**). Solve, check, transient
+integration, real-fluid properties, property diagrams, component networks, the
+component datasheet and the language reference all run in-browser with **zero
+`/api/` traffic**.
+
+**Phase 8 is *mostly* not implemented.** `crates/frees-core/src/analysis/` exists
+and is unit-tested, but only **one** of its modules is reachable: `uncertainty`
+is now wired into `engine::solve_with` at the Java positions, so
+`UncertaintyOf(X) = expr` is lifted out of the equation stream, the propagation
+and its second solve pass run, and `VariableDto.uncertainty` +
+`uncertaintyBreakdown` reach the wasm boundary. The optimizer, NSGA-II, curve
+fitter, Monte Carlo, parameter fit, all-roots solver and parametric sweep driver
+are still unreachable from a document and absent from the boundary. A robustness
+pass over Phases 7–8 hardened both surfaces and is written up in
+[`docs/status-phase78.md`](docs/status-phase78.md); read its gaps list before
+planning further work.
+
+> **The web test gate needs Node 22.** Under `node v20.x`, `npx vitest run`
+> fails all 36 files in `jsdom`→`undici` (`webidl.util.markAsUncloneable is not
+> a function`) before running a test. `web/.nvmrc` asks for 22; use it.
 
 | Document | Contents |
 |---|---|
-| [`docs/status-phase6.md`](docs/status-phase6.md) | **Read first.** What Phase 6 delivers per area, the component-coverage numbers, what the component fuzz found, the true gate numbers, fixture counts, and the honest ranked list of what it did *not* deliver |
+| [`docs/status-phase78.md`](docs/status-phase78.md) | **Read first.** The Phase 7–8 robustness pass: the four defects an adversarial sweep of the transient and analysis surfaces found (two of them process *aborts*, one a silent wrong answer), the guards that close them, the browser proof, the raw gate numbers, and a ranked list of what these phases did **not** deliver — starting with "Phase 8's `analysis/` is not wired to anything" |
+| [`docs/status-phase7.md`](docs/status-phase7.md) | What Phase 7 delivers per area, the raw gate numbers, which 29 fixtures were promoted and why the remaining 23 are still blocked, and the one honest performance finding (`dyn_accessor_live`) |
+| [`docs/status-phase6.md`](docs/status-phase6.md) | What Phase 6 delivers per area, the component-coverage numbers, what the component fuzz found, its gate numbers and fixture counts |
 | [`docs/status-phase5.md`](docs/status-phase5.md) | Phase 5 per area, the measured table-vs-CoolProp error, and its pending-fixture table (annotated with what Phase 6 closed) |
 | [`docs/status-phase4.md`](docs/status-phase4.md) | Phase 4 per area; its pending-fixture table is annotated with what Phase 5 closed |
-| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12, Phase 6 items 13–14), plus the Phase 0–3 inventory |
+| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12, Phase 6 items 13–14, Phase 7 items 15–18, the Phase 7–8 robustness pass items 19–23), plus the Phase 0–3 inventory |
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
@@ -33,10 +54,11 @@ all run in-browser with **zero `/api/` traffic**. Phase 7 (`PLOT` blocks) is nex
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 361 documents)
+                                       # (--release: the replay solves 500 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo test -p frees-core --test props_robustness       # the property-surface fuzz
 cargo test -p frees-core --test component_robustness   # the component-surface fuzz
+cargo test -p frees-core --test dynamics_robustness    # the transient + analysis fuzz
                                        # (run this one in DEBUG too — the stack-overflow
                                        #  defect it found only reproduced unoptimised)
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
@@ -84,8 +106,18 @@ early-returns before touching any of it when a document declares no components.
 
 Contract files (`ast.rs`, `token.rs`, `diag.rs`, `parser/mod.rs`, `units/quantity.rs`)
 define fixed interfaces; change them deliberately, not incidentally. Unsupported
-DSL blocks must fail with an explicit error — never silently skip. Diagnostics
-are source-mapped and quote the user's text (parent-engine rule).
+DSL blocks must fail with an explicit error — never silently skip
+(`parser/toplevel.rs::unsupported_construct` is the seam; as of Phase 7 its list
+is **empty** — every block form the grammar admits now has a home on
+`Document`). Diagnostics are source-mapped and quote the user's text
+(parent-engine rule).
+
+**A solved `DYNAMIC` block puts nothing in `Solution::values`** — the trajectory
+is a first-class `OdeTableResult` on `Solution::ode_tables`. Any check that
+compares only `variables` therefore passes *vacuously* on a transient document;
+`tests/parity.rs` compares `ode_tables` for exactly that reason, and
+`fixtures/README.md` records the four perturbations that were used to prove the
+comparison can fail.
 
 ## What frees is, and what "browser-native" means here
 

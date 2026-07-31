@@ -1,0 +1,6 @@
+{ The time span carries a unit: 0 .. 10 [min] must become 0 .. 600 s at parse
+  time, exactly like every other unit-annotated literal. }
+DYNAMIC cooling (method = ode45, time = 0 .. 10 [min], points = 7)
+  der(Temp) = -0.005*(Temp - 20)
+  Temp(0) = 95
+END

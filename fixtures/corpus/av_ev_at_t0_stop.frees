@@ -1,0 +1,7 @@
+{ Same guard, but the action is stop. If t0 counts as a crossing the run ends
+  immediately; if it does not, the run goes to 5. }
+DYNAMIC start (method = ode45, time = 0 .. 5, points = 6)
+  der(Yv) = 1
+  Yv(0) = 0
+  EVENT origin: Yv = 0 -> stop
+END

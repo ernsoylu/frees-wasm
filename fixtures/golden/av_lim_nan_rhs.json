@@ -1,0 +1,18 @@
+{
+  "name": "av_lim_nan_rhs",
+  "source": "{ The rhs goes NaN once the state crosses zero (sqrt of a negative). }\nDYNAMIC nanny (method = ode45, time = 0 .. 4, points = 9)\n  der(Yv) = -sqrt(Yv)\n  Yv(0) = 1\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "Block 1 did not converge within 250 iterations (residual norm 6.51271e-05). Increase the iteration limit in Preferences or adjust guess values."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -321,8 +321,8 @@ failure classified. **1 solves, 3 both-refuse-with-different-classification,
 | # | Blocked on | Documents |
 |---|---|---|
 | 6 | **Phase-9 control-systems CALLs** (`lqr`, `lqe`, `c2d`, `routh`, `residue`, `tf2ss` — refused by name from `UNPORTED_CALL_INTRINSICS`) | `controller-design-lqr-pid`, `estimator-gramian-balreal`, `digital-control-c2d`, `routh-stability`, `inverse-laplace-residue`, `multi-output-destructuring` |
-| 5 | **`PLOT` blocks** (Phase 7) | `control-analysis-report`, `cruise-control`, `nichols-chart`, `root-locus-analysis`, `step-impulse-response` |
-| 5 | **`DYNAMIC` (ODE/DAE) blocks** (Phase 8) · *Phase 6: now **7** — joined by `ev-battery-cooling-pid` and `pressure-cooker` from the row below* | `damped-oscillator-ode`, `engine-cycle-wiebe`, `newton-cooling-transient`, `sounding-rocket-trajectory`, `transient-heat-rod` |
+| 5 | **`PLOT` blocks** ~~(Phase 7)~~ → **Phase 9** *(label corrected 2026-07-31; see the note below the table)* | `control-analysis-report`, `cruise-control`, `nichols-chart`, `root-locus-analysis`, `step-impulse-response` |
+| 5 | **`DYNAMIC` (ODE/DAE) blocks** ~~(Phase 8)~~ → **Phase 7** *(label corrected 2026-07-31)* · *Phase 6: now **7** — joined by `ev-battery-cooling-pid` and `pressure-cooker` from the row below* · **Phase 7: all seven resolved — five promoted, two moved on** | `damped-oscillator-ode`, `engine-cycle-wiebe`, `newton-cooling-transient`, `sounding-rocket-trajectory`, `transient-heat-rod` |
 | 3 | ~~**`COMPONENT` instantiation** (Phase 6)~~ **Closed 2026-07-31 (Phase 6)** — all three now expand cleanly through the component layer and fail later: `ev-battery-cooling-pid` and `pressure-cooker` on `DYNAMIC` alone, `ev-thermal-management` on the missing `INCOMP::MEG[0.50]` property table (it reaches block 3 of 89 equations). None is promoted; each moved to a different blocker | `ev-battery-cooling-pid`, `ev-thermal-management`, `pressure-cooker` |
 | 3 | **`PARAMETRIC` blocks** — error fixtures where the classifications still disagree: Java raises `SolverException` (underspecified when solved directly), Rust raises `ParseException` (block type unsupported). Both refuse; the gate compares classification | `damped-oscillator`, `driving-cycle-energy`, `projectile-trajectory` |
 | 2 | **Transport properties the tables do not store** — `Viscosity`, `Conductivity`, `Cp`, `CompressibilityFactor`. These are now the *only* two blocked on Phase 5 itself · *Phase 6: now **5**, joined by `ev-thermal-management` (glycol) and the two newly staged humid-air documents `adv_moistair_W_passthrough` / `adv_moistair_dryair_three_way`, which need `HAPropsSI`. Read the row as "real-fluid coverage the tables do not have", not just transport* | `hx-correlations-fluid`, `thermo-compliance` |
@@ -331,6 +331,20 @@ failure classified. **1 solves, 3 both-refuse-with-different-classification,
 | 1 | **String variables** — `geom$ = 'wall'` not ported | `heisler-transient` |
 | 1 | **`MODULE` inside `FOR`** — pipeline-ordering deviation carried from Phase 4 | `module_inside_for_loop` |
 | 1 | **Ill-posed by construction — held deliberately.** Structurally square but rank-deficient, so the solution set is a *line*. It passes today (Rust within 6.6e-2 of the Java point) but promoting it would freeze an arbitrary point of a continuum into the gate | `solver_singular_linear_cycle` |
+
+> **Two phase labels in this table were wrong; corrected 2026-07-31 (Phases 7–8).**
+> Per [`PLAN.md`](../PLAN.md) §5, **Phase 7 is Dynamics** (`ode/`, `dae/`,
+> `LINEARIZE`) and **Phase 8 is Analysis & design** (optimizer, NSGA-II,
+> parametric sweeps, curve fitting, Monte Carlo, uncertainty). So:
+>
+> * the `DYNAMIC` row was labelled "Phase 8" and belongs to **Phase 7** — which
+>   has now closed it: five of those documents were promoted and the other two
+>   moved to other blockers;
+> * the `PLOT` row was labelled "Phase 7", but the five documents in it are
+>   **control-systems** documents. `PLOT` is not what is actually missing —
+>   `rlocus`, `nichols`, `step`, `pole` and `tf` are, and those are
+>   **Phase 9** (CAS & control systems). Phase 7 shipping did not move any of
+>   them, which is the observable confirmation that the old label was wrong.
 
 **29 total** *(31 after Phase 6 staged two humid-air component documents; no
 pending document was promoted by Phase 6)*. Phase 4 listed 13 documents across

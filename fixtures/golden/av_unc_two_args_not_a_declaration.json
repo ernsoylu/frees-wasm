@@ -1,0 +1,18 @@
+{
+  "name": "av_unc_two_args_not_a_declaration",
+  "source": "{ UncertaintyOf with two arguments is not a declaration target. }\nx = 3\nUncertaintyOf(x, 1) = 0.1\ny = x^2\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 3 equations and 2 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): UncertaintyOf(x,1)=0.1. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

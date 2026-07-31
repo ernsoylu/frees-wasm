@@ -1,0 +1,54 @@
+{
+  "name": "av_unc_on_component_param",
+  "source": "{ Uncertainty on a parameter consumed by the component layer. }\nTsrc = 400\nUncertaintyOf(Tsrc) = 2\nThermalSource S1(T = Tsrc)\nConduction    C1(k = 10, area = 1, L = 0.1)\nThermalSource S2(T = 300)\nconnect(S1.port, C1.a)\nconnect(C1.b, S2.port)\nq1 = C1.Q\nuq = UncertaintyOf(q1)\n",
+  "expect": {
+    "variables": {
+      "Tsrc": 400.0,
+      "c1.a.qdot": 10000.0,
+      "c1.a.t": 400.0,
+      "c1.b.qdot": -10000.0,
+      "c1.b.t": 300.0,
+      "c1.q": 10000.0,
+      "q1": 10000.0,
+      "s1.port.qdot": -10000.0,
+      "s1.port.t": 400.0,
+      "s2.port.qdot": 10000.0,
+      "s2.port.t": 300.0,
+      "uncertaintyof$c1$a$qdot": 199.9999999999946,
+      "uncertaintyof$c1$a$t": 1.999999999999961,
+      "uncertaintyof$c1$b$qdot": 199.99999999999312,
+      "uncertaintyof$c1$b$t": 1.765254609153999E-14,
+      "uncertaintyof$c1$q": 199.99999999999463,
+      "uncertaintyof$q1": 199.99999999999372,
+      "uncertaintyof$s1$port$qdot": 199.99999999999454,
+      "uncertaintyof$s1$port$t": 1.9999999999999405,
+      "uncertaintyof$s2$port$qdot": 199.99999999999312,
+      "uncertaintyof$s2$port$t": 3.341771304121721E-14,
+      "uncertaintyof$tsrc": 2.0,
+      "uncertaintyof$uq": 0.0,
+      "uq": 199.99999999999372
+    },
+    "display_names": {
+      "c1$a$qdot": "c1.a.qdot",
+      "c1$a$t": "c1.a.t",
+      "c1$b$qdot": "c1.b.qdot",
+      "c1$b$t": "c1.b.t",
+      "c1$q": "c1.q",
+      "q1": "q1",
+      "s1$port$qdot": "s1.port.qdot",
+      "s1$port$t": "s1.port.t",
+      "s2$port$qdot": "s2.port.qdot",
+      "s2$port$t": "s2.port.t",
+      "tsrc": "Tsrc",
+      "uq": "uq"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

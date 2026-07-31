@@ -1,0 +1,5 @@
+{ An uncertainty declared for a name the system never mentions. }
+x = 3
+UncertaintyOf(ghost) = 0.1
+y = x^2
+uy = UncertaintyOf(y)

@@ -1,0 +1,49 @@
+{
+  "name": "av_unc_with_transient",
+  "source": "{ Uncertainty on a parameter that only the DYNAMIC block reads. }\nk = 0.05\nTinf = 20\nUncertaintyOf(k) = 0.005\nTfin = FinalValue('Temp')\nufin = UncertaintyOf(Tfin)\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 7)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Tfin": 23.734030127668667,
+      "Tinf": 20.0,
+      "k": 0.05,
+      "ufin": 1.1202085319588588,
+      "uncertaintyof$k": 0.005,
+      "uncertaintyof$tfin": 1.1202085319588588,
+      "uncertaintyof$tinf": 1.2436813108014176E-16,
+      "uncertaintyof$ufin": 0.0
+    },
+    "display_names": {
+      "k": "k",
+      "temp": "Temp",
+      "tfin": "Tfin",
+      "tinf": "Tinf",
+      "ufin": "ufin"
+    },
+    "block_count": 4,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [10.0, 65.48979945910143],
+          [20.0, 47.59095803046333],
+          [30.0, 36.734761996461124],
+          [40.0, 30.15014623853744],
+          [50.0, 26.15637488405151],
+          [60.0, 23.734030127668667]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

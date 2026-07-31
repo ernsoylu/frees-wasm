@@ -41,7 +41,7 @@ use crate::diag::{FreesError, Result};
 use crate::ode::methods::{
     BdfMethod, ButcherTableau, OdeMethod, RosenbrockMethod, RungeKuttaMethod,
 };
-use crate::ode::problem::{EventRecord, OdeEvent, OdeProblem, OdeResult};
+use crate::ode::problem::{EventRecord, OdeEvent, OdeProblem, OdeResult, MAX_OUTPUT_SAMPLES};
 // The `Double.toString` spelling the Java error messages interpolate. Shared
 // rather than re-derived: the golden fixtures compare error text verbatim, and
 // two copies of this formatting would eventually disagree.
@@ -52,6 +52,38 @@ pub const MAX_STEPS: usize = 1_000_000;
 
 /// `OdeIntegrator.BISECTION_ITERS` — bisections used to refine a crossing.
 const BISECTION_ITERS: usize = 60;
+
+/// How many `set` events may fire back to back — with **no ordinary accepted
+/// step in between** — before the run has to justify itself.
+///
+/// **A divergence from the Java, added deliberately** (`docs/status-phase1.md`
+/// ledger item 20). A `set` action whose assigned value re-arms the very
+/// crossing that fired it (`EVENT r: L = 4 | falling -> set L = 4.0000000001`)
+/// turns the time loop into a restart loop: each pass refines a crossing with
+/// [`BISECTION_ITERS`] right-hand-side evaluations, advances `t` by ~0, and
+/// pushes another knot. [`MAX_STEPS`] does bound it — `step_with_retries`
+/// charges at least one step per pass — but only after 10^6 passes, and a pass
+/// that bisects costs ~60 RHS evaluations, each a full algebraic inner solve
+/// for a document-level block. Measured: the stiff-on-explicit case reaches
+/// [`MAX_STEPS`] in 182 s; the same budget spent bisecting had not finished at
+/// 45 s and was still running at 15 minutes. The Java's second guard —
+/// `OdeProblem`'s `deadlineNanos`, checked in its `guard` — would cut that off,
+/// and this port has no clock to check (`ode/problem.rs`, *No clock*).
+///
+/// # This is a rate test, not a firing count
+///
+/// The first cut of this guard simply refused after this many consecutive
+/// restarts, and **that was wrong**: a fast modelled switch legitimately fires
+/// on every step once the adaptive step size grows past the switching period.
+/// A 500 s ramp reset at `Level = 0.1` fires ~5 000 times with no ordinary step
+/// between any two of them, and it is a perfectly good model.
+///
+/// So the count only opens the question. What decides it is whether the window
+/// advanced time fast enough to *finish*: project the elapsed `tf - t` at the
+/// window's own rate and compare against the steps left in [`MAX_STEPS`]. The
+/// margin between the two cases is not subtle — the 500 s sawtooth projects
+/// ~4 × 10^3 further steps, and a self-re-arming `set` projects ~9 × 10^10.
+pub const MAX_CONSECUTIVE_SET_RESTARTS: usize = 1_000;
 
 /// `Math.min` (NaN-propagating, `-0.0 < 0.0`). Rust's `f64::min` returns the
 /// non-NaN operand instead, and a diverged controller can hand NaN in here.
@@ -93,8 +125,16 @@ fn java_max(a: f64, b: f64) -> f64 {
 ///
 /// Port of `OdeIntegrator.integrate`.
 pub fn integrate(p: &OdeProblem<'_>) -> Result<OdeResult> {
-    let tr = run(p)?;
+    // Before `run`, not after: the point is to refuse the request rather than
+    // spend the whole integration and then abort on the output allocation.
     let count = p.sample_count();
+    if count > MAX_OUTPUT_SAMPLES {
+        return Err(FreesError::solver(format!(
+            "DYNAMIC: points = {count} would materialise more than {MAX_OUTPUT_SAMPLES} \
+             output rows. Use fewer points."
+        )));
+    }
+    let tr = run(p)?;
     let mut times = vec![0.0; count];
     for i in 0..count {
         times[i] = if count == 1 {
@@ -149,6 +189,23 @@ struct Trajectory {
 /// then resume). Port of `OdeIntegrator.run`.
 fn run(p: &OdeProblem<'_>) -> Result<Trajectory> {
     let method = resolve_method(&p.method)?;
+    // A non-finite endpoint has to be screened *before* the `tf <= t0` test,
+    // which it slips past in both directions: `tf = inf` is greater than any
+    // `t0`, and every comparison against `NaN` is false. What follows is worse
+    // than a crash — `span` and `min_step` become non-finite, the loop condition
+    // `t < tf - min_step` evaluates to false at the first pass, and `integrate`
+    // then publishes a full-height table of `[NaN, inf, inf, …]` as if it were a
+    // trajectory. Measured: `tf = inf` returned 200 such rows. The Java has the
+    // same hole; a document cannot reach it because the parser's `signedNumber`
+    // admits no infinite literal, but `OdeProblem` is public API here and
+    // `analysis` builds one directly.
+    if !p.t0.is_finite() || !p.tf.is_finite() {
+        return Err(FreesError::solver(format!(
+            "DYNAMIC: the time span must be finite (got {} .. {}).",
+            java_double_to_string(p.t0),
+            java_double_to_string(p.tf)
+        )));
+    }
     if p.tf <= p.t0 {
         return Err(FreesError::solver(format!(
             "DYNAMIC: the time span must satisfy t0 < tf (got {} .. {}).",
@@ -165,6 +222,15 @@ fn run(p: &OdeProblem<'_>) -> Result<Trajectory> {
 
     let mut t = p.t0;
     let mut y = p.y0.clone();
+    // The Java checks only the initial *derivative*. A non-finite initial
+    // *state* with a finite derivative slips through and poisons the step
+    // controller instead: `scale = atol + rtol*|NaN|` is NaN, so every error
+    // test and every `h_use < min_step` comparison is false, no step is ever
+    // rejected and no underflow is ever declared. The run then burns the whole
+    // `MAX_STEPS` budget and blames stiffness. Measured before this line: a
+    // `y0 = [NaN]` problem with `der(y) = 1` reported "exceeded 1000000
+    // integration steps". One comparison up front is both faster and true.
+    check_finite(&y, t, "initial state")?;
     let mut f = p.rhs.eval(t, &y)?;
     check_finite(&f, t, "initial derivative")?;
     knot_t.push(t);
@@ -185,6 +251,11 @@ fn run(p: &OdeProblem<'_>) -> Result<Trajectory> {
     let mut steps = 0usize;
     let mut stopped = false;
     let mut end_time = p.tf;
+    // Set-event restarts taken back to back with no ordinary accepted step in
+    // between, and the time the current such window opened — see
+    // [`MAX_CONSECUTIVE_SET_RESTARTS`].
+    let mut consecutive_sets = 0usize;
+    let mut window_start_t = p.t0;
 
     while t < p.tf - min_step {
         let out = step_with_retries(method.as_ref(), p, t, &y, &f, h, min_step, steps)?;
@@ -227,6 +298,40 @@ fn run(p: &OdeProblem<'_>) -> Result<Trajectory> {
                 // the trajectory shows the switch; re-evaluating gPrev there
                 // re-arms every event against the new state (direction guards
                 // stop immediate retriggering).
+                consecutive_sets += 1;
+                if consecutive_sets >= MAX_CONSECUTIVE_SET_RESTARTS {
+                    // Close the window and ask the only question that matters:
+                    // at the rate this window advanced time, can the run reach
+                    // `tf` inside the step budget it has left? A modelled
+                    // switch that fires thousands of times still says yes by a
+                    // wide margin; a `set` that re-arms its own crossing misses
+                    // by ten orders of magnitude.
+                    let advanced = hit.time - window_start_t;
+                    let projected = if advanced > 0.0 {
+                        (p.tf - hit.time) / advanced * MAX_CONSECUTIVE_SET_RESTARTS as f64
+                    } else {
+                        f64::INFINITY
+                    };
+                    // `is_nan` first, then a positive comparison: the negated
+                    // form `!(… <= …)` says the same thing about NaN but trips
+                    // `clippy::neg_cmp_op_on_partial_ord`.
+                    if projected.is_nan() || steps as f64 + projected > MAX_STEPS as f64 {
+                        return Err(FreesError::solver(format!(
+                            "EVENT {}: the set action re-arms its own crossing — \
+                             {MAX_CONSECUTIVE_SET_RESTARTS} consecutive set events fired \
+                             between t = {} and t = {}, which is too little progress to reach \
+                             t = {} within the {MAX_STEPS}-step budget. Move the assigned value \
+                             clear of the crossing, or give the event a direction the new state \
+                             cannot immediately satisfy.",
+                            hit.name,
+                            java_double_to_string(window_start_t),
+                            java_double_to_string(hit.time),
+                            java_double_to_string(p.tf)
+                        )));
+                    }
+                    consecutive_sets = 0;
+                    window_start_t = hit.time;
+                }
                 t = hit.time;
                 y = hit.y.clone();
                 let set = &p.events[hit.event].set;
@@ -255,6 +360,8 @@ fn run(p: &OdeProblem<'_>) -> Result<Trajectory> {
                 g_prev = eval_events(p, t, &y)?;
             }
             _ => {
+                consecutive_sets = 0;
+                window_start_t = t_new;
                 accepted += 1;
                 t = t_new;
                 y = y_new;

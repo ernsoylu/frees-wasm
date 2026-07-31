@@ -1,0 +1,8 @@
+{ 97 output samples over 0..10 with an adaptive method: no sample lands on a
+  step boundary, so every interior row is the dense-output interpolant. }
+DYNAMIC wobble (method = ode45, time = 0 .. 10, points = 97)
+  der(Yp) = Yv + sin(3*time)
+  der(Yv) = -4*Yp
+  Yp(0) = 0.5
+  Yv(0) = -0.25
+END

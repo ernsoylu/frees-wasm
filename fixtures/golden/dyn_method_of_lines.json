@@ -1,0 +1,43 @@
+{
+  "name": "dyn_method_of_lines",
+  "source": "{ Method of lines: der(T[i]) array states expanded by the FOR machinery. A\n  three-node bar with a fixed hot end, explicit conduction between nodes. }\nN = 3\nalpha = 0.01\n\nDYNAMIC bar (method = ode45, time = 0 .. 50, points = 6)\n  FOR i = 1 TO N\n    der(Node[i]) = alpha*(Hot - Node[i])\n  END\n  Node[1:3](0) = 20\nEND\nHot = 100\n",
+  "expect": {
+    "variables": {
+      "Hot": 100.0,
+      "N": 3.0,
+      "alpha": 0.01
+    },
+    "display_names": {
+      "alpha": "alpha",
+      "hot": "Hot",
+      "i": "i",
+      "n": "N",
+      "node": "Node"
+    },
+    "block_count": 3,
+    "ode_tables": [
+      {
+        "name": "bar",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 50.0,
+        "columns": ["time", "node[1]", "node[2]", "node[3]"],
+        "rows": [
+          [0.0, 20.0, 20.0, 20.0],
+          [10.0, 27.6130065571271, 27.6130065571271, 27.6130065571271],
+          [20.0, 34.501539753764966, 34.501539753764966, 34.501539753764966],
+          [30.0, 40.73454234546575, 40.73454234546575, 40.73454234546575],
+          [40.0, 46.37439631715177, 46.37439631715177, 46.37439631715177],
+          [50.0, 51.47754722298938, 51.47754722298938, 51.47754722298938]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,5 @@
+{ An uncertainty declared but never queried: the second pass must NOT run, so
+  no uncertaintyof$ rows appear in the result at all. }
+x = 3
+UncertaintyOf(x) = 0.1
+y = x^2

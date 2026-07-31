@@ -1,0 +1,53 @@
+{
+  "name": "av_acc_two_blocks_same_column",
+  "source": "{ Two blocks whose state has the SAME name. Which table an unqualified\n  accessor picks is the thing under test. }\nVfin = FinalValue('Level')\n\nDYNAMIC first (method = ode45, time = 0 .. 4, points = 5)\n  der(Level) = 1\n  Level(0) = 0\nEND\n\nDYNAMIC second (method = ode45, time = 0 .. 4, points = 5)\n  der(Level) = -3\n  Level(0) = 100\nEND\n",
+  "expect": {
+    "variables": {
+      "Vfin": 3.9999999999999614
+    },
+    "display_names": {
+      "level": "Level",
+      "vfin": "Vfin"
+    },
+    "block_count": 1,
+    "ode_tables": [
+      {
+        "name": "first",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 4.0,
+        "columns": ["time", "level"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 1.0000000000000004],
+          [2.0, 2.0000000000000058],
+          [3.0, 2.9999999999999836],
+          [4.0, 3.9999999999999614]
+        ],
+        "events": [
+        ]
+      },
+      {
+        "name": "second",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 4.0,
+        "columns": ["time", "level"],
+        "rows": [
+          [0.0, 100.0],
+          [1.0, 97.00000000000024],
+          [2.0, 94.00000000000048],
+          [3.0, 91.00000000000072],
+          [4.0, 88.00000000000097]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

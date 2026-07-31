@@ -72,7 +72,6 @@ use crate::ast::{Equation, Expr};
 use crate::diag::Result;
 use crate::eval::{eval_with, EvalContext, Scope};
 use crate::linalg::{self, Mat};
-use crate::parser::defs::Definitions;
 
 /// Scope-key prefix under which a computed uncertainty is published so
 /// `UncertaintyOf(X)` queries can read it. Port of
@@ -251,10 +250,10 @@ pub fn apply_uncertainty_specs(
     uncertainty_exprs: &BTreeMap<String, Expr>,
     values: &Scope,
     specs: &mut BTreeMap<String, UncertaintySpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) {
     for (name, expr) in uncertainty_exprs {
-        let Ok(value) = eval_with(expr, values, EvalContext { defs: Some(defs) }) else {
+        let Ok(value) = eval_with(expr, values, ctx) else {
             continue;
         };
         let old = specs.get(name).copied().unwrap_or_default();
@@ -345,7 +344,7 @@ pub fn propagate(
     equations: &[Equation],
     values: &Scope,
     specs: &BTreeMap<String, UncertaintySpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> Result<UncPropagation> {
     let var_list = collect_variables(equations);
     let part = partition_variables(&var_list, specs);
@@ -355,7 +354,7 @@ pub fn propagate(
             contributions: BTreeMap::new(),
         });
     }
-    let jacobian = numerical_jacobian(equations, values, defs, &var_list)?;
+    let jacobian = numerical_jacobian(equations, values, ctx, &var_list)?;
     solve_rss_uncertainties(&jacobian, &var_list, part, specs)
 }
 
@@ -390,13 +389,13 @@ fn partition_variables(
 fn numerical_jacobian(
     equations: &[Equation],
     values: &Scope,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
     var_list: &[String],
 ) -> Result<Mat> {
     let m = equations.len();
     let n = var_list.len();
     let mut jacobian = vec![vec![0.0; n]; m];
-    let base_residual = evaluate_system_residuals(equations, values, defs)?;
+    let base_residual = evaluate_system_residuals(equations, values, ctx)?;
     let mut perturbed = values.clone();
     // `Math.sqrt(Math.ulp(1.0))` — `Math.ulp(1.0)` is `f64::EPSILON` (2^-52),
     // so this is exactly 2^-26.
@@ -413,7 +412,6 @@ fn numerical_jacobian(
         })
         .collect();
 
-    let ctx = EvalContext { defs: Some(defs) };
     for (j, name) in var_list.iter().enumerate() {
         let deps = &var_to_eqs[j];
         if deps.is_empty() {
@@ -447,9 +445,8 @@ fn numerical_jacobian(
 fn evaluate_system_residuals(
     equations: &[Equation],
     values: &Scope,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> Result<Vec<f64>> {
-    let ctx = EvalContext { defs: Some(defs) };
     equations
         .iter()
         .map(|eq| Ok(eval_with(&eq.lhs, values, ctx)? - eval_with(&eq.rhs, values, ctx)?))
@@ -682,7 +679,7 @@ pub fn resolve_second_pass<F>(
     first_pass: &UncPropagation,
     uncertainty_exprs: &BTreeMap<String, Expr>,
     specs: &mut BTreeMap<String, UncertaintySpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
     resolve: F,
 ) -> Result<UncertaintyPass>
 where
@@ -691,8 +688,8 @@ where
     let mut warm = values.clone();
     inject_uncertainty_values(&mut warm, &first_pass.uncertainties);
     let mut resolved = resolve(equations, &warm)?;
-    apply_uncertainty_specs(uncertainty_exprs, &resolved, specs, defs);
-    let propagation = propagate(equations, &resolved, specs, defs)?;
+    apply_uncertainty_specs(uncertainty_exprs, &resolved, specs, ctx);
+    let propagation = propagate(equations, &resolved, specs, ctx)?;
     inject_uncertainty_values(&mut resolved, &propagation.uncertainties);
     Ok(UncertaintyPass {
         values: resolved,
@@ -722,14 +719,14 @@ pub fn analyze<F>(
     values: &mut Scope,
     specs: &mut BTreeMap<String, UncertaintySpec>,
     uncertainty_exprs: &BTreeMap<String, Expr>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
     resolve: F,
 ) -> Result<UncPropagation>
 where
     F: FnOnce(&[Equation], &Scope) -> Result<Scope>,
 {
-    apply_uncertainty_specs(uncertainty_exprs, values, specs, defs);
-    let propagation = propagate(equations, values, specs, defs)?;
+    apply_uncertainty_specs(uncertainty_exprs, values, specs, ctx);
+    let propagation = propagate(equations, values, specs, ctx)?;
     if !mentions_uncertainty_of(equations) {
         return Ok(propagation);
     }
@@ -739,7 +736,7 @@ where
         &propagation,
         uncertainty_exprs,
         specs,
-        defs,
+        ctx,
         resolve,
     )?;
     *values = pass.values;
@@ -749,6 +746,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::defs::Definitions;
     use crate::parser::parse_document;
 
     /// Parse a document and split it the way `EquationSystemSolver.solve` does.
@@ -832,10 +830,21 @@ mod tests {
         let (ext, defs) = split("UncertaintyOf(x) = 0.1\nx = 2\ny = x^2\n");
         let values = solved_values(&ext.active_equations);
         let mut specs = BTreeMap::new();
-        apply_uncertainty_specs(&ext.uncertainty_exprs, &values, &mut specs, &defs);
+        apply_uncertainty_specs(
+            &ext.uncertainty_exprs,
+            &values,
+            &mut specs,
+            EvalContext::with_defs(&defs),
+        );
         assert_eq!(specs["x"].uncertainty, 0.1);
 
-        let unc = propagate(&ext.active_equations, &values, &specs, &defs).expect("propagate");
+        let unc = propagate(
+            &ext.active_equations,
+            &values,
+            &specs,
+            EvalContext::with_defs(&defs),
+        )
+        .expect("propagate");
         assert_eq!(unc.uncertainties["x"], 0.1);
         close(unc.uncertainties["y"], 0.40000000298023225);
         let con = &unc.contributions["y"];
@@ -855,8 +864,19 @@ mod tests {
         );
         let values = solved_values(&ext.active_equations);
         let mut specs = BTreeMap::new();
-        apply_uncertainty_specs(&ext.uncertainty_exprs, &values, &mut specs, &defs);
-        let unc = propagate(&ext.active_equations, &values, &specs, &defs).expect("propagate");
+        apply_uncertainty_specs(
+            &ext.uncertainty_exprs,
+            &values,
+            &mut specs,
+            EvalContext::with_defs(&defs),
+        );
+        let unc = propagate(
+            &ext.active_equations,
+            &values,
+            &specs,
+            EvalContext::with_defs(&defs),
+        )
+        .expect("propagate");
 
         close(unc.uncertainties["c"], 0.632455532033676);
         close(unc.uncertainties["d"], 0.4031128874149275);
@@ -884,8 +904,19 @@ mod tests {
         );
         let values = solved_values(&ext.active_equations);
         let mut specs = BTreeMap::new();
-        apply_uncertainty_specs(&ext.uncertainty_exprs, &values, &mut specs, &defs);
-        let unc = propagate(&ext.active_equations, &values, &specs, &defs).expect("propagate");
+        apply_uncertainty_specs(
+            &ext.uncertainty_exprs,
+            &values,
+            &mut specs,
+            EvalContext::with_defs(&defs),
+        );
+        let unc = propagate(
+            &ext.active_equations,
+            &values,
+            &specs,
+            EvalContext::with_defs(&defs),
+        )
+        .expect("propagate");
 
         close(unc.uncertainties["ke"], 15.013015263058197);
         close(unc.uncertainties["p"], 0.6020797289396148);
@@ -906,7 +937,13 @@ mod tests {
         let (ext, defs) = split("x = 2\ny = 3 * x\n");
         let values = solved_values(&ext.active_equations);
         let specs = BTreeMap::from([("x".to_string(), UncertaintySpec::with_uncertainty(0.1))]);
-        let unc = propagate(&ext.active_equations, &values, &specs, &defs).expect("propagate");
+        let unc = propagate(
+            &ext.active_equations,
+            &values,
+            &specs,
+            EvalContext::with_defs(&defs),
+        )
+        .expect("propagate");
         assert_eq!(unc.uncertainties["x"], 0.1);
         assert_eq!(unc.uncertainties["y"], 0.30000000000000004);
     }
@@ -916,8 +953,13 @@ mod tests {
         // x = 1 / y = 2x with no declared uncertainty: unc x = 0, unc y = 0.
         let (ext, defs) = split("x = 1\ny = 2 * x\n");
         let values = solved_values(&ext.active_equations);
-        let unc =
-            propagate(&ext.active_equations, &values, &BTreeMap::new(), &defs).expect("propagate");
+        let unc = propagate(
+            &ext.active_equations,
+            &values,
+            &BTreeMap::new(),
+            EvalContext::with_defs(&defs),
+        )
+        .expect("propagate");
         assert_eq!(unc.uncertainties["x"], 0.0);
         assert_eq!(unc.uncertainties["y"], 0.0);
         assert!(unc.contributions.is_empty());
@@ -947,7 +989,7 @@ mod tests {
             &mut values,
             &mut specs,
             &ext.uncertainty_exprs,
-            &defs,
+            EvalContext::with_defs(&defs),
             // The second-pass re-solve. `engine::solve_equation_list` goes here
             // once this is wired into `engine::solve_with` — but it is private
             // *and* it is missing the `uncertaintyof$…` carry-over that
@@ -967,7 +1009,7 @@ mod tests {
                     let Expr::Var(name) = &eq.lhs else {
                         panic!("stand-in only handles explicit assignments");
                     };
-                    let value = eval_with(&eq.rhs, &values, EvalContext { defs: Some(&defs) })?;
+                    let value = eval_with(&eq.rhs, &values, EvalContext::with_defs(&defs))?;
                     values.insert(name.clone(), value);
                 }
                 Ok(values)
@@ -1019,7 +1061,12 @@ mod tests {
     fn an_unevaluatable_declaration_is_skipped_not_fatal() {
         let exprs = BTreeMap::from([("x".to_string(), Expr::var("nothing_here"))]);
         let mut specs = BTreeMap::new();
-        apply_uncertainty_specs(&exprs, &Scope::new(), &mut specs, &Definitions::default());
+        apply_uncertainty_specs(
+            &exprs,
+            &Scope::new(),
+            &mut specs,
+            EvalContext::with_defs(&Definitions::default()),
+        );
         assert!(specs.is_empty());
     }
 
@@ -1031,7 +1078,7 @@ mod tests {
         let jac = numerical_jacobian(
             &equations,
             &values,
-            &Definitions::default(),
+            EvalContext::with_defs(&Definitions::default()),
             &["x".to_string(), "z".to_string()],
         )
         .expect("jacobian");

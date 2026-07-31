@@ -1,0 +1,7 @@
+{ The guard touches zero without changing sign (a double root at time = 2).
+  A sign-change detector finds nothing; a minimum-tracking one finds a hit. }
+DYNAMIC touch (method = ode45, time = 0 .. 4, points = 9)
+  der(Yv) = 2*(time - 2)
+  Yv(0) = 4
+  EVENT graze: Yv = 0 -> record
+END

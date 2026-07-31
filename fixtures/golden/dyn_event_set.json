@@ -1,0 +1,43 @@
+{
+  "name": "dyn_event_set",
+  "source": "{ A set event: a discrete latch. Level ramps at 1/s and is reset to 0 every\n  time it reaches 4, so the trajectory is a sawtooth and integration restarts\n  from the modified state. }\nDYNAMIC latch (method = ode45, time = 0 .. 10, points = 11)\n  der(Level) = 1\n  Level(0) = 0\n  EVENT trip: Level = 4 | rising -> set Level = 0\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "level": "Level"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "latch",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "level"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 1.0],
+          [2.0, 1.9999999999999998],
+          [3.0, 3.0000000000000004],
+          [4.0, 0.0],
+          [5.0, 1.0000000000000036],
+          [6.0, 2.0000000000000075],
+          [7.0, 3.000000000000012],
+          [8.0, 1.687538997430238E-14],
+          [9.0, 1.0000000000000195],
+          [10.0, 2.0000000000000235]
+        ],
+        "events": [
+          {"name": "trip", "time": 4.0},
+          {"name": "trip", "time": 7.999999999999983}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

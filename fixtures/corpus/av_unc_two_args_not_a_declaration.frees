@@ -1,0 +1,4 @@
+{ UncertaintyOf with two arguments is not a declaration target. }
+x = 3
+UncertaintyOf(x, 1) = 0.1
+y = x^2

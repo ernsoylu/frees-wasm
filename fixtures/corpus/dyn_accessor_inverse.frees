@@ -1,0 +1,11 @@
+{ The live accessor: the analytic solver sizes an ODE input (the cooling
+  coefficient k) so the transient hits a target. This is the second-solve pass. }
+Tinf = 20
+Temp0 = 95
+
+FinalValue('Temp') = 30
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 21)
+  der(Temp) = -k*(Temp - Tinf)
+  Temp(0) = Temp0
+END

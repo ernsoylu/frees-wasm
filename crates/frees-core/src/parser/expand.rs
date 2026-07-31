@@ -2738,14 +2738,8 @@ impl Flattener<'_> {
         for (name, value) in loop_vars {
             combined.insert(name.clone(), *value);
         }
-        eval::eval_with(
-            e,
-            &combined,
-            EvalContext {
-                defs: Some(self.defs),
-            },
-        )
-        .map_err(|_| parse_err("Array index expression cannot be evaluated to a constant"))
+        eval::eval_with(e, &combined, EvalContext::with_defs(self.defs))
+            .map_err(|_| parse_err("Array index expression cannot be evaluated to a constant"))
     }
 
     /// Evaluate a compile-time integer. Port of `EquationParser.constIndex`.

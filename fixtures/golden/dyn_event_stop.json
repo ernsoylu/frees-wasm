@@ -1,0 +1,42 @@
+{
+  "name": "dyn_event_stop",
+  "source": "{ A stop event: integration ends at the falling crossing of Temp = 50. }\nk = 0.05\nTinf = 20\n\nDYNAMIC coolstop (method = ode45, time = 0 .. 60, points = 7)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\n  EVENT cold: Temp = 50 | falling -> stop\nEND\n",
+  "expect": {
+    "variables": {
+      "Tinf": 20.0,
+      "k": 0.05
+    },
+    "display_names": {
+      "k": "k",
+      "temp": "Temp",
+      "tinf": "Tinf"
+    },
+    "block_count": 2,
+    "ode_tables": [
+      {
+        "name": "coolstop",
+        "method": "ode45",
+        "stopped": true,
+        "end_time": 18.325814613429316,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [3.0543024355715525, 84.37806633936742],
+          [6.108604871143105, 75.26047239748533],
+          [9.162907306714658, 67.4341648316547],
+          [12.21720974228621, 60.71626419873782],
+          [15.271512177857764, 54.9497914976165],
+          [18.325814613429316, 50.0]
+        ],
+        "events": [
+          {"name": "cold", "time": 18.325814613429316}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

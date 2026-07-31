@@ -1,0 +1,9 @@
+{ A second argument passed to an accessor that takes only a column. The arity
+  admits it; whether it is ignored or rejected is the divergence risk. }
+Vmax = MaxValue('Temp', 999)
+Vfin = FinalValue('Temp', -1)
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 7)
+  der(Temp) = -0.05*(Temp - 20)
+  Temp(0) = 95
+END

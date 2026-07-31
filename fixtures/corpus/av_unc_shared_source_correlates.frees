@@ -1,0 +1,10 @@
+{ Two dependents of ONE source: the first-order propagation is exact and the
+  correlation between p and q is implicit in the shared column. }
+s = 5
+UncertaintyOf(s) = 0.25
+p = 2*s
+q = -3*s
+r = p + q
+up = UncertaintyOf(p)
+uq = UncertaintyOf(q)
+ur = UncertaintyOf(r)

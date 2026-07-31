@@ -1,0 +1,6 @@
+{ Only `uncertainty > 0` makes a source: a tiny positive value must behave as
+  a source, and the propagated sigma must scale with it. }
+x = 3
+UncertaintyOf(x) = 1e-12
+y = x^2
+uy = UncertaintyOf(y)

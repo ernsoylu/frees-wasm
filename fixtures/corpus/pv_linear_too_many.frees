@@ -1,0 +1,3 @@
+PARAMETRIC bad (t)
+  t = 0:1e-7:100
+END

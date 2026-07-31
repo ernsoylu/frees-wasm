@@ -41,13 +41,14 @@ pub struct GuessDirective {
 
 /// A parsed document.
 ///
-/// Block constructs that the wasm port has not reached yet (`DYNAMIC`,
-/// `LINEARIZE`) are reported as an explicit unsupported-construct error rather
-/// than being silently skipped — a wrong answer is worse than a refusal.
-/// `FUNCTION`, `PROCEDURE`, `MODULE` and `TABLE` parse into [`Document::defs`]
-/// (Phase 4); `COMPONENT`, a component instantiation and `connect` parse into
+/// Every block construct the grammar admits now has a home. `FUNCTION`,
+/// `PROCEDURE`, `MODULE` and `TABLE` parse into [`Document::defs`] (Phase 4);
+/// `COMPONENT`, a component instantiation and `connect` parse into
 /// [`Document::components`] (Phase 6); `PARAMETRIC`, `PLOT` and `STATE TABLE`
-/// parse into [`Document::blocks`] (Phase 8).
+/// into [`Document::blocks`] (Phase 8); `DYNAMIC` into [`Document::dynamics`]
+/// and `LINEARIZE` into [`Document::linearizes`] (Phase 7). Anything still
+/// unimplemented must be reported as an explicit unsupported-construct error
+/// rather than silently skipped — a wrong answer is worse than a refusal.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Document {
     pub statements: Vec<Statement>,
@@ -74,6 +75,23 @@ pub struct Document {
     /// see `EquationParser.parseResult`). It consumes this field and replaces
     /// [`Document::statements`] with the port-rewritten form.
     pub components: crate::components::def::Components,
+    /// `DYNAMIC … END` blocks, in declaration order.
+    ///
+    /// Like the three declarative blocks these are **not** equations: the
+    /// grammar routes them out of the analytic stream so the steady solver
+    /// never sees a `der()` (`AstBuilder.buildDynamicDef` collects them into
+    /// `ParseResult.dynamicSystems`, which `EquationParser.flatten` never
+    /// touches). [`crate::engine`] integrates them after the analytic solve, at
+    /// the `EquationSystemSolver.solveDynamicSystems` position.
+    pub dynamics: Vec<crate::ode::dynamic::DynamicSystem>,
+    /// `LINEARIZE … END` blocks, in declaration order.
+    ///
+    /// Each names a `DYNAMIC` block and turns it into `A`/`B`/`C`/`D` matrix
+    /// *equations* injected into the analytic system — so unlike
+    /// [`Document::dynamics`] these do feed the equation list, at the Java
+    /// position (`EquationSystemSolver.injectLinearizations`, after complex
+    /// expansion and before blocking).
+    pub linearizes: Vec<blocks::LinearizeSystem>,
     /// Lowercase canonical name → the spelling of its **first appearance as a
     /// variable**, exactly as the Java `AstBuilder` accumulates
     /// `ParseResult.displayNames`.

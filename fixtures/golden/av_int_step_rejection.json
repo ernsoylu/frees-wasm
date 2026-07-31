@@ -1,0 +1,72 @@
+{
+  "name": "av_int_step_rejection",
+  "source": "{ A narrow Gaussian pulse in the rhs at time = 1. An adaptive controller that\n  walks in with a large step MUST reject and retry; the rejection policy\n  (factor, min/max clamp, whether the rejected step is counted) is what this\n  document compares. }\nDYNAMIC pulse (method = ode45, time = 0 .. 2, points = 41)\n  der(Yv) = 200*exp(-20000*(time - 1)^2) - 0.5*Yv\n  Yv(0) = 0\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "time": "time",
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "pulse",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 2.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 0.0],
+          [0.05, 0.0],
+          [0.1, 0.0],
+          [0.15, 0.0],
+          [0.2, 0.0],
+          [0.25, 0.0],
+          [0.3, 0.0],
+          [0.35, 0.0],
+          [0.4, 0.0],
+          [0.45, 0.0],
+          [0.5, 0.0],
+          [0.55, 0.0],
+          [0.6, 0.0],
+          [0.65, 0.0],
+          [0.7, 0.0],
+          [0.75, 0.0],
+          [0.8, 0.0],
+          [0.85, 0.0],
+          [0.9, 0.0],
+          [0.95, -1.5293907902784346E-15],
+          [1.0, 1.2508419839968963],
+          [1.05, 2.444747139730362],
+          [1.1, 2.384386117817611],
+          [1.15, 2.32551541477523],
+          [1.2, 2.2680982346391407],
+          [1.25, 2.2120986896641845],
+          [1.3, 2.1574817784468783],
+          [1.35, 2.1042133635080487],
+          [1.4, 2.052260150482805],
+          [1.45, 2.001589666796476],
+          [1.5, 1.9521702418695093],
+          [1.55, 1.9039709868333903],
+          [1.6, 1.8569617757009556],
+          [1.65, 1.8111132260715854],
+          [1.7, 1.7663966812198464],
+          [1.75, 1.722784191741708],
+          [1.8, 1.6802484985167285],
+          [1.85, 1.638763015249395],
+          [1.9, 1.5983018122622588],
+          [1.95, 1.5588395998887388],
+          [2.0, 1.5203517130667474]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

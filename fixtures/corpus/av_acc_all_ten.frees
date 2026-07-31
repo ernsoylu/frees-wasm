@@ -1,0 +1,20 @@
+{ Every ODE accessor read off one solved table. ODEStdDev is population, not
+  sample; ODESum has no time weighting; both are pinned here. }
+k = 0.05
+Tinf = 20
+
+Vfinal = FinalValue('Temp')
+Vmax   = MaxValue('Temp')
+Vmin   = MinValue('Temp')
+Vomax  = ODEMax('Temp')
+Vomin  = ODEMin('Temp')
+Vavg   = ODEAvg('Temp')
+Vsum   = ODESum('Temp')
+Vstd   = ODEStdDev('Temp')
+Vat    = ODEValue('Temp', 17.5)
+Vtime  = TimeAt('Temp', 50)
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 13)
+  der(Temp) = -k*(Temp - Tinf)
+  Temp(0) = 95
+END

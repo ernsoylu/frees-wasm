@@ -90,9 +90,8 @@ struct VariableInfoDto {
     lower: Option<f64>,
     upper: Option<f64>,
     units: Option<String>,
-    /// Accepted so the frontend's full rows deserialize; uncertainty
-    /// propagation is not ported.
-    #[allow(dead_code)]
+    /// The `±` column: a stated 1-sigma uncertainty, which makes the variable
+    /// an uncertainty *source* for the propagation pass.
     uncertainty: Option<f64>,
 }
 
@@ -152,6 +151,7 @@ fn overrides_of(request: &SolveRequest) -> Vec<VariableOverride> {
             lower: dto.lower,
             upper: dto.upper,
             unit: dto.units.clone(),
+            uncertainty: dto.uncertainty,
         })
         .collect()
 }
@@ -296,7 +296,7 @@ fn variable_rows(
     solution: &Solution,
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
-) -> Vec<VariableRow> {
+) -> (Vec<VariableRow>, Vec<Option<f64>>) {
     solution
         .values
         .iter()
@@ -329,24 +329,44 @@ fn variable_rows(
                 .get(&key)
                 .map(String::as_str)
                 .unwrap_or("");
-            let (display_value, display_unit) =
-                to_display(&key, *value, unit, system, explicit_units);
-            VariableRow {
-                name: display.clone(),
-                value: display_value,
-                units: display_unit,
-            }
+            // `toVariableDto`: the uncertainty is looked up by the row's own
+            // key — the display name lowercased — into `Result.uncertainties`.
+            let si_unc = solution.uncertainties.get(&key).copied();
+            let (display_value, display_unit, display_unc) =
+                to_display(&key, *value, si_unc, unit, system, explicit_units);
+            (
+                VariableRow {
+                    name: display.clone(),
+                    value: display_value,
+                    units: display_unit,
+                },
+                display_unc,
+            )
         })
-        .collect()
+        .unzip()
 }
 
-fn variable_entries(rows: &[VariableRow]) -> Vec<Value> {
+fn variable_entries(rows: &[VariableRow], uncertainties: &[Option<f64>]) -> Vec<Value> {
     rows.iter()
-        .map(|row| {
+        .enumerate()
+        .map(|(index, row)| {
+            // `VariableDto.uncertainty` is `Double`, and the Java's
+            // `toVariableDto` reads `result.uncertainties().get(canonicalName)`
+            // — a plain map lookup. `partitionVariables` zero-fills that map
+            // over every variable of the system, so a document with no source
+            // reports **0.0, not null**; only a row that is not a system
+            // variable at all (the synthetic `uncertaintyof$…` rows the second
+            // pass publishes) misses and reports null. Transcribed as-is.
+            let unc = uncertainties
+                .get(index)
+                .copied()
+                .flatten()
+                .filter(|u| u.is_finite());
             json!({
                 "name": row.name,
                 "value": row.value,
                 "units": row.units,
+                "uncertainty": unc,
             })
         })
         .collect()
@@ -450,12 +470,17 @@ fn component_entries(solution: &Solution, vars: &[VariableRow]) -> Vec<Value> {
 fn to_display(
     name_lower: &str,
     si_value: f64,
+    si_unc: Option<f64>,
     unit: &str,
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
-) -> (f64, String) {
+) -> (f64, String, Option<f64>) {
+    // A stated sigma scales by the display unit's FACTOR only — it is an
+    // interval width, so the additive offset of e.g. [C] must not touch it.
+    // Port of `SolverApiSupport.convertToDisplayUnit`, which divides
+    // `displayUnc` by the factor and never subtracts the offset.
     if unit.is_empty() || unit == "-" {
-        return (si_value, unit.to_string());
+        return (si_value, unit.to_string(), si_unc);
     }
     // The explicit unit's own text is what gets displayed, so it is what gets
     // parsed — the Java uses the same `unit` for both because `unitsByLowerName`
@@ -465,17 +490,25 @@ fn to_display(
         .map(String::as_str)
         .unwrap_or(unit);
     let Ok(recorded) = UnitRegistry::parse_with_offset(effective) else {
-        return (si_value, effective.to_string());
+        return (si_value, effective.to_string(), si_unc);
     };
     if explicit_units.contains_key(name_lower) {
-        return (recorded.from_si(si_value), effective.to_string());
+        return (
+            recorded.from_si(si_value),
+            effective.to_string(),
+            si_unc.map(|u| u / recorded.factor),
+        );
     }
     match UnitRegistry::preferred_display_unit(&recorded.dims, system) {
         Some(preferred) => {
             let value = (si_value - preferred.offset) / preferred.factor;
-            (value, preferred.name)
+            (value, preferred.name, si_unc.map(|u| u / preferred.factor))
         }
-        None => (recorded.from_si(si_value), effective.to_string()),
+        None => (
+            recorded.from_si(si_value),
+            effective.to_string(),
+            si_unc.map(|u| u / recorded.factor),
+        ),
     }
 }
 
@@ -490,8 +523,8 @@ fn solve_success(
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
 ) -> String {
-    let rows = variable_rows(solution, system, explicit_units);
-    let variables = variable_entries(&rows);
+    let (rows, row_uncertainties) = variable_rows(solution, system, explicit_units);
+    let variables = variable_entries(&rows, &row_uncertainties);
     let components = component_entries(solution, &rows);
 
     let blocks: Vec<Value> = solution
@@ -552,8 +585,105 @@ fn solve_success(
         // One entry per top-level COMPONENT instance; empty for a document with
         // no component layer.
         "components": components,
+        // One entry per solved DYNAMIC block — the Java `Result.odeTables`,
+        // shaped as `OdeTableDto` so the Tables window renders it through the
+        // same path as a parametric table and the Plots window can graph it.
+        "odeTables": ode_tables(solution),
+        // Tornado breakdown: per dependent variable, its propagated sigma and
+        // each source's signed contribution, largest sigma first — the Java
+        // `SolveController.uncertaintyBreakdownOf`. Empty when the document
+        // declares no uncertainty.
+        "uncertaintyBreakdown": uncertainty_breakdown(solution),
     })
     .to_string()
+}
+
+/// `uncertaintyBreakdown[]` — port of `SolveController.uncertaintyBreakdownOf`.
+///
+/// One entry per variable that has contributions, display-named, its sources
+/// capped at 16 and the entries ranked by propagated sigma, largest first.
+/// Values are **SI**: the Java ranks and emits `result.uncertainties()`
+/// straight out of the propagation, without the display-unit conversion
+/// `toVariableDto` applies to the variable rows.
+fn uncertainty_breakdown(solution: &Solution) -> Vec<Value> {
+    let mut entries: Vec<(f64, Value)> = solution
+        .uncertainty_contributions
+        .iter()
+        .map(|(name, sources)| {
+            let total = solution.uncertainties.get(name).copied().unwrap_or(0.0);
+            (
+                total,
+                json!({
+                    "variable": display_of(&solution.display_names, name),
+                    "total": total,
+                    "sources": sources
+                        .iter()
+                        .take(16)
+                        .map(|c| json!({
+                            "source": display_of(&solution.display_names, &c.source),
+                            "value": c.value,
+                        }))
+                        .collect::<Vec<_>>(),
+                }),
+            )
+        })
+        .collect();
+    entries.sort_by(|a, b| b.0.total_cmp(&a.0));
+    entries.into_iter().map(|(_, value)| value).collect()
+}
+
+/// `odeTables[]` — the sampled trajectory of every solved `DYNAMIC` block.
+///
+/// The DTO calls the column headers `vars` (matching `ParametricTableDto`) and
+/// carries a parallel `units` array, so the grid can label its columns without
+/// a second lookup. **Rows are SI**, like every value core produces: the ODE
+/// table is not run through the display-unit conversion `variable_rows` applies,
+/// because a trajectory column is not a result *variable* and the Java response
+/// does not convert it either.
+///
+/// A non-finite cell becomes `null` rather than a JSON literal — `NaN` is not
+/// representable in JSON and the DTO types the cell as `number | null`. Same
+/// rule the residual list already applies.
+fn ode_tables(solution: &Solution) -> Vec<Value> {
+    solution
+        .ode_tables
+        .iter()
+        .map(|table| {
+            let units: Vec<&str> = table
+                .columns
+                .iter()
+                .map(|column| {
+                    solution
+                        .inferred_units
+                        .get(column.as_str())
+                        .map(String::as_str)
+                        .unwrap_or("")
+                })
+                .collect();
+            json!({
+                "name": table.name,
+                "vars": table.columns,
+                "units": units,
+                "rows": table
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|v| if v.is_finite() { json!(v) } else { Value::Null })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>(),
+                "events": table
+                    .events
+                    .iter()
+                    .map(|hit| json!({ "name": hit.name, "time": hit.time }))
+                    .collect::<Vec<_>>(),
+                "method": table.method,
+                "stopped": table.stopped,
+                "endTime": table.end_time,
+            })
+        })
+        .collect()
 }
 
 /// The `SolveResponse.failure` envelope. When the failure carries partial
@@ -1879,5 +2009,72 @@ P2 = 101325 [Pa]
         );
         // An empty body is the all-defaults chart, like an absent request body.
         assert_eq!(parsed(&psychrometric_chart(""))["pressure"], 101_325.0);
+    }
+
+    // ── Uncertainty on the wire (VariableDto.uncertainty + uncertaintyBreakdown) ──
+
+    #[test]
+    fn an_in_text_uncertainty_reaches_the_variable_rows_and_the_breakdown() {
+        // y = x^2 with u(x) = 0.1 propagates to |dy/dx|*u = 2*3*0.1 = 0.6.
+        // The Java oracle answers 0.6000000039736431 (a finite-difference
+        // Jacobian, not the closed form); fixtures/golden/av_unc_square_law.json
+        // pins that number, so this only checks it reaches the DTO.
+        let v = parsed(&solve(
+            "x = 3\nUncertaintyOf(x) = 0.1\ny = x^2\nuy = UncertaintyOf(y)\n",
+            "{}",
+        ));
+        assert_eq!(v["success"], true, "{v}");
+        let ux = variable(&v, "x")["uncertainty"].as_f64().expect("u(x)");
+        assert!((ux - 0.1).abs() < 1e-12, "u(x) = {ux}");
+        let uy = variable(&v, "y")["uncertainty"].as_f64().expect("u(y)");
+        assert!((uy - 0.6).abs() < 1e-6, "u(y) = {uy}");
+
+        let breakdown = v["uncertaintyBreakdown"]
+            .as_array()
+            .expect("uncertaintyBreakdown must be an array");
+        let entry = breakdown
+            .iter()
+            .find(|e| e["variable"] == "y")
+            .unwrap_or_else(|| panic!("no breakdown for y in {v}"));
+        assert!(
+            (entry["total"].as_f64().unwrap() - 0.6).abs() < 1e-6,
+            "{entry}"
+        );
+        let sources = entry["sources"].as_array().expect("sources");
+        assert_eq!(sources.len(), 1, "{entry}");
+        assert_eq!(sources[0]["source"], "x");
+    }
+
+    #[test]
+    fn a_document_with_no_uncertainty_reports_zero_and_an_empty_breakdown() {
+        // Not null: `partitionVariables` zero-fills `uncertainties` over every
+        // variable before it looks at a single spec, so the Java DTO carries
+        // 0.0 for a document that declares nothing. The breakdown *is* empty —
+        // `contributions` stays untouched when there is no source.
+        let v = parsed(&solve("x = 3\ny = x^2\n", "{}"));
+        assert_eq!(v["success"], true, "{v}");
+        assert_eq!(variable(&v, "y")["uncertainty"].as_f64(), Some(0.0), "{v}");
+        assert_eq!(
+            v["uncertaintyBreakdown"].as_array().map(Vec::len),
+            Some(0),
+            "{v}"
+        );
+    }
+
+    #[test]
+    fn a_variable_info_uncertainty_is_a_source_and_scales_by_the_unit_factor() {
+        // The `±` column of the Variable Information window. `1 [kPa]` of
+        // uncertainty is 1000 Pa — the unit's FACTOR applies, its offset does
+        // not, because a sigma is an interval width.
+        let request = r#"{"variableInfo": [
+            {"name": "p", "guess": 1, "units": "kPa", "uncertainty": 1}
+        ]}"#;
+        let v = parsed(&solve(
+            "p = 200 [kPa]\nq = 2*p\nuq = UncertaintyOf(q)\n",
+            request,
+        ));
+        assert_eq!(v["success"], true, "{v}");
+        let uq = variable(&v, "uq")["value"].as_f64().expect("uq");
+        assert!((uq - 2000.0).abs() < 1e-6, "u(q) = {uq}");
     }
 }

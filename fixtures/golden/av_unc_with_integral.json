@@ -1,0 +1,30 @@
+{
+  "name": "av_unc_with_integral",
+  "source": "{ Uncertainty alongside an Integral — the extraction happens BEFORE\n  findIntegrals, so the declaration must not reach the quadrature driver. }\nc = 2\nUncertaintyOf(c) = 0.05\nF = Integral(c*tt^2, tt, 0, 3)\nuF = UncertaintyOf(F)\n",
+  "expect": {
+    "variables": {
+      "F": 18.00000014422142,
+      "c": 2.0,
+      "tt": 3.0,
+      "uF": 0.0,
+      "uncertaintyof$c": 0.05,
+      "uncertaintyof$f": 0.0,
+      "uncertaintyof$tt": 0.0,
+      "uncertaintyof$uf": 0.0
+    },
+    "display_names": {
+      "c": "c",
+      "f": "F",
+      "tt": "tt",
+      "uf": "uF"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,15 @@
+{ Live accessor on an extremum: size the launch speed so the peak height is
+  20 m. MaxValue is a max over sampled rows, so the answer depends on the
+  sampling grid as well as the trajectory — a good parity probe. }
+g = 9.80665
+V0 = Vbase + dv
+Vbase = 1
+
+MaxValue('Height') = 20
+
+DYNAMIC toss (method = ode45, time = 0 .. 4, points = 9)
+  der(Height) = Vel
+  der(Vel) = -g
+  Height(0) = 0
+  Vel(0) = V0
+END

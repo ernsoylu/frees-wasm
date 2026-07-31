@@ -1,0 +1,5 @@
+{ The header declares `t`; the body reads the reserved global `time`. }
+DYNAMIC alias (method = ode45, t = 0 .. 4, points = 5)
+  der(Y) = time
+  Y(0) = 0
+END

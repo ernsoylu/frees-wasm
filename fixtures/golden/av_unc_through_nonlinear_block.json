@@ -1,0 +1,33 @@
+{
+  "name": "av_unc_through_nonlinear_block",
+  "source": "{ Uncertainty propagated through an implicit 2x2 Newton block rather than an\n  explicit chain — the Jacobian, not a closed form, carries the sensitivity. }\nc1 = 3\nUncertaintyOf(c1) = 0.15\np^2 + q^3 = 77\np/q = c1\nup = UncertaintyOf(p)\nuq = UncertaintyOf(q)\n",
+  "expect": {
+    "variables": {
+      "c1": 3.0,
+      "p": 7.736334680143304,
+      "q": 2.5787782267144346,
+      "uncertaintyof$c1": 0.15,
+      "uncertaintyof$p": 0.11627699870854766,
+      "uncertaintyof$q": 0.09017991266206278,
+      "uncertaintyof$up": 0.0,
+      "uncertaintyof$uq": 0.0,
+      "up": 0.11627699870854766,
+      "uq": 0.09017991266206278
+    },
+    "display_names": {
+      "c1": "c1",
+      "p": "p",
+      "q": "q",
+      "up": "up",
+      "uq": "uq"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,4 @@
+DYNAMIC undef (method = ode45, time = 0 .. 10, points = 3)
+  der(Level) = Nope
+  Level(0) = 0
+END

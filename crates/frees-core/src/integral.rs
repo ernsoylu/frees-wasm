@@ -337,12 +337,12 @@ fn to_integral_equation(
 /// `None` — it contains unknowns and is resolved by the equation system.
 /// Java catches the evaluator's `IllegalStateException` for exactly this.
 fn try_constant(e: &Expr, defs: &Definitions) -> Option<f64> {
-    eval_with(e, &Scope::new(), EvalContext { defs: Some(defs) }).ok()
+    eval_with(e, &Scope::new(), EvalContext::with_defs(defs)).ok()
 }
 
 /// `IntegralSolver.constantArg`: an argument that *must* be closed.
 fn constant_arg(e: &Expr, what: &str, eq: &Equation, defs: &Definitions) -> Result<f64> {
-    eval_with(e, &Scope::new(), EvalContext { defs: Some(defs) }).map_err(|_| {
+    eval_with(e, &Scope::new(), EvalContext::with_defs(defs)).map_err(|_| {
         FreesError::solver(format!(
             "The {what} of Integral must be a numeric constant: {}",
             eq.source_text

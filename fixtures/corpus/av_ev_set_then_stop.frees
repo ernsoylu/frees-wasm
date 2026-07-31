@@ -1,0 +1,10 @@
+{ A set event fires three times, then a stop event ends the run — the stop
+  must be detected on a segment that began at a restart, not at t0. }
+DYNAMIC sawstop (method = ode45, time = 0 .. 30, points = 16)
+  der(Level) = 1
+  der(Count) = 0
+  Level(0) = 0
+  Count(0) = 0
+  EVENT trip: Level = 4 | rising -> set Level = 0
+  EVENT quit: time = 13.5 | rising -> stop
+END

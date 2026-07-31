@@ -1,0 +1,11 @@
+{ Uncertainty on a parameter that only the DYNAMIC block reads. }
+k = 0.05
+Tinf = 20
+UncertaintyOf(k) = 0.005
+Tfin = FinalValue('Temp')
+ufin = UncertaintyOf(Tfin)
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 7)
+  der(Temp) = -k*(Temp - Tinf)
+  Temp(0) = 95
+END

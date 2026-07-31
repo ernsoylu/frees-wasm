@@ -1,0 +1,5 @@
+{ A fixed step larger than the whole span. }
+DYNAMIC big (method = ode4, time = 0 .. 1, points = 5, step = 10)
+  der(Yv) = -Yv
+  Yv(0) = 1
+END

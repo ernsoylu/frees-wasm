@@ -1,0 +1,12 @@
+{ Two inertias rigidly coupled through a torque split. The assembly is square
+  (2 states + 2 algebraic = 4 equations) so the structural-index check runs. }
+Tin = 10
+
+DYNAMIC rigid (method = ode45, time = 0 .. 10, points = 3)
+  der(W1) = Tq1
+  der(W2) = Tq2
+  W1 = W2
+  Tq1 + Tq2 = Tin
+  W1(0) = 0
+  W2(0) = 0
+END

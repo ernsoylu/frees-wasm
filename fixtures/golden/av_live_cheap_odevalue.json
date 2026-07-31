@@ -1,0 +1,41 @@
+{
+  "name": "av_live_cheap_odevalue",
+  "source": "{ Live accessor on an interior sample. }\nkk = 0.02 + dk\nTinf = 20\n\nODEValue('Temp', 0.5) = 80\n\nDYNAMIC cooling (method = ode45, time = 0 .. 1, points = 5)\n  der(Temp) = -kk*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Tinf": 20.0,
+      "dk": 0.42628710262841535,
+      "kk": 0.44628710262841537
+    },
+    "display_names": {
+      "dk": "dk",
+      "kk": "kk",
+      "temp": "Temp",
+      "tinf": "Tinf"
+    },
+    "block_count": 3,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 1.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [0.25, 87.08203932499372],
+          [0.5, 80.0],
+          [0.75, 73.66563145999501],
+          [1.0, 68.00000000000006]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

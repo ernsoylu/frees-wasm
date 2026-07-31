@@ -1,0 +1,10 @@
+{ The accessors applied to column 0 — the independent variable itself. }
+Tend = FinalValue('time')
+Tavg = ODEAvg('time')
+Tstd = ODEStdDev('time')
+Tsum = ODESum('time')
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 13)
+  der(Temp) = -0.05*(Temp - 20)
+  Temp(0) = 95
+END

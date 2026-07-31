@@ -1,0 +1,18 @@
+{
+  "name": "pv_linear_too_many",
+  "source": "PARAMETRIC bad (t)\n  t = 0:1e-7:100\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Range t = ... would generate 1000000001 elements (max 100000). Use a larger step."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

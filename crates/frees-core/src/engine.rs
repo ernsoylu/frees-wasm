@@ -89,6 +89,7 @@ use crate::diag::{Diagnostic, FreesError, Result};
 use crate::differentiator::differentiate;
 use crate::eval::{eval_with, lookup_constant, EvalContext, Scope};
 use crate::integral::IntegralEquation;
+use crate::ode::accessors::OdeTableAccessors;
 use crate::parser::defs::Definitions;
 use crate::parser::{parse_document, Document, GuessDirective};
 use crate::procedures::flatten_calls_into;
@@ -195,6 +196,28 @@ pub struct Solution {
     /// layer (the Java `ParseResult.componentConnections`). Empty for a document
     /// with no component layer.
     pub component_connections: Vec<crate::components::expander::Connection>,
+    /// One sampled trajectory per `DYNAMIC` block, in declaration order — the
+    /// Java `Result.odeTables`, which the frontend renders as the Tables and
+    /// Plots windows.
+    ///
+    /// **A solved `DYNAMIC` block contributes nothing to
+    /// [`Solution::values`].** The trajectory is a first-class table, not a set
+    /// of scalars, so a transient document's `variables` map holds only its
+    /// analytic parameters. A parity fixture that compares `variables` alone
+    /// therefore passes *vacuously* on a transient document — `tests/parity.rs`
+    /// compares this field for exactly that reason.
+    pub ode_tables: Vec<crate::ode::problem::OdeTableResult>,
+    /// Propagated 1-sigma uncertainty of **every** variable of the system — the
+    /// Java `Result.uncertainties`. A declared source maps to its stated value,
+    /// a dependent variable to its propagated sigma, and a document that
+    /// declares no source at all maps everything to `0.0`.
+    pub uncertainties: BTreeMap<String, f64>,
+    /// Per dependent variable, each source's signed first-order contribution,
+    /// ranked — the Java `Result.uncertaintyContributions`, which the frontend
+    /// renders as the tornado chart. Empty when nothing declares an
+    /// uncertainty.
+    pub uncertainty_contributions:
+        BTreeMap<String, Vec<crate::analysis::uncertainty::UncertaintyContribution>>,
 }
 
 /// Diagnostics captured at the point a block solve gave up — the Java
@@ -352,6 +375,11 @@ pub struct VariableOverride {
     /// all mean "already SI"; an *unknown* unit falls back to factor 1 /
     /// offset 0 silently, matching the Java `toSpec` catch-and-default.
     pub unit: Option<String>,
+    /// Stated 1-sigma uncertainty — the Variable Information window's `±`
+    /// column (`VariableInfoDto.uncertainty`). Scales by the unit's **factor
+    /// only**, never its offset: it is an interval width, not a point. `None`
+    /// is the Java's null, which `toSpec` turns into `0.0` — "not a source".
+    pub uncertainty: Option<f64>,
 }
 
 /// What the document says about one unknown before the solve starts.
@@ -397,7 +425,8 @@ impl VarSpec {
 /// # Errors
 ///
 /// * [`FreesError::Parse`] — a syntax error, or a block construct the wasm port
-///   has not implemented (`COMPONENT`, `PROCEDURE`, `PARAMETRIC`, …).
+///   has not implemented (`DYNAMIC`, `LINEARIZE`; see
+///   [`crate::parser::toplevel`] for what has since left that list).
 /// * [`FreesError::Solver`] — no equations, nonzero degrees of freedom, a
 ///   structurally singular system, or a block that would not converge.
 /// * whatever [`crate::eval`] raises when the residuals cannot be evaluated at
@@ -463,6 +492,11 @@ pub fn solve_with(
     let mut equations = std::mem::take(&mut components.equations);
     equations.extend(crate::parser::expand::expand_document(&doc)?);
     let defs = &doc.defs;
+    // The document context every residual evaluation runs under. The two
+    // optional channels (`ode`, `parametric`) start empty; the accessor pass
+    // below installs the ODE bridge when — and only when — the analytic system
+    // actually reads a solved `DYNAMIC` block.
+    let base_ctx = EvalContext::with_defs(defs);
 
     // Pipeline stage 3b — the Integral pass, at the Java position (`solve`
     // runs `IntegralSolver.hoistNested` then `findIntegrals` on the flattened
@@ -470,6 +504,17 @@ pub fn solve_with(
     // mentions no `Integral` comes out of `hoist_nested` byte-identical and
     // takes the same path it always did.
     let equations = crate::integral::hoist_nested(equations);
+
+    // Pipeline stage 3b′ — lift the `UncertaintyOf(X) = expr` declarations out
+    // of the equation stream, at the Java position: `solve` runs
+    // `extractUncertaintyEquations` between `hoistNested` and `findIntegrals`.
+    // A declaration is **not** an equation — leaving it in makes every
+    // uncertainty document overspecified — and the lifted expressions become
+    // the specs the propagation pass reads.
+    let ext = crate::analysis::uncertainty::extract_uncertainty_equations(&equations);
+    let equations = ext.active_equations;
+    let uncertainty_exprs = ext.uncertainty_exprs;
+
     let integrals = find_integrals(&equations, defs, settings.complex_mode)?;
     let mut stepping_iterations = 0usize;
     let equations = if integrals.is_empty() {
@@ -501,9 +546,93 @@ pub fn solve_with(
         let mut dropped = Vec::new();
         let pre_specs = variable_specs(&equations, &hoisted_knowns, &doc, overrides, &mut dropped)?;
         let (lowered, driven) =
-            lower_integrals(&equations, &integrals, settings, &pre_specs, defs)?;
+            lower_integrals(&equations, &integrals, settings, &pre_specs, base_ctx)?;
         stepping_iterations = driven;
         lowered
+    };
+
+    // Pipeline stage 3c — plant → control coupling, at the Java position:
+    // `EquationSystemSolver.solve` runs `injectLinearizations` *after*
+    // `ComplexExpansion.expand` and *before* the ODE-only shortcut and the
+    // blocker, so the emitted `A[i,j] = value` equations are ordinary members
+    // of the system the control suite then consumes.
+    let equations = if doc.linearizes.is_empty() {
+        equations
+    } else {
+        // The inner linearization solves need guesses; the Java reads them off
+        // the parse result, which is equation-independent. Here they come from
+        // the pre-injection list (a subset that introduces no new unknowns of
+        // its own), with the diagnostics dropped so no `GUESS` warning is
+        // emitted twice.
+        let (_, pre_knowns) = builtin_constants(&equations);
+        let mut dropped = Vec::new();
+        let pre_specs = variable_specs(&equations, &pre_knowns, &doc, overrides, &mut dropped)?;
+        let inputs = LinearizeInputs {
+            dynamics: &doc.dynamics,
+            linearizes: &doc.linearizes,
+            defs,
+        };
+        // `display_names` is moved out and back so `emit_matrix` can register
+        // into it while `inputs` holds the document's other fields.
+        let mut names = std::mem::take(&mut doc.display_names);
+        let injected = inject_linearizations(
+            inputs, &mut names, equations, settings, &pre_specs, base_ctx,
+        );
+        doc.display_names = names;
+        injected?
+    };
+
+    // Pipeline stage 3d — the ODE-only shortcut, at the Java position: "a
+    // document whose only content is DYNAMIC block(s) (all parameters inline)
+    // has no analytic equations to block/solve — run the ODE blocks directly."
+    // `buildResult(equations, List.of(), List.of(Map.of()), 0, …)` is an empty
+    // solution carrying only the tables.
+    if equations.is_empty() && !doc.dynamics.is_empty() {
+        let ode_tables =
+            solve_dynamic_systems(&doc, &Scope::new(), settings, &BTreeMap::new(), base_ctx)?;
+        return Ok(Solution {
+            values: BTreeMap::new(),
+            display_names: complete_display_names(&doc.display_names, &equations),
+            blocks: Vec::new(),
+            block_equations: Vec::new(),
+            residuals: Vec::new(),
+            stats: SolveStats {
+                iterations: 0,
+                max_residual: 0.0,
+                elapsed_ms: None,
+            },
+            inferred_units: BTreeMap::new(),
+            unit_warnings: Vec::new(),
+            diagnostics,
+            iterations: 0,
+            component_instances: components.instances,
+            component_connections: components.connections,
+            ode_tables,
+            uncertainties: BTreeMap::new(),
+            uncertainty_contributions: BTreeMap::new(),
+        });
+    }
+
+    // Pipeline stage 3e — the ODE Table accessor pass (`odeAccessors`). When the
+    // analytic system reads a solved block, the coupling has to be visible to
+    // the blocker *and* to the Newton Jacobian, so each accessor-bearing
+    // equation gains `+ 0·v` terms for the block's input variables, the live
+    // bridge is installed, and the outer tolerance is relaxed to 1e-4 — the
+    // accessor residual otherwise rides on the ODE/finite-difference noise
+    // floor and the solve chases numerical dust.
+    let ode_accessors =
+        !doc.dynamics.is_empty() && crate::ode::accessors::contains_accessor(&equations);
+    let equations = if ode_accessors {
+        augment_accessor_dependencies(&doc, equations)
+    } else {
+        equations
+    };
+    let relaxed;
+    let solve_settings = if ode_accessors {
+        relaxed = relaxed_ode_settings(settings, 1e-4);
+        &relaxed
+    } else {
+        settings
     };
 
     let (constants, knowns) = builtin_constants(&equations);
@@ -525,13 +654,25 @@ pub fn solve_with(
         values.insert(name.clone(), spec.initial());
     }
 
+    // `installAccessorContext`. The bridge borrows the blocks and the specs for
+    // the duration of the block loop; the Java's `finally { clear(); }` is this
+    // binding going out of scope. The *inner* solve — the per-step algebraic
+    // block inside each integration — runs at 1e-7, a tighter target than the
+    // 1e-4 outer solve, exactly as the Java's two `relaxedOdeSettings` calls do.
+    let inner_settings = relaxed_ode_settings(settings, 1e-7);
+    let bridge = ode_accessors.then(|| accessor_bridge(&doc, &inner_settings, &specs, base_ctx));
+    let ctx = EvalContext {
+        ode: bridge.as_ref().map(|b| b as &dyn OdeTableAccessors),
+        ..base_ctx
+    };
+
     let iterations = match run_blocks(
         &report.blocks,
         &equations,
         &mut values,
-        settings,
+        solve_settings,
         &specs,
-        defs,
+        ctx,
     ) {
         Ok(block_iterations) => stepping_iterations + block_iterations,
         Err(BlockLoopFailure {
@@ -543,7 +684,8 @@ pub fn solve_with(
             // every equation's residual at the stalled iterate (`residuals_at`
             // records NaN where evaluation fails), and partial stats, so a
             // failure ships diagnostics.
-            let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values, defs);
+            let (residuals, max_residual) =
+                residuals_at(&equations, &report.blocks, &values, base_ctx);
             let block_equations = block_equation_texts(&report.blocks, &equations);
             let display_names = complete_display_names(&doc.display_names, &equations);
             return Err(SolveFailure {
@@ -567,6 +709,47 @@ pub fn solve_with(
 
     check_bounds(&specs, &values, &mut diagnostics);
 
+    // Pipeline stage 4b — uncertainty, at the Java position: `solve` runs
+    // `applyUncertaintySpecs` + `propagateUncertainty` on the solved state and,
+    // when an *active* equation queries `UncertaintyOf(...)`, re-solves once
+    // with the first pass's sigmas injected (`resolveUncertaintySecondPass`).
+    // `values` comes back carrying the published `uncertaintyof$…` entries when
+    // — and only when — that second pass ran, which is what the Java surfaces.
+    let stated = override_uncertainties(overrides);
+    let mut unc_specs: BTreeMap<String, crate::analysis::uncertainty::UncertaintySpec> = specs
+        .iter()
+        .map(|(name, spec)| {
+            (
+                name.clone(),
+                crate::analysis::uncertainty::UncertaintySpec {
+                    guess: spec.guess,
+                    lower: spec.lower,
+                    upper: spec.upper,
+                    // The modal `±` column first; an in-text
+                    // `UncertaintyOf(X) = expr` overwrites it below, which is
+                    // the Java order (`specs` carries `toSpec`'s uncertainty
+                    // and `applyUncertaintySpecs` puts a new spec over it).
+                    uncertainty: stated.get(name).copied().unwrap_or(0.0),
+                },
+            )
+        })
+        .collect();
+    let propagation = crate::analysis::uncertainty::analyze(
+        &equations,
+        &mut values,
+        &mut unc_specs,
+        &uncertainty_exprs,
+        // The Java reaches `propagateUncertainty` with the accessor
+        // thread-local still installed, so a Jacobian column for a variable
+        // only the `DYNAMIC` block reads is a *re-integration*, not a zero.
+        // `ctx` — not `base_ctx` — carries that bridge.
+        ctx,
+        |eqs, warm| {
+            solve_equation_list(eqs, solve_settings, &specs, ctx, Some(warm))
+                .map(|inner| inner.values)
+        },
+    )?;
+
     // Report the *unknowns*, not the whole scope. The built-in constants were
     // seeded into the scope so the evaluator could read them (see the module
     // docs), but the Java engine substitutes them as literals at parse time and
@@ -578,7 +761,12 @@ pub fn solve_with(
     // CALL output (`CALL LinFit(x, y : m, b)`) is backed by a real unknown that
     // the solver must still determine, but Java never surfaces it — the
     // `EquationSystemSolver` result loop does `if (isIgnoredSink(name)) return;`.
-    let solved: BTreeMap<String, f64> = specs
+    //
+    // The one addition to that rule is the `uncertaintyof$<var>` rows the
+    // second uncertainty pass publishes into the scope: the Java `buildResult`
+    // surfaces the whole `values` map, so those rows *are* result variables
+    // there (they carry no display name, so they appear verbatim).
+    let mut solved: BTreeMap<String, f64> = specs
         .keys()
         .filter(|name| !crate::parser::toplevel::is_ignored_sink(name))
         .map(|name| {
@@ -586,9 +774,14 @@ pub fn solve_with(
             (name.clone(), value)
         })
         .collect();
+    for (name, value) in &values {
+        if name.starts_with(crate::analysis::uncertainty::UNCERTAINTY_OF_FN) {
+            solved.insert(name.clone(), *value);
+        }
+    }
 
     let display_names = complete_display_names(&doc.display_names, &equations);
-    let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values, defs);
+    let (residuals, max_residual) = residuals_at(&equations, &report.blocks, &values, base_ctx);
     let block_equations = block_equation_texts(&report.blocks, &equations);
 
     // Dimensional check + SI unit inference (the Java solve path's
@@ -599,6 +792,17 @@ pub fn solve_with(
     let unit_report = crate::units::checker::check_units(&equations, &declared);
     let mut inferred_units = unit_report.inferred;
     inferred_units.extend(declared);
+
+    // Pipeline stage 5 — the transient run, at the Java position: `solve`
+    // calls `solveDynamicSystems(parsed, solved.values(), …)` *after* the
+    // analytic solve and passes the result into `buildResult`. Each block gets
+    // the solved scalars as its parameters and initial conditions.
+    //
+    // Note this drops the accessor bridge first (`ctx` is not passed): the Java
+    // reaches here with the thread-local still installed, but every block is
+    // re-integrated from scratch against the final values, so a cached table
+    // from a Newton iterate must not be reused.
+    let ode_tables = solve_dynamic_systems(&doc, &values, settings, &specs, base_ctx)?;
 
     Ok(Solution {
         values: solved,
@@ -618,7 +822,303 @@ pub fn solve_with(
         iterations,
         component_instances: components.instances,
         component_connections: components.connections,
+        ode_tables,
+        uncertainties: propagation.uncertainties,
+        uncertainty_contributions: propagation.contributions,
     })
+}
+
+// ---------------------------------------------------------------------------
+// The transient pass — port of EquationSystemSolver's DYNAMIC wiring
+// ---------------------------------------------------------------------------
+
+/// Looser tolerances for ODE-coupled solves.
+///
+/// Port of `EquationSystemSolver.relaxedOdeSettings`. The per-step algebraic
+/// block and the analytic solve of an accessor constraint both sit on a
+/// finite-difference / integration noise floor, so the default residual target
+/// is physically unreachable; the loosened target is still far tighter than any
+/// engineering tolerance.
+/// The Java record is `(maxIterations, relTol, changeInVariables,
+/// elapsedTimeSeconds, complexMode)` and the call is
+/// `new SolverSettings(base.maxIterations(), relTol,
+/// Math.max(base.changeInVariables(), 1e-9), …)`. This port has no
+/// `changeInVariables` knob (its stop rule is the residual only) and no clock,
+/// so the transcription is the one field that exists here: `rel_tolerance`.
+/// `abs_tolerance` is left alone — it is already inert below the relaxed target.
+fn relaxed_ode_settings(base: &SolverSettings, rel_tol: f64) -> SolverSettings {
+    SolverSettings {
+        rel_tolerance: rel_tol,
+        ..*base
+    }
+}
+
+/// Run every `DYNAMIC` block with the solved scalars as its base values, and
+/// collect one ODE Table per block.
+///
+/// Port of `EquationSystemSolver.solveDynamicSystems`. The per-step algebraic
+/// coupling reuses [`solve_pinned`] (states + time pinned), so the transient
+/// path shares the analytic solver's Newton/Tarjan machinery rather than owning
+/// a second one — and the inner solve runs at the relaxed `1e-7` tolerance for
+/// the reason [`relaxed_ode_settings`] states.
+fn solve_dynamic_systems(
+    doc: &Document,
+    base_values: &Scope,
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    ctx: EvalContext<'_>,
+) -> Result<Vec<crate::ode::problem::OdeTableResult>> {
+    if doc.dynamics.is_empty() {
+        return Ok(Vec::new());
+    }
+    let inner = relaxed_ode_settings(settings, 1e-7);
+    let mut tables = Vec::with_capacity(doc.dynamics.len());
+    for system in &doc.dynamics {
+        let algebraic = pinned_solver(&inner, specs, ctx);
+        tables.push(
+            crate::ode::dynamic::DynamicSolver::new(system, base_values, &doc.defs, algebraic)
+                .solve()?,
+        );
+    }
+    Ok(tables)
+}
+
+/// The `AlgebraicSolve` the transient path hands to [`crate::ode::dynamic`]:
+/// the Java's `(ordinary, pinned, warmStart) -> solvePinned(...).values()`.
+fn pinned_solver<'a>(
+    settings: &'a SolverSettings,
+    specs: &'a BTreeMap<String, VarSpec>,
+    ctx: EvalContext<'a>,
+) -> Box<dyn crate::ode::dynamic::AlgebraicSolve + 'a> {
+    Box::new(
+        move |ordinary: &[Equation], pinned: &[(String, f64)], warm: Option<&Scope>| {
+            solve_pinned(ordinary, pinned, settings, specs, ctx, warm).map(|solved| solved.values)
+        },
+    )
+}
+
+/// The live ODE Table bridge for the second-solve pass.
+///
+/// Port of `EquationSystemSolver.installAccessorContext`, minus the thread
+/// binding. `invertDisplayNames` is inlined: the map is `display → flat`, both
+/// lowercased, so an accessor may address a component's transient state by its
+/// dotted display name (`'m.port.T'`) as well as by the flat solver name
+/// (`m$port$t`). A plain `DYNAMIC` state is absent from the map and passes
+/// through unchanged.
+fn accessor_bridge<'a>(
+    doc: &'a Document,
+    inner: &'a SolverSettings,
+    specs: &'a BTreeMap<String, VarSpec>,
+    ctx: EvalContext<'a>,
+) -> crate::ode::accessors::DynamicAccessorContext<'a> {
+    let display_to_flat: BTreeMap<String, String> = doc
+        .display_names
+        .iter()
+        .map(|(flat, display)| (display.to_ascii_lowercase(), flat.to_ascii_lowercase()))
+        .collect();
+    let defs = &doc.defs;
+    let runner = move |system: &crate::ode::dynamic::DynamicSystem, values: &Scope| {
+        let algebraic = pinned_solver(inner, specs, ctx);
+        crate::ode::dynamic::DynamicSolver::new(system, values, defs, algebraic).solve()
+    };
+    crate::ode::accessors::DynamicAccessorContext::install(
+        &doc.dynamics,
+        display_to_flat,
+        Box::new(runner),
+    )
+}
+
+/// Add zero-valued terms `+ 0·v` — one per input variable of the `DYNAMIC`
+/// block an accessor reads — to every accessor-bearing equation.
+///
+/// Port of `EquationSystemSolver.augmentAccessorDependencies`. Tarjan blocking
+/// and the Newton Jacobian both work off the *syntactic* variables of an
+/// equation, and `MaxValue('h')` mentions none of the ODE's inputs; without the
+/// augmentation the accessor constraint blocks on its own and the analytic
+/// variable feeding the ODE is never adjusted to satisfy it.
+///
+/// Only variables the analytic system **already** mentions are linked, so no new
+/// unknown is introduced; the added terms are identically zero and never move a
+/// residual. That restriction is also why `FinalValue('Temp') = 30` alone cannot
+/// solve for a `k` the analytic system never names — an oracle-confirmed
+/// limitation, not a port bug (fixture `dyn_accessor_inverse`).
+fn augment_accessor_dependencies(doc: &Document, equations: Vec<Equation>) -> Vec<Equation> {
+    let analytic_vars: BTreeSet<String> = equations
+        .iter()
+        .flat_map(|eq| {
+            let mut vars = BTreeSet::new();
+            vars.extend(eq.lhs.variables());
+            vars.extend(eq.rhs.variables());
+            vars
+        })
+        .collect();
+    let display_to_flat: BTreeMap<String, String> = doc
+        .display_names
+        .iter()
+        .map(|(flat, display)| (display.to_ascii_lowercase(), flat.to_ascii_lowercase()))
+        .collect();
+
+    equations
+        .into_iter()
+        .map(|eq| {
+            let mut cols = Vec::new();
+            crate::ode::accessors::collect_accessor_columns(&eq.lhs, &mut cols);
+            crate::ode::accessors::collect_accessor_columns(&eq.rhs, &mut cols);
+            if cols.is_empty() {
+                return eq;
+            }
+            let mut deps: Vec<String> = Vec::new();
+            for col in &cols {
+                let flat = display_to_flat
+                    .get(col)
+                    .cloned()
+                    .unwrap_or_else(|| col.clone());
+                for v in crate::ode::accessors::input_vars_for_column(&doc.dynamics, &flat) {
+                    if analytic_vars.contains(&v) && !deps.contains(&v) {
+                        deps.push(v);
+                    }
+                }
+            }
+            let mut lhs = eq.lhs;
+            for v in deps {
+                lhs = Expr::BinOp {
+                    op: crate::ast::BinOp::Add,
+                    left: Box::new(lhs),
+                    right: Box::new(Expr::BinOp {
+                        op: crate::ast::BinOp::Mul,
+                        left: Box::new(Expr::num(0.0)),
+                        right: Box::new(Expr::Var(v)),
+                    }),
+                };
+            }
+            Equation::new(lhs, eq.rhs, eq.source_text)
+        })
+        .collect()
+}
+
+/// The read-only half of the document [`inject_linearizations`] needs, bundled
+/// so the `display_names` map it *writes* can be borrowed disjointly from the
+/// fields it reads.
+#[derive(Clone, Copy)]
+struct LinearizeInputs<'a> {
+    dynamics: &'a [crate::ode::dynamic::DynamicSystem],
+    linearizes: &'a [crate::parser::blocks::LinearizeSystem],
+    defs: &'a Definitions,
+}
+
+/// Numerically linearize each `LINEARIZE` block's network about its operating
+/// point and inject the resulting matrix entries as equations.
+///
+/// Port of `EquationSystemSolver.injectLinearizations`. Each block names a
+/// `DYNAMIC` block; the states are that block's `der()` variables, and
+/// `INPUT`/`OUTPUT` name the exogenous inputs and observed outputs. The emitted
+/// equations are ordinary members of the analytic system, which is what lets the
+/// control suite (`CALL ss/lqr/place/…`) consume `A`/`B`/`C`/`D` in the same
+/// solve.
+fn inject_linearizations(
+    doc: LinearizeInputs<'_>,
+    display_names: &mut BTreeMap<String, String>,
+    equations: Vec<Equation>,
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, VarSpec>,
+    ctx: EvalContext<'_>,
+) -> Result<Vec<Equation>> {
+    let LinearizeInputs {
+        dynamics,
+        linearizes,
+        defs,
+    } = doc;
+    // `extractScalarConstants(equations)`: the operating point's exogenous
+    // inputs are the document's plain `var = number` assignments, taken off the
+    // equation list rather than from a solved iterate.
+    let constants: Scope = equations
+        .iter()
+        .filter_map(|eq| match (&eq.lhs, &eq.rhs) {
+            (
+                Expr::Var(name),
+                Expr::Num {
+                    value,
+                    is_imaginary: false,
+                    ..
+                },
+            ) => Some((name.to_ascii_lowercase(), *value)),
+            _ => None,
+        })
+        .collect();
+    let display_to_flat: BTreeMap<String, String> = display_names
+        .iter()
+        .map(|(flat, display)| (display.to_ascii_lowercase(), flat.to_ascii_lowercase()))
+        .collect();
+    let resolve = |names: &[String]| -> Vec<String> {
+        names
+            .iter()
+            .map(|n| display_to_flat.get(n).cloned().unwrap_or_else(|| n.clone()))
+            .collect()
+    };
+
+    let inner = relaxed_ode_settings(settings, 1e-7);
+    let mut out = equations;
+    for ls in linearizes {
+        let Some(ds) = dynamics
+            .iter()
+            .find(|d| d.name.eq_ignore_ascii_case(&ls.dynamic_name))
+        else {
+            return Err(FreesError::solver(format!(
+                "LINEARIZE {}: no DYNAMIC block named '{}' (it names the transient component \
+                 network to linearize).",
+                ls.name, ls.dynamic_name
+            )));
+        };
+        let algebraic = pinned_solver(&inner, specs, ctx);
+        let lin = crate::ode::dynamic::DynamicSolver::new(ds, &constants, defs, algebraic)
+            .linearize(&resolve(&ls.inputs), &resolve(&ls.outputs))?;
+        for (name, m) in [
+            (&ls.a_name, &lin.a),
+            (&ls.b_name, &lin.b),
+            (&ls.c_name, &lin.c),
+            (&ls.d_name, &lin.d),
+        ] {
+            emit_matrix(&mut out, name, m, display_names);
+        }
+    }
+    Ok(out)
+}
+
+/// One matrix as `name[i,j] = value` equations — the Java `emitMatrix`,
+/// including its column-vector special case: a single-column matrix *also* gets
+/// the 1-subscript spelling `name[i]`, so a SISO control call written `B[1:n]`
+/// resolves. Display names are registered `putIfAbsent`, in the header's case.
+fn emit_matrix(
+    out: &mut Vec<Equation>,
+    name: &str,
+    m: &[Vec<f64>],
+    display_names: &mut BTreeMap<String, String>,
+) {
+    let lower = name.to_ascii_lowercase();
+    for (i, row) in m.iter().enumerate() {
+        for (j, &value) in row.iter().enumerate() {
+            let k2 = format!("{lower}[{},{}]", i + 1, j + 1);
+            out.push(Equation::new(
+                Expr::Var(k2.clone()),
+                Expr::num(value),
+                format!("{k2} (linearized)"),
+            ));
+            display_names
+                .entry(k2)
+                .or_insert_with(|| format!("{name}[{},{}]", i + 1, j + 1));
+            if row.len() == 1 {
+                let k1 = format!("{lower}[{}]", i + 1);
+                out.push(Equation::new(
+                    Expr::Var(k1.clone()),
+                    Expr::num(row[0]),
+                    format!("{k1} (linearized)"),
+                ));
+                display_names
+                    .entry(k1)
+                    .or_insert_with(|| format!("{name}[{}]", i + 1));
+            }
+        }
+    }
 }
 
 /// Verify syntax and structural solvability without solving. Equivalent to
@@ -693,6 +1193,12 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         // once. Without that pin `F = Integral(t^2, t, 0, 1)` is one equation
         // in two unknowns and the blocker would reject a valid document.
         let equations = crate::integral::hoist_nested(equations);
+        // `UncertaintyOf(X) = expr` is a declaration, not an equation — the
+        // Java `check` lifts it out at exactly this position, so a document
+        // that states an uncertainty reports the same equation/variable balance
+        // it solves at.
+        let equations = crate::analysis::uncertainty::extract_uncertainty_equations(&equations)
+            .active_equations;
         let integrals = find_integrals(&equations, &doc.defs, false)?;
         if integrals.is_empty() {
             crate::parser::complex::expand_complex(equations, false)
@@ -722,6 +1228,34 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
             });
         }
     };
+    // "A document whose only content is DYNAMIC block(s) has no analytic
+    // equations — the ODE system is self-contained and solvable directly."
+    // Java `check`, at this exact position: it reports the block's own equation
+    // count as *both* the equation and the variable count, so the balance reads
+    // square, and never runs the blocker (which would reject an empty system).
+    if equations.is_empty() && !doc.dynamics.is_empty() {
+        let dyn_eqs: usize = doc
+            .dynamics
+            .iter()
+            .map(|ds| ds.body_equations.len() + ds.initials.len())
+            .sum();
+        return Ok(CheckReport {
+            solvable: true,
+            equation_count: dyn_eqs,
+            unknown_count: dyn_eqs,
+            display_names: complete_display_names(&parsed_names, &equations),
+            variables: Vec::new(),
+            message: format!(
+                "No syntax errors were detected. DYNAMIC system with {dyn_eqs} equation(s)."
+            ),
+            error_line: None,
+            errors: Vec::new(),
+            inferred_units: BTreeMap::new(),
+            unit_warnings: Vec::new(),
+            diagnostics: check_diagnostics,
+        });
+    }
+
     let (_, knowns) = builtin_constants(&equations);
     let all_vars = unknowns(&equations, &knowns);
     // Java `check`: report the *surfaced* balance. Each ignored-output sink adds
@@ -854,13 +1388,26 @@ struct ComponentLayer {
 ///
 /// # Storage
 ///
-/// `hasStorage()` (any component body with `der(member) = …`) routes into the
-/// document's `DYNAMIC` block in the Java. `DYNAMIC` is not parsed by this port
-/// yet (`parser/toplevel.rs` lists it under `unsupported_construct`), so
-/// `dynamicSystems` is always empty here and the Java's *other* branch applies
-/// verbatim: the §8.2 steady/transient duality, where each `der(X) = rhs`
-/// becomes the equilibrium constraint `rhs = 0` and the state is an ordinary
-/// unknown. That is [`steady_storage_equations`].
+/// `hasStorage()` (any component body with `der(member) = …`) picks one of the
+/// two branches `EquationParser.parseResult` spells, and Phase 7 makes both
+/// reachable:
+///
+/// * **no `DYNAMIC` block** → the §8.2 steady/transient duality. Each
+///   `der(X) = rhs` becomes the equilibrium constraint `rhs = 0` and the state
+///   is an ordinary unknown. That is [`steady_storage_equations`].
+/// * **exactly one `DYNAMIC` block** → `routeStorageIntoDynamic`. The component
+///   equations *become* that block's body, the `init(member) = …` lines become
+///   its initial conditions, and the steady equation list is emptied. The same
+///   network then runs under the ODE engine, whose per-step algebraic solve
+///   resolves it at each state.
+///
+/// Two or more blocks with storage is a hard parse error in the Java, because
+/// nothing says which block supplies the time span.
+///
+/// Every `DYNAMIC` body is also put through `rewriteDynamicBodies` first: the
+/// block's own equations live *inside* the block, so `rewrite_statements` never
+/// saw them, and a scheduled input written as `RIN.out.mdot = f(time)` would
+/// leave the dotted port variable free.
 fn expand_component_layer(
     doc: &mut Document,
     diagnostics: &mut Vec<Diagnostic>,
@@ -876,6 +1423,7 @@ fn expand_component_layer(
 
     let components = std::mem::take(&mut doc.components);
     let statements = std::mem::take(&mut doc.statements);
+    let mut dynamics = std::mem::take(&mut doc.dynamics);
     let mut display_names = std::mem::take(&mut doc.display_names);
 
     let builtins = crate::components::library::builtins()?;
@@ -894,9 +1442,17 @@ fn expand_component_layer(
             .into_iter()
             .map(|(name, unit)| (name, unit.to_string()))
             .collect();
-        // `hasStorage()` with no DYNAMIC block: the Java's steady branch.
+        // `rewriteDynamicBodies(components, programResult.dynamicSystems())`,
+        // at the Java position — before the storage branch, and unconditional.
+        rewrite_dynamic_bodies(&mut expander, &mut dynamics)?;
         let equations = if expander.has_storage() {
-            steady_storage_equations(equations, diagnostics)
+            if dynamics.is_empty() {
+                // Steady/transient duality (§8.2).
+                steady_storage_equations(equations, diagnostics)
+            } else {
+                // `routeStorageIntoDynamic`, then `componentEquations = List.of()`.
+                route_storage_into_dynamic(equations, expander.component_initials(), &mut dynamics)?
+            }
         } else {
             equations
         };
@@ -904,6 +1460,7 @@ fn expand_component_layer(
     };
 
     doc.statements = statements;
+    doc.dynamics = dynamics;
     doc.display_names = display_names;
     let instances = components
         .instances
@@ -917,6 +1474,79 @@ fn expand_component_layer(
         instances,
         connections,
     })
+}
+
+/// Rewrite every `DYNAMIC` body so dotted component references resolve to flat
+/// solver names — the same rewrite top-level statements get.
+///
+/// Port of `EquationParser.rewriteDynamicBodies`. A block's body lives *inside*
+/// the block, so `rewrite_statements` never reaches it; without this a
+/// scheduled input written in the body (`RIN.out.mdot = mdot_max * min(time/t_ramp, 1)`)
+/// leaves the port variable free and the network is underdetermined. Bodies with
+/// no component references come out unchanged.
+///
+/// A `set` action's target is a *variable name*, so it goes through the same
+/// rewrite and keeps the flat name when the rewrite produces a plain `Var`.
+fn rewrite_dynamic_bodies(
+    expander: &mut crate::components::expander::ComponentExpander<'_, '_>,
+    systems: &mut [crate::ode::dynamic::DynamicSystem],
+) -> Result<()> {
+    for ds in systems.iter_mut() {
+        for eq in &mut ds.body_equations {
+            *eq = expander.rewrite_top_equation(eq)?;
+        }
+        for ic in &mut ds.initials {
+            ic.value = expander.rewrite_top_expr(&ic.value)?;
+        }
+        for ev in &mut ds.events {
+            ev.lhs = expander.rewrite_top_expr(&ev.lhs)?;
+            ev.rhs = expander.rewrite_top_expr(&ev.rhs)?;
+            if let Some(target) = &ev.set_var {
+                if let Expr::Var(flat) = expander.rewrite_top_expr(&Expr::Var(target.clone()))? {
+                    ev.set_var = Some(flat);
+                }
+            }
+            if let Some(value) = &ev.set_expr {
+                ev.set_expr = Some(expander.rewrite_top_expr(value)?);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Merge a transient component network into the document's single `DYNAMIC`
+/// block and return the (now empty) steady equation list.
+///
+/// Port of `EquationParser.routeStorageIntoDynamic`. The component equations —
+/// state `der(X) = …` lines *and* the algebraic network — extend the block's
+/// body, and the `init(member) = …` lines extend its initial conditions. The
+/// block's own body comes first, so a document-authored equation is seen before
+/// the expanded network.
+fn route_storage_into_dynamic(
+    component_equations: Vec<Equation>,
+    initials: &[crate::components::expander::ComponentInitial],
+    systems: &mut [crate::ode::dynamic::DynamicSystem],
+) -> Result<Vec<Equation>> {
+    if systems.len() != 1 {
+        return Err(FreesError::parse(format!(
+            "A transient component network (a component with der(...) storage) needs exactly \
+             one DYNAMIC block to supply the time span and method; found {}. Add a \
+             'DYNAMIC name(time = 0 .. T) END' block.",
+            systems.len()
+        )));
+    }
+    let ds = &mut systems[0];
+    ds.body_equations.extend(component_equations);
+    ds.initials.extend(
+        initials
+            .iter()
+            .map(|ci| crate::ode::dynamic::InitialCondition {
+                state: ci.state.clone(),
+                indices: Vec::new(),
+                value: ci.value.clone(),
+            }),
+    );
+    Ok(Vec::new())
 }
 
 /// `der(X) = rhs` → `rhs = 0`, the Java `EquationParser.steadyStorageEquations`.
@@ -1121,7 +1751,13 @@ fn complete_display_names(
             continue;
         };
         let base_display = names.get(base).cloned().unwrap_or_else(|| base.to_string());
-        names.insert(element.clone(), format!("{base_display}{suffix}"));
+        let composed = format!("{base_display}{suffix}");
+        // `putIfAbsent`, not `put`. Element names are normally absent here — the
+        // parser registers only an array's *base* spelling — so this fills them
+        // in from the base, exactly as before. The one producer that registers
+        // an element name up front is `emit_matrix` (`A[1,1]` from a `LINEARIZE`
+        // header), and composing `a` + `[1,1]` would silently downcase it.
+        names.entry(element).or_insert(composed);
     }
     names
 }
@@ -1243,7 +1879,7 @@ fn residuals_at(
     equations: &[Equation],
     blocks: &[Block],
     values: &Scope,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> (Vec<EquationResidual>, f64) {
     // Which Tarjan block solved each equation. The blocker assigns every
     // equation of a square system to exactly one block; `unwrap_or(0)` is a
@@ -1255,7 +1891,6 @@ fn residuals_at(
         }
     }
 
-    let ctx = EvalContext { defs: Some(defs) };
     let mut residuals = Vec::with_capacity(equations.len());
     let mut max_residual = 0.0f64;
     for (index, equation) in equations.iter().enumerate() {
@@ -1365,6 +2000,39 @@ fn variable_specs(
 /// The Java `VariableSpec` compact constructor's three rejections, as
 /// [`FreesError::Solver`]: any NaN, a lower bound above the upper, or an
 /// explicit guess outside its own bounds.
+/// The stated `±` of every override, in SI, keyed by canonical name.
+///
+/// Port of `VariableInfoDto.toSpec`'s `uncertainty * factor`: an uncertainty is
+/// an interval width, so the unit's **offset does not apply** — `1 [C]` of
+/// uncertainty is 1 K, not 274.15 K. A `None`, non-finite or non-positive value
+/// is left out; only `> 0.0` makes a variable a source
+/// (`partitionVariables`), so carrying a zero would change nothing.
+// `!(unc > 0.0)` rather than `unc <= 0.0` is the port's NaN-rejecting form: the
+// Java writes `uncertainty() > 0.0` as the *positive* test, and negating the
+// positive form is what keeps a NaN on the reject side (`NaN <= 0.0` is false,
+// so the readable spelling would let a NaN uncertainty through as a source).
+// `neg_cmp_op_on_partial_ord` wants the readable form; the parity rule wins, so
+// the lint is silenced here exactly as `analysis/uncertainty.rs` silences it
+// module-wide for the same two guards.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn override_uncertainties(overrides: &[VariableOverride]) -> BTreeMap<String, f64> {
+    let mut out = BTreeMap::new();
+    for o in overrides {
+        let Some(unc) = o.uncertainty else { continue };
+        if !(unc > 0.0) || !unc.is_finite() {
+            continue;
+        }
+        let factor = match o.unit.as_deref().map(str::trim) {
+            Some(unit) if !unit.is_empty() && unit != "-" => UnitRegistry::parse_with_offset(unit)
+                .map(|q| q.factor)
+                .unwrap_or(1.0),
+            _ => 1.0,
+        };
+        out.insert(o.name.trim().to_ascii_lowercase(), unc * factor);
+    }
+    out
+}
+
 fn override_spec(o: &VariableOverride) -> Result<(String, VarSpec)> {
     let name = o.name.trim().to_ascii_lowercase();
 
@@ -1442,7 +2110,7 @@ struct BlockProblem<'a> {
     names: &'a [String],
     equations: &'a [&'a Equation],
     scope: &'a mut Scope,
-    defs: &'a Definitions,
+    ctx: EvalContext<'a>,
     /// `derivs[i][j] = ∂(lhs_i − rhs_i)/∂var_j` as an expression; `None`
     /// entries are structural zeros (equation `i` does not mention `var_j`).
     /// The whole field is `None` when any *dependent* entry failed to
@@ -1456,7 +2124,7 @@ impl NewtonProblem for BlockProblem<'_> {
         for (name, value) in self.names.iter().zip(x) {
             self.scope.insert(name.clone(), *value);
         }
-        match residuals_into(self.equations, self.scope, self.defs, out) {
+        match residuals_into(self.equations, self.scope, self.ctx, out) {
             Ok(()) => Ok(()),
             // An invalid region, not a broken document: hand Newton the
             // non-finite residual its line search knows how to reject.
@@ -1477,15 +2145,12 @@ impl NewtonProblem for BlockProblem<'_> {
         for (name, value) in self.names.iter().zip(x) {
             self.scope.insert(name.clone(), *value);
         }
-        let ctx = EvalContext {
-            defs: Some(self.defs),
-        };
         let n = self.names.len();
         let mut jacobian = vec![vec![0.0f64; n]; n];
         for (i, row) in derivs.iter().enumerate() {
             for (j, entry) in row.iter().enumerate() {
                 if let Some(expr) = entry {
-                    match eval_with(expr, self.scope, ctx) {
+                    match eval_with(expr, self.scope, self.ctx) {
                         Ok(value) => jacobian[i][j] = value,
                         Err(_) => return None,
                     }
@@ -1536,7 +2201,7 @@ fn solve_block(
     values: &mut Scope,
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> Result<usize> {
     let n = block.variables.len();
     if n == 0 {
@@ -1561,7 +2226,7 @@ fn solve_block(
     // Evaluate once at the initial point so a genuinely broken expression is
     // reported as itself instead of as "did not converge". See the module docs.
     let mut probe = vec![0.0; n];
-    residuals_into(&block_equations, values, defs, &mut probe)
+    residuals_into(&block_equations, values, ctx, &mut probe)
         .map_err(|err| annotate(err, index, &block_equations))?;
 
     let mut x: Vec<f64> = block
@@ -1589,7 +2254,7 @@ fn solve_block(
             names,
             equations: &block_equations,
             scope: &mut *values,
-            defs,
+            ctx,
             derivs: analytic_derivatives(&block_equations, names),
         };
         newton_solve_problem(problem, &mut x, settings, Some(&bounds))
@@ -1611,10 +2276,9 @@ fn solve_block(
 fn residuals_into(
     equations: &[&Equation],
     scope: &Scope,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
     out: &mut [f64],
 ) -> Result<()> {
-    let ctx = EvalContext { defs: Some(defs) };
     for (slot, equation) in out.iter_mut().zip(equations) {
         *slot = eval_with(&equation.lhs, scope, ctx)? - eval_with(&equation.rhs, scope, ctx)?;
     }
@@ -1763,13 +2427,12 @@ fn retry_with_transformed_guesses(
     values: &mut Scope,
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> Option<usize> {
     let relaxed = retry_settings(settings);
     for transform in guess_transforms() {
         apply_transform(block, &transform, values, specs);
-        if let Ok(iterations) = solve_block(index, block, equations, values, &relaxed, specs, defs)
-        {
+        if let Ok(iterations) = solve_block(index, block, equations, values, &relaxed, specs, ctx) {
             return Some(iterations);
         }
     }
@@ -1818,7 +2481,7 @@ fn try_univariate_bracketing_solve(
     equations: &[Equation],
     values: &mut Scope,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> Option<usize> {
     if block.variables.len() != 1 || block.equations.len() != 1 {
         return None;
@@ -1828,7 +2491,6 @@ fn try_univariate_bracketing_solve(
         return None;
     }
     let name = &block.variables[0];
-    let ctx = EvalContext { defs: Some(defs) };
     let (lower, upper) = specs
         .get(name)
         .map(|spec| (spec.lower, spec.upper))
@@ -2090,22 +2752,22 @@ fn solve_block_with_fallback(
     values: &mut Scope,
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
     skip: &mut HashSet<usize>,
 ) -> Result<usize> {
     let block = &blocks[index];
     let mut actual_solved: Option<Block> = None; // None = the original block
     let mut iterations = 0usize;
 
-    match solve_block(index, block, equations, values, settings, specs, defs) {
+    match solve_block(index, block, equations, values, settings, specs, ctx) {
         Ok(count) => iterations += count,
         Err(first_error) => {
             if let Some(count) = retry_with_transformed_guesses(
-                index, block, equations, values, settings, specs, defs,
+                index, block, equations, values, settings, specs, ctx,
             ) {
                 iterations += count;
             } else if let Some(count) =
-                try_univariate_bracketing_solve(block, equations, values, specs, defs)
+                try_univariate_bracketing_solve(block, equations, values, specs, ctx)
             {
                 iterations += count;
             } else {
@@ -2123,7 +2785,7 @@ fn solve_block_with_fallback(
                         // error (Java: the uncaught `config.newton().solveBlock`
                         // inside the catch block).
                         iterations +=
-                            solve_block(index, &merged, equations, values, settings, specs, defs)?;
+                            solve_block(index, &merged, equations, values, settings, specs, ctx)?;
                         skip.extend(merged_indices);
                         actual_solved = Some(merged);
                     }
@@ -2143,7 +2805,7 @@ fn solve_block_with_fallback(
         values,
         &polish,
         specs,
-        defs,
+        ctx,
     ) {
         iterations += count;
     }
@@ -2184,7 +2846,7 @@ fn run_blocks(
     values: &mut Scope,
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> std::result::Result<usize, BlockLoopFailure> {
     let mut iterations = 0usize;
     // Blocks a merge rescue already solved (Java's `skipIndices`).
@@ -2194,7 +2856,7 @@ fn run_blocks(
             continue;
         }
         match solve_block_with_fallback(
-            index, blocks, equations, values, settings, specs, defs, &mut skip,
+            index, blocks, equations, values, settings, specs, ctx, &mut skip,
         ) {
             Ok(block_iterations) => iterations += block_iterations,
             Err(error) => {
@@ -2221,7 +2883,7 @@ fn solve_equation_list(
     equations: &[Equation],
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
     warm_start: Option<&Scope>,
 ) -> Result<InnerSolve> {
     let (constants, knowns) = builtin_constants(equations);
@@ -2235,16 +2897,17 @@ fn solve_equation_list(
             .unwrap_or_else(|| initial_guess(&name, specs));
         values.insert(name, guess);
     }
+    // `uncertaintyof$<var>` is not a variable of the system, so the loop above
+    // drops it. The Java `solveEquationList` carries those entries across from
+    // the warm start explicitly, and without them the evaluator's
+    // `UncertaintyOf(...)` arm falls back to 0.0 — a wrong answer, not a
+    // failure. Port of that block.
+    if let Some(warm) = warm_start {
+        crate::analysis::uncertainty::carry_uncertainty_entries(warm, &mut values);
+    }
 
-    let iterations = run_blocks(
-        &report.blocks,
-        equations,
-        &mut values,
-        settings,
-        specs,
-        defs,
-    )
-    .map_err(|failure| failure.error)?;
+    let iterations = run_blocks(&report.blocks, equations, &mut values, settings, specs, ctx)
+        .map_err(|failure| failure.error)?;
     Ok(InnerSolve { values, iterations })
 }
 
@@ -2304,7 +2967,7 @@ fn lower_integrals(
     integrals: &[IntegralEquation],
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> Result<(Vec<Equation>, usize)> {
     let ordinary = crate::integral::ordinary_equations(equations, integrals);
     let mut lowered = ordinary.clone();
@@ -2341,17 +3004,13 @@ fn lower_integrals(
                     ],
                     settings,
                     specs,
-                    defs,
+                    ctx,
                     warm_start.as_ref(),
                 )
                 .map_err(|err| integral_point_failure(ie, t, &err))?;
                 stepping_iterations += solved.iterations;
-                let point = eval_with(
-                    &ie.integrand,
-                    &solved.values,
-                    EvalContext { defs: Some(defs) },
-                )
-                .map_err(|err| integral_point_failure(ie, t, &err));
+                let point = eval_with(&ie.integrand, &solved.values, ctx)
+                    .map_err(|err| integral_point_failure(ie, t, &err));
                 warm_start = Some(solved.values);
                 point
             },
@@ -2389,7 +3048,7 @@ fn solve_pinned(
     pinned: &[(String, f64)],
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
     warm_start: Option<&Scope>,
 ) -> Result<InnerSolve> {
     let mut subsystem: Vec<Equation> = ordinary.to_vec();
@@ -2400,7 +3059,7 @@ fn solve_pinned(
             format!("{name} = {value}"),
         ));
     }
-    solve_equation_list(&subsystem, settings, specs, defs, warm_start)
+    solve_equation_list(&subsystem, settings, specs, ctx, warm_start)
 }
 
 /// Name the quadrature point a subsystem solve or an integrand evaluation gave
@@ -2551,7 +3210,7 @@ pub fn solve_block_newton(
     values: &mut Scope,
     settings: &SolverSettings,
     bounds: &BTreeMap<String, (f64, f64)>,
-    defs: &Definitions,
+    ctx: EvalContext<'_>,
 ) -> Result<usize> {
     let specs: BTreeMap<String, VarSpec> = bounds
         .iter()
@@ -2566,7 +3225,7 @@ pub fn solve_block_newton(
             )
         })
         .collect();
-    solve_block(0, block, equations, values, settings, &specs, defs)
+    solve_block(0, block, equations, values, settings, &specs, ctx)
 }
 
 #[cfg(test)]

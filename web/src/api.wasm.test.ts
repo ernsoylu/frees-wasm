@@ -17,6 +17,7 @@ vi.mock('./wasm/engineClient', () => ({
 }))
 
 import { check, solve, DEFAULT_STOP_CRITERIA } from './api'
+import { mergeCodeTables } from './tables'
 import { wasmCheck, wasmSolve } from './wasm/engineClient'
 
 const solveMock = vi.mocked(wasmSolve)
@@ -26,6 +27,14 @@ const checkMock = vi.mocked(wasmCheck)
 
 const SOLVE_OK =
   '{"blocks":[{"equations":["P = 140 [kPa]"],"index":0,"variables":["P"]},{"equations":["Q = P * 2"],"index":1,"variables":["Q"]}],"error":null,"errorLine":null,"failedBlockIndex":null,"residuals":[{"equation":"P = 140 [kPa]","value":0.0},{"equation":"Q = P * 2","value":0.0}],"solutions":[{"maxResidual":0.0,"variables":[{"name":"P","units":"Pa","value":140000.0},{"name":"Q","units":"Pa","value":280000.0}]}],"stats":{"blocks":2,"elapsedMillis":1,"equations":2,"iterations":4,"maxResidual":0.0,"unknowns":2},"success":true,"unitWarnings":[],"variables":[{"name":"P","units":"Pa","value":140000.0},{"name":"Q","units":"Pa","value":280000.0}]}'
+
+// A document with a DYNAMIC block: the trajectory rides on `odeTables`, and
+// `variables` holds only the analytic parameters. Regenerate with
+//   cargo test -p frees-wasm --release --test dto_parity \
+//     print_the_ode_table_payload -- --ignored --nocapture
+// (elapsedMillis pinned to 1 — it is wall-clock).
+const SOLVE_WITH_ODE_TABLE =
+  '{"blocks":[{"equations":["k = 0.05"],"index":0,"variables":["k"]},{"equations":["Tinf = 20"],"index":1,"variables":["Tinf"]}],"components":[],"cyclePath":[],"error":null,"errorLine":null,"failedBlockIndex":null,"odeTables":[{"endTime":60.0,"events":[],"method":"ode45","name":"cooling","rows":[[0.0,95.0],[20.0,47.59095803046333],[40.0,30.15014623853744],[60.0,23.734030127668667]],"stopped":false,"units":["",""],"vars":["time","temp"]}],"residuals":[{"equation":"k = 0.05","value":0.0},{"equation":"Tinf = 20","value":0.0}],"solutions":[{"maxResidual":0.0,"variables":[{"name":"k","units":"-","value":0.05},{"name":"Tinf","units":"-","value":20.0}]}],"stats":{"blocks":2,"elapsedMillis":1,"equations":2,"iterations":3,"maxResidual":0.0,"unknowns":2},"success":true,"unitWarnings":[],"variables":[{"name":"k","units":"-","value":0.05},{"name":"Tinf","units":"-","value":20.0}]}'
 
 const SOLVE_PARSE_ERROR =
   '{"blocks":[],"error":"Syntax error: expected an expression, found `=`","errorLine":2,"failedBlockIndex":null,"residuals":[],"solutions":[],"stats":null,"success":false,"unitWarnings":[],"variables":[]}'
@@ -90,6 +99,56 @@ describe('solve() over the wasm boundary payloads', () => {
     expect(r.uncertaintyBreakdown).toEqual([])
     expect(r.errorLine).toBeNull()
     expect(r.failedBlockIndex).toBeNull()
+  })
+
+  // A solved DYNAMIC block arrives as `odeTables` and NOWHERE ELSE: `variables`
+  // carries only the analytic parameters, so a Tables/Plots window fed from
+  // `variables` would render an empty transient. Payload captured verbatim from
+  // the Rust boundary (crates/frees-wasm/tests/dto_parity.rs,
+  // `a_solved_dynamic_block_reaches_the_frontend_as_an_ode_table`), whose row
+  // values are the Java oracle's from fixtures/golden/dyn_plain_ode.json.
+  it('carries a solved DYNAMIC block through as an OdeTableDto', async () => {
+    engineReturns(solveMock, SOLVE_WITH_ODE_TABLE)
+    const r = await runSolve(
+      'k = 0.05\nTinf = 20\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 4)\n' +
+        '  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n',
+    )
+
+    expect(r.success).toBe(true)
+    // The states are NOT result variables.
+    expect(r.variables.map((v) => v.name)).toEqual(['k', 'Tinf'])
+    expect(r.odeTables).toHaveLength(1)
+
+    const table = r.odeTables![0]
+    expect(table.name).toBe('cooling')
+    expect(table.method).toBe('ode45')
+    expect(table.stopped).toBe(false)
+    expect(table.endTime).toBe(60)
+    expect(table.vars).toEqual(['time', 'temp'])
+    // The engine infers no unit for either column here (the ODE table's columns
+    // are keyed by flat name, and neither is in `inferredUnits`); the DTO still
+    // carries a slot per column so the grid can label them when it can.
+    expect(table.units).toEqual(['', ''])
+    expect(table.events).toEqual([])
+    expect(table.rows).toEqual([
+      [0, 95],
+      [20, 47.59095803046333],
+      [40, 30.15014623853744],
+      [60, 23.734030127668667],
+    ])
+
+    // …and the Tables window renders it: mergeCodeTables turns the DTO into a
+    // parametric-shaped TableSpec tagged `origin: 'ode'`, which is the exact
+    // call App.tsx makes on a solve.
+    const merged = mergeCodeTables([], r.codeTables, r.parametricTables, r.odeTables)
+    expect(merged).toHaveLength(1)
+    expect(merged[0].name).toBe('cooling')
+    expect(merged[0].source).toBe('code')
+    expect(merged[0].kind).toBe('parametric')
+    const spec = merged[0] as { vars: string[]; rows: { values: Record<string, string> }[] }
+    expect(spec.vars).toEqual(['time', 'temp'])
+    expect(spec.rows).toHaveLength(4)
+    expect(spec.rows[0].values.temp).toBe('95')
   })
 
   it('surfaces a parse failure with its 1-based errorLine', async () => {

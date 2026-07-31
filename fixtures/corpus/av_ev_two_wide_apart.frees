@@ -1,0 +1,9 @@
+{ The same two guards, now far enough apart that they cannot share a step:
+  both must fire, in time order. Read against av_ev_two_in_one_step this
+  brackets the one-hit-per-step rule. }
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 6)
+  der(Yv) = 1
+  Yv(0) = 0
+  EVENT a: Yv = 3 | rising -> record
+  EVENT b: Yv = 7 | rising -> record
+END

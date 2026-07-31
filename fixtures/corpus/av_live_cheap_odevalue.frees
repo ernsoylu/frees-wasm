@@ -1,0 +1,10 @@
+{ Live accessor on an interior sample. }
+kk = 0.02 + dk
+Tinf = 20
+
+ODEValue('Temp', 0.5) = 80
+
+DYNAMIC cooling (method = ode45, time = 0 .. 1, points = 5)
+  der(Temp) = -kk*(Temp - Tinf)
+  Temp(0) = 95
+END

@@ -1,0 +1,39 @@
+{
+  "name": "av_unc_shared_source_correlates",
+  "source": "{ Two dependents of ONE source: the first-order propagation is exact and the\n  correlation between p and q is implicit in the shared column. }\ns = 5\nUncertaintyOf(s) = 0.25\np = 2*s\nq = -3*s\nr = p + q\nup = UncertaintyOf(p)\nuq = UncertaintyOf(q)\nur = UncertaintyOf(r)\n",
+  "expect": {
+    "variables": {
+      "p": 10.0,
+      "q": -15.0,
+      "r": -5.0,
+      "s": 5.0,
+      "uncertaintyof$p": 0.5000000000000001,
+      "uncertaintyof$q": 0.7500000000000003,
+      "uncertaintyof$r": 0.2500000000000001,
+      "uncertaintyof$s": 0.25,
+      "uncertaintyof$up": 0.0,
+      "uncertaintyof$uq": 0.0,
+      "uncertaintyof$ur": 0.0,
+      "up": 0.5000000000000001,
+      "uq": 0.7500000000000003,
+      "ur": 0.2500000000000001
+    },
+    "display_names": {
+      "p": "p",
+      "q": "q",
+      "r": "r",
+      "s": "s",
+      "up": "up",
+      "uq": "uq",
+      "ur": "ur"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

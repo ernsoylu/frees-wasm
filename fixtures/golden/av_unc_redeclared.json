@@ -1,0 +1,27 @@
+{
+  "name": "av_unc_redeclared",
+  "source": "{ Two declarations for the same variable: Map.put, so the later one wins. }\nx = 3\nUncertaintyOf(x) = 0.1\nUncertaintyOf(x) = 0.9\ny = x^2\nuy = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$x": 0.9,
+      "uncertaintyof$y": 5.400000035762787,
+      "uy": 5.400000035762787,
+      "x": 3.0,
+      "y": 9.0
+    },
+    "display_names": {
+      "uy": "uy",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

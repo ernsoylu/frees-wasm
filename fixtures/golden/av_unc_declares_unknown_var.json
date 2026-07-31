@@ -1,0 +1,28 @@
+{
+  "name": "av_unc_declares_unknown_var",
+  "source": "{ An uncertainty declared for a name the system never mentions. }\nx = 3\nUncertaintyOf(ghost) = 0.1\ny = x^2\nuy = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$x": 0.0,
+      "uncertaintyof$y": 0.0,
+      "uy": 0.0,
+      "x": 3.0,
+      "y": 9.0
+    },
+    "display_names": {
+      "ghost": "ghost",
+      "uy": "uy",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "av_lim_points_two",
+  "source": "{ points = 2 — endpoints only. }\nDYNAMIC two (method = ode45, time = 0 .. 5, points = 2)\n  der(Yv) = -Yv\n  Yv(0) = 1\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "two",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 5.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 1.0],
+          [5.0, 0.006737947002257344]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

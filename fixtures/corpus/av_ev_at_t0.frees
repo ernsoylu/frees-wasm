@@ -1,0 +1,7 @@
+{ The guard is exactly zero at t0. Whether that counts as a crossing is a
+  genuine design choice; both engines must make the same one. }
+DYNAMIC start (method = ode45, time = 0 .. 5, points = 6)
+  der(Yv) = 1
+  Yv(0) = 0
+  EVENT origin: Yv = 0 | rising -> record
+END

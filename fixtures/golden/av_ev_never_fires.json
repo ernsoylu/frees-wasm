@@ -1,0 +1,41 @@
+{
+  "name": "av_ev_never_fires",
+  "source": "{ A guard that never crosses: no hits, not stopped, full span. }\nDYNAMIC decay (method = ode45, time = 0 .. 10, points = 11)\n  der(Yv) = -Yv\n  Yv(0) = 1\n  EVENT impossible: Yv = -5 -> stop\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "decay",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 1.0],
+          [1.0, 0.367879347214383],
+          [2.0, 0.13533524911652003],
+          [3.0, 0.049787055979407906],
+          [4.0, 0.018315634391470024],
+          [5.0, 0.0067379453667786],
+          [6.0, 0.0024787515843205997],
+          [7.0, 9.118817506395753E-4],
+          [8.0, 3.3546254994221603E-4],
+          [9.0, 1.2340977581227385E-4],
+          [10.0, 4.5399931240089995E-5]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "av_unc_zero_becomes_source",
+  "source": "{ Only `uncertainty > 0` makes a source: a tiny positive value must behave as\n  a source, and the propagated sigma must scale with it. }\nx = 3\nUncertaintyOf(x) = 1e-12\ny = x^2\nuy = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$x": 1.0E-12,
+      "uncertaintyof$y": 6.00000003973643E-12,
+      "uy": 6.00000003973643E-12,
+      "x": 3.0,
+      "y": 9.0
+    },
+    "display_names": {
+      "uy": "uy",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

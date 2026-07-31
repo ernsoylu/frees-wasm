@@ -1,0 +1,38 @@
+{
+  "name": "dyn_plain_ode",
+  "source": "{ Newton cooling: the plain-ODE reference. States are named Temp and the\n  header's independent variable is `time`, so `T`/`t` cannot collide. }\nk = 0.05\nTinf = 20\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 4)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n",
+  "expect": {
+    "variables": {
+      "Tinf": 20.0,
+      "k": 0.05
+    },
+    "display_names": {
+      "k": "k",
+      "temp": "Temp",
+      "tinf": "Tinf"
+    },
+    "block_count": 2,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [20.0, 47.59095803046333],
+          [40.0, 30.15014623853744],
+          [60.0, 23.734030127668667]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

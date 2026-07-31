@@ -1,0 +1,18 @@
+{
+  "name": "av_lim_unknown_option",
+  "source": "{ An unrecognised header option. }\nDYNAMIC bad (method = ode45, time = 0 .. 1, points = 3, wibble = 3)\n  der(Yv) = -Yv\n  Yv(0) = 1\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "DYNAMIC bad: unknown option 'wibble'. Supported: method, t, points, step, rtol, atol, maxstep."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

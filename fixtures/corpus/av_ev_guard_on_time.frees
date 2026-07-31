@@ -1,0 +1,6 @@
+{ The guard is on the independent variable itself. }
+DYNAMIC clock (method = ode45, time = 0 .. 10, points = 11)
+  der(Yv) = -0.1*Yv
+  Yv(0) = 50
+  EVENT tick: time = 3.7 | rising -> record
+END

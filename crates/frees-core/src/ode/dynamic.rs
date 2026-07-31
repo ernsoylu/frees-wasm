@@ -50,6 +50,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::ast::{Equation, Expr, Statement};
+use crate::dae::assembly::{AssemblySpec, DaeAssembly, EventSpec};
 use crate::diag::{FreesError, Result};
 use crate::eval::{eval_with, EvalContext, Scope};
 use crate::ode::events::{bind_events, DynamicEvent, EventBinding, OdeEvent, StateReset};
@@ -220,53 +221,6 @@ pub struct Linearization {
     pub b: Vec<Vec<f64>>,
     pub c: Vec<Vec<f64>>,
     pub d: Vec<Vec<f64>>,
-}
-
-// ---------------------------------------------------------------------------
-// The implicit-DAE assembly
-// ---------------------------------------------------------------------------
-
-/// The implicit DAE form of a classified block, `F(t, y, y') = 0`.
-///
-/// Port of the *data* `DynamicSolver.assembleDae` produces. The state vector is
-/// `y = [states ; auxiliaries]`; each reified `der$X` maps to `y'[state_index(X)]`,
-/// so every equation of the algebraic template becomes one residual and the
-/// system is square and index-1.
-///
-/// The Java packs this into a `dae.DaeAssembly` carrying live `DaeResidual` /
-/// `DaeRootFn` closures. Here the closures stay on [`DynamicSolver`]
-/// ([`DynamicSolver::dae_residual`], [`DynamicSolver::dae_roots`]) and this
-/// struct carries only the plain data, so `dae/` can own the solver half without
-/// this module depending on it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DaeParts {
-    /// System dimension, `states.len() + aux.len()`.
-    pub n: usize,
-    /// `[states…, auxiliaries…]`, the `y` ordering.
-    pub variables: Vec<String>,
-    /// Differential states, in `der()` order.
-    pub states: Vec<String>,
-    /// Algebraic auxiliaries.
-    pub aux: Vec<String>,
-    /// `1.0` for a differential component, `0.0` for an algebraic one — IDA's
-    /// `IDASetId` vector.
-    pub id: Vec<f64>,
-    /// Initial `y`, seeded from one inner algebraic solve at `t0` where possible.
-    pub y0: Vec<f64>,
-    /// Initial `y'`, seeded the same way; zeros when the seed solve fails.
-    pub yp0: Vec<f64>,
-    /// Per residual row, the columns it touches.
-    pub sparsity: Vec<Vec<usize>>,
-    /// Event names, aligned with [`DaeParts::event_stops`] and the root vector.
-    pub event_names: Vec<String>,
-    /// Whether each event terminates the integration.
-    pub event_stops: Vec<bool>,
-    /// Per event, the direction filter (`+1` / `−1` / `0`).
-    pub event_directions: Vec<i32>,
-    /// Per event, the state index a `set` action overwrites.
-    pub event_set_index: Vec<Option<usize>>,
-    /// Per event, the `set` action's replacement expression.
-    pub event_set_expr: Vec<Option<Expr>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -520,129 +474,81 @@ impl<'a> DynamicSolver<'a> {
 
     // -- the implicit-DAE assembly ------------------------------------------
 
-    /// Assemble this block into the implicit DAE `F(t, y, y') = 0`.
+    /// Everything [`crate::dae::assembly::assemble`] needs from this classified
+    /// block.
     ///
-    /// Port of `DynamicSolver.assembleDae`, minus the live closures (see
-    /// [`DaeParts`]). Auxiliary and derivative initial guesses are seeded from a
-    /// single inner algebraic solve at `t0` where possible; a failure there
-    /// leaves zeros for the consistent-IC pass to resolve, exactly as the Java
-    /// swallows that exception.
-    pub fn dae_parts(&mut self) -> Result<DaeParts> {
-        if self.states.is_empty() {
-            self.classify()?;
-        }
-        let ns = self.states.len();
-        let n = ns + self.aux_names.len();
+    /// This is the front half of `DynamicSolver.assembleDae`: the squareness
+    /// check with its full diagnostic, and the single inner algebraic solve at
+    /// `t0` that seeds the auxiliaries and the state derivatives. A failure in
+    /// that seed solve leaves `None`, so the consistent-initialization pass
+    /// resolves them from zeros — exactly as the Java swallows the exception.
+    ///
+    /// The back half — residual, root function, sparsity, `id`, `y0`/`yp0` — is
+    /// `dae/assembly.rs`, per the division of labour its module docs set out.
+    /// Nothing is duplicated here.
+    pub fn assembly_spec(&mut self) -> Result<AssemblySpec<'a>> {
+        self.classify()?;
+        let n = self.states.len() + self.aux_names.len();
         if self.algebraic_template.len() != n {
             return Err(FreesError::solver(self.non_square_diagnostic(n)));
         }
-
-        let mut variables = self.states.clone();
-        variables.extend(self.aux_names.iter().cloned());
-        let column: HashMap<&str, usize> = variables
-            .iter()
-            .enumerate()
-            .map(|(k, v)| (v.as_str(), k))
-            .collect();
-
-        let mut id = vec![0.0; n];
-        for slot in id.iter_mut().take(ns) {
-            *slot = 1.0; // differential
-        }
-
-        let mut y0_full = vec![0.0; n];
-        let mut yp0_full = vec![0.0; n];
-        y0_full[..ns].copy_from_slice(&self.y0);
         let seed_y0 = self.y0.clone();
-        if let Ok(seed) = self.solve_algebraic_at(self.system.options.t0, &seed_y0) {
-            for (k, state) in self.states.iter().enumerate() {
-                yp0_full[k] = seed.get(&der_var(state)).copied().unwrap_or(0.0);
-            }
-            for (j, aux) in self.aux_names.iter().enumerate() {
-                y0_full[ns + j] = seed.get(aux).copied().unwrap_or(0.0);
-            }
-        }
-
-        let sparsity = self.build_sparsity(&column, ns);
-        Ok(DaeParts {
-            n,
-            variables,
+        let seed = self
+            .solve_algebraic_at(self.system.options.t0, &seed_y0)
+            .ok();
+        Ok(AssemblySpec {
+            block_name: self.system.name.clone(),
+            time_var: self.time_var.clone(),
             states: self.states.clone(),
             aux: self.aux_names.clone(),
-            id,
-            y0: y0_full,
-            yp0: yp0_full,
-            sparsity,
-            event_names: self.event_bindings.iter().map(|b| b.name.clone()).collect(),
-            event_stops: self.event_bindings.iter().map(|b| b.stop).collect(),
-            event_directions: self.event_bindings.iter().map(|b| b.direction).collect(),
-            event_set_index: self.event_bindings.iter().map(|b| b.set_index).collect(),
-            event_set_expr: self
+            template: self.algebraic_template.clone(),
+            analytic_values: self.analytic_values.clone(),
+            state_initials: self.y0.clone(),
+            seed,
+            events: self
                 .event_bindings
                 .iter()
-                .map(|b| b.set_expr.clone())
+                .map(|b| EventSpec {
+                    name: b.name.clone(),
+                    lhs: b.lhs.clone(),
+                    rhs: b.rhs.clone(),
+                    stops: b.stop,
+                })
                 .collect(),
+            ctx: EvalContext::with_defs(self.defs),
         })
     }
 
-    /// The DAE residual row-by-row: `res[i] = lhs_i(v) - rhs_i(v)` over the
-    /// name→value map [`dae_values`](DynamicSolver::dae_values) builds.
+    /// Assemble this block into the implicit DAE `F(t, y, y') = 0`.
     ///
-    /// Port of the `DaeResidual` lambda in `assembleDae`. The Java wraps the
-    /// loop in `PropertyFunctions.enterLenient()` so a stiff corrector probing
-    /// outside the fluid table returns a finite value instead of throwing; this
-    /// port has no lenient mode in [`crate::props`], so a probe off the property
-    /// surface propagates its error rather than being clamped.
-    pub fn dae_residual(&self, t: f64, y: &[f64], yp: &[f64]) -> Result<Vec<f64>> {
-        let values = self.dae_values(t, y, yp);
-        let mut res = Vec::with_capacity(self.algebraic_template.len());
-        for eq in &self.algebraic_template {
-            res.push(self.eval(&eq.lhs, &values)? - self.eval(&eq.rhs, &values)?);
-        }
-        Ok(res)
-    }
-
-    /// The DAE root vector: `g_r = lhs_r - rhs_r` for every event.
+    /// Port of `DynamicSolver.assembleDae`, delegating the assembly proper to
+    /// [`crate::dae::assembly::assemble`]. The non-square case is caught here
+    /// rather than there, because only this side can append the
+    /// `Blocker.diagnose(probe)` sentence that names the exact hole — the gap
+    /// `dae/assembly.rs` documents and asks the `DYNAMIC` owner to fill.
     ///
-    /// Port of the `DaeRootFn` `buildRootFn` returns.
-    pub fn dae_roots(&self, t: f64, y: &[f64], yp: &[f64]) -> Result<Vec<f64>> {
-        let values = self.dae_values(t, y, yp);
-        let mut out = Vec::with_capacity(self.event_bindings.len());
-        for b in &self.event_bindings {
-            out.push(self.eval(&b.lhs, &values)? - self.eval(&b.rhs, &values)?);
-        }
-        Ok(out)
+    /// # One guard the Java has and this does not
+    ///
+    /// The Java residual runs inside `PropertyFunctions.enterLenient()` so a
+    /// stiff corrector probing off the fluid table clamps to a finite value
+    /// instead of throwing. [`crate::props`] has no lenient mode, so such a
+    /// probe propagates its error; `dae/solver.rs` treats that as a recoverable
+    /// step failure and cuts the step, which is the same net behaviour for a
+    /// transient excursion but not for a genuinely out-of-range model.
+    pub fn assemble_dae(&mut self) -> Result<DaeAssembly<'a>> {
+        let spec = self.assembly_spec()?;
+        crate::dae::assembly::assemble(spec)
     }
 
-    /// Builds the name→value map for the DAE residual/roots: params, time,
-    /// states (`y`), auxiliaries (`y`), and each `der$X` bound to
-    /// `y'[state_index(X)]`.
-    pub fn dae_values(&self, t: f64, y: &[f64], yp: &[f64]) -> Scope {
-        let mut v = self.analytic_values.clone();
-        self.pin_time(&mut v, t);
-        let ns = self.states.len();
-        for (k, state) in self.states.iter().enumerate() {
-            v.insert(state.clone(), y[k]);
-            v.insert(der_var(state), yp[k]);
-        }
-        for (j, aux) in self.aux_names.iter().enumerate() {
-            v.insert(aux.clone(), y[ns + j]);
-        }
-        v
-    }
-
-    /// Per-row column dependency lists: a variable hits its own column; a
-    /// `der$X` reference hits state `X`'s column (the `∂F/∂y'` term shares the
-    /// column with `∂F/∂y` in IDA's combined system matrix).
-    fn build_sparsity(&self, column: &HashMap<&str, usize>, ns: usize) -> Vec<Vec<usize>> {
-        let mut sparsity = Vec::with_capacity(self.algebraic_template.len());
-        for eq in &self.algebraic_template {
-            let mut cols: BTreeSet<usize> = BTreeSet::new();
-            add_columns(&eq.lhs, column, ns, &mut cols);
-            add_columns(&eq.rhs, column, ns, &mut cols);
-            sparsity.push(cols.into_iter().collect());
-        }
-        sparsity
+    /// The de-sugared events, carrying the direction filter and `set`-action
+    /// target that [`crate::dae::assembly::EventSpec`] does not model.
+    ///
+    /// The IDA path needs all three (the Java keeps them in `idaEventDirs`,
+    /// `idaEventSetIdx` and `idaEventSetExpr`, aligned with the assembly's event
+    /// order): a root crossing is only honoured when its direction matches, and
+    /// a `set` action reassigns the state and re-initializes there.
+    pub fn event_bindings(&self) -> &[EventBinding] {
+        &self.event_bindings
     }
 
     // -- structural classification ------------------------------------------
@@ -1213,21 +1119,22 @@ impl<'a> DynamicSolver<'a> {
         Ok(dy)
     }
 
-    /// Pins the block's declared time variable **and** the reserved global
-    /// `time` (the name component bodies use) to the integrator's current time.
-    /// The alias is skipped when the document itself defines `time` (already
-    /// present in the map), so a legacy variable of that name keeps its meaning.
-    fn pin_time(&self, m: &mut Scope, t: f64) {
-        m.insert(self.time_var.clone(), t);
-        m.entry("time".to_string()).or_insert(t);
-    }
-
     /// The pinned environment for one step: every analytic value, then time,
-    /// then the state vector. A `BTreeMap` because the pins become `var = value`
-    /// equations and a duplicate would make the subsystem overspecified — map
-    /// semantics are required, and sorted order makes the equation list
-    /// reproducible (the Java's `LinkedHashMap` inherits `HashMap` iteration
-    /// order from `analyticValues`, which is unspecified).
+    /// then the state vector.
+    ///
+    /// The two time insertions are `DynamicSolver.pinTime`: the block's declared
+    /// time variable **and** the reserved global `time` (the name component
+    /// bodies use) are both pinned to the integrator's current time, with the
+    /// alias skipped when the document itself defines `time`, so a legacy
+    /// variable of that name keeps its meaning. (The Java's other `pinTime`
+    /// caller, `daeValues`, is now `crate::dae::assembly::dae_values`, which
+    /// carries the same two lines.)
+    ///
+    /// A `BTreeMap` because the pins become `var = value` equations and a
+    /// duplicate would make the subsystem overspecified — map semantics are
+    /// required, and sorted order makes the equation list reproducible (the
+    /// Java's `LinkedHashMap` inherits `HashMap` iteration order from
+    /// `analyticValues`, which is unspecified).
     fn pin_map(&self, t: f64, y: &[f64]) -> BTreeMap<String, f64> {
         let mut m: BTreeMap<String, f64> = self
             .analytic_values
@@ -1358,13 +1265,7 @@ impl<'a> DynamicSolver<'a> {
     }
 
     fn eval(&self, expr: &Expr, scope: &Scope) -> Result<f64> {
-        eval_with(
-            expr,
-            scope,
-            EvalContext {
-                defs: Some(self.defs),
-            },
-        )
+        eval_with(expr, scope, EvalContext::with_defs(self.defs))
     }
 }
 
@@ -1485,21 +1386,6 @@ fn collect_all_ders(e: &Expr, found: &mut Vec<String>, seen: &mut HashSet<String
     }
 }
 
-/// Column dependencies of one expression — port of `DynamicSolver.addColumns`.
-fn add_columns(e: &Expr, column: &HashMap<&str, usize>, ns: usize, cols: &mut BTreeSet<usize>) {
-    for var in e.variables() {
-        if let Some(col) = column.get(var.as_str()) {
-            cols.insert(*col);
-        } else if let Some(state) = var.strip_prefix("der$") {
-            if let Some(sc) = column.get(state) {
-                if *sc < ns {
-                    cols.insert(*sc);
-                }
-            }
-        }
-    }
-}
-
 /// Flat solver names → dotted display names. Port of `DynamicSolver.display`.
 fn display(names: &[String]) -> String {
     names
@@ -1613,7 +1499,7 @@ mod tests {
                 if values.contains_key(target) {
                     continue;
                 }
-                if let Ok(v) = eval_with(&eq.rhs, &values, EvalContext { defs: Some(&defs) }) {
+                if let Ok(v) = eval_with(&eq.rhs, &values, EvalContext::with_defs(&defs)) {
                     values.insert(target.clone(), v);
                     progressed = true;
                 }
@@ -2878,21 +2764,22 @@ mod tests {
         let values = cooling_values();
         let defs = Definitions::default();
         let mut s = solver(&system, &values, &defs);
-        let parts = s.dae_parts().unwrap();
-        assert_eq!(parts.n, 2);
-        assert_eq!(parts.variables, vec!["temp", "qdot"]);
-        assert_eq!(parts.id, vec![1.0, 0.0]);
-        assert_eq!(parts.y0[0], 95.0);
+        let dae = s.assemble_dae().unwrap();
+        assert_eq!(dae.n, 2);
+        assert_eq!(dae.variables, vec!["temp", "qdot"]);
+        assert_eq!(dae.id, vec![1.0, 0.0]);
+        assert_eq!(dae.y0[0], 95.0);
         // Seeded from the inner solve at t0: Qdot = 0.05*(95-20) = 3.75,
         // der(Temp) = -3.75.
-        assert!((parts.y0[1] - 3.75).abs() < 1e-12);
-        assert!((parts.yp0[0] + 3.75).abs() < 1e-12);
+        assert!((dae.y0[1] - 3.75).abs() < 1e-12);
+        assert!((dae.yp0[0] + 3.75).abs() < 1e-12);
         // Row 0 is `der$temp = -(k*(temp - tinf))`: touches temp (col 0) only.
-        assert_eq!(parts.sparsity[0], vec![0]);
+        assert_eq!(dae.sparsity[0], vec![0]);
         // Row 1 is `qdot = k*(temp - tinf)`: touches qdot and temp.
-        assert_eq!(parts.sparsity[1], vec![0, 1]);
+        assert_eq!(dae.sparsity[1], vec![0, 1]);
         // The residual is zero at the seeded consistent point.
-        let res = s.dae_residual(0.0, &parts.y0, &parts.yp0).unwrap();
+        let mut res = vec![0.0; dae.n];
+        dae.residual.eval(0.0, &dae.y0, &dae.yp0, &mut res).unwrap();
         assert!(res.iter().all(|r| r.abs() < 1e-12), "{res:?}");
     }
 
@@ -2908,11 +2795,17 @@ mod tests {
         let values = cooling_values();
         let defs = Definitions::default();
         let mut s = solver(&system, &values, &defs);
-        let err = s.dae_parts().unwrap_err().to_string_message();
+        let err = s.assemble_dae().unwrap_err().to_string_message();
         assert!(err.contains("underdetermined"), "{err}");
         assert!(err.contains("1 equations for 2 unknowns"), "{err}");
         assert!(err.contains("1 state + 1 algebraic"), "{err}");
         assert!(err.contains("States: temp."), "{err}");
+        // The sentence `dae/assembly.rs` cannot produce: the exact hole, from
+        // the blocker, over the probe with the states and time pinned.
+        assert!(
+            err.contains("underspecified") || err.contains("structurally singular"),
+            "the Blocker.diagnose sentence is missing: {err}"
+        );
     }
 
     #[test]
@@ -2939,15 +2832,36 @@ mod tests {
         let values = cooling_values();
         let defs = Definitions::default();
         let mut s = solver(&system, &values, &defs);
-        let parts = s.dae_parts().unwrap();
-        assert_eq!(parts.event_names, vec!["cold", "latch"]);
-        assert_eq!(parts.event_stops, vec![true, false]);
-        assert_eq!(parts.event_directions, vec![-1, 0]);
-        assert_eq!(parts.event_set_index, vec![None, Some(0)]);
-        assert_eq!(parts.event_set_expr[1], Some(Expr::num(31.0)));
+        let dae = s.assemble_dae().unwrap();
+        assert_eq!(dae.event_names, vec!["cold", "latch"]);
+        assert_eq!(dae.event_stops, vec![true, false]);
+        assert_eq!(dae.event_count(), 2);
         // Roots read `temp - 50` and `temp - 30` at the seeded point.
-        let roots = s.dae_roots(0.0, &parts.y0, &parts.yp0).unwrap();
+        let mut roots = vec![0.0; 2];
+        dae.root_fn
+            .as_ref()
+            .unwrap()
+            .eval(0.0, &dae.y0, &dae.yp0, &mut roots)
+            .unwrap();
         assert_eq!(roots, vec![45.0, 65.0]);
+
+        // The direction filter and the `set` target are *not* in `DaeAssembly`;
+        // the IDA path reads them off the bindings (Java `idaEventDirs` /
+        // `idaEventSetIdx` / `idaEventSetExpr`), aligned with the same order.
+        let bindings = s.event_bindings();
+        assert_eq!(
+            bindings.iter().map(|b| b.name.as_str()).collect::<Vec<_>>(),
+            ["cold", "latch"]
+        );
+        assert_eq!(
+            bindings.iter().map(|b| b.direction).collect::<Vec<_>>(),
+            [-1, 0]
+        );
+        assert_eq!(
+            bindings.iter().map(|b| b.set_index).collect::<Vec<_>>(),
+            [None, Some(0)]
+        );
+        assert_eq!(bindings[1].set_expr, Some(Expr::num(31.0)));
     }
 
     // -- linearization --------------------------------------------------------

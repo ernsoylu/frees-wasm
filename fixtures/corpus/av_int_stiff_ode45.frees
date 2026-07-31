@@ -1,0 +1,8 @@
+{ The same stiff problem forced through the explicit RK pair. Either both
+  engines grind out the same answer or both hit the same step-size failure. }
+lam = -2000
+
+DYNAMIC stiffy (method = ode45, time = 0 .. 2, points = 101)
+  der(Yv) = lam*(Yv - cos(time)) - sin(time)
+  Yv(0) = 0
+END

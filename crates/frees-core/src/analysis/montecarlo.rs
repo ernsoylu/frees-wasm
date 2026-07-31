@@ -57,6 +57,13 @@ use crate::diag::{FreesError, Result};
 use crate::engine::{solve_with, VariableOverride};
 use crate::solver::SolverSettings;
 
+/// How many samples [`run`] pre-reserves room for, however many are requested.
+///
+/// The Java `SolveController` refuses a request outside `[2, 1000]`
+/// (`frees.solver.max-mc-samples`), so no in-range run ever exceeds this and
+/// the reservation stays exact. See [`run`] for why the raw count is not used.
+const MAX_PREALLOCATED_SAMPLES: usize = 1_000;
+
 /// Aggregate statistics for one variable across the successful samples. Port of
 /// `MonteCarlo.VariableStats`; `first_order_sigma` is the base solve's RSS
 /// value, carried for side-by-side comparison.
@@ -143,7 +150,17 @@ where
     let sample_specs = overrides_from(specs);
 
     let mut random = JavaRandom::new(seed);
-    let mut samples: Vec<Sample> = Vec::with_capacity(sample_count);
+    // `new ArrayList<>(sampleCount)` in the Java — but `sampleCount` is
+    // untrusted here in a way it never is there. `SolveController` clamps the
+    // request to `[2, frees.solver.max-mc-samples]` (default **1000**) and
+    // rejects anything outside *before* `MonteCarlo.run` is called; this port
+    // has no controller, and `run` is a public library entry point. Reserving
+    // the raw count meant `samples = 1e9` allocated 56 GB up front — measured,
+    // and an abort rather than a `Result`, because the `panic = "abort"` wasm
+    // profile cannot unwind an allocation failure. Reserving the Java
+    // controller's own ceiling keeps every in-range request pre-sized exactly
+    // and lets an out-of-range one grow amortised until `expired` stops it.
+    let mut samples: Vec<Sample> = Vec::with_capacity(sample_count.min(MAX_PREALLOCATED_SAMPLES));
     let mut warm = base_values.clone();
     let mut failed = 0usize;
     let mut truncated = false;
@@ -252,9 +269,12 @@ fn clamp(value: f64, min: f64, max: f64) -> f64 {
     value.max(min).min(max)
 }
 
-/// Specs → the engine's external variable information. Uncertainty has no
-/// counterpart on [`VariableOverride`] and is deliberately dropped: that is the
-/// Java's per-sample `new VariableSpec(name, guess, lower, upper)` stripping.
+/// Specs → the engine's external variable information. The uncertainty is
+/// deliberately dropped even though [`VariableOverride`] now carries one: that
+/// is the Java's per-sample `new VariableSpec(name, guess, lower, upper)`
+/// stripping — a Monte Carlo sample has already consumed the sigma by *drawing*
+/// with it, and re-declaring it would run the analytic propagation on top of
+/// the sampling.
 fn overrides_from(specs: &BTreeMap<String, UncertaintySpec>) -> Vec<VariableOverride> {
     specs
         .iter()
@@ -264,6 +284,7 @@ fn overrides_from(specs: &BTreeMap<String, UncertaintySpec>) -> Vec<VariableOver
             lower: spec.lower.is_finite().then_some(spec.lower),
             upper: spec.upper.is_finite().then_some(spec.upper),
             unit: None,
+            uncertainty: None,
         })
         .collect()
 }

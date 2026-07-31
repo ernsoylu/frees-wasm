@@ -1,0 +1,5 @@
+{ A negative uncertainty. }
+x = 2
+UncertaintyOf(x) = -0.5
+y = 4*x
+uy = UncertaintyOf(y)

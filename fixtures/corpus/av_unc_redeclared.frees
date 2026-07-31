@@ -1,0 +1,6 @@
+{ Two declarations for the same variable: Map.put, so the later one wins. }
+x = 3
+UncertaintyOf(x) = 0.1
+UncertaintyOf(x) = 0.9
+y = x^2
+uy = UncertaintyOf(y)

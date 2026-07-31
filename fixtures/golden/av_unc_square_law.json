@@ -1,0 +1,27 @@
+{
+  "name": "av_unc_square_law",
+  "source": "{ y = x^2 with an uncertain x. The propagated uncertainty is |dy/dx|*u(x) =\n  2*x*u(x); reading it back with UncertaintyOf(y) forces the second solve pass. }\nx = 3\nUncertaintyOf(x) = 0.1\ny = x^2\nuy = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$x": 0.1,
+      "uncertaintyof$y": 0.6000000039736431,
+      "uy": 0.6000000039736431,
+      "x": 3.0,
+      "y": 9.0
+    },
+    "display_names": {
+      "uy": "uy",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

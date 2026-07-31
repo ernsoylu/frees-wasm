@@ -1,0 +1,8 @@
+{ The target sits exactly on a sampled row (Level = 4 at time = 4 on a unit
+  ramp sampled every second) — the `a == 0` branch. }
+Tcross = TimeAt('Level', 4)
+
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 11)
+  der(Level) = 1
+  Level(0) = 0
+END

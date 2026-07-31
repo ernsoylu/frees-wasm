@@ -1,0 +1,5 @@
+{ Degenerate span t0 == tf. }
+DYNAMIC flat (method = ode45, time = 3 .. 3, points = 5)
+  der(Yv) = -Yv
+  Yv(0) = 7
+END

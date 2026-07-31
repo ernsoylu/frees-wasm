@@ -1,0 +1,18 @@
+{
+  "name": "dyn_err_index2_square",
+  "source": "{ Two inertias rigidly coupled through a torque split. The assembly is square\n  (2 states + 2 algebraic = 4 equations) so the structural-index check runs. }\nTin = 10\n\nDYNAMIC rigid (method = ode45, time = 0 .. 10, points = 3)\n  der(W1) = Tq1\n  der(W2) = Tq2\n  W1 = W2\n  Tq1 + Tq2 = Tin\n  W1(0) = 0\n  W2(0) = 0\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "DYNAMIC rigid: the model is structurally index-2 or higher — an algebraic constraint relates differentiated states with no algebraic unknown left to determine: \"W1=W2\" (couples w1, w2). The integrators here solve index-1 systems: differentiate the constraint, put a compliance/storage element between the coupled states, or eliminate one state by substitution."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

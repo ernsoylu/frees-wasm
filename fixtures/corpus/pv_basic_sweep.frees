@@ -1,0 +1,4 @@
+PARAMETRIC sweep1 (T_in, mdot, Q)
+  T_in = -50:25:50
+  mdot = [0.1, 0.2, 0.4]
+END

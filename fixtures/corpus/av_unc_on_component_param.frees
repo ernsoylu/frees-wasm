@@ -1,0 +1,10 @@
+{ Uncertainty on a parameter consumed by the component layer. }
+Tsrc = 400
+UncertaintyOf(Tsrc) = 2
+ThermalSource S1(T = Tsrc)
+Conduction    C1(k = 10, area = 1, L = 0.1)
+ThermalSource S2(T = 300)
+connect(S1.port, C1.a)
+connect(C1.b, S2.port)
+q1 = C1.Q
+uq = UncertaintyOf(q1)

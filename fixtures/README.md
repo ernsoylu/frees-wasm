@@ -80,6 +80,32 @@ unspecified and differ between the JVM and Rust's libm.
 | `display_names` | exact |
 | `block_count` | exact — a different blocking is a real divergence |
 | `error` | `type` exact; `message` **not** compared verbatim (see below) |
+| `ode_tables` | one entry per `DYNAMIC` block, in declaration order. `name`, `method`, `columns`, `stopped` and each event's `name` are **exact**; `end_time`, every row cell and each event `time` take the same numeric tolerance as `variables` |
+
+### `ode_tables` — why a transient fixture needs it
+
+**A solved `DYNAMIC` block puts nothing in `variables`.** The trajectory is a
+first-class ODE Table, so a transient document's `variables` map holds only its
+analytic parameters — `dyn_plain_ode` has exactly `{k, Tinf}` in it. A fixture
+compared on `variables` alone therefore passes **vacuously**: the integration
+could be wrong, or missing entirely, and the gate would stay green.
+
+A golden dumped *before* the dumper grew this section has no `ode_tables` key at
+all, which the replay treats as "not a claim" rather than "no tables" — but if
+the Rust engine produces a table where the golden makes no claim, the fixture
+**fails** with a "re-dump this fixture" message. Absence is never allowed to hide
+a transient.
+
+The comparison was validated the way the harness itself was in Phase 1, by
+perturbing a golden and watching the gate go red. All four perturbation classes
+were observed and then reverted:
+
+| Perturbation | Reported as |
+|---|---|
+| a row cell `47.59095803046333` → `47.6` | ``ode_tables[0] `cooling` rows row 1 col `temp` = … but Java got 47.6 (rel 1.9e-4, tolerance 1e-9)`` |
+| the whole table deleted | `Java recorded 0 ODE table(s), Rust produced 1` |
+| `method` `ode45` → `ode23` | ``ode_tables[0] `ascent` method = "ode45" but Java got "ode23"`` |
+| a stop event's `time` shifted by 0.5 s | ``ode_tables[0] `ascent` events hit 0 (`apogee`) fired at 156.74… but Java got 157.24… (rel 3.2e-3)`` |
 
 ### `fixtures/tolerances.json` — the one relaxation, and its guards
 
@@ -127,6 +153,35 @@ oracle rather than reading the source:
 | `sequential` | Blocks solve in **dependency** order, not source order (3 blocks). |
 | `overdetermined` / `underdetermined` | Both are `SolverException`, and the message names the specific redundant relation / free quantity. |
 | `empty` | A comment-only document is `SolverException: "No equations to solve."`, not success-with-nothing. |
+
+## `fixtures/dae-oracle.json` — the API-level oracle
+
+The odd one out in the other direction: not a document replay, but a dump of the
+Java **DAE API** driven directly.
+
+```bash
+tools/dae-probe/run.sh            # -> fixtures/dae-oracle.json
+```
+
+It exists because a `.frees` document has no way to reach the implicit-DAE path
+until the `DYNAMIC` grammar lands (`method = ida` on a `DYNAMIC` block is what
+selects it), so `tools/golden-dumper` cannot produce ground truth for it. The
+probe instead calls `IdaDaeSolver`, `DaeJacobian` and `SparseSteadyKlu` on
+analytic problems — Newton cooling, a semi-explicit index-1 pair, Robertson
+(with and without root finding), a 31-unknown C-R-C heat chain above the sparse
+threshold, and a coupled algebraic loop — and records the trajectories,
+consistent initial conditions, root times/directions, Jacobians, colourings and
+sparse solves.
+
+`crates/frees-core/src/dae/solver_tests.rs` and `dae/jacobian.rs` embed those
+numbers as their `ORACLE_*` constants. **Re-run the probe rather than editing a
+constant.**
+
+> **It needs SUNDIALS ≥ 6.** `libsundials_ida.so.6` (the `SUNContext` API) must
+> be loadable, plus `sunmatrixsparse`/`sunlinsolklu` for the KLU case. Without
+> them the probe writes `"available": false` and exits 0 — the same graceful
+> degradation `SundialsIda.isAvailable()` gives the Java engine — so a machine
+> without SUNDIALS cannot silently mint an empty oracle over a real one.
 
 ## Growing the corpus
 
@@ -183,6 +238,42 @@ promoted, and the other 20 fail on a property-backend limit, not the component
 layer — `Air`/`CO2`/`Hydrogen`/`INCOMP::MEG` are not tabulated, `HAPropsSI` is
 not implemented, and `Cpmass`/`viscosity` are not stored by the split `(P,h)`
 table. Every one of those 20 names the missing capability in its error.
+
+### The `av_*` / `pv_*` group (Phase 8 adversarial verification)
+
+110 documents written to *hunt* divergences in the dynamics and analysis paths
+rather than to record behaviour already believed correct. Each was authored,
+run through **both** engines, and diffed on `variables`, `display_names`,
+`block_count`, `error` classification and — for every transient — the whole
+`ode_tables` section. Only documents that reproduced the oracle were promoted.
+
+| Prefix | Count | What it pins |
+|---|---|---|
+| `av_int_` | 15 | Integrator agreement: Van der Pol through `ode45`/`ode23`/`ode23s` at 201 samples, a stiff scalar through all of `ode15s`/`ode23s`/`ode45`, a coupled stiff pair through the BDF path, fixed-step `ode1`/`ode4`, the dense-output interpolant sampled between steps, `maxstep` clamping, `rtol = 1e-12`, step rejection against a narrow Gaussian pulse, and the degenerate/reversed spans |
+| `av_ev_` | 17 | Events: `rising` / `falling` / bare / explicit `any`; a guard exactly zero at `t0` (both `record` and `stop`); two guards crossing inside one step and the same two far apart — together those bracket `earliestEvent`'s **one hit per step** rule; two `stop` guards racing; a tangential touch that never changes sign; `set` restarting integration 27 times (thermostat) and 11 times (elastic bounce); `set` then `stop`; guards on an auxiliary and on `time`; a crossing exactly at `tf` |
+| `av_acc_` | 14 | The twenty accessors read off a solved table: all ten on one column, on `time` itself, `ODEValue`'s clamp outside the span, `TimeAt` on a row / never reached / first of two crossings, an auxiliary column, two blocks with distinct and with identical column names, a spurious second argument, a missing required one, the null-context defaults, and the `augmentAccessorDependencies` rule that an unknown living only inside the block never becomes an analytic variable |
+| `av_live_` | 5 | The live second-solve pass: `FinalValue` / `MaxValue` / `TimeAt` / `ODEValue` targets solved for an ODE input, and a 2×2 block whose every residual costs an integration |
+| `av_stor_` | 5 | Storage → `DYNAMIC`: one and two `ThermalMass` lumps integrating, an electrical `Capacitor` (the routing is domain-agnostic), an event on a mangled port member, and the **steady limit** — the same network with no `DYNAMIC` block recovers the operating point the transient converges to (446.667 / 406.667 K) |
+| `av_mol_` | 1 | Method of lines: a `FOR` loop in the block body over an array state through `ode23s` |
+| `av_lim_` | 15 | Header and failure edges: `points` = 0 / 1 / 2 / negative, `step` past the span, `rtol = 0`, `atol = 0`, an unknown method, an unknown option, finite-time blow-up, a NaN rhs, the `span/100` default `maxstep`, a stop event's row grid, a unit on the span, an expression initial condition |
+| `av_unc_` | 22 | `UncertaintyOf(X) = expr`: the square law, root-sum-square of two sources, a three-deep chain, one source feeding two dependents, propagation through an implicit 2×2 block, through the component layer, and through an **ODE accessor**; an expression-valued spec; zero / negative / 1e-12 sigmas; a query that reads its own dependent; a string-literal target; redeclaration; and the two shapes that are *not* declarations (`expr = UncertaintyOf(X)`, and a two-argument call) |
+| `av_lin_` | 6 | `LINEARIZE`: default matrix names, 2 in / 2 out / 2 states, the 1- and 2-subscript spellings of a single-column `B`, the identity `C` row, an unknown block, an unknown output |
+| `pv_` | 10 | `PARAMETRIC` declarations: a basic sweep, ragged columns, `Log` endpoints, and the seven range rejections |
+
+Two things this group establishes that no earlier fixture did:
+
+* **The uncertainty pass reaches the engine.** Before this phase
+  `crates/frees-core/src/analysis/uncertainty.rs` was complete and unit-tested
+  but had **zero call sites** — `UncertaintyOf(X) = 0.1` stayed in the equation
+  list and every uncertainty document failed as overspecified. The `av_unc_`
+  documents are the regression wall for the wiring.
+* **A `DYNAMIC` document's cost is `maxstep`-driven, not span-driven.** With no
+  `maxstep` the cap is `span/100`, which pins ~100 steps whatever the span is,
+  and each implicit step's Newton residual re-blocks the algebraic system. Van
+  der Pol through `ode15s` at 0..20 / 201 points costs **28.6 s here and 32 s in
+  the Java oracle** — comparable, so it is a shared algorithmic cost and not a
+  divergence, but it is why the promoted BDF probes are small and why
+  `av_int_stiff_pair_ode15s` uses a linear 2-state system.
 
 ## Pending corpus
 
@@ -248,6 +339,38 @@ document that starts passing because someone fixed the engine is the point.
 >
 > Component coverage grew instead through a **new** group of 46 `components_*`
 > fixtures (see "The `components_*` group" above), not by promoting from here.
+>
+> **Re-check 2026-07-31, Phase 7 transient wiring — 52 staged, 29 promoted,
+> 361 → 390.** Making `DYNAMIC`/`LINEARIZE` parse and routing them through
+> `engine.rs` promoted:
+>
+> * the 19 `dyn_*` probes, minus `dyn_accessor_live`;
+> * `damped-oscillator-ode`, `newton-cooling-transient`, `transient-heat-rod`,
+>   `sounding-rocket-trajectory`, `engine-cycle-wiebe` — five of the eight named
+>   `DYNAMIC` documents;
+> * `linearize-thermal-siso`, `linearize-thermal-2x2`;
+> * `damped-oscillator`, `driving-cycle-energy`, `projectile-trajectory`,
+>   `solver_singular_linear_cycle` (the deliberate withhold now agrees).
+>
+> **Five goldens had to be re-dumped first.** `damped-oscillator-ode`,
+> `newton-cooling-transient`, `transient-heat-rod`,
+> `sounding-rocket-trajectory` and `engine-cycle-wiebe` were dumped *before* the
+> dumper grew its `ode_tables` section, so their trajectories were not in the
+> fixture at all. Re-running `tools/golden-dumper/run.sh` over them is what makes
+> their promotion mean anything — otherwise the replay would compare `variables`
+> (which a transient document barely populates) and pass vacuously.
+>
+> The 23 that remain, by blocker — **none is blocked by the transient path**:
+>
+> | Blocker | Count | Fixtures |
+> |---|---|---|
+> | control-systems `CALL`s not ported | 11 | `control-analysis-report`, `controller-design-lqr-pid`, `cruise-control`, `digital-control-c2d`, `estimator-gramian-balreal`, `inverse-laplace-residue`, `multi-output-destructuring`, `nichols-chart`, `root-locus-analysis`, `routh-stability`, `step-impulse-response` |
+> | property-backend limits (D1) | 6 | `adv_moistair_W_passthrough`, `adv_moistair_dryair_three_way`, `ev-battery-cooling-pid`, `ev-thermal-management`, `hx-correlations-fluid`, `thermo-compliance` |
+> | `SYMBOLIC` / `MODULE` inside `FOR` | 2 | `partial-fractions`, `module_inside_for_loop` |
+> | string variables in a numeric position | 1 | `heisler-transient` |
+> | `method = ida` — the DAE path is assembled but not routed | 1 | `pressure-cooker` |
+> | table-vs-CoolProp accuracy (worst 2.9e-6; needs a `tolerances.json` entry, deliberately not added) | 1 | `state-tables-multifluid` |
+> | **cost, not correctness** — the live accessor converges to the oracle's `dk` to 4e-9 with a coarse `maxstep`, but does not finish in 7 min at the fixture's own `span/100` step cap. See `docs/status-phase7.md`. | 1 | `dyn_accessor_live` |
 
 ```bash
 tools/golden-dumper/run.sh fixtures/corpus-pending/corpus fixtures/corpus-pending/golden
@@ -271,15 +394,16 @@ The `display_names` cluster (30 documents) and the unwired-kernel cluster
 (`Integral`, `CALL Interp2`, `det$<n>` for n > 3) are **closed** — see the
 engine-fix notes at the end of this section. What is left:
 
-**1. Block types the wasm engine still refuses (14).** `PLOT` (5), `DYNAMIC`
-(5), `PARAMETRIC` (3), `SYMBOLIC` (1). The `PARAMETRIC` three are *error*
-fixtures: Java also refuses them (they are swept from the Tables tab, so solved
-directly they are underspecified) — but Java raises `SolverException` where Rust
-raises `ParseException`, so the classifications still disagree.
+**1. Block types the wasm engine still refuses (0).** *Closed by Phase 7.* Every
+block form the grammar admits now parses into `Document` —
+`parser/toplevel.rs::unsupported_construct` returns `None` for every token. The
+`PLOT` / `PARAMETRIC` / `STATE TABLE` three landed in Phase 8's parser work and
+`DYNAMIC` / `LINEARIZE` in Phase 7's.
 
 **2. Library calls not ported (12).** Control-systems `CALL`s (`lqr`, `lqe`,
-`c2d`, `routh`, `residue`, `tf2ss`), the material database (`E_`, `k_`),
-`MolarMass`, `eos_z`, `AdiabaticFlameTemp`, and string variables (`geom$`).
+`c2d`, `routh`, `residue`, `tf2ss`, `pole`, `nichols`, `rlocus`, `step`,
+`ss2tf`) and string variables (`geom$`). The material database (`E_`, `k_`),
+`MolarMass`, `eos_z` and `AdiabaticFlameTemp` closed in Phase 5.
 
 **3. Pipeline-ordering deviation (1).** `module_inside_for_loop`: Java unrolls
 `FOR` *during* flattening, so `CALL Twice(i : r[i])` inside a two-iteration loop

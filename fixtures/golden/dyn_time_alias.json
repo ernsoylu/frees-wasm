@@ -1,0 +1,36 @@
+{
+  "name": "dyn_time_alias",
+  "source": "{ The header declares `t`; the body reads the reserved global `time`. }\nDYNAMIC alias (method = ode45, t = 0 .. 4, points = 5)\n  der(Y) = time\n  Y(0) = 0\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "time": "time",
+      "y": "Y"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "alias",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 4.0,
+        "columns": ["t", "y"],
+        "rows": [
+          [0.0, 0.0],
+          [1.0, 0.49999999999999967],
+          [2.0, 1.9999999999999973],
+          [3.0, 4.499999999999996],
+          [4.0, 7.999999999999992]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

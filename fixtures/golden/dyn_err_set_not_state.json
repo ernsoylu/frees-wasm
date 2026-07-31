@@ -1,0 +1,18 @@
+{
+  "name": "dyn_err_set_not_state",
+  "source": "DYNAMIC badset (method = ode45, time = 0 .. 10, points = 3)\n  der(Level) = 1\n  Level(0) = 0\n  Aux = 2*Level\n  EVENT trip: Level = 4 | rising -> set Aux = 0\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "EVENT trip: set target 'aux' is not a state of this DYNAMIC block — only der(...) states can be reassigned at an event."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

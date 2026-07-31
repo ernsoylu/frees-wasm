@@ -1,0 +1,9 @@
+{ An accessor reading an algebraic auxiliary column rather than a state. }
+Qmax = MaxValue('Qdot')
+Qend = FinalValue('Qdot')
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 13)
+  der(Temp) = -Qdot
+  Qdot = 0.05*(Temp - 20)
+  Temp(0) = 95
+END

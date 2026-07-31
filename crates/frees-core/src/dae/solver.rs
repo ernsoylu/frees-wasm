@@ -42,6 +42,22 @@
 //!   [`Step::roots_found`] carries IDA's `±1` per root, so the caller applies
 //!   the block's `direction` keyword itself.
 
+// This module is a line-by-line transcription of SUNDIALS `ida.c`, whose
+// vectors are indexed in lockstep (`phi[j][i]`, `yy[i]`, `ewt[i]`, `psi[j]`).
+// Rewriting those sweeps as zipped iterators would make the port unreadable
+// against its reference and un-reviewable against a future SUNDIALS revision,
+// so the index form stays.
+#![allow(clippy::needless_range_loop)]
+// PARITY RULE: `!(best > 0.0)` is a NaN-rejecting guard — a NaN pivot must be
+// treated as singular, which `best <= 0.0` would NOT do. The negation is
+// load-bearing and stays.
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
+// `IDACompleteStep`'s order decision is a `goto takeaction` ladder in which
+// MAINTAIN is reached from two structurally different conditions (order already
+// at the maximum vs. a step-size history too short to estimate order k+1).
+// Collapsing them into one arm would hide which IDA branch a step took.
+#![allow(clippy::if_same_then_else)]
+
 use crate::dae::assembly::{DaeAssembly, DaeResidual, DaeRootFn};
 use crate::dae::jacobian;
 use crate::diag::{FreesError, Result};
@@ -816,18 +832,19 @@ impl<'a> IdaDaeSolver<'a> {
         self.init(t0, y0, yp0)
     }
 
+    /// The `(y, y')` most recently handed out — the initial condition after
+    /// [`Self::init`] / [`Self::calc_consistent_ic`], and the value at the
+    /// returned time after a [`Self::step`].
+    ///
+    /// These read `yy`/`yp` rather than the history, because `phi[1]` is `h·y'`
+    /// once integration starts (IDA scales it in place) and would silently hand
+    /// back a scaled derivative.
     pub fn current_state(&self) -> Vec<f64> {
-        self.phi[0].clone()
+        self.yy.clone()
     }
 
     pub fn current_derivative(&self) -> Vec<f64> {
-        // Before the first step `phi[1]` is still `yp`; afterwards `yy`/`yp`
-        // carry the corrected values IDA returns.
-        if self.nst == 0 {
-            self.phi[1].clone()
-        } else {
-            self.yp.clone()
-        }
+        self.yp.clone()
     }
 
     fn require_init(&self) -> Result<()> {
@@ -896,6 +913,15 @@ impl<'a> IdaDaeSolver<'a> {
                 color,
                 matrix,
             } => {
+                // Materialising the coloured Jacobian dense and then scattering
+                // the pattern entries is what `IdaDaeSolver.fillSparseJacobian`
+                // does too (it calls `DaeJacobian.denseColored` and copies
+                // `j[row][c]` into the CSC value buffer). The saving the sparse
+                // path buys is in the *residual evaluations* — `#colours`
+                // instead of `n` — not in this `n²` scratch buffer. Above a few
+                // hundred unknowns that buffer becomes the binding cost and
+                // `dense_colored` should grow a CSC-writing variant; the Java
+                // has the same ceiling.
                 let dense =
                     jacobian::dense_colored(self.res, self.tn, self.cj, y, yp, col_rows, color)?;
                 let mut m = matrix.clone();
@@ -1287,7 +1313,11 @@ impl<'a> IdaDaeSolver<'a> {
                 }
                 self.hh = hnew;
             } else if self.rr <= 1.0 {
-                self.rr = self.rr.min(0.9).max(0.5);
+                // `SUNMAX(HALF, SUNMIN(PT9, rr))`. `clamp` — not `.min().max()`
+                // — is the faithful form: both it and the C macros propagate a
+                // NaN `rr`, whereas `f64::min`/`f64::max` would silently swallow
+                // it and return 0.9.
+                self.rr = self.rr.clamp(0.5, 0.9);
                 self.hh *= self.rr;
             }
         }
@@ -1429,15 +1459,7 @@ impl<'a> IdaDaeSolver<'a> {
                 }
             }
             if (self.tn - tout) * self.hh >= 0.0 {
-                let (y, yp) = self.get_solution(tout);
-                self.tretlast = tout;
-                return Ok(Step {
-                    t: tout,
-                    y,
-                    yp,
-                    flag: IDA_SUCCESS,
-                    roots_found: vec![0; self.nroots],
-                });
+                return Ok(self.solution_step(tout));
             }
         } else {
             self.first_call_setup(tout)?;
@@ -1475,15 +1497,7 @@ impl<'a> IdaDaeSolver<'a> {
                 return Ok(self.root_step());
             }
             if (self.tn - tout) * self.hh >= 0.0 {
-                let (y, yp) = self.get_solution(tout);
-                self.tretlast = tout;
-                return Ok(Step {
-                    t: tout,
-                    y,
-                    yp,
-                    flag: IDA_SUCCESS,
-                    roots_found: vec![0; self.nroots],
-                });
+                return Ok(self.solution_step(tout));
             }
         }
     }
@@ -1524,10 +1538,29 @@ impl<'a> IdaDaeSolver<'a> {
         Ok(())
     }
 
+    /// The state to return at a requested output time. `yy`/`yp` are refreshed
+    /// so [`Self::current_state`] agrees with what was handed out, matching the
+    /// Java binding (IDA writes `yret`/`ypret` into the same vectors).
+    fn solution_step(&mut self, tout: f64) -> Step {
+        let (y, yp) = self.get_solution(tout);
+        self.tretlast = tout;
+        self.yy.copy_from_slice(&y);
+        self.yp.copy_from_slice(&yp);
+        Step {
+            t: tout,
+            y,
+            yp,
+            flag: IDA_SUCCESS,
+            roots_found: vec![0; self.nroots],
+        }
+    }
+
     /// The state to return when a root fired.
     fn root_step(&mut self) -> Step {
         let (y, yp) = self.get_solution(self.trout);
         self.tretlast = self.trout;
+        self.yy.copy_from_slice(&y);
+        self.yp.copy_from_slice(&yp);
         Step {
             t: self.trout,
             y,
@@ -1926,9 +1959,15 @@ impl<'a> IdaDaeSolver<'a> {
     ) -> Result<()> {
         let steptol = UROUND.powf(2.0 / 3.0);
         let mut delta = vec![0.0; self.n];
-        self.res.eval(t0, yy0, yp0, &mut delta)?;
 
         for _nj in 0..MAXNJ {
+            // The residual has to be re-evaluated at the CURRENT (yy0, yp0)
+            // before every Jacobian setup. On the retry pass `delta` holds the
+            // previous Newton *step*, not a residual, and a difference-quotient
+            // Jacobian built against that base is silently garbage — the
+            // symptom is a second pass whose line search stalls immediately
+            // because its "Newton direction" is not a descent direction.
+            self.res.eval(t0, yy0, yp0, &mut delta)?;
             let f0 = delta.clone();
             let (y, yp) = (yy0.clone(), yp0.clone());
             let saved_tn = self.tn;
@@ -1983,7 +2022,6 @@ impl<'a> IdaDaeSolver<'a> {
         }
 
         for mnewt in 0..MAXNIT {
-            let oldfnrm = fnorm;
             // `IDALineSrch`
             let f1norm = 0.5 * fnorm * fnorm;
             let slpi = -2.0 * f1norm;
@@ -2022,7 +2060,8 @@ impl<'a> IdaDaeSolver<'a> {
             if fnorm <= self.eps_newt {
                 return Ok(());
             }
-            let _rate = fnorm / oldfnrm;
+            // (`IDANewtonIC` also forms `rate = fnorm/oldfnrm` here and then
+            // never reads it; the dead statement is not carried over.)
             if mnewt + 1 == MAXNIT {
                 return Err(SlowOrFail::Slow);
             }

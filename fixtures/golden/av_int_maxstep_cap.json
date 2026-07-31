@@ -1,0 +1,51 @@
+{
+  "name": "av_int_maxstep_cap",
+  "source": "{ An explicit maxstep smaller than what the error controller would pick — the\n  step loop must clamp, and the clamped steps must land identically. }\nDYNAMIC capped (method = ode45, time = 0 .. 10, points = 21, maxstep = 0.037)\n  der(Yv) = -0.3*Yv\n  Yv(0) = 100\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "capped",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 10.0,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 100.0],
+          [0.5, 86.07079763910828],
+          [1.0, 74.08182206814058],
+          [1.5, 63.76281515969008],
+          [2.0, 54.881163609313795],
+          [2.5, 47.236655272302215],
+          [3.0, 40.656965973919355],
+          [3.5, 34.99377490982999],
+          [4.0, 30.119421191045383],
+          [4.5, 25.924026063682614],
+          [5.0, 22.313016014652366],
+          [5.5, 19.204990861445086],
+          [6.0, 16.5298888219676],
+          [6.5, 14.227407158219805],
+          [7.0, 12.24564282511762],
+          [7.5, 10.539922455896043],
+          [8.0, 9.07179532877788],
+          [8.5, 7.808166599923765],
+          [9.0, 6.720551273832154],
+          [9.5, 5.784432087360414],
+          [10.0, 4.978706836787157]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

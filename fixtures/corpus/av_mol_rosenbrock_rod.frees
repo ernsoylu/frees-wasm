@@ -1,0 +1,26 @@
+{ The same discretisation through the Rosenbrock pair — the internal Jacobian
+  of a coupled array system, which is where a finite-difference perturbation
+  difference would show. }
+N = 11
+Lrod = 1
+dx = Lrod / (N - 1)
+alpha = 0.05
+Tleft = 100
+Tright = 0
+
+DYNAMIC rod (method = ode23s, time = 0 .. 100, points = 21)
+  FOR i = 2 TO N-1
+    der(Tn[i]) = alpha / dx^2 * (Tn[i-1] - 2*Tn[i] + Tn[i+1])
+  END
+  Tn[1] = Tleft
+  Tn[11] = Tright
+  Tn[2](0) = 0
+  Tn[3](0) = 0
+  Tn[4](0) = 0
+  Tn[5](0) = 0
+  Tn[6](0) = 0
+  Tn[7](0) = 0
+  Tn[8](0) = 0
+  Tn[9](0) = 0
+  Tn[10](0) = 0
+END

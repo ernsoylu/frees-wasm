@@ -401,10 +401,13 @@ fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
             problem.uppers[0],
             !problem.maximize,
         )
-        .map_err(|TooManyEvaluations| {
-            FreesError::solver(format!(
+        // Java lets both exceptions escape the 1-D path (there is no catch
+        // around `brent.optimize`), so both become the caller's error.
+        .map_err(|abort| match abort {
+            EvalAbort::Fatal(error) => error,
+            EvalAbort::Budget => FreesError::solver(format!(
                 "Optimization exceeded the evaluation budget of {MAX_EVALUATIONS} solves."
-            ))
+            )),
         })?;
 
         let decision_values = vec![point];
@@ -638,9 +641,12 @@ fn multivariate_optimize(
         f64::INFINITY
     };
 
+    // Java: `catch (TooManyEvaluationsException e) { return trackedPoint.clone(); }`
+    // — and *only* that exception; a `SolverException` propagates.
     let mut best_points = match nelder_mead(&mut ctx, &guess, !problem.maximize) {
         Ok(point) => point,
-        Err(TooManyEvaluations) => ctx.tracked_point.clone(),
+        Err(EvalAbort::Budget) => ctx.tracked_point.clone(),
+        Err(EvalAbort::Fatal(error)) => return Err(error),
     };
     // The simplex is unaware of bounds and the tracked point may stem from an
     // out-of-bounds probe: clamp before the final solve.
@@ -675,15 +681,27 @@ struct Penalty {
 // The evaluation context — the Apache/Java function-wrapper stack, flattened
 // ---------------------------------------------------------------------------
 
-/// Apache's `TooManyEvaluationsException`: the `MaxEval` budget ran out.
+/// Why an objective evaluation stopped early.
 ///
-/// Java throws it out of `computeObjectiveValue`; the port returns it so the
-/// same two call sites can react the same way (Brent lets it propagate, the
-/// simplex path catches it and falls back to the tracked best iterate).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TooManyEvaluations;
+/// Java throws two different exceptions out of the evaluation stack and the
+/// call sites treat them differently, so the port keeps them apart:
+///
+/// * [`EvalAbort::Budget`] — Apache's `TooManyEvaluationsException`, thrown by
+///   `computeObjectiveValue` when `MaxEval` runs out. The simplex path catches
+///   it and degrades to the tracked best iterate; the Brent path does not.
+/// * [`EvalAbort::Fatal`] — the `SolverException` the Java
+///   `evaluateObjectiveMultivariate` throws when a solve *succeeds* but its
+///   result does not contain the objective variable. That is a broken request,
+///   not a bad probe, and it aborts the whole optimisation rather than scoring
+///   [`PENALTY`] — note it is raised *outside* the `try` that swallows solver
+///   failures.
+#[derive(Debug, Clone, PartialEq)]
+enum EvalAbort {
+    Budget,
+    Fatal(FreesError),
+}
 
-type EvalResult = std::result::Result<f64, TooManyEvaluations>;
+type EvalResult = std::result::Result<f64, EvalAbort>;
 
 /// The whole evaluation stack the Java composes with lambdas, in one struct:
 ///
@@ -709,8 +727,6 @@ struct Ctx<'a> {
     upper_bounds: Vec<f64>,
     tracked_point: Vec<f64>,
     tracked_value: f64,
-    /// Scratch buffer for the projected point, to avoid an allocation per probe.
-    projected: Vec<f64>,
 }
 
 impl<'a> Ctx<'a> {
@@ -727,7 +743,6 @@ impl<'a> Ctx<'a> {
             upper_bounds: Vec::new(),
             tracked_point: Vec::new(),
             tracked_value: f64::INFINITY,
-            projected: Vec::new(),
         }
     }
 
@@ -737,14 +752,14 @@ impl<'a> Ctx<'a> {
     fn budgeted(&mut self, point: &[f64]) -> EvalResult {
         self.used += 1;
         if self.used > self.max {
-            return Err(TooManyEvaluations);
+            return Err(EvalAbort::Budget);
         }
-        Ok(self.tracked(point))
+        self.tracked(point)
     }
 
     /// The Java `trackedFn`.
-    fn tracked(&mut self, point: &[f64]) -> f64 {
-        let value = self.bounded(point);
+    fn tracked(&mut self, point: &[f64]) -> EvalResult {
+        let value = self.bounded(point)?;
         let better = if self.problem.maximize {
             value > self.tracked_value
         } else {
@@ -755,38 +770,31 @@ impl<'a> Ctx<'a> {
             self.tracked_point.clear();
             self.tracked_point.extend_from_slice(point);
         }
-        value
+        Ok(value)
     }
 
     /// The Java `wrapWithBoundsPenalty`: evaluate out-of-box points at their
     /// projection onto the box plus a smooth quadratic distance penalty, so the
     /// landscape stays continuous at the bounds without rewarding infeasible
     /// points.
-    fn bounded(&mut self, point: &[f64]) -> f64 {
+    fn bounded(&mut self, point: &[f64]) -> EvalResult {
         if !self.bounds_penalty {
             if !self.project_out_of_box {
                 return self.penalised(point);
             }
             // The BOBYQA stand-in: bounds respected by projection, no penalty.
-            self.projected.clear();
-            self.projected.extend_from_slice(point);
-            for i in 0..self.projected.len() {
-                self.projected[i] = jmax(
-                    self.lower_bounds[i],
-                    jmin(self.upper_bounds[i], self.projected[i]),
-                );
-            }
-            let projected = std::mem::take(&mut self.projected);
-            let value = self.penalised(&projected);
-            self.projected = projected;
-            return value;
+            let projected: Vec<f64> = point
+                .iter()
+                .enumerate()
+                .map(|(i, &x)| jmax(self.lower_bounds[i], jmin(self.upper_bounds[i], x)))
+                .collect();
+            return self.penalised(&projected);
         }
 
         let penalty_sign = if self.problem.maximize { -1.0 } else { 1.0 };
         let mut violation = 0.0f64;
-        self.projected.clear();
-        self.projected.extend_from_slice(point);
-        for (i, (&x, slot)) in point.iter().zip(self.projected.iter_mut()).enumerate() {
+        let mut projected = point.to_vec();
+        for (i, (&x, slot)) in point.iter().zip(projected.iter_mut()).enumerate() {
             if x < self.lower_bounds[i] {
                 let d = self.lower_bounds[i] - x;
                 violation += d * d;
@@ -797,113 +805,109 @@ impl<'a> Ctx<'a> {
                 *slot = self.upper_bounds[i];
             }
         }
-        let projected = std::mem::take(&mut self.projected);
-        let value = self.penalised(&projected);
-        self.projected = projected;
-        value + penalty_sign * BOUNDS_PENALTY_WEIGHT * violation
+        let value = self.penalised(&projected)?;
+        Ok(value + penalty_sign * BOUNDS_PENALTY_WEIGHT * violation)
     }
 
     /// The Java `evaluateWithPenalty` (or a bare objective when the problem is
     /// unconstrained).
-    fn penalised(&mut self, point: &[f64]) -> f64 {
-        let Some(penalty) = self.penalty.take() else {
-            return self.raw_objective(point);
+    fn penalised(&mut self, point: &[f64]) -> EvalResult {
+        // The objective solve always runs first — both Java paths call
+        // `evaluateObjectiveMultivariate` before touching a constraint — which
+        // is also what lets the penalty terms borrow `self` afterwards.
+        let mut obj = self.raw_objective(point)?;
+        let problem = self.problem;
+        let Some(penalty) = self.penalty.as_ref() else {
+            return Ok(obj);
         };
-        let mut obj = self.raw_objective(point);
         if obj == PENALTY || obj == -PENALTY {
-            self.penalty = Some(penalty);
-            return obj;
+            return Ok(obj);
         }
-        let sign = if self.problem.maximize { 1.0 } else { -1.0 };
-        obj = self.apply_inequality_penalties(obj, sign, &penalty, point);
+        let sign = if problem.maximize { 1.0 } else { -1.0 };
+        let infeasible = if problem.maximize { -PENALTY } else { PENALTY };
+        obj = apply_inequality_penalties(obj, sign, penalty, problem, point);
         if obj.is_nan() {
-            self.penalty = Some(penalty);
-            return if self.problem.maximize {
-                -PENALTY
-            } else {
-                PENALTY
-            };
+            return Ok(infeasible);
         }
-        obj = self.apply_equality_penalties(obj, sign, &penalty, point);
-        self.penalty = Some(penalty);
+        obj = apply_equality_penalties(obj, sign, penalty, problem, point);
         if obj.is_nan() {
-            return if self.problem.maximize {
-                -PENALTY
-            } else {
-                PENALTY
-            };
+            return Ok(infeasible);
         }
-        obj
-    }
-
-    /// The Java `applyInequalityPenalties`. Feasible: the log-barrier
-    /// `∓μ·ln(−g)` repels the iterate from the boundary. Infeasible: a smooth
-    /// exterior quadratic penalty of weight `1/μ` points back into the feasible
-    /// region.
-    fn apply_inequality_penalties(
-        &mut self,
-        mut obj: f64,
-        sign: f64,
-        penalty: &Penalty,
-        point: &[f64],
-    ) -> f64 {
-        for c in &penalty.inequalities {
-            let lhs_val = evaluate_constraint_expression_or_nan(&c.lhs_expr, self.problem, point);
-            if lhs_val.is_nan() {
-                return f64::NAN;
-            }
-            let g = c.normalised(lhs_val);
-            if g >= 0.0 {
-                let weight = 1.0 / jmax(penalty.mu, BARRIER_MU_MIN);
-                obj -= sign * weight * (g * g + g);
-            } else {
-                obj += sign * penalty.mu * (-g).ln();
-            }
-        }
-        obj
-    }
-
-    /// The Java `applyEqualityPenalties`: `λᵀh(x) + (ρ/2)‖h(x)‖²`.
-    fn apply_equality_penalties(
-        &mut self,
-        mut obj: f64,
-        sign: f64,
-        penalty: &Penalty,
-        point: &[f64],
-    ) -> f64 {
-        for (j, c) in penalty.equalities.iter().enumerate() {
-            let lhs_val = evaluate_constraint_expression_or_nan(&c.lhs_expr, self.problem, point);
-            if lhs_val.is_nan() {
-                return f64::NAN;
-            }
-            let h = c.normalised(lhs_val);
-            obj -= sign * (penalty.lambda[j] * h + (penalty.rho / 2.0) * h * h);
-        }
-        obj
+        Ok(obj)
     }
 
     /// The Java `evaluateObjective` / `evaluateObjectiveMultivariate`: one full
-    /// system solve with the decisions pinned; a parse or solver failure is
-    /// [`PENALTY`] rather than an abort.
-    fn raw_objective(&mut self, point: &[f64]) -> f64 {
+    /// system solve with the decisions pinned. A parse or solver failure is
+    /// [`PENALTY`] rather than an abort — but a *successful* solve whose result
+    /// lacks the objective variable throws, because that is a broken request.
+    fn raw_objective(&mut self, point: &[f64]) -> EvalResult {
         self.evaluations += 1;
-        match solve_with_decisions(self.problem, point) {
-            Ok(solution) => read_objective(&solution, &self.problem.objective).unwrap_or(
-                if self.problem.maximize {
-                    -PENALTY
-                } else {
-                    PENALTY
-                },
-            ),
-            Err(_) => {
-                if self.problem.maximize {
-                    -PENALTY
-                } else {
-                    PENALTY
-                }
-            }
+        let infeasible = if self.problem.maximize {
+            -PENALTY
+        } else {
+            PENALTY
+        };
+        let Ok(solution) = solve_with_decisions(self.problem, point) else {
+            return Ok(infeasible);
+        };
+        solution
+            .values
+            .get(&self.problem.objective.to_ascii_lowercase())
+            .copied()
+            .ok_or_else(|| {
+                EvalAbort::Fatal(FreesError::solver(format!(
+                    "The objective variable '{}' is not part of the system.",
+                    self.problem.objective
+                )))
+            })
+    }
+}
+
+/// The Java `applyInequalityPenalties`. Feasible: the log-barrier `∓μ·ln(−g)`
+/// repels the iterate from the boundary. Infeasible: a smooth exterior
+/// quadratic penalty of weight `1/μ` points back into the feasible region.
+/// Returns NaN if a constraint LHS is NaN.
+fn apply_inequality_penalties(
+    mut obj: f64,
+    sign: f64,
+    penalty: &Penalty,
+    problem: &Problem,
+    point: &[f64],
+) -> f64 {
+    for c in &penalty.inequalities {
+        let lhs_val = evaluate_constraint_expression_or_nan(&c.lhs_expr, problem, point);
+        if lhs_val.is_nan() {
+            return f64::NAN;
+        }
+        let g = c.normalised(lhs_val);
+        if g >= 0.0 {
+            let weight = 1.0 / jmax(penalty.mu, BARRIER_MU_MIN);
+            obj -= sign * weight * (g * g + g);
+        } else {
+            obj += sign * penalty.mu * (-g).ln();
         }
     }
+    obj
+}
+
+/// The Java `applyEqualityPenalties`: `λᵀh(x) + (ρ/2)‖h(x)‖²`. Returns NaN if a
+/// constraint LHS is NaN.
+fn apply_equality_penalties(
+    mut obj: f64,
+    sign: f64,
+    penalty: &Penalty,
+    problem: &Problem,
+    point: &[f64],
+) -> f64 {
+    for (j, c) in penalty.equalities.iter().enumerate() {
+        let lhs_val = evaluate_constraint_expression_or_nan(&c.lhs_expr, problem, point);
+        if lhs_val.is_nan() {
+            return f64::NAN;
+        }
+        let h = c.normalised(lhs_val);
+        obj -= sign * (penalty.lambda[j] * h + (penalty.rho / 2.0) * h * h);
+    }
+    obj
 }
 
 // ---------------------------------------------------------------------------
@@ -1203,7 +1207,7 @@ fn evaluate_simplex(
     ctx: &mut Ctx<'_>,
     simplex: &mut [Vertex],
     minimize: bool,
-) -> std::result::Result<(), TooManyEvaluations> {
+) -> std::result::Result<(), EvalAbort> {
     for vertex in simplex.iter_mut() {
         if vertex.value.is_nan() {
             let value = ctx.budgeted(&vertex.point)?;
@@ -1238,14 +1242,14 @@ fn replace_worst_point(simplex: &mut [Vertex], mut candidate: Vertex, minimize: 
 /// Apache `SimplexOptimizer.doOptimize` with `NelderMeadSimplex(n)` and a
 /// `SimpleValueChecker(1e-10, 1e-12)`.
 ///
-/// Returns the best vertex's point. The `TooManyEvaluations` error is the
-/// Java's `TooManyEvaluationsException`, which the caller turns into the
-/// tracked best iterate.
+/// Returns the best vertex's point. [`EvalAbort::Budget`] is the Java's
+/// `TooManyEvaluationsException`, which the caller turns into the tracked best
+/// iterate; [`EvalAbort::Fatal`] propagates.
 fn nelder_mead(
     ctx: &mut Ctx<'_>,
     start: &[f64],
     minimize: bool,
-) -> std::result::Result<Vec<f64>, TooManyEvaluations> {
+) -> std::result::Result<Vec<f64>, EvalAbort> {
     let mut simplex = build_simplex(start);
     evaluate_simplex(ctx, &mut simplex, minimize)?;
 
@@ -1283,7 +1287,7 @@ fn nelder_mead_iterate(
     ctx: &mut Ctx<'_>,
     simplex: &mut [Vertex],
     minimize: bool,
-) -> std::result::Result<(), TooManyEvaluations> {
+) -> std::result::Result<(), EvalAbort> {
     // The simplex has n + 1 points when the dimension is n.
     let n = simplex.len() - 1;
 
@@ -2011,6 +2015,23 @@ mod tests {
                  'a <= -50.0' is off by 50.00"
             )
         );
+    }
+
+    #[test]
+    fn oracle_a_missing_objective_aborts_the_search_immediately() {
+        // Java (both methods): SolverException "The objective variable 'q' is
+        // not part of the system." — raised *outside* the try that swallows
+        // solver failures, so it is not a PENALTY-scored probe.
+        for method in ["brent", "nelder-mead"] {
+            let mut p = problem("y = (x - 2)^2 + 3", "q", &["x"], &[-10.0], &[10.0]);
+            p.method = Some(method.to_string());
+            let err = optimize(&p).unwrap_err();
+            assert_eq!(
+                err.to_string_message(),
+                "The objective variable 'q' is not part of the system.",
+                "method = {method}"
+            );
+        }
     }
 
     #[test]

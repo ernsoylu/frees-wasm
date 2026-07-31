@@ -389,9 +389,7 @@ impl<'a> AllRootsSolver<'a> {
         work: &mut Scope,
     ) -> bool {
         work.insert(var_name.to_string(), root);
-        let ctx = EvalContext {
-            defs: Some(self.defs),
-        };
+        let ctx = EvalContext::with_defs(self.defs);
         let (Ok(lhs), Ok(rhs)) = (
             eval_with(&equation.lhs, work, ctx),
             eval_with(&equation.rhs, work, ctx),
@@ -515,7 +513,7 @@ impl<'a> AllRootsSolver<'a> {
             values,
             settings,
             &bounds,
-            self.defs,
+            crate::eval::EvalContext::with_defs(self.defs),
         )
     }
 }
@@ -530,7 +528,7 @@ fn safe_eval(
     defs: &Definitions,
 ) -> f64 {
     work.insert(var_name.to_string(), t);
-    let ctx = EvalContext { defs: Some(defs) };
+    let ctx = EvalContext::with_defs(defs);
     match (
         eval_with(&equation.lhs, work, ctx),
         eval_with(&equation.rhs, work, ctx),

@@ -1,0 +1,18 @@
+{
+  "name": "av_lin_unknown_block",
+  "source": "{ LINEARIZE naming a DYNAMIC block that does not exist. }\nQ_in = 1000\nHeatSource    HS(Q = Q_in)\nThermalMass   M(C = 5000, T0 = 300)\nThermalSource amb(T = 300)\nconnect(HS.port, M.port, amb.port)\nDYNAMIC warmup(time = 0 .. 1)\nEND\nLINEARIZE plant(block = nosuchblock, a = A, b = B, c = C, d = D)\n  INPUT  Q_in\n  OUTPUT m.port.T\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "LINEARIZE plant: no DYNAMIC block named 'nosuchblock' (it names the transient component network to linearize)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

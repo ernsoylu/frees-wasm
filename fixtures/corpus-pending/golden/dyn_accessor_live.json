@@ -1,0 +1,61 @@
+{
+  "name": "dyn_accessor_live",
+  "source": "{ The live accessor with the ODE input present in the analytic system: the\n  solver sizes k through the analytic tie k = kmin + dk so the transient ends\n  at 30. }\nTinf = 20\nTemp0 = 95\nkmin = 0.001\nk = kmin + dk\n\nFinalValue('Temp') = 30\n\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 21)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = Temp0\nEND\n",
+  "expect": {
+    "variables": {
+      "Temp0": 95.0,
+      "Tinf": 20.0,
+      "dk": 0.03258171700906962,
+      "k": 0.033581717009069624,
+      "kmin": 0.001
+    },
+    "display_names": {
+      "dk": "dk",
+      "k": "k",
+      "kmin": "kmin",
+      "temp": "Temp",
+      "temp0": "Temp0",
+      "tinf": "Tinf"
+    },
+    "block_count": 5,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 60.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 95.0],
+          [3.0, 87.81225714104731],
+          [6.0, 81.31336292098669],
+          [9.0, 75.43730044055818],
+          [12.0, 70.124379641306],
+          [15.0, 65.3206309553206],
+          [18.0, 60.97725707303836],
+          [21.0, 57.0501372517353],
+          [24.0, 53.499379129395706],
+          [27.0, 50.288913491202585],
+          [30.0, 47.38612787221836],
+          [33.0, 44.761535274328416],
+          [36.0, 42.38847463221697],
+          [39.0, 40.24283998565666],
+          [42.0, 38.302835606997455],
+          [45.0, 36.54875459639748],
+          [48.0, 34.96277869572761],
+          [51.0, 33.52879728762538],
+          [54.0, 32.232243741058646],
+          [57.0, 31.05994744096957],
+          [60.0, 29.99999999999999]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

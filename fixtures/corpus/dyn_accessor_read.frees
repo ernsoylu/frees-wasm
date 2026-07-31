@@ -1,0 +1,14 @@
+{ The analytic system reads the solved ODE table through the accessors. }
+k = 0.05
+Tinf = 20
+
+Tlast   = FinalValue('Temp')
+Tspan   = MaxValue('Temp') - MinValue('Temp')
+Thalf   = ODEValue('Temp', 30)
+Tcross  = TimeAt('Temp', 50)
+Tmean   = ODEAvg('Temp')
+
+DYNAMIC cooling (method = ode45, time = 0 .. 60, points = 21)
+  der(Temp) = -k*(Temp - Tinf)
+  Temp(0) = 95
+END

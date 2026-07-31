@@ -197,6 +197,27 @@ fn solution_value(solution: &Solution) -> Value {
         },
         "iterations": solution.iterations,
         "diagnostics": diagnostics_value(&solution.diagnostics),
+        // The golden dumper's `ode_tables` shape, key for key, so a suspected
+        // transient divergence can be diffed straight against a fixture.
+        "ode_tables": solution
+            .ode_tables
+            .iter()
+            .map(|t| json!({
+                "name": t.name,
+                "method": t.method,
+                "stopped": t.stopped,
+                "end_time": number(t.end_time),
+                "columns": t.columns,
+                "rows": t.rows
+                    .iter()
+                    .map(|row| row.iter().map(|v| number(*v)).collect::<Vec<_>>())
+                    .collect::<Vec<_>>(),
+                "events": t.events
+                    .iter()
+                    .map(|e| json!({ "name": e.name, "time": number(e.time) }))
+                    .collect::<Vec<_>>(),
+            }))
+            .collect::<Vec<_>>(),
     })
 }
 

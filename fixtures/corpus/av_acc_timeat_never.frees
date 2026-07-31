@@ -1,0 +1,7 @@
+{ TimeAt for a level the column never reaches. }
+Tcross = TimeAt('Level', 99)
+
+DYNAMIC ramp (method = ode45, time = 0 .. 10, points = 11)
+  der(Level) = 1
+  Level(0) = 0
+END

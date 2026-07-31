@@ -1,0 +1,7 @@
+{ A stop event at 1/3 of the span: how many rows the table carries and what
+  grid they sit on (t0..tf, or t0..endTime) is the thing under test. }
+DYNAMIC ramp (method = ode45, time = 0 .. 30, points = 7)
+  der(Level) = 1
+  Level(0) = 0
+  EVENT quit: Level = 10 | rising -> stop
+END

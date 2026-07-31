@@ -1,0 +1,37 @@
+{
+  "name": "av_ev_at_t0_stop",
+  "source": "{ Same guard, but the action is stop. If t0 counts as a crossing the run ends\n  immediately; if it does not, the run goes to 5. }\nDYNAMIC start (method = ode45, time = 0 .. 5, points = 6)\n  der(Yv) = 1\n  Yv(0) = 0\n  EVENT origin: Yv = 0 -> stop\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "yv": "Yv"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "start",
+        "method": "ode45",
+        "stopped": true,
+        "end_time": 9.999999999999999E-5,
+        "columns": ["time", "yv"],
+        "rows": [
+          [0.0, 0.0],
+          [1.9999999999999998E-5, 2.0E-5],
+          [3.9999999999999996E-5, 3.9999999999999996E-5],
+          [5.9999999999999995E-5, 5.9999999999999995E-5],
+          [7.999999999999999E-5, 8.0E-5],
+          [1.0E-4, 1.0000000000000002E-4]
+        ],
+        "events": [
+          {"name": "origin", "time": 9.999999999999999E-5}
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

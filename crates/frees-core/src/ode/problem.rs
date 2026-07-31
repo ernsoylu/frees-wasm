@@ -40,6 +40,23 @@ use crate::diag::Result;
 /// `DynamicSystem.Options.DEFAULT_POINTS`.
 pub const DEFAULT_SAMPLE_COUNT: usize = 200;
 
+/// Ceiling on the number of output rows one `DYNAMIC` block may materialise.
+///
+/// **A divergence from the Java, added deliberately** (`docs/status-phase1.md`
+/// ledger item 19). `OdeIntegrator.integrate` allocates `double[sampleCount]`
+/// plus a `double[dimension]` per sample straight from the header's `points`,
+/// with no ceiling: `points = 1e9` asks for an 8 GB `times` array before a
+/// single step is taken. On the JVM that surfaces as an `OutOfMemoryError` the
+/// web layer turns into a 500; in wasm32 the allocation simply fails and the
+/// `panic = "abort"` profile **kills the worker**, which no `Result` can catch
+/// and no reload short of a new page can recover.
+///
+/// The value is `MAX_RANGE_ELEMENTS`, the ceiling `parser::toplevel` already
+/// applies to a materialised `PARAMETRIC` sweep — the same kind of object, and
+/// itself a transcription of the Java `AstBuilder.MAX_RANGE_ELEMENTS`. The
+/// largest `points` anywhere in the 390-document corpus is 1 201.
+pub const MAX_OUTPUT_SAMPLES: usize = 100_000;
+
 // ---------------------------------------------------------------------------
 // Callbacks
 // ---------------------------------------------------------------------------

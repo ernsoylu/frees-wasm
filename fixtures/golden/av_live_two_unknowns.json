@@ -1,0 +1,41 @@
+{
+  "name": "av_live_two_unknowns",
+  "source": "{ Two live accessor constraints, two unknowns: a 2x2 Newton block whose every\n  residual evaluation costs a full integration. }\nkk = 0.01 + dk\nTsink = 10 + ds\n\nFinalValue('Temp') = 55\nODEValue('Temp', 0.5) = 70\n\nDYNAMIC cooling (method = ode45, time = 0 .. 1, points = 3)\n  der(Temp) = -kk*(Temp - Tsink)\n  Temp(0) = 100\nEND\n",
+  "expect": {
+    "variables": {
+      "Tsink": 40.00000000000005,
+      "dk": 1.376294361120092,
+      "ds": 30.00000000000005,
+      "kk": 1.386294361120092
+    },
+    "display_names": {
+      "dk": "dk",
+      "ds": "ds",
+      "kk": "kk",
+      "temp": "Temp",
+      "tsink": "Tsink"
+    },
+    "block_count": 3,
+    "ode_tables": [
+      {
+        "name": "cooling",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 1.0,
+        "columns": ["time", "temp"],
+        "rows": [
+          [0.0, 100.0],
+          [0.5, 70.0],
+          [1.0, 55.0]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,8 @@
+{ A set event: a discrete latch. Level ramps at 1/s and is reset to 0 every
+  time it reaches 4, so the trajectory is a sawtooth and integration restarts
+  from the modified state. }
+DYNAMIC latch (method = ode45, time = 0 .. 10, points = 11)
+  der(Level) = 1
+  Level(0) = 0
+  EVENT trip: Level = 4 | rising -> set Level = 0
+END

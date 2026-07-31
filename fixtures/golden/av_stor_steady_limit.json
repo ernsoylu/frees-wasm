@@ -1,0 +1,62 @@
+{
+  "name": "av_stor_steady_limit",
+  "source": "{ The steady limit of av_stor_two_masses_dynamic: with NO DYNAMIC block the\n  storage equations take the rhs = 0 branch, which must recover exactly the\n  algebraic operating point the transient converges to (446.667 / 406.667). }\nQ_in = 800\nTamb = 300\nHeatSource    HS(Q = Q_in)\nThermalMass   M1(C = 5000, T0 = 300)\nConduction    w12(k = 2, area = 1, L = 0.1)\nThermalMass   M2(C = 8000, T0 = 310)\nConduction    w2a(k = 1.5, area = 1, L = 0.2)\nThermalSource amb(T = Tamb)\nconnect(HS.port, M1.port, w12.a)\nconnect(w12.b, M2.port, w2a.a)\nconnect(w2a.b, amb.port)\nt1 = M1.port.T\nt2 = M2.port.T\n",
+  "expect": {
+    "variables": {
+      "Q_in": 800.0,
+      "Tamb": 300.0,
+      "amb.port.qdot": 800.0,
+      "amb.port.t": 300.0,
+      "hs.port.qdot": -800.0,
+      "hs.port.t": 446.6666666666667,
+      "m1.port.qdot": 0.0,
+      "m1.port.t": 446.6666666666667,
+      "m2.port.qdot": 0.0,
+      "m2.port.t": 406.6666666666667,
+      "t1": 446.6666666666667,
+      "t2": 406.6666666666667,
+      "w12.a.qdot": 800.0,
+      "w12.a.t": 446.6666666666667,
+      "w12.b.qdot": -800.0,
+      "w12.b.t": 406.6666666666667,
+      "w12.q": 800.0,
+      "w2a.a.qdot": 800.0,
+      "w2a.a.t": 406.6666666666667,
+      "w2a.b.qdot": -800.0,
+      "w2a.b.t": 300.0,
+      "w2a.q": 800.0
+    },
+    "display_names": {
+      "amb$port$qdot": "amb.port.qdot",
+      "amb$port$t": "amb.port.t",
+      "hs$port$qdot": "hs.port.qdot",
+      "hs$port$t": "hs.port.t",
+      "m1$port$qdot": "m1.port.qdot",
+      "m1$port$t": "m1.port.t",
+      "m2$port$qdot": "m2.port.qdot",
+      "m2$port$t": "m2.port.t",
+      "q_in": "Q_in",
+      "t1": "t1",
+      "t2": "t2",
+      "tamb": "Tamb",
+      "w12$a$qdot": "w12.a.qdot",
+      "w12$a$t": "w12.a.t",
+      "w12$b$qdot": "w12.b.qdot",
+      "w12$b$t": "w12.b.t",
+      "w12$q": "w12.q",
+      "w2a$a$qdot": "w2a.a.qdot",
+      "w2a$a$t": "w2a.a.t",
+      "w2a$b$qdot": "w2a.b.qdot",
+      "w2a$b$t": "w2a.b.t",
+      "w2a$q": "w2a.q"
+    },
+    "block_count": 22,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,6 @@
+{ The direction spelled out as `any`. }
+DYNAMIC wave (method = ode45, time = 0 .. 10, points = 11)
+  der(Yv) = cos(time)
+  Yv(0) = 0
+  EVENT cross: Yv = 0.5 | any -> record
+END

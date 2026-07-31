@@ -1,0 +1,39 @@
+{
+  "name": "av_unc_chain_three_deep",
+  "source": "{ A three-link chain: the sigma must ride all the way through. }\na = 2\nUncertaintyOf(a) = 0.01\nb = 3*a\nc = b^2\nd = c + a\nub = UncertaintyOf(b)\nuc = UncertaintyOf(c)\nud = UncertaintyOf(d)\n",
+  "expect": {
+    "variables": {
+      "a": 2.0,
+      "b": 6.0,
+      "c": 36.0,
+      "d": 38.0,
+      "ub": 0.029999999999999923,
+      "uc": 0.3600000023841849,
+      "ud": 0.37000000238418496,
+      "uncertaintyof$a": 0.01,
+      "uncertaintyof$b": 0.029999999999999923,
+      "uncertaintyof$c": 0.3600000023841849,
+      "uncertaintyof$d": 0.37000000238418496,
+      "uncertaintyof$ub": 0.0,
+      "uncertaintyof$uc": 0.0,
+      "uncertaintyof$ud": 0.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "ub": "ub",
+      "uc": "uc",
+      "ud": "ud"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

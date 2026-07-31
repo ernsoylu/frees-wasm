@@ -1,0 +1,33 @@
+{
+  "name": "av_unc_undeclared",
+  "source": "{ UncertaintyOf on a variable nobody declared an uncertainty for. }\nx = 7\ny = x^3\nuy = UncertaintyOf(y)\nux = UncertaintyOf(x)\nuz = UncertaintyOf('nosuchvar')\n",
+  "expect": {
+    "variables": {
+      "uncertaintyof$ux": 0.0,
+      "uncertaintyof$uy": 0.0,
+      "uncertaintyof$uz": 0.0,
+      "uncertaintyof$x": 0.0,
+      "uncertaintyof$y": 0.0,
+      "ux": 0.0,
+      "uy": 0.0,
+      "uz": 0.0,
+      "x": 7.0,
+      "y": 343.0
+    },
+    "display_names": {
+      "ux": "ux",
+      "uy": "uy",
+      "uz": "uz",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

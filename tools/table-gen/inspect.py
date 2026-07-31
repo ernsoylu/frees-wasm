@@ -13,6 +13,7 @@ Two jobs:
     ./inspect.py fixtures/proptables/*.phtab --nodes      # also dump a corner
 """
 
+import math
 import struct
 import sys
 
@@ -99,7 +100,7 @@ def check(t, path):
     if t["n_props"] != len(OUTPUTS):
         problems.append(f"n_props {t['n_props']} != {len(OUTPUTS)}")
     for name, values in t["sat"].items():
-        if any(v != v for v in values):
+        if any(math.isnan(v) for v in values):
             problems.append(f"sat line {name} contains NaN")
     if t["sat"]["log_p"] != sorted(t["sat"]["log_p"]):
         problems.append("log_p is not increasing")
@@ -110,10 +111,12 @@ def check(t, path):
             problems.append(f"{label} p_grid is not increasing")
         if piece["y_grid"] != sorted(piece["y_grid"]):
             problems.append(f"{label} y_grid is not increasing")
-        if piece["y_grid"][0] != 0.0:
+        if abs(piece["y_grid"][0]) > 0.0:  # i.e. not exactly zero
             problems.append(f"{label} y_grid[0] = {piece['y_grid'][0]}, expected 0")
         for name, plane in piece["planes"].items():
-            bad = sum(1 for row in plane for v in row if v != v or abs(v) == float("inf"))
+            bad = sum(
+                1 for row in plane for v in row if not math.isfinite(v)
+            )
             if bad:
                 problems.append(f"{label}/{name}: {bad} non-finite nodes (back-fill missed them)")
     if not (t["p_min"] < t["p_serve_max"] <= t["p_max"] < t["p_crit"]):

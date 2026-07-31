@@ -57,7 +57,14 @@ const ready = init({
   module_or_path: new URL('./pkg/frees_wasm_bg.wasm', import.meta.url),
 })
 
-ctx.onmessage = async (event: MessageEvent<EngineRequest>) => {
+// `onmessage` is typed as returning void, so the async body is wrapped and
+// its promise explicitly discarded: every failure is already turned into an
+// error response inside `handle`, so there is nothing left to await on.
+ctx.onmessage = (event: MessageEvent<EngineRequest>) => {
+  void handle(event)
+}
+
+const handle = async (event: MessageEvent<EngineRequest>) => {
   const { id, method, args } = event.data
   try {
     await ready

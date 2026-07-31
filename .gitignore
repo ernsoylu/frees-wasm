@@ -8,3 +8,6 @@ web/src/wasm/pkg/
 Cargo.lock.bak
 *.wasm
 !fixtures/**/*.wasm
+
+# Java helper-tool build output (golden-dumper, dae-probe, table-gen)
+tools/*/build/

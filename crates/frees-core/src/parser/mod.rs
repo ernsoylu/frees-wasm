@@ -11,6 +11,7 @@
 //!   unit annotations.
 //! * [`toplevel`] — `program` / `topLevel` / `statement` and the block forms.
 
+pub mod blocks;
 pub mod complex;
 pub mod defs;
 pub mod expand;
@@ -40,12 +41,13 @@ pub struct GuessDirective {
 
 /// A parsed document.
 ///
-/// Block constructs that the wasm port has not reached yet (`PARAMETRIC`,
-/// `PLOT`, `STATE TABLE`, `DYNAMIC`, `LINEARIZE`) are reported as an explicit
-/// unsupported-construct error rather than being silently skipped — a wrong
-/// answer is worse than a refusal. `FUNCTION`, `PROCEDURE`, `MODULE` and
-/// `TABLE` parse into [`Document::defs`] (Phase 4); `COMPONENT`, a component
-/// instantiation and `connect` parse into [`Document::components`] (Phase 6).
+/// Block constructs that the wasm port has not reached yet (`DYNAMIC`,
+/// `LINEARIZE`) are reported as an explicit unsupported-construct error rather
+/// than being silently skipped — a wrong answer is worse than a refusal.
+/// `FUNCTION`, `PROCEDURE`, `MODULE` and `TABLE` parse into [`Document::defs`]
+/// (Phase 4); `COMPONENT`, a component instantiation and `connect` parse into
+/// [`Document::components`] (Phase 6); `PARAMETRIC`, `PLOT` and `STATE TABLE`
+/// parse into [`Document::blocks`] (Phase 8).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Document {
     pub statements: Vec<Statement>,
@@ -54,6 +56,15 @@ pub struct Document {
     /// `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE` definitions, in
     /// declaration order.
     pub defs: defs::Definitions,
+    /// `PARAMETRIC`, `PLOT` and `STATE TABLE` blocks, in declaration order.
+    ///
+    /// None of the three is an equation — see [`blocks`]'s module docs. They
+    /// ride out of the parser untouched by every later pipeline stage, exactly
+    /// as `AstBuilder.ParseResult` carries them past `EquationParser.flatten`
+    /// to the API layer. In particular a `PARAMETRIC` block does **not** make
+    /// an otherwise-underspecified document solvable: the sweep is a separate
+    /// run driven by [`crate::analysis::parametric`].
+    pub blocks: blocks::DeclarativeBlocks,
     /// `COMPONENT` definitions, component instantiations and `connect`
     /// declarations, in declaration order.
     ///
@@ -170,6 +181,27 @@ impl<'a> Cursor<'a> {
         };
         self.inserted_order.remove(mark + at);
         self.display_names.remove(&key);
+    }
+
+    /// Undo **every** registration made after `mark`, whatever the spelling.
+    ///
+    /// [`Cursor::forget_display_name_if_new`] can only retract a name the
+    /// caller can name; this retracts a whole parsed region. The one caller is
+    /// `parser::toplevel`'s `plotArrayIndex`: the grammar makes a plot value's
+    /// array slice a full `arrayIndexList`, but `AstBuilder.plotValueText`
+    /// returns `ref.IDENT().getText()` and never *visits* it, so no
+    /// `Expr.Var` is built and `ParseResult.displayNames` gets no entry from a
+    /// `PLOT` block. Parsing the slice keeps ANTLR's diagnostics for a
+    /// malformed index; rolling back keeps the map identical to the Java's,
+    /// which the parity harness compares exactly.
+    ///
+    /// First-wins is preserved: a spelling registered *before* `mark` is left
+    /// alone, so `x = 1` followed by `PLOT … x[1:N] …` keeps the equation's
+    /// spelling of `x`.
+    pub fn rollback_display_names(&mut self, mark: usize) {
+        for key in self.inserted_order.drain(mark..) {
+            self.display_names.remove(&key);
+        }
     }
 
     /// The accumulated map, consumed at the end of `parse_document`.

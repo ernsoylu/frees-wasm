@@ -517,12 +517,10 @@ fn a_component_network_solves_through_the_ordinary_pipeline() {
 
 #[test]
 fn an_unported_block_form_is_source_mapped() {
-    let err = failed("x = 1\nPLOT 'speed'\n  kind = xy\nEND\n");
+    let source = "x = 1\nDYNAMIC d(method = ode45)\n  der = 1\nEND\n";
+    let err = failed(source);
     let span = err.span().expect("a refused block form carries a span");
-    assert_eq!(
-        span.line_col("x = 1\nPLOT 'speed'\n  kind = xy\nEND\n"),
-        (2, 1)
-    );
+    assert_eq!(span.line_col(source), (2, 1));
 }
 
 #[test]
@@ -531,12 +529,12 @@ fn every_unported_block_form_is_refused_by_its_own_name() {
     // Phase-4 procedural pass and are no longer refused here; COMPONENT parses
     // into `Document::components` and *expands* since Phase 6, so it is not a
     // refusal of any kind — see
-    // `a_component_layer_answers_like_the_reference_engine`.
+    // `a_component_layer_answers_like_the_reference_engine`; PARAMETRIC / PLOT
+    // / STATE TABLE parse into `Document::blocks` since Phase 8 — see
+    // `a_declarative_block_neither_solves_nor_blocks_a_solve`.
     for (source, construct) in [
-        ("PLOT 'speed'\n  kind = xy\nEND\n", "PLOT"),
         ("DYNAMIC d(method = ode45)\n  der = 1\nEND\n", "DYNAMIC"),
         ("LINEARIZE plant(block = w)\n  INPUT q\nEND\n", "LINEARIZE"),
-        ("PARAMETRIC table\nEND\n", "PARAMETRIC"),
     ] {
         let err = failed(source);
         assert!(
@@ -551,15 +549,52 @@ fn every_unported_block_form_is_refused_by_its_own_name() {
     }
 }
 
+/// A `PARAMETRIC`, `PLOT` or `STATE TABLE` block describes a run or a view, not
+/// an equation, so it neither contributes to the system nor stops the solve of
+/// what surrounds it. Verified against the Java oracle on
+/// `fixtures/corpus-pending/`: the three parametric documents there fail with
+/// `SolverException` ("underspecified"), never with a parse error, because the
+/// sweep is what supplies the missing degree of freedom.
+#[test]
+fn a_declarative_block_neither_solves_nor_blocks_a_solve() {
+    let solution = solved(
+        "x = 1\n\
+         y = x + 1\n\
+         PARAMETRIC s (t, y)\n  t = 0:1:2\nEND\n\
+         PLOT 'p'\n  kind = xy\n  x = t\n  y = y\nEND\n\
+         STATE TABLE c(P1)\n  FLUID = Water\nEND\n\
+         P1 = 100\n",
+    );
+    assert_eq!(get(&solution, "x"), 1.0);
+    assert_eq!(get(&solution, "y"), 2.0);
+    assert_eq!(get(&solution, "p1"), 100.0);
+    assert_eq!(keys(&solution.values), vec!["p1", "x", "y"]);
+
+    // A document whose only content is a declarative block has no equations at
+    // all, which is a solver refusal, not a parse one.
+    let err = failed("PARAMETRIC s (t)\n  t = 0:1:2\nEND\n");
+    assert!(matches!(err, FreesError::Solver { .. }), "{err:?}");
+
+    // And the sweep document itself: underspecified by exactly the swept
+    // column, the Java's own classification.
+    let err = failed("g = 9.81\nx = v0 * t\nPARAMETRIC s (t, x)\n  t = 0:1:2\nEND\n");
+    assert!(matches!(err, FreesError::Solver { .. }), "{err:?}");
+    assert!(
+        message(&err).contains("underspecified"),
+        "{}",
+        message(&err)
+    );
+}
+
 /// The same refusal reaches `check`, so the Solve button is never enabled for a
 /// document the engine cannot honour. Since the parse-failure rework, check
 /// answers with the not-solvable report the Java 400-with-body carries rather
 /// than an `Err` — the refusal is data the editor can render.
 #[test]
 fn check_refuses_an_unsupported_construct_too() {
-    let report = check("PLOT 'speed'\n  kind = xy\nEND\n").unwrap();
+    let report = check("DYNAMIC d(method = ode45)\n  der = 1\nEND\n").unwrap();
     assert!(!report.solvable);
-    assert!(report.message.contains("PLOT"), "{}", report.message);
+    assert!(report.message.contains("DYNAMIC"), "{}", report.message);
     assert!(
         report.message.starts_with("Syntax error: "),
         "{}",

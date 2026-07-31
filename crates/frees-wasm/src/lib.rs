@@ -373,9 +373,11 @@ fn fill_missing(solution: &mut Solution, source: &str, requested: Option<bool>) 
         &mut solution.display_names,
         source,
         None,
-        // `STATE TABLE` does not parse yet, so the resolver always takes its
-        // legacy global-index path — the same branch the Java takes for a
-        // document that declares no blocks.
+        // `STATE TABLE` parses since Phase 8 (`Document::blocks.state_tables`),
+        // but `fill_missing` is handed the source text rather than the parsed
+        // document, so the per-circuit fluids are not threaded through yet and
+        // the resolver still takes its legacy global-index path — the same
+        // branch the Java takes for a document that declares no blocks.
         &[],
     );
     for name in &added {

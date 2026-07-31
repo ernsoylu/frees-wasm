@@ -1044,14 +1044,25 @@ fn guess_directives_leave_the_statement_list_alone() {
 #[test]
 fn the_block_forms_land_in_the_right_half_of_the_document() {
     for (src, construct) in [
-        ("PARAMETRIC sweep(a)\nEND", "PARAMETRIC"),
-        ("PLOT 'x'\nEND", "PLOT"),
-        ("STATE TABLE C(P)\nEND", "STATE TABLE"),
         ("DYNAMIC d()\nEND", "DYNAMIC"),
         ("LINEARIZE p(block = w)\nEND", "LINEARIZE"),
     ] {
         assert!(fails(src).contains(construct), "`{src}`");
     }
+    // PARAMETRIC / PLOT / STATE TABLE parse into `Document::blocks` — the
+    // Phase-8 declarative pass; coverage lives in `parser::toplevel` and
+    // `parser::blocks`. None of the three is an equation, so the statement
+    // list and the display-name map come out of a document containing them
+    // exactly as they would without.
+    let d = doc("a = 1\nPARAMETRIC sweep(a, b)\n  a = 0:1:2\nEND");
+    assert_eq!(d.blocks.parametric_tables.len(), 1);
+    assert_eq!(d.blocks.parametric_tables[0].rows.len(), 3);
+    assert_eq!(d.statements.len(), 1);
+    assert_eq!(d.display_names.keys().collect::<Vec<_>>(), vec!["a"]);
+    assert_eq!(doc("PLOT 'x'\n  kind = xy\nEND").blocks.plots.len(), 1);
+    assert_eq!(doc("STATE TABLE C(P1)\nEND").blocks.state_tables.len(), 1);
+    // The Java rejects an unnumbered state point where the user wrote it.
+    assert!(fails("STATE TABLE C(P)\nEND").contains("no state number"));
     // FUNCTION/PROCEDURE/MODULE/TABLE parse into `Document::defs` — the Phase-4
     // procedural pass; their coverage lives in `parser::toplevel` and
     // `tests/procedural.rs`.

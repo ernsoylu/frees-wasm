@@ -6,7 +6,9 @@
 //! `functionDef`, `procedureDef`, `moduleDef`, `tableDef`, the component rules
 //! `componentDef`, `componentItem`, `componentVariant`, `componentParam`,
 //! `componentInst`, `componentArgList`, `componentArg`, `connectStmt`,
-//! `connectPort`, and the procedural body rules `procBody`, `procStatement`,
+//! `connectPort`, the declarative blocks `parametricDef`, `paramColumn`,
+//! `plotDef`, `plotAttr`, `plotValue`, `stateTableDef`, `stateTableAttr`,
+//! `stateAttrValue`, and the procedural body rules `procBody`, `procStatement`,
 //! `assignment`, `ifStatement`, `repeatStatement`, `whileStatement`.
 //!
 //! Port of `AstBuilder.buildProgram` / `buildStatement` and friends
@@ -16,13 +18,25 @@
 //!
 //! `topLevel` in the grammar admits eleven block constructs on top of the plain
 //! statement forms. `guessDirective`, `statement`, the four definition blocks
-//! (`FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`, filling [`Document::defs`])
-//! and the three component forms (`componentDef` / `componentInst` /
-//! `connectStmt`, filling [`Document::components`]) are implemented here; every
-//! other leading token produces [`crate::parser::unsupported`] naming the
-//! construct, so a document that uses one fails loudly instead of being
-//! silently mis-parsed (`Document`'s doc comment: "a wrong answer is worse than
-//! a refusal").
+//! (`FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`, filling [`Document::defs`]),
+//! the three component forms (`componentDef` / `componentInst` / `connectStmt`,
+//! filling [`Document::components`]) and the three declarative blocks
+//! (`parametricDef` / `plotDef` / `stateTableDef`, filling
+//! [`Document::blocks`]) are implemented here; every other leading token — that
+//! is `DYNAMIC` and `LINEARIZE` — produces [`crate::parser::unsupported`]
+//! naming the construct, so a document that uses one fails loudly instead of
+//! being silently mis-parsed (`Document`'s doc comment: "a wrong answer is
+//! worse than a refusal").
+//!
+//! # The declarative blocks parse; nothing else changes
+//!
+//! `PARAMETRIC`, `PLOT` and `STATE TABLE` describe *runs and views*, not
+//! equations (see [`crate::parser::blocks`]). Filling [`Document::blocks`]
+//! therefore leaves a plain `solve` bit-identical: the same statements, the
+//! same equation count, the same blocking. A document written to be swept from
+//! the Tables tab is underspecified without its sweep and still fails a plain
+//! Solve — with the Java's own `SolverException`, now that the parse no longer
+//! stops first.
 //!
 //! # The component layer parses; it does not yet run
 //!
@@ -102,6 +116,7 @@ use crate::components::def::{
     ComponentDef, ComponentInst, ConnectDecl, Param, ParamOverrides, Variant,
 };
 use crate::diag::{FreesError, Result, Span};
+use crate::parser::blocks::{ParametricTable, PlotAttributes, PlotDef, StateTableDef};
 use crate::parser::defs::{
     Curve, Definitions, FunctionDef, FunctionTableDef, ModuleDef, ProcStatement, ProcedureDef,
 };
@@ -211,8 +226,8 @@ impl<'a> Parser<'a> {
     }
 
     /// `topLevel`. `guessDirective`, the four definition blocks, the three
-    /// component forms and `statement` are supported; every other block form is
-    /// rejected by [`Parser::statement`].
+    /// component forms, the three declarative blocks and `statement` are
+    /// supported; every other block form is rejected by [`Parser::statement`].
     fn top_level(&mut self, doc: &mut Document) -> Result<()> {
         match self.c.peek() {
             TokenKind::Guess => {
@@ -249,6 +264,18 @@ impl<'a> Parser<'a> {
             TokenKind::Table => {
                 let def = self.table_def()?;
                 record_def(&mut doc.defs, ParsedDef::Table(def));
+            }
+            TokenKind::Parametric => {
+                let table = self.parametric_def()?;
+                doc.blocks.parametric_tables.push(table);
+            }
+            TokenKind::Plot => {
+                let plot = self.plot_def()?;
+                doc.blocks.plots.push(plot);
+            }
+            TokenKind::StateTable => {
+                let table = self.state_table_def()?;
+                doc.blocks.state_tables.push(table);
             }
             _ => {
                 let statement = self.statement()?;
@@ -830,6 +857,25 @@ impl<'a> Parser<'a> {
     /// units converted to their SI display names aligned with the names
     /// (`AstBuilder.buildParamList` + `paramUnits`).
     fn param_list(&mut self) -> Result<(Vec<String>, Vec<Option<String>>)> {
+        let (names, units) = self.param_list_verbatim()?;
+        let names = names.iter().map(|n| n.to_ascii_lowercase()).collect();
+        Ok((names, units))
+    }
+
+    /// `paramList`, keeping every name in the case the user wrote it.
+    ///
+    /// `AstBuilder.buildParamList` lowercases, and all but one caller goes
+    /// through it. The exception is `buildParametricDef`, which reads
+    /// `ctx.paramList().IDENT()` **directly** — so a `PARAMETRIC` header's
+    /// column names keep their spelling while a `STATE TABLE`'s do not. That
+    /// asymmetry is transcribed, not smoothed over: these names are echoed
+    /// straight back to the frontend as table headings.
+    ///
+    /// A unit annotation is still consumed here even though every caller
+    /// discards it for the declarative blocks, because `unit`'s inner `IDENT`s
+    /// belong to `unitContent`, not to `paramList` — which is exactly why
+    /// `ctx.paramList().IDENT()` yields the parameter names alone.
+    fn param_list_verbatim(&mut self) -> Result<(Vec<String>, Vec<Option<String>>)> {
         let mut names = Vec::new();
         let mut units = Vec::new();
         // The list is optional; `)` or `:` closes an empty one.
@@ -837,7 +883,7 @@ impl<'a> Parser<'a> {
             return Ok((names, units));
         }
         loop {
-            names.push(self.c.expect_ident()?.to_ascii_lowercase());
+            names.push(self.c.expect_ident()?);
             units.push(si_unit_of(parse_unit_annotation(&mut self.c)?));
             if self.c.eat(&TokenKind::Comma) {
                 continue;
@@ -845,6 +891,400 @@ impl<'a> Parser<'a> {
             break;
         }
         Ok((names, units))
+    }
+
+    // ── PARAMETRIC / PLOT / STATE TABLE (declarative blocks) ────────────────
+
+    /// `parametricDef : PARAMETRIC IDENT LPAREN paramList RPAREN sep
+    ///                  paramColumn (sep paramColumn)* sep? END`
+    ///
+    /// Port of `AstBuilder.buildParametricDef`. Each column is a declared
+    /// variable filled by a range or an explicit list; the columns are then
+    /// aligned into **row-major** rows, one per run, with a `None` cell wherever
+    /// a declared variable has no column (an output the row's solve fills in).
+    ///
+    /// Unlike `rangeAssign`, which stays symbolic (see the module docs on range
+    /// lowering), a parametric range is **materialised here** — the values *are*
+    /// the rows, and the Java materialises them at the same point.
+    fn parametric_def(&mut self) -> Result<ParametricTable> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Parametric)?;
+        let name = self.c.expect_ident()?;
+        self.c.expect(&TokenKind::LParen)?;
+        let (vars, _) = self.param_list_verbatim()?;
+        self.c.expect(&TokenKind::RParen)?;
+        self.require_sep("after the PARAMETRIC header")?;
+
+        // `paramColumn (sep paramColumn)* sep?` — at least one column, as the
+        // grammar demands. An immediate `END` therefore falls into
+        // `expect_ident` and earns the natural "expected an identifier, found
+        // `END`", the same way `table_def` handles an empty body.
+        let mut columns: Vec<(String, Vec<f64>)> = Vec::new();
+        let mut items = 0usize;
+        loop {
+            self.c.skip_separators();
+            if items > 0 && matches!(self.c.peek(), TokenKind::End) {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    format!("unterminated PARAMETRIC {name} block: expected `END`"),
+                    header,
+                ));
+            }
+            self.param_column(&name, &mut columns)?;
+            items += 1;
+            self.require_item_end()?;
+        }
+        self.c.expect(&TokenKind::End)?;
+
+        // `numRows = columns.values().stream().mapToInt(List::size).max()`, then
+        // one row per index reading each declared variable's column by its
+        // lowercase name.
+        let num_rows = columns.iter().map(|(_, v)| v.len()).max().unwrap_or(0);
+        let mut rows = Vec::with_capacity(num_rows);
+        for i in 0..num_rows {
+            let mut row = Vec::with_capacity(vars.len());
+            for var in &vars {
+                let key = var.to_ascii_lowercase();
+                // `col != null && i < col.size() ? col.get(i) : null` — a
+                // declared variable with no column, and a column shorter than
+                // the longest, both leave the cell empty.
+                row.push(
+                    columns
+                        .iter()
+                        .find(|(column, _)| *column == key)
+                        .and_then(|(_, values)| values.get(i).copied()),
+                );
+            }
+            rows.push(row);
+        }
+        Ok(ParametricTable { name, vars, rows })
+    }
+
+    /// `paramColumn : IDENT EQ signedNumber COLON signedNumber
+    ///                (COLON signedNumber)? (PIPE IDENT)?   # ParamColRange
+    ///              | IDENT EQ LBRACKET numberList RBRACKET # ParamColList`
+    ///
+    /// Port of `AstBuilder.addParamColumn`. `[` after the `=` decides the
+    /// alternative in one token. `columns` is the Java's `LinkedHashMap`: a
+    /// repeated column name replaces the values in the original slot.
+    fn param_column(
+        &mut self,
+        table_name: &str,
+        columns: &mut Vec<(String, Vec<f64>)>,
+    ) -> Result<()> {
+        let start_pos = self.c.pos();
+        let column = self.c.expect_ident()?.to_ascii_lowercase();
+        self.c.expect(&TokenKind::Eq)?;
+
+        // `# ParamColList` — an explicit `numberList`.
+        if self.c.eat(&TokenKind::LBracket) {
+            let mut values = vec![self.signed_number()?];
+            while self.c.eat(&TokenKind::Comma) {
+                values.push(self.signed_number()?);
+            }
+            self.c.expect(&TokenKind::RBracket)?;
+            put_column(columns, column, values);
+            return Ok(());
+        }
+
+        // `# ParamColRange` — the same `start:step:stop | spacing` shape
+        // `rangeAssign` uses, and validated by the same two helpers.
+        let first = self.signed_number()?;
+        self.c.expect(&TokenKind::Colon)?;
+        let second = self.signed_number()?;
+        let third = if self.c.eat(&TokenKind::Colon) {
+            Some(self.signed_number()?)
+        } else {
+            None
+        };
+        let spacing_written = if self.c.eat(&TokenKind::Pipe) {
+            self.c.expect_ident()?
+        } else {
+            "Linear".to_string()
+        };
+
+        let three_form = third.is_some();
+        let start = first;
+        let stop = third.unwrap_or(second);
+        let middle = if three_form { second } else { 1.0 };
+        let span = self.span_since(start_pos);
+
+        let values = match spacing_written.to_ascii_lowercase().as_str() {
+            "linear" => linear_range_values(&column, start, middle, stop, span)?,
+            "log" => log_range_values(&column, start, middle, stop, three_form, span)?,
+            // Note the message differs from `rangeAssign`'s: the Java names the
+            // *table*, not the column (`addParamColumn`).
+            _ => {
+                return Err(FreesError::parse_at(
+                    format!(
+                        "Unknown range spacing '{spacing_written}' in PARAMETRIC \
+                         {table_name}. Supported: Linear, Log."
+                    ),
+                    span,
+                ))
+            }
+        };
+        put_column(columns, column, values);
+        Ok(())
+    }
+
+    /// `plotDef : PLOT STRING_LITERAL sep plotAttr (sep plotAttr)* sep? END`
+    ///
+    /// Port of `AstBuilder.buildPlotDef`: a name and a raw `key -> values` map
+    /// the frontend maps onto its `PlotSpec`. Nothing here is interpreted —
+    /// an unknown `kind` or a misspelt key is the frontend's problem, exactly
+    /// as in the Java, so the backend stays decoupled from the presentation
+    /// model.
+    fn plot_def(&mut self) -> Result<PlotDef> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::Plot)?;
+        let name = match self.c.peek().clone() {
+            TokenKind::StringLiteral(text) => {
+                self.c.advance();
+                text
+            }
+            other => {
+                return Err(FreesError::parse_at(
+                    format!("expected a quoted plot name, found {}", other.describe()),
+                    self.c.span(),
+                ))
+            }
+        };
+        self.require_sep("after the PLOT header")?;
+
+        // `plotAttr (sep plotAttr)* sep?` — at least one attribute; an
+        // immediate `END` falls into `expect_ident`, as in `parametric_def`.
+        let mut attributes = PlotAttributes::new();
+        let mut items = 0usize;
+        loop {
+            self.c.skip_separators();
+            if items > 0 && matches!(self.c.peek(), TokenKind::End) {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    format!("unterminated PLOT '{name}' block: expected `END`"),
+                    header,
+                ));
+            }
+            // `plotAttr : IDENT EQ plotValue (COMMA plotValue)*`
+            let key = self.c.expect_ident()?.to_ascii_lowercase();
+            self.c.expect(&TokenKind::Eq)?;
+            let mut values = vec![self.plot_value()?];
+            while self.c.eat(&TokenKind::Comma) {
+                values.push(self.plot_value()?);
+            }
+            attributes.put(key, values);
+            items += 1;
+            self.require_item_end()?;
+        }
+        self.c.expect(&TokenKind::End)?;
+        Ok(PlotDef { name, attributes })
+    }
+
+    /// `plotValue : STRING_LITERAL   # PlotValStr
+    ///            | signedNumber     # PlotValNum
+    ///            | IDENT MINUS IDENT                          # PlotValHyphen
+    ///            | IDENT (LBRACKET arrayIndexList RBRACKET)?  # PlotValRef`
+    ///
+    /// Port of `AstBuilder.plotValueText`, which normalises every alternative
+    /// to a plain string. Two details are load-bearing:
+    ///
+    /// * **`PlotValNum` is the literal source text**, not a re-rendered number:
+    ///   the Java falls through to `value.getText()`, which concatenates the
+    ///   rule's tokens with the whitespace stripped. So `- 1.50` becomes
+    ///   `"-1.50"` — the sign joined, the trailing zero kept.
+    /// * **`PlotValHyphen` beats `PlotValRef`** because ANTLR takes the first
+    ///   alternative that matches, and `IDENT MINUS IDENT` is exactly three
+    ///   tokens of lookahead. That is what reconstructs the axis-pair spellings
+    ///   `T-s`, `h-s` and `P-h`.
+    fn plot_value(&mut self) -> Result<String> {
+        match self.c.peek().clone() {
+            TokenKind::StringLiteral(text) => {
+                self.c.advance();
+                Ok(text)
+            }
+            TokenKind::Ident(first)
+                if matches!(self.c.peek_at(1), TokenKind::Minus)
+                    && matches!(self.c.peek_at(2), TokenKind::Ident(_)) =>
+            {
+                self.c.advance(); // IDENT
+                self.c.advance(); // `-`
+                let second = self.c.expect_ident()?;
+                Ok(format!("{first}-{second}"))
+            }
+            TokenKind::Ident(name) => {
+                self.c.advance();
+                if matches!(self.c.peek(), TokenKind::LBracket) {
+                    self.plot_array_index()?;
+                }
+                Ok(name)
+            }
+            // `signedNumber : (PLUS | MINUS)? NUMBER`, as written.
+            _ => {
+                let sign = if self.c.eat(&TokenKind::Minus) {
+                    "-"
+                } else if self.c.eat(&TokenKind::Plus) {
+                    "+"
+                } else {
+                    ""
+                };
+                match self.c.peek().clone() {
+                    TokenKind::Number { text, .. } => {
+                        self.c.advance();
+                        Ok(format!("{sign}{text}"))
+                    }
+                    other => Err(FreesError::parse_at(
+                        format!("expected a number, found {}", other.describe()),
+                        self.c.span(),
+                    )),
+                }
+            }
+        }
+    }
+
+    /// `LBRACKET arrayIndexList RBRACKET` on a `PlotValRef`, **parsed and
+    /// discarded**.
+    ///
+    /// The slice has to parse — ANTLR builds the whole `arrayIndexList`, so a
+    /// malformed index is a syntax error in the Java too — but it must leave no
+    /// trace: `plotValueText` returns `ref.IDENT().getText()` and never visits
+    /// the index expressions, so no `Expr.Var` is built and a `PLOT` block
+    /// contributes nothing to `ParseResult.displayNames`. Hence the rollback,
+    /// which runs on the error path as well as the success path.
+    fn plot_array_index(&mut self) -> Result<()> {
+        let mark = self.c.display_name_mark();
+        let result = self.plot_array_index_inner();
+        self.c.rollback_display_names(mark);
+        result
+    }
+
+    fn plot_array_index_inner(&mut self) -> Result<()> {
+        self.c.expect(&TokenKind::LBracket)?;
+        loop {
+            // `arrayIndex : expr (COLON expr)?`
+            self.expr()?;
+            if self.c.eat(&TokenKind::Colon) {
+                self.expr()?;
+            }
+            if !self.c.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        self.c.expect(&TokenKind::RBracket)?;
+        Ok(())
+    }
+
+    /// `stateTableDef : STATETABLE IDENT LPAREN paramList RPAREN sep
+    ///                  (stateTableAttr (sep stateTableAttr)* sep?)? END`
+    ///
+    /// Port of `AstBuilder.buildStateTableDef`. Two things it does that the
+    /// grammar does not: every declared variable must carry a state number
+    /// (see [`has_state_number`]), and of the attribute lines only `FLUID` is
+    /// kept — the rest must parse and are then dropped, exactly as the Java
+    /// drops them, because `StateTableDef` has nowhere to put them.
+    ///
+    /// The body is **optional** here, unlike `parametricDef`'s and `plotDef`'s,
+    /// so `STATE TABLE C(P1)\nEND` is well-formed and declares no fluid.
+    fn state_table_def(&mut self) -> Result<StateTableDef> {
+        let header = self.c.span();
+        self.c.expect(&TokenKind::StateTable)?;
+        let name = self.c.expect_ident()?;
+        self.c.expect(&TokenKind::LParen)?;
+        let (variables, _) = self.param_list()?;
+        self.c.expect(&TokenKind::RParen)?;
+        self.require_sep("after the STATE TABLE header")?;
+
+        let mut fluid = None;
+        loop {
+            self.c.skip_separators();
+            if matches!(self.c.peek(), TokenKind::End) {
+                break;
+            }
+            if self.c.is_eof() {
+                return Err(FreesError::parse_at(
+                    format!("unterminated STATE TABLE {name} block: expected `END`"),
+                    header,
+                ));
+            }
+            // `stateTableAttr : IDENT EQ stateAttrValue`
+            let key = self.c.expect_ident()?.to_ascii_lowercase();
+            self.c.expect(&TokenKind::Eq)?;
+            let value = self.state_attr_value()?;
+            // `if (!"fluid".equals(...)) continue;` — a later FLUID line wins.
+            if key == "fluid" {
+                fluid = Some(value);
+            }
+            self.require_item_end()?;
+        }
+        self.c.expect(&TokenKind::End)?;
+
+        // Checked **after** the block is fully parsed, where `buildStateTableDef`
+        // checks it: ANTLR finishes the parse tree before the builder walks it,
+        // so a block that is both malformed and unnumbered reports the syntax
+        // error first in the Java too.
+        for variable in &variables {
+            if !has_state_number(variable) {
+                return Err(FreesError::parse_at(
+                    format!(
+                        "STATE TABLE '{name}': variable '{variable}' has no state number. \
+                         State variables must be numbered (e.g. {variable}1 or {variable}[1])."
+                    ),
+                    header,
+                ));
+            }
+        }
+
+        Ok(StateTableDef {
+            name,
+            variables,
+            fluid,
+        })
+    }
+
+    /// `stateAttrValue : IDENT | STRING_LITERAL` — the value keeps the case the
+    /// user wrote, because it names a CoolProp fluid (`R134a`).
+    fn state_attr_value(&mut self) -> Result<String> {
+        match self.c.peek().clone() {
+            TokenKind::StringLiteral(text) => {
+                self.c.advance();
+                Ok(text)
+            }
+            TokenKind::Ident(name) => {
+                self.c.advance();
+                Ok(name)
+            }
+            other => Err(FreesError::parse_at(
+                format!(
+                    "expected a name or a quoted string, found {}",
+                    other.describe()
+                ),
+                self.c.span(),
+            )),
+        }
+    }
+
+    /// Require what may follow one item of a `sep`-separated block body: a
+    /// separator, the closing `END`, or end of input (which the enclosing loop
+    /// then reports as "unterminated"). The shared tail of the three
+    /// declarative-block loops, and the same check `component_def` and
+    /// `table_def` spell inline.
+    fn require_item_end(&mut self) -> Result<()> {
+        if !self.c.peek().is_separator()
+            && !matches!(self.c.peek(), TokenKind::End)
+            && !self.c.is_eof()
+        {
+            return Err(FreesError::parse_at(
+                format!(
+                    "expected end of statement, found {}",
+                    self.c.peek().describe()
+                ),
+                self.c.span(),
+            ));
+        }
+        Ok(())
     }
 
     // ── COMPONENT / instantiation / connect ─────────────────────────────────
@@ -1464,16 +1904,70 @@ impl<'a> Parser<'a> {
 
 /// The block constructs `topLevel` admits that this pass does not implement,
 /// keyed by their leading token. `FUNCTION` / `PROCEDURE` / `MODULE` / `TABLE`
-/// parse into [`Document::defs`] and are no longer here.
+/// parse into [`Document::defs`], the component forms into
+/// [`Document::components`] and `PARAMETRIC` / `PLOT` / `STATE TABLE` into
+/// [`Document::blocks`], so none of them is here any more.
 fn unsupported_construct(kind: &TokenKind) -> Option<&'static str> {
     Some(match kind {
-        TokenKind::Parametric => "PARAMETRIC",
-        TokenKind::StateTable => "STATE TABLE",
-        TokenKind::Plot => "PLOT",
         TokenKind::Dynamic => "DYNAMIC",
         TokenKind::Linearize => "LINEARIZE",
         _ => return None,
     })
+}
+
+/// `LinkedHashMap.put` over the parametric columns: a repeated column name
+/// replaces the values **in its original slot**, which is what
+/// `addParamColumn`'s map does.
+fn put_column(columns: &mut Vec<(String, Vec<f64>)>, name: String, values: Vec<f64>) {
+    match columns.iter_mut().find(|(key, _)| *key == name) {
+        Some(slot) => slot.1 = values,
+        None => columns.push((name, values)),
+    }
+}
+
+/// True when a `STATE TABLE` member carries a state number.
+///
+/// Port of `AstBuilder.STATE_INDEX_PATTERN`,
+/// `^[a-z][a-z_]*?(?:_?\d+|\[\d+\])$` with `CASE_INSENSITIVE` — "thermodynamic
+/// states are always numbered", so a bare `xrefg` is rejected while `T1`,
+/// `P_2` and `h[3]` are accepted. The lazy quantifier does not change the
+/// accepted language (the pattern is anchored at both ends and the head class
+/// is disjoint from the digits), so a direct scan is exact: an ASCII letter,
+/// then letters/underscores, then either a digit run — optionally preceded by
+/// the `_` the head could equally have absorbed — or a bracketed digit run.
+///
+/// The bracketed alternative is unreachable through `paramList`, which hands a
+/// `h[3]` to `parse_unit_annotation` and keeps only `h`. It is transcribed
+/// anyway rather than silently dropped, since the pattern is the Java's.
+fn has_state_number(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    // `[a-z]` — a non-ASCII lead byte fails here, as it does in Java, whose
+    // `CASE_INSENSITIVE` without `UNICODE_CASE` still matches ASCII only.
+    if bytes.first().is_none_or(|c| !c.is_ascii_alphabetic()) {
+        return false;
+    }
+    let head_is_letters_or_underscores =
+        |head: &[u8]| head.iter().all(|c| c.is_ascii_alphabetic() || *c == b'_');
+
+    // `\[\d+\]`
+    if bytes.last() == Some(&b']') {
+        let Some(open) = name.find('[') else {
+            return false;
+        };
+        let digits = &bytes[open + 1..bytes.len() - 1];
+        return open >= 1
+            && !digits.is_empty()
+            && digits.iter().all(u8::is_ascii_digit)
+            && head_is_letters_or_underscores(&bytes[1..open]);
+    }
+
+    // `_?\d+` — the trailing digit run, with everything before it in the head
+    // class (which already admits the optional `_`).
+    let mut digits_start = bytes.len();
+    while digits_start > 0 && bytes[digits_start - 1].is_ascii_digit() {
+        digits_start -= 1;
+    }
+    digits_start < bytes.len() && head_is_letters_or_underscores(&bytes[1..digits_start])
 }
 
 /// A parsed definition on its way into [`Definitions`].
@@ -1655,6 +2149,52 @@ fn log_range_count(
         ));
     }
     Ok(count)
+}
+
+/// The elements of `start:step:stop`, validated by [`linear_range_count`].
+///
+/// `rangeAssign` needs only the count — it lowers to the `range` intrinsic and
+/// leaves expansion to the array layer (see the module docs). A `PARAMETRIC`
+/// column has nowhere to defer to: the values *are* the rows, and
+/// `AstBuilder.linearRange` materialises them at this same point.
+fn linear_range_values(
+    var: &str,
+    start: f64,
+    step: f64,
+    stop: f64,
+    span: Span,
+) -> Result<Vec<f64>> {
+    let count = linear_range_count(var, start, step, stop, span)?;
+    let mut values = Vec::with_capacity(count.max(0) as usize);
+    for k in 0..count {
+        values.push(start + k as f64 * step);
+    }
+    Ok(values)
+}
+
+/// The points of a `| Log` range, validated by [`log_range_count`]. Port of
+/// `AstBuilder.logRange`: geometric from `start`, with the **last point pinned
+/// to `stop`** so a round trip through `ratio^(count-1)` cannot drift off the
+/// declared endpoint.
+fn log_range_values(
+    var: &str,
+    start: f64,
+    count_raw: f64,
+    stop: f64,
+    three_form: bool,
+    span: Span,
+) -> Result<Vec<f64>> {
+    let count = log_range_count(var, start, count_raw, stop, three_form, span)?;
+    let ratio = libm::pow(stop / start, 1.0 / (count - 1) as f64);
+    let mut values = Vec::with_capacity(count.max(0) as usize);
+    for k in 0..count {
+        values.push(if k == count - 1 {
+            stop
+        } else {
+            start * libm::pow(ratio, k as f64)
+        });
+    }
+    Ok(values)
 }
 
 #[cfg(test)]
@@ -2537,12 +3077,6 @@ mod tests {
     #[test]
     fn every_unimplemented_block_is_named_in_its_error() {
         let cases = [
-            ("PARAMETRIC sweep(a)\n  a = 1:2:3\nEND", "PARAMETRIC"),
-            (
-                "STATE TABLE circuit(P1)\n  FLUID = Water\nEND",
-                "STATE TABLE",
-            ),
-            ("PLOT 'speed'\n  kind = xy\nEND", "PLOT"),
             ("DYNAMIC d(method = ode45)\n  der = 1\nEND", "DYNAMIC"),
             ("LINEARIZE plant(block = w)\n  INPUT q\nEND", "LINEARIZE"),
         ];
@@ -2555,20 +3089,26 @@ mod tests {
         }
     }
 
-    /// `COMPONENT` and `connect` left the refusal list in Phase 6 — the parser
-    /// now builds their AST. (Whether the *engine* can honour the result is a
-    /// separate gate: see `engine::reject_unexpanded_components`.)
+    /// `COMPONENT` and `connect` left the refusal list in Phase 6, and
+    /// `PARAMETRIC` / `PLOT` / `STATE TABLE` in Phase 8 — the parser now builds
+    /// their AST. (Whether the *engine* can honour the result is a separate
+    /// gate: see `engine::reject_unexpanded_components`. The three declarative
+    /// blocks need no such gate — they are not equations.)
     #[test]
-    fn the_component_forms_are_no_longer_refused_by_the_parser() {
-        assert!(unsupported_construct(&TokenKind::Component).is_none());
-        assert!(unsupported_construct(&TokenKind::Connect).is_none());
-        for still_refused in [
+    fn the_component_and_declarative_forms_are_no_longer_refused_by_the_parser() {
+        for parsed in [
+            TokenKind::Component,
+            TokenKind::Connect,
             TokenKind::Parametric,
             TokenKind::StateTable,
             TokenKind::Plot,
-            TokenKind::Dynamic,
-            TokenKind::Linearize,
         ] {
+            assert!(
+                unsupported_construct(&parsed).is_none(),
+                "{parsed:?} parses now"
+            );
+        }
+        for still_refused in [TokenKind::Dynamic, TokenKind::Linearize] {
             assert!(
                 unsupported_construct(&still_refused).is_some(),
                 "{still_refused:?} stays refused until its own phase"
@@ -2578,17 +3118,36 @@ mod tests {
 
     #[test]
     fn unsupported_errors_are_anchored_to_the_offending_token() {
-        let src = "x = 1\nPLOT 'speed'\n  kind = xy\nEND";
+        let src = "x = 1\nDYNAMIC d(method = ode45)\n  der = 1\nEND";
         let error = parse(src).unwrap_err();
         let span = error.span().expect("an unsupported error carries a span");
-        assert_eq!(span.slice(src), "PLOT");
+        assert_eq!(span.slice(src), "DYNAMIC");
         assert_eq!(span.line_col(src), (2, 1));
     }
 
     #[test]
     fn an_unsupported_block_inside_a_for_body_is_still_refused_by_name() {
-        let message = err("FOR i = 1 TO 2\n  PLOT 'x'\n  END\nEND");
-        assert!(message.contains("PLOT"), "got: {message}");
+        let message = err("FOR i = 1 TO 2\n  DYNAMIC d(m = ode45)\n  END\nEND");
+        assert!(message.contains("DYNAMIC"), "got: {message}");
+    }
+
+    /// A declarative block is a `topLevel` alternative only. `statementList` —
+    /// a `FOR` or `MODULE` body — does not list it, so ANTLR reports a syntax
+    /// error there and so does this port, now by falling through to `equation`
+    /// rather than by the unsupported-construct list.
+    #[test]
+    fn a_declarative_block_inside_a_for_body_is_a_syntax_error() {
+        for src in [
+            "FOR i = 1 TO 2\n  PLOT 'x'\n  kind = xy\n  END\nEND",
+            "FOR i = 1 TO 2\n  PARAMETRIC p(a)\n  a = 1:2:3\n  END\nEND",
+            "FOR i = 1 TO 2\n  STATE TABLE c(P1)\n  END\nEND",
+        ] {
+            let message = err(src);
+            assert!(
+                message.contains("expected an expression"),
+                "got: {message} for {src}"
+            );
+        }
     }
 
     #[test]
@@ -2659,9 +3218,9 @@ END
             vec![Statement::Symbolic(vec!["s".into(), "z".into()])]
         );
 
-        let error = parse_document("PLOT 'x'\n  kind = xy\nEND").unwrap_err();
+        let error = parse_document("DYNAMIC d(method = ode45)\n  der = 1\nEND").unwrap_err();
         assert!(
-            error.to_string().contains("PLOT") && error.to_string().contains("not supported"),
+            error.to_string().contains("DYNAMIC") && error.to_string().contains("not supported"),
             "got: {error}"
         );
 
@@ -3444,5 +4003,290 @@ END
             vec!["basic", "s1"]
         );
         assert_eq!(doc.display_names.get("s1"), Some(&"s1".to_string()));
+    }
+
+    // ── PARAMETRIC / PLOT / STATE TABLE ─────────────────────────────────────
+
+    #[test]
+    fn a_parametric_block_sweeps_its_columns_into_rows() {
+        // The grammar's own example, shrunk so the rows are checkable by hand.
+        let doc = ok_real(
+            "PARAMETRIC sweep1 (T_in, mdot, Q)\n\
+             \x20 T_in = -50:25:0\n\
+             \x20 mdot = [0.1, 0.2, 0.4]\n\
+             END",
+        );
+        let table = &doc.blocks.parametric_tables[0];
+        assert_eq!(table.name, "sweep1");
+        // Header names keep their case; `buildParametricDef` never lowercases.
+        assert_eq!(table.vars, vec!["T_in", "mdot", "Q"]);
+        // Three rows: the longest column wins, and `Q` is a declared output.
+        assert_eq!(
+            table.rows,
+            vec![
+                vec![Some(-50.0), Some(0.1), None],
+                vec![Some(-25.0), Some(0.2), None],
+                vec![Some(0.0), Some(0.4), None],
+            ]
+        );
+        // A parametric block is not an equation and not a definition.
+        assert!(doc.statements.is_empty());
+        assert!(doc.defs.is_empty());
+        assert!(doc.display_names.is_empty());
+    }
+
+    #[test]
+    fn parametric_columns_align_by_lowercase_name_and_pad_short_ones() {
+        let doc = ok_real("PARAMETRIC s (A, b)\n  a = [1, 2, 3]\n  B = [9]\nEND");
+        let table = &doc.blocks.parametric_tables[0];
+        assert_eq!(table.vars, vec!["A", "b"]);
+        assert_eq!(
+            table.rows,
+            vec![
+                vec![Some(1.0), Some(9.0)],
+                vec![Some(2.0), None],
+                vec![Some(3.0), None],
+            ]
+        );
+        assert_eq!(table.run_count(), 3);
+    }
+
+    #[test]
+    fn a_repeated_parametric_column_replaces_the_earlier_one() {
+        // `LinkedHashMap.put`: the second `t` wins outright.
+        let doc = ok_real("PARAMETRIC s (t)\n  t = [1, 2, 3]\n  t = [7]\nEND");
+        assert_eq!(doc.blocks.parametric_tables[0].rows, vec![vec![Some(7.0)]]);
+    }
+
+    #[test]
+    fn a_parametric_range_takes_the_same_forms_and_rejections_as_a_range_assign() {
+        // Two-number form implies step 1.
+        let two = ok_real("PARAMETRIC s (t)\n  t = 1:3\nEND");
+        assert_eq!(
+            two.blocks.parametric_tables[0].rows,
+            vec![vec![Some(1.0)], vec![Some(2.0)], vec![Some(3.0)]]
+        );
+        // `| Log` is start:count:stop, with the last point pinned to `stop`.
+        let log = ok_real("PARAMETRIC s (t)\n  t = 1:3:100 | Log\nEND");
+        let rows = &log.blocks.parametric_tables[0].rows;
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0][0], Some(1.0));
+        assert!((rows[1][0].unwrap() - 10.0).abs() < 1e-12);
+        assert_eq!(rows[2][0], Some(100.0));
+
+        assert!(err_real("PARAMETRIC s (t)\n  t = 0:0:5\nEND").contains("step is zero"));
+        assert!(err_real("PARAMETRIC s (t)\n  t = 5:1:0\nEND").contains("wrong way"));
+        assert!(err_real("PARAMETRIC s (t)\n  t = 0:1e-7:100\nEND").contains("larger step"));
+        assert!(err_real("PARAMETRIC s (t)\n  t = 1:100 | Log\nEND").contains("three numbers"));
+        assert!(err_real("PARAMETRIC s (t)\n  t = 0:3:100 | Log\nEND").contains("positive bounds"));
+        // The unknown-spacing message names the TABLE, not the column — this is
+        // `addParamColumn`'s wording, not `buildRangeAssign`'s.
+        let unknown = err_real("PARAMETRIC sweep1 (t)\n  t = 1:2:3 | Quadratic\nEND");
+        assert!(
+            unknown.contains("Unknown range spacing 'Quadratic' in PARAMETRIC sweep1."),
+            "got: {unknown}"
+        );
+    }
+
+    #[test]
+    fn a_parametric_block_needs_a_header_and_at_least_one_column() {
+        assert!(err_real("PARAMETRIC s (t)\nEND").contains("expected an identifier"));
+        assert!(err_real("PARAMETRIC s (t)\n  t = [1]").contains("unterminated PARAMETRIC s"));
+        assert!(err_real("PARAMETRIC s (t) t = [1]\nEND").contains("expected a line break"));
+        assert!(err_real("PARAMETRIC (t)\n  t = [1]\nEND").contains("expected an identifier"));
+        assert!(
+            err_real("PARAMETRIC s (t)\n  t = [1] 2\nEND").contains("expected end of statement")
+        );
+    }
+
+    #[test]
+    fn a_plot_block_keeps_its_attributes_as_normalised_strings() {
+        let doc = ok_real(
+            "PLOT 'Speed vs Distance'\n\
+             \x20 kind = xy\n\
+             \x20 X = speed\n\
+             \x20 y = distance, time\n\
+             \x20 xlabel = 'Speed [m/s]'\n\
+             \x20 pad = -1.50, +2\n\
+             \x20 axes = T-s\n\
+             END",
+        );
+        let plot = &doc.blocks.plots[0];
+        assert_eq!(plot.name, "Speed vs Distance");
+        // Keys lowercase, values as written.
+        assert_eq!(
+            plot.attributes.iter().map(|(k, _)| k).collect::<Vec<_>>(),
+            vec!["kind", "x", "y", "xlabel", "pad", "axes"]
+        );
+        assert_eq!(plot.attributes.single("kind"), Some("xy"));
+        assert_eq!(plot.attributes.single("x"), Some("speed"));
+        assert_eq!(
+            plot.attributes.get("y"),
+            Some(&["distance".to_string(), "time".to_string()][..])
+        );
+        // The quotes are the lexer's; the content is the value.
+        assert_eq!(plot.attributes.single("xlabel"), Some("Speed [m/s]"));
+        // `PlotValNum` is the literal source text with the sign joined on.
+        assert_eq!(
+            plot.attributes.get("pad"),
+            Some(&["-1.50".to_string(), "+2".to_string()][..])
+        );
+        // `PlotValHyphen` beats `PlotValRef`.
+        assert_eq!(plot.attributes.single("axes"), Some("T-s"));
+        assert!(doc.statements.is_empty());
+    }
+
+    /// `AstBuilder.plotValueText` returns `ref.IDENT().getText()` and never
+    /// visits the slice, so a `PLOT` block registers **no** display names —
+    /// which `tests/parity.rs` compares against the oracle exactly.
+    #[test]
+    fn a_plot_block_registers_no_display_names() {
+        let doc = ok_real("N = 3\nPLOT 'p'\n  x = Speed[1:N]\n  y = Dist[1, 2]\nEND");
+        assert_eq!(doc.blocks.plots[0].attributes.single("x"), Some("Speed"));
+        assert_eq!(doc.blocks.plots[0].attributes.single("y"), Some("Dist"));
+        // Only the equation's own `N`; not `Speed`, `Dist` or the slice's `N`.
+        assert_eq!(doc.display_names.keys().collect::<Vec<_>>(), vec!["n"]);
+    }
+
+    /// The slice still has to *parse* — ANTLR builds the whole
+    /// `arrayIndexList`, so a malformed index is a syntax error there too.
+    #[test]
+    fn a_malformed_plot_slice_is_still_a_syntax_error() {
+        assert!(err_real("PLOT 'p'\n  x = speed[1:\nEND").contains("expected an expression"));
+        assert!(err_real("PLOT 'p'\n  x = speed[1\nEND").contains("expected `]`"));
+    }
+
+    #[test]
+    fn a_repeated_plot_attribute_replaces_the_earlier_one_in_place() {
+        let doc = ok_real("PLOT 'p'\n  kind = xy\n  y = a\n  kind = bode\nEND");
+        let attrs = &doc.blocks.plots[0].attributes;
+        assert_eq!(
+            attrs.iter().map(|(k, _)| k).collect::<Vec<_>>(),
+            vec!["kind", "y"]
+        );
+        assert_eq!(attrs.single("kind"), Some("bode"));
+    }
+
+    #[test]
+    fn a_plot_block_needs_a_quoted_name_and_at_least_one_attribute() {
+        assert!(err_real("PLOT speed\n  kind = xy\nEND").contains("expected a quoted plot name"));
+        assert!(err_real("PLOT 'p'\nEND").contains("expected an identifier"));
+        assert!(err_real("PLOT 'p'\n  kind = xy").contains("unterminated PLOT 'p'"));
+        assert!(err_real("PLOT 'p'\n  kind\nEND").contains("expected `=`"));
+        assert!(err_real("PLOT 'p'\n  kind = ;\nEND").contains("expected a number"));
+    }
+
+    #[test]
+    fn a_state_table_groups_numbered_state_points_under_one_fluid() {
+        let doc = ok_real("STATE TABLE WaterCircuit(Pw1, Pw_2, Tw1)\n  FLUID = Water\nEND");
+        let table = &doc.blocks.state_tables[0];
+        assert_eq!(table.name, "WaterCircuit");
+        // `buildParamList` lowercases these, unlike a PARAMETRIC header's.
+        assert_eq!(table.variables, vec!["pw1", "pw_2", "tw1"]);
+        // The fluid keeps its case — it names a CoolProp fluid.
+        assert_eq!(table.fluid.as_deref(), Some("Water"));
+        assert!(doc.statements.is_empty());
+        assert!(doc.display_names.is_empty());
+    }
+
+    #[test]
+    fn a_state_table_body_is_optional_and_only_fluid_is_kept() {
+        assert_eq!(
+            ok_real("STATE TABLE c(P1)\nEND").blocks.state_tables[0].fluid,
+            None
+        );
+        // A quoted value unquotes; other attributes must parse and are dropped.
+        let doc = ok_real(
+            "STATE TABLE c(P1)\n  label = 'loop A'\n  FLUID = 'R134a'\n  fluid = R744\nEND",
+        );
+        // The last FLUID line wins, whatever its case.
+        assert_eq!(doc.blocks.state_tables[0].fluid.as_deref(), Some("R744"));
+    }
+
+    #[test]
+    fn a_state_table_member_must_carry_a_state_number() {
+        let message = err_real("STATE TABLE circuit(xrefg)\n  FLUID = Water\nEND");
+        assert!(
+            message.contains("STATE TABLE 'circuit': variable 'xrefg' has no state number"),
+            "got: {message}"
+        );
+        assert!(
+            message.contains("e.g. xrefg1 or xrefg[1]"),
+            "got: {message}"
+        );
+        // Numbered forms, with and without the separating underscore.
+        for ok in ["T1", "P_2", "h_10", "a1"] {
+            assert!(
+                ok_real(&format!("STATE TABLE c({ok})\nEND"))
+                    .blocks
+                    .state_tables[0]
+                    .variables
+                    .len()
+                    == 1,
+                "{ok} should be accepted"
+            );
+        }
+        for bad in ["x", "T_", "T1a"] {
+            assert!(
+                err_real(&format!("STATE TABLE c({bad})\nEND")).contains("no state number"),
+                "{bad} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn a_state_table_block_is_terminated_and_its_attributes_are_key_value() {
+        assert!(
+            err_real("STATE TABLE c(P1)\n  FLUID = Water").contains("unterminated STATE TABLE c")
+        );
+        assert!(err_real("STATE TABLE c(P1)\n  FLUID = 3\nEND")
+            .contains("expected a name or a quoted string"));
+        assert!(err_real("STATE TABLE c(P1) FLUID = Water\nEND").contains("expected a line break"));
+    }
+
+    /// The three blocks coexist with everything else and leave the equation
+    /// side untouched — which is the whole reason they may parse without a
+    /// solver change.
+    #[test]
+    fn the_declarative_blocks_do_not_disturb_the_equations() {
+        let src = "\
+x = 1
+PARAMETRIC s (t, x)
+  t = 0:1:2
+END
+y = x + 1
+PLOT 'p'
+  kind = xy
+  x = t
+END
+STATE TABLE c(P1)
+  FLUID = Water
+END
+P1 = 100
+";
+        let doc = ok_real(src);
+        assert_eq!(doc.statements.len(), 3);
+        assert_eq!(doc.equations().len(), 3);
+        assert_eq!(doc.blocks.parametric_tables.len(), 1);
+        assert_eq!(doc.blocks.plots.len(), 1);
+        assert_eq!(doc.blocks.state_tables.len(), 1);
+        assert!(!doc.blocks.is_empty());
+        // Only the equations' own names.
+        assert_eq!(
+            doc.display_names.keys().collect::<Vec<_>>(),
+            vec!["p1", "x", "y"]
+        );
+    }
+
+    #[test]
+    fn the_state_number_matcher_matches_the_java_pattern() {
+        for accepted in ["t1", "p_2", "h10", "a_007", "x[3]", "ab_c1"] {
+            assert!(has_state_number(accepted), "{accepted} should match");
+        }
+        for rejected in [
+            "", "xrefg", "1t", "_t1", "t_", "t1a", "t[]", "t[a]", "t[1]x", "[1]", "µ1",
+        ] {
+            assert!(!has_state_number(rejected), "{rejected} should not match");
+        }
     }
 }

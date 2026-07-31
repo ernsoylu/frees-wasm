@@ -2501,6 +2501,74 @@ pub fn document_variables(doc: &Document) -> BTreeSet<String> {
     out
 }
 
+// ---------------------------------------------------------------------------
+// Seams for `crate::analysis`
+// ---------------------------------------------------------------------------
+//
+// The analysis layer (optimisation, root enumeration, sweeps) *drives* this
+// module rather than re-implementing it. Two things it needs are computed here
+// and nowhere else, so they are exported rather than duplicated:
+//
+//  * `variable_override_spec` — the Java `VariableInfoDto.toSpec`, which the
+//    Java `Optimizer.initialGuess` reads through `spec.guess()`;
+//  * `solve_block_newton` — the Java `NewtonSolver.solveBlock`, which the Java
+//    `AllRootsSolver` calls directly (deliberately *without* the retry ladder:
+//    enumerating roots means accepting that a start point may simply fail).
+
+/// One [`VariableOverride`] resolved to `(lowercase name, guess, lower, upper)`
+/// in SI — the Java `VariableInfoDto.toSpec` plus the `VariableSpec` compact
+/// constructor's validation.
+///
+/// # Errors
+///
+/// The same three rejections [`solve_with`] applies to an override: any NaN, a
+/// lower bound above the upper, or an explicit guess outside its own bounds.
+pub fn variable_override_spec(o: &VariableOverride) -> Result<(String, f64, f64, f64)> {
+    let (name, spec) = override_spec(o)?;
+    Ok((name, spec.guess, spec.lower, spec.upper))
+}
+
+/// Solve one Tarjan block in place with plain Newton, leaving its unknowns'
+/// values in `values` and returning the iteration count.
+///
+/// The Java `NewtonSolver.solveBlock(block, values, deadline, specs)` as
+/// `AllRootsSolver` calls it: **one rung only**, none of the
+/// [`solve_block_with_fallback`] retry ladder, because a multi-start root search
+/// expects most starts to fail and must not spend the ladder's budget on each.
+/// `bounds` is the per-variable box the Java reads off its `VariableSpec` map;
+/// a variable missing from it is unbounded.
+///
+/// On failure `values` holds the last iterate, exactly as the Java leaves its
+/// partially updated variable map behind.
+///
+/// # Errors
+///
+/// [`FreesError::Solver`] when Newton does not converge, plus whatever the
+/// residual evaluation raises at the initial point.
+pub fn solve_block_newton(
+    block: &Block,
+    equations: &[Equation],
+    values: &mut Scope,
+    settings: &SolverSettings,
+    bounds: &BTreeMap<String, (f64, f64)>,
+    defs: &Definitions,
+) -> Result<usize> {
+    let specs: BTreeMap<String, VarSpec> = bounds
+        .iter()
+        .map(|(name, &(lower, upper))| {
+            (
+                name.clone(),
+                VarSpec {
+                    guess: DEFAULT_GUESS,
+                    lower,
+                    upper,
+                },
+            )
+        })
+        .collect();
+    solve_block(0, block, equations, values, settings, &specs, defs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2651,9 +2719,33 @@ mod tests {
 
     #[test]
     fn an_unsupported_block_is_refused_by_name() {
-        let err = solve("PLOT 'x'\n  kind = xy\nEND\n", &SolverSettings::default()).unwrap_err();
+        let err = solve(
+            "DYNAMIC d(method = ode45)\n  der = 1\nEND\n",
+            &SolverSettings::default(),
+        )
+        .unwrap_err();
         assert!(matches!(err.error, FreesError::Parse { .. }), "{err:?}");
-        assert!(err.to_string_message().contains("PLOT"));
+        assert!(err.to_string_message().contains("DYNAMIC"));
+    }
+
+    /// `PARAMETRIC` / `PLOT` / `STATE TABLE` parse into `Document::blocks`
+    /// since Phase 8 and contribute no equations, so a document that declares
+    /// only one of them is a *solver* refusal ("No equations to solve"), not a
+    /// parse one — the same classification the Java oracle records for the
+    /// sweep fixtures in `fixtures/corpus-pending/`.
+    #[test]
+    fn a_declarative_block_is_no_longer_a_parse_refusal() {
+        for source in [
+            "PARAMETRIC s (t)\n  t = 0:1:2\nEND\n",
+            "PLOT 'x'\n  kind = xy\nEND\n",
+            "STATE TABLE c(P1)\n  FLUID = Water\nEND\n",
+        ] {
+            let err = solve(source, &SolverSettings::default()).unwrap_err();
+            assert!(
+                matches!(err.error, FreesError::Solver { .. }),
+                "{source}: {err:?}"
+            );
+        }
     }
 
     /// The three component forms after Phase 6 wired the expander in. The

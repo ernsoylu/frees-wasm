@@ -206,11 +206,14 @@ const OUTPUTS: [(&str, &str); 6] = [
 /// `ast/StateTableDef.java`.
 ///
 /// Declaring one makes property look-ups fluid-aware per circuit, so a Water
-/// state 1 and an R134a state 1 never collide. The parser does not build these
-/// yet (`STATE TABLE` is still an unsupported construct); until it does,
-/// callers pass an empty slice and [`resolve_missing_properties`] takes the
-/// legacy global index detection, exactly as the Java does when a document
-/// declares no blocks.
+/// state 1 and an R134a state 1 never collide. Phase 8 taught the parser the
+/// block — it lands in
+/// [`Document::blocks`](crate::parser::Document::blocks) as a
+/// [`StateTableDef`](crate::parser::blocks::StateTableDef), whose `name`,
+/// `variables` and `fluid` are exactly this shape — but the fill-missing
+/// callers do not thread it through yet and still pass an empty slice, which
+/// makes [`resolve_missing_properties`] take the legacy global index
+/// detection, exactly as the Java does for a document that declares no blocks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateTableSpec {
     /// The circuit/table name (`WaterCircuit1`). Carried for fidelity with the

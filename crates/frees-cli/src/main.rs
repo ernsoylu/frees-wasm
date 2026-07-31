@@ -414,15 +414,19 @@ mod tests {
 
     #[test]
     fn an_unsupported_block_is_reported_as_a_parse_error() {
-        // `PLOT` is still an unported block type, and the parser refuses it by
-        // name rather than skipping it.
-        let (payload, ok) = solve_json("PLOT 'p'\nEND\n", &SolverSettings::default());
+        // `DYNAMIC` is still an unported block type, and the parser refuses it
+        // by name rather than skipping it. (`PLOT` used to stand here; it
+        // parses into `Document::blocks` since Phase 8.)
+        let (payload, ok) = solve_json(
+            "DYNAMIC d(method = ode45)\n  der = 1\nEND\n",
+            &SolverSettings::default(),
+        );
         assert!(!ok);
         assert_eq!(payload["error"]["type"], json!("ParseException"));
         assert!(payload["error"]["message"]
             .as_str()
             .unwrap()
-            .contains("PLOT"));
+            .contains("DYNAMIC"));
     }
 
     #[test]

@@ -688,12 +688,16 @@ fn no_document_in_the_hostile_corpus_panics() {
         "x = 1\r\ny = 2\r\n",
         "x = 1\ry = 2",
         "x\t=\t1",
-        // unported constructs, refused by name
+        // block forms, truncated: each parses far enough to fail somewhere
+        // different (a missing `(`, a missing separator, a bad state number)
         "COMPONENT pump\nEND",
         "Pump p1(x)",
         "connect a, b",
         "STATE TABLE t(x)",
         "PARAMETRIC p",
+        "PLOT 'p'",
+        "PLOT 'p'\n  kind =",
+        "PARAMETRIC p(a)\n  a = 1:2:3",
         "CALL f(1 : y)\nx = 1",
         "SYMBOLIC s\nx = 1",
         // guess directives

@@ -1,1 +1,1253 @@
-//! Phase-8 contract stub — filled by the assigned agent.
+//! Parameter estimation against measured data — calibration.
+//!
+//! Port of
+//! `../frEES/backend/core/src/main/java/com/frees/backend/api/ParameterFit.java`
+//! (298 LOC), plus the `measurement/SampledSeries` resampling it reduces
+//! residuals through and Commons Math's `BrentOptimizer` for the
+//! one-parameter case.
+//!
+//! # What a fit does
+//!
+//! Each objective evaluation replaces the parameters' defining assignments
+//! (the terminal's override mechanism — replace, never append; see
+//! [`crate::analysis::montecarlo::apply_overrides`]) and re-solves the
+//! document. The named `DYNAMIC` block's column is linearly resampled onto the
+//! measured raster and reduced to a sum of squared residuals, **skipping pairs
+//! outside the model's own time span** — the compare view's semantics, and the
+//! reason `pairs` is tracked separately from the raster length.
+//!
+//! The optimizer works on parameters normalized to the unit box. That is not
+//! cosmetic: it keeps the search geometry sane when one parameter is a `UA` in
+//! the hundreds and another a dimensionless efficiency. A failed solve scores a
+//! flat penalty, so an infeasible *starting* point is detected and reported up
+//! front rather than silently returning the initial guess — from a flat
+//! landscape every direction looks identical.
+//!
+//! # The multivariate optimizer is Nelder–Mead, not BOBYQA — stated plainly
+//!
+//! The Java uses `BOBYQAOptimizer(2n+1, 0.2, 1e-6)` for two or more parameters
+//! and `BrentOptimizer(1e-8, 1e-10)` for one.
+//!
+//! * The **one-parameter** path is a faithful transcription of Commons Math's
+//!   `BrentOptimizer`, so its evaluation sequence — and therefore the tracked
+//!   best iterate and the reported `evaluations` — follows the Java's.
+//! * The **multi-parameter** path is a bound-constrained Nelder–Mead simplex,
+//!   not BOBYQA. Porting BOBYQA means porting 2,470 lines of Fortran-derived
+//!   trust-region code, which is a project of its own. The substitution is not
+//!   invented for this port: the parent engine's own `core/Optimizer.java`
+//!   treats `SimplexOptimizer` (Nelder–Mead) as its *default* multivariate
+//!   optimizer and BOBYQA as the opt-in alternative, so this is the reference
+//!   implementation's own second choice. The Java's two trust-region knobs keep
+//!   their meaning: [`INITIAL_RADIUS`] sizes the initial simplex and
+//!   [`STOPPING_RADIUS`] is the convergence radius.
+//!
+//!   **Consequence, so nobody is surprised:** for two or more parameters the
+//!   *optimum* should agree with the Java to within the stopping radius, but
+//!   `evaluations` and the exact fitted vector will not match iterate for
+//!   iterate. Do not build an iteration-sensitive golden on this path.
+//!
+//! # The solve seam
+//!
+//! [`run`] never calls the solver itself: it hands the overridden document text
+//! to a caller-supplied closure that returns the document's ODE tables (or
+//! `None` when the solve failed). `Solution` does not carry `ode_tables` yet —
+//! transient integration is being ported alongside this — so the seam keeps
+//! this module complete and testable today, and turns the wiring into an
+//! adapter from whatever `crate::ode` settles on to [`OdeTableView`].
+
+use crate::analysis::montecarlo::apply_overrides;
+use crate::diag::{FreesError, Result};
+
+/// The flat score a failed solve receives. Port of `ParameterFit.PENALTY`.
+const PENALTY: f64 = 1.0e100;
+/// Initial trust-region size on the normalized unit box. Port of
+/// `ParameterFit.INITIAL_RADIUS`; here it sizes the initial simplex.
+pub const INITIAL_RADIUS: f64 = 0.2;
+/// Terminal trust-region size on the normalized unit box. Port of
+/// `ParameterFit.STOPPING_RADIUS`.
+pub const STOPPING_RADIUS: f64 = 1.0e-6;
+
+/// A `(t, v)` series pair. Port of `ParameterFit.Series`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Series {
+    pub t: Vec<f64>,
+    pub v: Vec<f64>,
+}
+
+/// One solved `DYNAMIC` block's table, in the shape this module needs: the
+/// block name, the column headers (column 0 is time) and the rows, with `None`
+/// for a cell the integrator could not fill.
+///
+/// A minimal view of the Java `core.ode.OdeTableResult`, deliberately owned by
+/// this module so parameter estimation does not have to wait on the transient
+/// port to land its own result type.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OdeTableView {
+    pub name: String,
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<Option<f64>>>,
+}
+
+/// Port of `ParameterFit.Outcome`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Outcome {
+    pub parameters: Vec<String>,
+    pub fitted: Vec<f64>,
+    /// RMSE at the fitted point, over the pairs that actually overlapped.
+    pub rmse: f64,
+    /// RMSE at the initial point, for the "did this help?" comparison.
+    pub initial_rmse: f64,
+    pub evaluations: usize,
+    /// True when the budget struck mid-search and the best iterate so far
+    /// stands.
+    pub truncated: bool,
+    /// The fitted model resampled onto the measured raster, for overlay.
+    pub fitted_series: Series,
+}
+
+/// Everything a fit needs about the problem. Bundled because the Java's `run`
+/// takes fourteen arguments and a Rust function with that many is unreadable
+/// (and trips `clippy::too_many_arguments`).
+#[derive(Debug, Clone)]
+pub struct FitRequest<'a> {
+    /// The document exactly as the solve endpoints receive it.
+    pub text: &'a str,
+    /// Parameters to calibrate, lowercase.
+    pub parameters: &'a [String],
+    pub initial: &'a [f64],
+    pub lower: &'a [f64],
+    pub upper: &'a [f64],
+    /// The `DYNAMIC` block whose table carries the compared column.
+    pub ode_block: &'a str,
+    /// The column within that table, matched case-insensitively.
+    pub column: &'a str,
+    pub measured_t: &'a [f64],
+    pub measured_v: &'a [f64],
+    pub max_evaluations: usize,
+}
+
+/// Why the search stopped early. Both are caught inside [`run`], exactly as the
+/// Java catches `TooManyEvaluationsException` and its private `BudgetExhausted`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stop {
+    /// The wall-clock budget struck — the Java `BudgetExhausted`.
+    Budget,
+    /// `MaxEval` exhausted — the Java `TooManyEvaluationsException`.
+    Evaluations,
+}
+
+/// One objective evaluation's result. Port of `ParameterFit.SseResult`.
+struct SseResult {
+    sse: f64,
+    pairs: usize,
+    model: SampledSeries,
+}
+
+/// Calibrates `request.parameters` so the model column matches the measurement.
+/// Port of `ParameterFit.run`.
+///
+/// * `solve` receives the **overridden** document text and returns its ODE
+///   tables, or `None` when the solve failed — the Java's
+///   `catch (ParseException | SolverException | IllegalStateException)`.
+/// * `expired` is the wall-clock budget predicate (core has no clock on
+///   `wasm32-unknown-unknown`); pass `|| false` for an unbounded run.
+///
+/// # Errors
+///
+/// [`FreesError::Solver`] for a malformed request (no parameters, mismatched
+/// array lengths, non-finite or crossed bounds, an initial value outside its
+/// bounds, fewer than two measured samples), for an infeasible starting point,
+/// or when the fitted point stops solving.
+pub fn run<S, B>(request: &FitRequest<'_>, mut solve: S, mut expired: B) -> Result<Outcome>
+where
+    S: FnMut(&str) -> Option<Vec<OdeTableView>>,
+    B: FnMut() -> bool,
+{
+    let FitRequest {
+        text,
+        parameters,
+        initial,
+        lower,
+        upper,
+        ode_block,
+        column,
+        measured_t,
+        measured_v,
+        max_evaluations,
+    } = *request;
+
+    let n = parameters.len();
+    if n == 0 || initial.len() != n || lower.len() != n || upper.len() != n {
+        return Err(FreesError::solver(
+            "Parameter estimation needs at least one parameter, each with an initial \
+             value and finite lower/upper bounds.",
+        ));
+    }
+    for i in 0..n {
+        if !lower[i].is_finite() || !upper[i].is_finite() || lower[i] >= upper[i] {
+            return Err(FreesError::solver(format!(
+                "Bounds for {} must be finite with lower < upper.",
+                parameters[i]
+            )));
+        }
+        if initial[i] < lower[i] || initial[i] > upper[i] {
+            return Err(FreesError::solver(format!(
+                "The initial value of {} lies outside its bounds.",
+                parameters[i]
+            )));
+        }
+    }
+    if measured_t.len() < 2 || measured_t.len() != measured_v.len() {
+        return Err(FreesError::solver(
+            "The measured series needs at least two (t, y) samples.",
+        ));
+    }
+
+    let mut evaluations = 0usize;
+    let mut best_point = initial.to_vec();
+    let mut best_sse = f64::INFINITY;
+    let mut best_pairs = 0usize;
+
+    // The normalized objective, closing over the trackers exactly as the Java's
+    // `MultivariateFunction normalized` closes over its one-element arrays.
+    let mut normalized = |unit: &[f64],
+                          evaluations: &mut usize,
+                          best_point: &mut Vec<f64>,
+                          best_sse: &mut f64,
+                          best_pairs: &mut usize|
+     -> std::result::Result<f64, Stop> {
+        if expired() {
+            return Err(Stop::Budget);
+        }
+        let p: Vec<f64> = (0..n)
+            .map(|i| {
+                let u = clamp(unit[i], 0.0, 1.0);
+                lower[i] + u * (upper[i] - lower[i])
+            })
+            .collect();
+        *evaluations += 1;
+        match evaluate(
+            text, parameters, &p, ode_block, column, measured_t, measured_v, &mut solve,
+        ) {
+            None => Ok(PENALTY),
+            Some(r) => {
+                if r.sse < *best_sse {
+                    *best_sse = r.sse;
+                    *best_pairs = r.pairs;
+                    best_point.clone_from(&p);
+                }
+                Ok(r.sse)
+            }
+        }
+    };
+
+    // Validate the starting point before handing the landscape to the
+    // optimizer: from an infeasible start every direction scores the same flat
+    // penalty and the fit would silently return the initial guess.
+    let unit0: Vec<f64> = (0..n)
+        .map(|i| (initial[i] - lower[i]) / (upper[i] - lower[i]))
+        .collect();
+    let sse0 = normalized(
+        &unit0,
+        &mut evaluations,
+        &mut best_point,
+        &mut best_sse,
+        &mut best_pairs,
+    )
+    .map_err(|_| {
+        FreesError::solver(
+            "Parameter estimation ran out of budget before its first evaluation finished.",
+        )
+    })?;
+    if sse0 >= PENALTY {
+        return Err(FreesError::solver(
+            "The model does not solve (or the target column has no overlap with the \
+             measurement) at the initial parameter values. Fix the starting point first — \
+             a fit cannot navigate out of an infeasible start.",
+        ));
+    }
+    let initial_rmse = (sse0 / best_pairs.max(1) as f64).sqrt();
+
+    // `MaxEval` is the *optimizer's* budget in Java: the feasibility probe above
+    // runs outside it (it is a direct `normalized.value(unit0)` call, not a
+    // `computeObjectiveValue`), while `evaluations[0]` counts it. Commons Math's
+    // `Incrementor` throws on the call that would exceed the maximum, so exactly
+    // `max_evaluations` optimizer evaluations happen and the reported count is
+    // one more than that.
+    let mut optimizer_calls = 0usize;
+    let mut objective = |unit: &[f64]| -> std::result::Result<f64, Stop> {
+        optimizer_calls += 1;
+        if optimizer_calls > max_evaluations {
+            return Err(Stop::Evaluations);
+        }
+        normalized(
+            unit,
+            &mut evaluations,
+            &mut best_point,
+            &mut best_sse,
+            &mut best_pairs,
+        )
+    };
+
+    let stop = if n == 1 {
+        brent_minimize(&mut objective, 0.0, 1.0, unit0[0], 1.0e-8, 1.0e-10).err()
+    } else {
+        nelder_mead_unit_box(&mut objective, &unit0).err()
+    };
+    // `TooManyEvaluationsException`: the budget is the point, the best tracked
+    // iterate stands. `BudgetExhausted`: same, and the outcome says so.
+    let truncated = stop == Some(Stop::Budget);
+
+    // Confirming solve at the best point: the fitted series on the measured
+    // raster, for overlay and honest reporting. Deliberately *not* counted as
+    // an evaluation — the Java calls `evaluate` directly here.
+    let confirm = evaluate(
+        text,
+        parameters,
+        &best_point,
+        ode_block,
+        column,
+        measured_t,
+        measured_v,
+        &mut solve,
+    )
+    .ok_or_else(|| {
+        FreesError::solver(
+            "The fitted point no longer solves — this indicates a sensitive model; \
+             tighten the bounds around a feasible region.",
+        )
+    })?;
+    let rmse = (confirm.sse / confirm.pairs.max(1) as f64).sqrt();
+    Ok(Outcome {
+        parameters: parameters.to_vec(),
+        fitted: best_point,
+        rmse,
+        initial_rmse,
+        evaluations,
+        truncated,
+        fitted_series: Series {
+            t: measured_t.to_vec(),
+            v: confirm.model.sample_on(measured_t),
+        },
+    })
+}
+
+/// One objective evaluation; `None` = solve failed or no usable overlap. Port
+/// of `ParameterFit.evaluate`.
+#[allow(clippy::too_many_arguments)] // Mirrors the Java's own parameter list.
+fn evaluate<S>(
+    text: &str,
+    parameters: &[String],
+    values: &[f64],
+    ode_block: &str,
+    column: &str,
+    measured_t: &[f64],
+    measured_v: &[f64],
+    solve: &mut S,
+) -> Option<SseResult>
+where
+    S: FnMut(&str) -> Option<Vec<OdeTableView>>,
+{
+    let overrides: Vec<String> = parameters
+        .iter()
+        .zip(values)
+        .map(|(name, value)| format!("{name} = {}", plain(*value)))
+        .collect();
+    let tables = solve(&apply_overrides(text, &overrides))?;
+    let series = extract_column(&tables, ode_block, column)?;
+    let model = SampledSeries::linear(series.t, series.v);
+
+    let mut sse = 0.0;
+    let mut pairs = 0usize;
+    for (t, m) in measured_t.iter().zip(measured_v) {
+        if m.is_nan() {
+            continue;
+        }
+        let s = model.at(*t);
+        if s.is_nan() {
+            // Outside the model's span, or a gap — not a comparison.
+            continue;
+        }
+        let e = s - m;
+        sse += e * e;
+        pairs += 1;
+    }
+    if pairs == 0 {
+        return None;
+    }
+    Some(SseResult { sse, pairs, model })
+}
+
+/// The named `DYNAMIC` table's column as `(t, v)`; `None` when the table or the
+/// column is absent. Port of `ParameterFit.extractColumn`, names matched
+/// case-insensitively and a `null` cell becoming `NaN`.
+pub fn extract_column(tables: &[OdeTableView], ode_block: &str, column: &str) -> Option<Series> {
+    let table = tables
+        .iter()
+        .find(|t| t.name.eq_ignore_ascii_case(ode_block))?;
+    let col = table
+        .columns
+        .iter()
+        .position(|c| c.eq_ignore_ascii_case(column))?;
+    let mut t = Vec::with_capacity(table.rows.len());
+    let mut v = Vec::with_capacity(table.rows.len());
+    for row in &table.rows {
+        t.push(row.first().copied().flatten().unwrap_or(f64::NAN));
+        v.push(row.get(col).copied().flatten().unwrap_or(f64::NAN));
+    }
+    Some(Series { t, v })
+}
+
+/// `BigDecimal.valueOf(v).toPlainString()`; see
+/// [`crate::analysis::montecarlo`] for why the rendering must not use an
+/// exponent.
+fn plain(value: f64) -> String {
+    format!("{value}")
+}
+
+/// `Math.clamp` (Java 21): `min(max(value, min), max)`, NaN in / NaN out.
+fn clamp(value: f64, min: f64, max: f64) -> f64 {
+    value.max(min).min(max)
+}
+
+// ---------------------------------------------------------------------------
+// measurement/SampledSeries — the LINEAR half
+// ---------------------------------------------------------------------------
+
+/// A sampled series with linear interpolation. Port of
+/// `measurement/SampledSeries` restricted to `Interp.LINEAR`, which is the mode
+/// `ParameterFit` constructs.
+///
+/// Two behaviours are load-bearing and are transcribed rather than
+/// approximated: the value **before the first sample is `NaN`** (there is
+/// nothing to hold), and a gap — a `NaN` on either side of the bracket — stays
+/// a gap instead of being bridged.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SampledSeries {
+    t: Vec<f64>,
+    v: Vec<f64>,
+}
+
+impl SampledSeries {
+    pub fn linear(t: Vec<f64>, v: Vec<f64>) -> SampledSeries {
+        SampledSeries { t, v }
+    }
+
+    /// Value at time `x`. Port of `SampledSeries.at` for `Interp.LINEAR`.
+    pub fn at(&self, x: f64) -> f64 {
+        let n = self.t.len();
+        if n == 0 {
+            return f64::NAN;
+        }
+        let lb = lower_bound(&self.t, x);
+        if lb < n && self.t[lb] == x {
+            return self.v[lb];
+        }
+        if lb == 0 {
+            // Nothing strictly before x.
+            return f64::NAN;
+        }
+        let i = lb - 1;
+        if lb >= n {
+            // Past the last sample: LINEAR has nothing to interpolate towards,
+            // so the Java falls through to holding the last value.
+            return self.v[i];
+        }
+        let (t0, t1) = (self.t[i], self.t[lb]);
+        let (v0, v1) = (self.v[i], self.v[lb]);
+        if v0.is_nan() || v1.is_nan() {
+            return f64::NAN;
+        }
+        v0 + (v1 - v0) * (x - t0) / (t1 - t0)
+    }
+
+    /// Materialize the series on an output raster. Port of
+    /// `SampledSeries.sampleOn`.
+    pub fn sample_on(&self, raster: &[f64]) -> Vec<f64> {
+        raster.iter().map(|x| self.at(*x)).collect()
+    }
+}
+
+/// First index whose value is `>= x`. Port of
+/// `measurement/EnvelopeDecimator.lowerBound`.
+fn lower_bound(a: &[f64], x: f64) -> usize {
+    let (mut lo, mut hi) = (0usize, a.len());
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        if a[mid] < x {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
+}
+
+// ---------------------------------------------------------------------------
+// Commons Math BrentOptimizer — the one-parameter path
+// ---------------------------------------------------------------------------
+
+/// Brent's derivative-free minimizer on `[lo, hi]` starting from `start`.
+/// Transcription of `org.apache.commons.math3.optim.univariate.BrentOptimizer`
+/// for `GoalType.MINIMIZE`.
+///
+/// The return value is the best `(point, value)` seen. `ParameterFit` ignores
+/// it and reads its own tracked best iterate instead — but the *evaluation
+/// sequence* is what feeds that tracker, which is why this is transcribed
+/// rather than replaced by any other line search.
+fn brent_minimize<F>(
+    f: &mut F,
+    lo: f64,
+    hi: f64,
+    start: f64,
+    relative_threshold: f64,
+    absolute_threshold: f64,
+) -> std::result::Result<(f64, f64), Stop>
+where
+    F: FnMut(&[f64]) -> std::result::Result<f64, Stop>,
+{
+    // `0.5 * (3 - FastMath.sqrt(5))`, computed rather than written out: a
+    // decimal literal for it lands a ulp away, and Brent's very first golden
+    // section step then diverges from the reference by a ulp too. `sqrt` is
+    // correctly rounded in IEEE-754 and the rest is exact, so this reproduces
+    // Java's constant bit for bit.
+    let golden_section = 0.5 * (3.0 - 5.0f64.sqrt());
+
+    let (mut a, mut b) = if lo < hi { (lo, hi) } else { (hi, lo) };
+    let mut x = start;
+    let mut v = x;
+    let mut w = x;
+    let mut d = 0.0f64;
+    let mut e = 0.0f64;
+    let mut fx = f(&[x])?;
+    let mut fv = fx;
+    let mut fw = fx;
+
+    let mut best = (x, fx);
+    loop {
+        let m = 0.5 * (a + b);
+        let tol1 = relative_threshold * x.abs() + absolute_threshold;
+        let tol2 = 2.0 * tol1;
+
+        if (x - m).abs() <= tol2 - 0.5 * (b - a) {
+            // Brent's own termination.
+            return Ok(better(best, (x, fx)));
+        }
+
+        let mut u;
+        if e.abs() > tol1 {
+            // Fit a parabola through (v, fv), (w, fw), (x, fx).
+            let mut r = (x - w) * (fx - fv);
+            let mut q = (x - v) * (fx - fw);
+            let mut p = (x - v) * q - (x - w) * r;
+            q = 2.0 * (q - r);
+            if q > 0.0 {
+                p = -p;
+            } else {
+                q = -q;
+            }
+            r = e;
+            e = d;
+            if p > q * (a - x) && p < q * (b - x) && p.abs() < (0.5 * q * r).abs() {
+                d = p / q;
+                u = x + d;
+                // f must not be evaluated too close to a or b.
+                if u - a < tol2 || b - u < tol2 {
+                    d = if x <= m { tol1 } else { -tol1 };
+                }
+            } else {
+                e = if x < m { b - x } else { a - x };
+                d = golden_section * e;
+            }
+        } else {
+            e = if x < m { b - x } else { a - x };
+            d = golden_section * e;
+        }
+
+        // Move by at least tol1.
+        if d.abs() < tol1 {
+            u = if d >= 0.0 { x + tol1 } else { x - tol1 };
+        } else {
+            u = x + d;
+        }
+
+        let fu = f(&[u])?;
+        best = better(best, (u, fu));
+
+        if fu <= fx {
+            if u < x {
+                b = x;
+            } else {
+                a = x;
+            }
+            v = w;
+            fv = fw;
+            w = x;
+            fw = fx;
+            x = u;
+            fx = fu;
+        } else {
+            if u < x {
+                a = u;
+            } else {
+                b = u;
+            }
+            if fu <= fw || precision_equals(w, x) {
+                v = w;
+                fv = fw;
+                w = u;
+                fw = fu;
+            } else if fu <= fv || precision_equals(v, x) || precision_equals(v, w) {
+                v = u;
+                fv = fu;
+            }
+        }
+    }
+}
+
+fn better(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+    if a.1 <= b.1 {
+        a
+    } else {
+        b
+    }
+}
+
+/// `org.apache.commons.math3.util.Precision.equals(x, y)` — the one-argument
+/// form, which is `equals(x, y, 1)`: **within one ULP**, not `==`. Brent's
+/// bookkeeping branches on it, so the distinction matters.
+///
+/// The bit patterns are compared as **signed** 64-bit integers, because that is
+/// what `Double.doubleToRawLongBits` returns in Java: `-0.0` comes back as
+/// `Long.MIN_VALUE`, so `xInt < yInt` orders `+0.0` *after* `-0.0`. Comparing
+/// the same bits as `u64` flips that branch and makes `equals(0.0, -0.0)` come
+/// out false, which it is not.
+fn precision_equals(x: f64, y: f64) -> bool {
+    /// `Long.MIN_VALUE` — the sign bit, and `doubleToRawLongBits(-0.0)`.
+    const SGN_MASK: i64 = i64::MIN;
+    const MAX_ULPS: i64 = 1;
+    if x.is_nan() || y.is_nan() {
+        return false;
+    }
+    let xi = x.to_bits() as i64;
+    let yi = y.to_bits() as i64;
+    if (xi ^ yi) & SGN_MASK == 0 {
+        // Same sign: no overflow risk.
+        xi.wrapping_sub(yi).wrapping_abs() <= MAX_ULPS
+    } else {
+        // Opposite signs: each side's distance from its own zero.
+        //   POSITIVE_ZERO_DOUBLE_BITS = 0, NEGATIVE_ZERO_DOUBLE_BITS = SGN_MASK
+        let (delta_plus, delta_minus) = if xi < yi {
+            (yi, xi.wrapping_sub(SGN_MASK))
+        } else {
+            (xi, yi.wrapping_sub(SGN_MASK))
+        };
+        delta_plus <= MAX_ULPS && delta_minus <= MAX_ULPS - delta_plus
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Bound-constrained Nelder-Mead — the BOBYQA stand-in
+// ---------------------------------------------------------------------------
+
+/// Minimizes `f` over the unit box `[0, 1]ⁿ` from `start`.
+///
+/// See the module docs for why this stands in for `BOBYQAOptimizer`. The
+/// simplex is built with edge [`INITIAL_RADIUS`] (folded inwards where a vertex
+/// would leave the box), every trial point is clamped back into the box, and
+/// the search stops when the simplex is smaller than [`STOPPING_RADIUS`].
+/// Deterministic: no restarts, no randomization.
+fn nelder_mead_unit_box<F>(f: &mut F, start: &[f64]) -> std::result::Result<Vec<f64>, Stop>
+where
+    F: FnMut(&[f64]) -> std::result::Result<f64, Stop>,
+{
+    let n = start.len();
+    let clamp_box = |p: &[f64]| -> Vec<f64> { p.iter().map(|x| clamp(*x, 0.0, 1.0)).collect() };
+
+    // Vertices: the start, plus one step of INITIAL_RADIUS along each axis,
+    // folded to the inside when the step would leave the box.
+    let mut simplex: Vec<(Vec<f64>, f64)> = Vec::with_capacity(n + 1);
+    let p0 = clamp_box(start);
+    let f0 = f(&p0)?;
+    simplex.push((p0.clone(), f0));
+    for i in 0..n {
+        let mut p = p0.clone();
+        p[i] = if p0[i] + INITIAL_RADIUS <= 1.0 {
+            p0[i] + INITIAL_RADIUS
+        } else {
+            p0[i] - INITIAL_RADIUS
+        };
+        let p = clamp_box(&p);
+        let value = f(&p)?;
+        simplex.push((p, value));
+    }
+
+    loop {
+        simplex.sort_by(|a, b| a.1.total_cmp(&b.1));
+        // Converged once the simplex has collapsed below the stopping radius.
+        let size = simplex[1..]
+            .iter()
+            .map(|(p, _)| {
+                p.iter()
+                    .zip(&simplex[0].0)
+                    .map(|(a, b)| (a - b).abs())
+                    .fold(0.0f64, f64::max)
+            })
+            .fold(0.0f64, f64::max);
+        if size <= STOPPING_RADIUS {
+            return Ok(simplex[0].0.clone());
+        }
+
+        // Centroid of everything but the worst vertex.
+        let worst = simplex.len() - 1;
+        let centroid: Vec<f64> = (0..n)
+            .map(|i| simplex[..worst].iter().map(|(p, _)| p[i]).sum::<f64>() / worst as f64)
+            .collect();
+        let step = |coefficient: f64| -> Vec<f64> {
+            clamp_box(
+                &(0..n)
+                    .map(|i| centroid[i] + coefficient * (centroid[i] - simplex[worst].0[i]))
+                    .collect::<Vec<_>>(),
+            )
+        };
+
+        let reflected = step(1.0);
+        let f_reflected = f(&reflected)?;
+        if f_reflected < simplex[0].1 {
+            // Better than the best: try to go further.
+            let expanded = step(2.0);
+            let f_expanded = f(&expanded)?;
+            simplex[worst] = if f_expanded < f_reflected {
+                (expanded, f_expanded)
+            } else {
+                (reflected, f_reflected)
+            };
+            continue;
+        }
+        if f_reflected < simplex[worst - 1].1 {
+            simplex[worst] = (reflected, f_reflected);
+            continue;
+        }
+        // Contract.
+        let contracted = step(-0.5);
+        let f_contracted = f(&contracted)?;
+        if f_contracted < simplex[worst].1 {
+            simplex[worst] = (contracted, f_contracted);
+            continue;
+        }
+        // Shrink towards the best vertex.
+        let best = simplex[0].0.clone();
+        for slot in simplex[1..].iter_mut() {
+            let p = clamp_box(
+                &(0..n)
+                    .map(|i| best[i] + 0.5 * (slot.0[i] - best[i]))
+                    .collect::<Vec<_>>(),
+            );
+            let value = f(&p)?;
+            *slot = (p, value);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn close(actual: f64, expected: f64, tol: f64) {
+        assert!(
+            (actual - expected).abs() <= tol * expected.abs().max(1.0),
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    /// A synthetic transient: `Temp(t) = Tinf + (T0 - Tinf) * exp(-k t)`,
+    /// tabulated the way a solved `DYNAMIC` block would be. `time` and `temp`
+    /// are named distinctly on purpose — frees identifiers are
+    /// case-insensitive, so a `T`/`t` pair would collide into one column.
+    fn cooling_table(k: f64, t_inf: f64, t0: f64, times: &[f64]) -> Vec<OdeTableView> {
+        vec![OdeTableView {
+            name: "cool".into(),
+            columns: vec!["time".into(), "temp".into()],
+            rows: times
+                .iter()
+                .map(|t| vec![Some(*t), Some(t_inf + (t0 - t_inf) * (-k * t).exp())])
+                .collect(),
+        }]
+    }
+
+    /// Reads back the `k = <value>` line `apply_overrides` appended.
+    fn overridden_k(text: &str) -> f64 {
+        text.lines()
+            .rev()
+            .find_map(|line| line.strip_prefix("k = "))
+            .expect("k override")
+            .parse()
+            .expect("number")
+    }
+
+    fn request<'a>(
+        parameters: &'a [String],
+        initial: &'a [f64],
+        lower: &'a [f64],
+        upper: &'a [f64],
+        measured_t: &'a [f64],
+        measured_v: &'a [f64],
+    ) -> FitRequest<'a> {
+        FitRequest {
+            text: "k = 0.05\n",
+            parameters,
+            initial,
+            lower,
+            upper,
+            ode_block: "cool",
+            column: "temp",
+            measured_t,
+            measured_v,
+            max_evaluations: 400,
+        }
+    }
+
+    // -- SampledSeries ----------------------------------------------------
+
+    #[test]
+    fn linear_resampling_matches_the_java_rules() {
+        let s = SampledSeries::linear(vec![0.0, 1.0, 2.0], vec![0.0, 10.0, 20.0]);
+        assert_eq!(s.at(0.0), 0.0);
+        assert_eq!(s.at(0.5), 5.0);
+        assert_eq!(s.at(2.0), 20.0);
+        // Before the first sample there is nothing to hold.
+        assert!(s.at(-0.1).is_nan());
+        // Past the last sample the Java falls through to the last value.
+        assert_eq!(s.at(3.0), 20.0);
+    }
+
+    #[test]
+    fn a_gap_is_never_bridged_by_interpolation() {
+        let s = SampledSeries::linear(vec![0.0, 1.0, 2.0], vec![0.0, f64::NAN, 20.0]);
+        assert!(s.at(0.5).is_nan());
+        assert!(s.at(1.5).is_nan());
+        assert_eq!(s.at(0.0), 0.0);
+    }
+
+    #[test]
+    fn lower_bound_is_the_first_index_at_or_after_x() {
+        let a = [0.0, 1.0, 1.0, 3.0];
+        assert_eq!(lower_bound(&a, -1.0), 0);
+        assert_eq!(lower_bound(&a, 1.0), 1);
+        assert_eq!(lower_bound(&a, 2.0), 3);
+        assert_eq!(lower_bound(&a, 9.0), 4);
+    }
+
+    #[test]
+    fn an_empty_series_samples_to_nan() {
+        let s = SampledSeries::linear(Vec::new(), Vec::new());
+        assert!(s.at(0.0).is_nan());
+        assert_eq!(s.sample_on(&[0.0, 1.0]).len(), 2);
+    }
+
+    // -- extract_column ---------------------------------------------------
+
+    #[test]
+    fn the_named_block_and_column_are_matched_case_insensitively() {
+        let tables = cooling_table(0.05, 20.0, 95.0, &[0.0, 10.0, 20.0]);
+        let s = extract_column(&tables, "COOL", "Temp").expect("column");
+        assert_eq!(s.t, [0.0, 10.0, 20.0]);
+        close(s.v[0], 95.0, 1e-12);
+        assert!(extract_column(&tables, "other", "temp").is_none());
+        assert!(extract_column(&tables, "cool", "missing").is_none());
+    }
+
+    #[test]
+    fn a_null_cell_becomes_nan() {
+        let tables = vec![OdeTableView {
+            name: "cool".into(),
+            columns: vec!["time".into(), "temp".into()],
+            rows: vec![vec![Some(0.0), None], vec![Some(1.0), Some(2.0)]],
+        }];
+        let s = extract_column(&tables, "cool", "temp").expect("column");
+        assert!(s.v[0].is_nan());
+        assert_eq!(s.v[1], 2.0);
+    }
+
+    // -- the fit itself ---------------------------------------------------
+
+    #[test]
+    fn a_single_parameter_is_recovered_from_a_clean_measurement() {
+        // Measurement generated with k = 0.05; the fit starts at 0.2.
+        let times: Vec<f64> = (0..=12).map(|i| i as f64 * 5.0).collect();
+        let measured: Vec<f64> = times
+            .iter()
+            .map(|t| 20.0 + 75.0 * (-0.05 * t).exp())
+            .collect();
+        let parameters = ["k".to_string()];
+        let out = run(
+            &request(&parameters, &[0.2], &[0.005], &[0.5], &times, &measured),
+            |text| Some(cooling_table(overridden_k(text), 20.0, 95.0, &times)),
+            || false,
+        )
+        .expect("fit");
+
+        assert_eq!(out.parameters, ["k"]);
+        close(out.fitted[0], 0.05, 1e-4);
+        assert!(out.rmse < 1e-4, "rmse {}", out.rmse);
+        assert!(
+            out.initial_rmse > out.rmse,
+            "the fit must improve on the start ({} -> {})",
+            out.initial_rmse,
+            out.rmse
+        );
+        assert!(!out.truncated);
+        assert!(out.evaluations > 1);
+        // The overlay rides on the measured raster.
+        assert_eq!(out.fitted_series.t, times);
+        close(out.fitted_series.v[0], 95.0, 1e-9);
+    }
+
+    #[test]
+    fn two_parameters_are_recovered_on_the_unit_box() {
+        // Both the rate and the ambient temperature are unknown.
+        let times: Vec<f64> = (0..=20).map(|i| i as f64 * 3.0).collect();
+        let measured: Vec<f64> = times
+            .iter()
+            .map(|t| 22.0 + (95.0 - 22.0) * (-0.07 * t).exp())
+            .collect();
+        let parameters = ["k".to_string(), "tinf".to_string()];
+        let times_for_solve = times.clone();
+        let out = run(
+            &FitRequest {
+                text: "k = 0.05\ntinf = 20\n",
+                parameters: &parameters,
+                initial: &[0.03, 15.0],
+                lower: &[0.005, 5.0],
+                upper: &[0.3, 40.0],
+                ode_block: "cool",
+                column: "temp",
+                measured_t: &times,
+                measured_v: &measured,
+                max_evaluations: 2000,
+            },
+            |text| {
+                let k = overridden_k(text);
+                let t_inf = text
+                    .lines()
+                    .rev()
+                    .find_map(|l| l.strip_prefix("tinf = "))
+                    .expect("tinf override")
+                    .parse()
+                    .expect("number");
+                Some(cooling_table(k, t_inf, 95.0, &times_for_solve))
+            },
+            || false,
+        )
+        .expect("fit");
+
+        close(out.fitted[0], 0.07, 1e-3);
+        close(out.fitted[1], 22.0, 1e-3);
+        assert!(out.rmse < 1e-2, "rmse {}", out.rmse);
+    }
+
+    #[test]
+    fn an_infeasible_start_is_reported_rather_than_silently_returned() {
+        let times = [0.0, 5.0, 10.0];
+        let measured = [95.0, 80.0, 70.0];
+        let parameters = ["k".to_string()];
+        let err = run(
+            &request(&parameters, &[0.2], &[0.005], &[0.5], &times, &measured),
+            |_| None, // every solve fails
+            || false,
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string_message()
+                .starts_with("The model does not solve"),
+            "{}",
+            err.to_string_message()
+        );
+    }
+
+    #[test]
+    fn a_measurement_that_does_not_overlap_the_model_is_infeasible() {
+        // The model starts at t = 100; the measurement sits before it, where
+        // `SampledSeries.at` answers NaN (there is nothing to hold), so no pair
+        // is comparable. Note the asymmetry, which is the Java's: *past* the
+        // last sample LINEAR holds the final value instead of giving up.
+        let times: [f64; 3] = [0.0, 1.0, 2.0];
+        let measured: [f64; 3] = [95.0, 80.0, 70.0];
+        let parameters = ["k".to_string()];
+        let err = run(
+            &request(&parameters, &[0.2], &[0.005], &[0.5], &times, &measured),
+            |text| {
+                Some(cooling_table(
+                    overridden_k(text),
+                    20.0,
+                    95.0,
+                    &[100.0, 105.0, 110.0],
+                ))
+            },
+            || false,
+        )
+        .unwrap_err();
+        assert!(err
+            .to_string_message()
+            .starts_with("The model does not solve"));
+    }
+
+    #[test]
+    fn nan_measurement_samples_are_skipped_not_compared() {
+        let times: Vec<f64> = (0..=12).map(|i| i as f64 * 5.0).collect();
+        let mut measured: Vec<f64> = times
+            .iter()
+            .map(|t| 20.0 + 75.0 * (-0.05 * t).exp())
+            .collect();
+        measured[3] = f64::NAN;
+        measured[7] = f64::NAN;
+        let parameters = ["k".to_string()];
+        let out = run(
+            &request(&parameters, &[0.2], &[0.005], &[0.5], &times, &measured),
+            |text| Some(cooling_table(overridden_k(text), 20.0, 95.0, &times)),
+            || false,
+        )
+        .expect("fit");
+        close(out.fitted[0], 0.05, 1e-4);
+        assert!(out.rmse < 1e-4);
+    }
+
+    #[test]
+    fn a_budget_strike_truncates_and_keeps_the_best_iterate() {
+        let times: Vec<f64> = (0..=12).map(|i| i as f64 * 5.0).collect();
+        let measured: Vec<f64> = times
+            .iter()
+            .map(|t| 20.0 + 75.0 * (-0.05 * t).exp())
+            .collect();
+        let parameters = ["k".to_string()];
+        let mut calls = 0;
+        let out = run(
+            &request(&parameters, &[0.2], &[0.005], &[0.5], &times, &measured),
+            |text| Some(cooling_table(overridden_k(text), 20.0, 95.0, &times)),
+            || {
+                calls += 1;
+                calls > 4
+            },
+        )
+        .expect("fit");
+        assert!(out.truncated);
+        assert!(out.evaluations <= 4);
+        // The tracked best still solves, so an outcome is still produced.
+        assert!(out.rmse.is_finite());
+    }
+
+    #[test]
+    fn the_evaluation_budget_stops_the_search_without_truncating() {
+        let times: Vec<f64> = (0..=12).map(|i| i as f64 * 5.0).collect();
+        let measured: Vec<f64> = times
+            .iter()
+            .map(|t| 20.0 + 75.0 * (-0.05 * t).exp())
+            .collect();
+        let parameters = ["k".to_string()];
+        let mut req = request(&parameters, &[0.2], &[0.005], &[0.5], &times, &measured);
+        req.max_evaluations = 6;
+        let out = run(
+            &req,
+            |text| Some(cooling_table(overridden_k(text), 20.0, 95.0, &times)),
+            || false,
+        )
+        .expect("fit");
+        // `TooManyEvaluationsException` is not truncation: the budget was the
+        // point, and the best tracked iterate stands.
+        assert!(!out.truncated);
+        assert_eq!(out.evaluations, 7);
+    }
+
+    // -- request validation ------------------------------------------------
+
+    #[test]
+    fn a_request_with_no_parameters_is_refused() {
+        let err = run(
+            &request(&[], &[], &[], &[], &[0.0, 1.0], &[1.0, 2.0]),
+            |_| None,
+            || false,
+        )
+        .unwrap_err();
+        assert!(err
+            .to_string_message()
+            .starts_with("Parameter estimation needs at least one parameter"));
+    }
+
+    #[test]
+    fn infinite_or_crossed_bounds_are_refused() {
+        let parameters = ["k".to_string()];
+        for (lo, hi) in [(f64::NEG_INFINITY, 1.0), (0.0, f64::INFINITY), (1.0, 1.0)] {
+            let err = run(
+                &request(&parameters, &[0.5], &[lo], &[hi], &[0.0, 1.0], &[1.0, 2.0]),
+                |_| None,
+                || false,
+            )
+            .unwrap_err();
+            assert_eq!(
+                err.to_string_message(),
+                "Bounds for k must be finite with lower < upper."
+            );
+        }
+    }
+
+    #[test]
+    fn an_initial_value_outside_its_bounds_is_refused() {
+        let parameters = ["k".to_string()];
+        let err = run(
+            &request(
+                &parameters,
+                &[9.0],
+                &[0.0],
+                &[1.0],
+                &[0.0, 1.0],
+                &[1.0, 2.0],
+            ),
+            |_| None,
+            || false,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string_message(),
+            "The initial value of k lies outside its bounds."
+        );
+    }
+
+    #[test]
+    fn a_measurement_shorter_than_two_samples_is_refused() {
+        let parameters = ["k".to_string()];
+        let err = run(
+            &request(&parameters, &[0.5], &[0.0], &[1.0], &[0.0], &[1.0]),
+            |_| None,
+            || false,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string_message(),
+            "The measured series needs at least two (t, y) samples."
+        );
+    }
+
+    // -- the optimizers ----------------------------------------------------
+
+    /// Runs `brent_minimize` with the `ParameterFit` settings and records every
+    /// point it evaluated, so the trace can be compared with the reference.
+    fn brent_trace(f: impl Fn(f64) -> f64, start: f64) -> (Vec<f64>, f64, f64) {
+        let mut trace = Vec::new();
+        let mut traced = |p: &[f64]| -> std::result::Result<f64, Stop> {
+            trace.push(p[0]);
+            Ok(f(p[0]))
+        };
+        let (point, value) =
+            brent_minimize(&mut traced, 0.0, 1.0, start, 1.0e-8, 1.0e-10).expect("brent");
+        (trace, point, value)
+    }
+
+    #[test]
+    fn oracle_brent_reproduces_the_reference_evaluation_sequence_exactly() {
+        // Commons Math `BrentOptimizer(1e-8, 1e-10)` on `SearchInterval(0, 1, 0.5)`,
+        // minimizing (x - 0.3)^2 + 1. Twenty-one evaluations, captured from a
+        // JVM probe; pure arithmetic, so this comparison is bit-for-bit.
+        let expected: [f64; 21] = [
+            0.5,
+            0.30901699437494745,
+            0.1909830056250526,
+            0.29999999999999993,
+            0.3000000030999999,
+            0.30000000619999995,
+            0.303444189206674,
+            0.3013155670450746,
+            0.3005025057285499,
+            0.30019194394057525,
+            0.30007331989317587,
+            0.30002800953895237,
+            0.3000107025236813,
+            0.30000409183209154,
+            0.30000156677259343,
+            0.30000060228568876,
+            0.3000002338844729,
+            0.3000000931677299,
+            0.3000000394187169,
+            0.30000001888842076,
+            0.30000001104654545,
+        ];
+        let (trace, point, value) = brent_trace(|x| (x - 0.3) * (x - 0.3) + 1.0, 0.5);
+        assert_eq!(trace.len(), expected.len());
+        assert_eq!(trace, expected);
+        assert_eq!(point, 0.29999999999999993);
+        assert_eq!(value, 1.0);
+    }
+
+    #[test]
+    fn oracle_brent_on_a_calibration_shaped_objective() {
+        // The SSE landscape a one-parameter fit actually sees: an exponential
+        // whose rate is the unit-box parameter, compared against a measurement
+        // generated at k = 0.05. Sixteen evaluations in the reference, landing
+        // on u = 0.09090909089177841 (k = 0.05).
+        //
+        // `exp` is the one transcendental here, so the trace is compared to a
+        // tolerance rather than bit-for-bit; the *count* is exact.
+        let expected: [f64; 16] = [
+            0.39,
+            0.6229992668625641,
+            0.24103325561245903,
+            0.14896674438754104,
+            0.09206651122491802,
+            0.056900233162623055,
+            0.10423018689985954,
+            0.08311555640237238,
+            0.09159423093099703,
+            0.09099983282337075,
+            0.09090249618890373,
+            0.0909087010681699,
+            0.09090909521146412,
+            0.09090909089177841,
+            0.09090909190086932,
+            0.0909090898826875,
+        ];
+        let sse = |u: f64| {
+            let k = 0.005 + u * (0.5 - 0.005);
+            (0..=12)
+                .map(|i| {
+                    let t = i as f64 * 5.0;
+                    let model = 20.0 + 75.0 * (-k * t).exp();
+                    let meas = 20.0 + 75.0 * (-0.05 * t).exp();
+                    (model - meas) * (model - meas)
+                })
+                .sum::<f64>()
+        };
+        let (trace, point, _) = brent_trace(sse, 0.39);
+        assert_eq!(trace.len(), expected.len());
+        for (got, want) in trace.iter().zip(expected) {
+            close(*got, want, 1e-9);
+        }
+        close(point, 0.09090909089177841, 1e-12);
+    }
+
+    #[test]
+    fn precision_equals_is_a_one_ulp_test_not_an_identity_test() {
+        let x = 1.0f64;
+        let next = f64::from_bits(x.to_bits() + 1);
+        assert!(precision_equals(x, x));
+        assert!(precision_equals(x, next));
+        assert!(!precision_equals(x, f64::from_bits(x.to_bits() + 2)));
+        assert!(!precision_equals(f64::NAN, f64::NAN));
+        assert!(precision_equals(0.0, -0.0));
+    }
+
+    #[test]
+    fn nelder_mead_stays_inside_the_unit_box() {
+        // The unconstrained minimum sits outside the box, so the search must
+        // stop on the boundary rather than walking out of it.
+        let mut seen_outside = false;
+        let mut f = |p: &[f64]| -> std::result::Result<f64, Stop> {
+            if p.iter().any(|x| *x < 0.0 || *x > 1.0) {
+                seen_outside = true;
+            }
+            Ok((p[0] + 0.5).powi(2) + (p[1] - 0.4).powi(2))
+        };
+        let best = nelder_mead_unit_box(&mut f, &[0.5, 0.5]).expect("simplex");
+        assert!(!seen_outside);
+        close(best[0], 0.0, 1e-4);
+        close(best[1], 0.4, 1e-4);
+    }
+}

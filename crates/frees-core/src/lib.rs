@@ -26,7 +26,9 @@
 
 pub mod analysis;
 pub mod ast;
+pub mod cas;
 pub mod components;
+pub mod control;
 pub mod curvetable;
 pub mod dae;
 pub mod diag;

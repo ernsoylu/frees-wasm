@@ -33,6 +33,16 @@ num-integer = "0.1"
 num-rational = "0.4"
 num-traits = "0.2"
 
+# Phase 10 measurement — ASAM MDF4 reading, replacing Java's mdf4j 0.2.0.
+# MIT, and the only Rust MDF4 crate that genuinely supports wasm32: it
+# `#[cfg]`s the memmap backing store down to a plain `Vec<u8>` on
+# wasm32-unknown-unknown (`parsing/mdf_file.rs`), so `MDF::from_bytes` is a
+# real entry point rather than one that traps on a missing mmap syscall.
+# `default-features = false` keeps its optional `wasm` feature OFF — that
+# feature is a wasm-bindgen layer, and frees-core must never depend on
+# wasm-bindgen (CLAUDE.md). The bindings we need are plain Rust.
+mf4-rs = { version = "3.6", default-features = false }
+
 [profile.release]
 # Size-first, not speed-first. `wasm-pack --release` uses THIS profile (the
 # separate [profile.release-wasm] below was never reachable), and the module is

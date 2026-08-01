@@ -14,10 +14,28 @@ and `LINEARIZE` parse and reach the engine, ODE Tables publish on the wasm
 boundary, and the parity replay compares them. A Rust workspace ports the frees
 engine to WebAssembly. Solve, check, transient integration, real-fluid
 properties, property diagrams, component networks, the component datasheet, the
-language reference, the CAS REPL and the control-systems `CALL`s all run
-in-browser with **zero `/api/` traffic**. Current gate numbers live in
-[`docs/status-phase9.md`](docs/status-phase9.md) — do not trust a count copied
+language reference, the CAS REPL, the control-systems `CALL`s and the Data
+Analyzer's `.mf4` reading all run in-browser with **zero `/api/` traffic**.
+Current gate numbers live in
+[`docs/status-phase10.md`](docs/status-phase10.md) — do not trust a count copied
 into this paragraph.
+
+**Phase 10 is implemented and wired.** `crates/frees-core/src/measurement/`
+(MDF4 reading over `mf4-rs`, sampled series, envelope decimation, raster
+construction, calculated signals) and `crates/frees-wasm/src/measurement.rs`
+replace `/api/measurements/*`, and `web/src/analyzer/measurementApi.ts` now
+calls the worker instead of `fetch`. **A `.mf4` opened in frees never leaves the
+machine** — that is the point of the phase, and it is why the Java's
+`Mf4Parser` → `FallbackMeasurementParser` → Python `mdf-sidecar` ladder collapses
+to one rung. The cost of collapsing it is real and is the first entry in
+[`docs/status-phase10.md`](docs/status-phase10.md)'s gaps list: **compressed
+(`##DZ`) recordings — deflate, ZSTD and LZ4 — are refused, as are VLSD string
+storage and multi-group files.** An OEM recording will probably not open.
+One new dependency, `mf4-rs` 3.6 (MIT), which brings the repo's only
+future-incompat warning (`meval` → `nom 1.2.4`); see that document for the exit.
+The bundle is **2944 KiB against the 3072 KiB budget — green, with 128 KiB of
+headroom**, and `fixtures/measurement/a_small_uncompressed.mf4` must be committed
+with the `.rs` files or the core test build fails.
 
 **Phase 9 is implemented and wired.** The Symja-replacement CAS
 (`crates/frees-core/src/cas/`: exact rational algebra over ℚ, a Zassenhaus
@@ -27,10 +45,13 @@ factoriser, partial fractions, a Laplace transform table, `CasEngine` and
 LQE, PID tuning, time responses, and the 41-name `CALL` flattener) both reach a
 document, the REPL and the browser. Four new dependencies —
 `num-bigint`/`num-integer`/`num-rational`/`num-traits`, all MIT OR Apache-2.0.
-**531/531 fixtures** now match the oracle. Two things to know before building on
+**531/531 fixtures** now match the oracle. One thing to know before building on
 it: **`Integrate` is a closed pattern table, not an integrator**
-(`docs/status-phase9.md` lists the exact boundary), and the **wasm bundle is
-3336 KiB against a 3072 KiB budget — the one red gate.**
+(`docs/status-phase9.md` lists the exact boundary). *Correction:*
+`docs/status-phase9.md` records the bundle as 3336 KiB and "the one red gate" —
+that number is **pre-commit and stale**. The `opt-level = "s"` lever it describes
+as "measured, not taken" was taken in the same commit, and re-measured at HEAD it
+is worth 535 KiB. See `docs/status-phase10.md`'s bundle section.
 
 **Phase 8 is *mostly* not implemented.** `crates/frees-core/src/analysis/` exists
 and is unit-tested, but only **one** of its modules is reachable: `uncertainty`
@@ -45,18 +66,19 @@ pass over Phases 7–8 hardened both surfaces and is written up in
 planning further work.
 
 > **The web test gate needs Node 22.** Under `node v20.x`, `npx vitest run`
-> fails all 36 files in `jsdom`→`undici` (`webidl.util.markAsUncloneable is not
+> fails all 38 files in `jsdom`→`undici` (`webidl.util.markAsUncloneable is not
 > a function`) before running a test. `web/.nvmrc` asks for 22; use it.
 
 | Document | Contents |
 |---|---|
-| [`docs/status-phase9.md`](docs/status-phase9.md) | **Read first.** Phase 9 — the from-scratch CAS and the control-systems suite, wired end to end: what shipped per area, the `O(n⁴)` CAS defect the adversarial sweep found and fixed (a 200-symbol `Expand` went from **256 s to 0.41 s**, and to **103 ms in the browser**), the twelve other attacks that found the bounds already in place, the browser proof, the raw gate numbers, the 31 promoted fixtures — and a ranked list of what Phase 9 did **not** deliver, starting with the exact boundary of `Integrate` and the **264 KiB bundle-budget breach** |
+| [`docs/status-phase10.md`](docs/status-phase10.md) | **Read first.** Phase 10 — measured data in the tab: what shipped per area, the **fifteen** defects three adversarial sweeps found — listed individually so the count is checkable (seven end the session — five allocation aborts and two unbounded walks — two are silent wrong answers, one wedges the worker on an ordinary formula, and five are numeric-parity divergences against a live JDK oracle) — the browser proof against genuine asammdf bytes with **zero `/api/` requests**, the raw gate numbers, the measured `mf4-rs` bundle delta and the `nom 1.2.4` debt with its exit — and a ranked list of what Phase 10 did **not** deliver, starting with the `mdf-sidecar`'s three compressed formats, which now have no answer at all |
+| [`docs/status-phase9.md`](docs/status-phase9.md) | Phase 9 — the from-scratch CAS and the control-systems suite, wired end to end: what shipped per area, the `O(n⁴)` CAS defect the adversarial sweep found and fixed (a 200-symbol `Expand` went from **256 s to 0.41 s**, and to **103 ms in the browser**), the twelve other attacks that found the bounds already in place, the browser proof, the raw gate numbers, the 31 promoted fixtures — and a ranked list of what Phase 9 did **not** deliver, starting with the exact boundary of `Integrate`. **Its bundle section is stale**: the 3336 KiB breach it reports was fixed by the `opt-level = "s"` change in its own commit; see `docs/status-phase10.md` |
 | [`docs/status-phase78.md`](docs/status-phase78.md) | The Phase 7–8 robustness pass: the four defects an adversarial sweep of the transient and analysis surfaces found (two of them process *aborts*, one a silent wrong answer), the guards that close them, the browser proof, the raw gate numbers, and a ranked list of what these phases did **not** deliver — starting with "Phase 8's `analysis/` is not wired to anything" |
 | [`docs/status-phase7.md`](docs/status-phase7.md) | What Phase 7 delivers per area, the raw gate numbers, which 29 fixtures were promoted, and its pending table — **annotated with what Phase 9 closed** — plus the one honest performance finding (`dyn_accessor_live`) |
 | [`docs/status-phase6.md`](docs/status-phase6.md) | What Phase 6 delivers per area, the component-coverage numbers, what the component fuzz found, its gate numbers and fixture counts |
 | [`docs/status-phase5.md`](docs/status-phase5.md) | Phase 5 per area, the measured table-vs-CoolProp error, and its pending-fixture table (annotated with what Phase 6 closed) |
 | [`docs/status-phase4.md`](docs/status-phase4.md) | Phase 4 per area; its pending-fixture table is annotated with what Phase 5 closed |
-| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12, Phase 6 items 13–14, Phase 7 items 15–18, the Phase 7–8 robustness pass items 19–23, the Phase 9 robustness pass items 24–25), plus the Phase 0–3 inventory |
+| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12, Phase 6 items 13–14, Phase 7 items 15–18, the Phase 7–8 robustness pass items 19–23, the Phase 9 robustness pass items 24–25, Phase 10 items 26–30), plus the Phase 0–3 inventory |
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
@@ -76,6 +98,10 @@ cargo test -p frees-core --test cas_control_robustness # the CAS + control fuzz
 cargo test -p frees-core --test dynamics_robustness    # the transient + analysis fuzz
                                        # (run this one in DEBUG too — the stack-overflow
                                        #  defect it found only reproduced unoptimised)
+cargo test -p frees-core --test measurement_robustness # the .mf4 / calc-signal fuzz
+cargo test -p frees-core --test measurement_parity     # measurement vs the JDK oracle
+                                       # (needs fixtures/measurement/a_small_uncompressed.mf4 —
+                                       #  the only binary fixture in the repo)
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
 cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
 cargo fmt --all --check                                 # CI gate

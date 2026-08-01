@@ -1972,6 +1972,21 @@ fn apply_binop(op: BinOp, l: f64, r: f64) -> Result<f64> {
                     "division by zero: 0 raised to the negative power {r}"
                 )));
             }
+            // Java's `^` is `Math.pow`, which is **not** C's `pow`, and the two
+            // disagree on exactly two families: `pow(1, NaN)` and `pow(±1, ±∞)`
+            // are `NaN` in Java and `1` in C. Both invent a value out of a
+            // missing one, so C's answer is not merely a parity difference —
+            // it is a wrong number that looks like a measurement.
+            //
+            // The calc path fixes this at its own `^`
+            // (`measurement::calc::java_pow`), but a formula's *function
+            // arguments* are evaluated here instead, so `abs(b ^ e)` bypassed
+            // that and re-introduced the invented `1.0`. Same rule, second
+            // site. See `tests/measurement_parity.rs::
+            // a_gap_in_the_exponent_stays_a_gap_inside_a_call_argument`.
+            if r.is_nan() || (r.is_infinite() && l.abs() == 1.0) {
+                return Ok(f64::NAN);
+            }
             Ok(libm::pow(l, r))
         }
         // `scalar_equivalent` maps every element-wise operator onto one of the

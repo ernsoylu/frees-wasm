@@ -1,8 +1,33 @@
-// REST client for the backend measurement service (Data Analyzer Phase 3).
-// .mf4 files are uploaded once, indexed server-side, and read back as
-// windowed decimated envelopes — the browser never holds the raw file.
+// Client for the measurement engine, which now runs *in this tab*.
+//
+// The Java tier read .mf4 files server-side because that is where the parser
+// lived: the file was uploaded to /api/measurements, indexed on disk under a
+// TTL, and read back as windowed decimated envelopes. The comment that used to
+// sit here said "the browser never holds the raw file", and treated that as the
+// feature. With the parser compiled to wasm the sentence inverts, and so does
+// the argument: the browser holds the raw file and **nothing else ever does**.
+//
+// That is the better arrangement, and not only because it deletes a round trip.
+// Measurement recordings are test-bench data — vehicle logs, rig runs, customer
+// acceptance traces — and are routinely confidential in a way an equation
+// document is not. Uploading one bought nothing except a parser; now that the
+// parser is here, the upload was pure exposure. A .mf4 opened in this app never
+// leaves the machine, is never written to a server disk, and needs no TTL sweep
+// to prove it was forgotten.
+//
+// What survives from the REST era is the *shape*: the exported functions, their
+// signatures, the Remote*/Calc* DTOs, and MeasurementApiError with its `status`
+// and `payload`. Every other file in analyzer/ imports from here and compiles
+// unchanged. Zero /api/ traffic.
 
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+import {
+  wasmMeasurementCalc,
+  wasmMeasurementChannelWindow,
+  wasmMeasurementClose,
+  wasmMeasurementOpen,
+  type MeasurementEnvelope,
+  type MeasurementErrorBody,
+} from '../wasm/engineClient'
 
 export interface RemoteChannelInfo {
   name: string
@@ -48,25 +73,118 @@ export class MeasurementApiError extends Error {
   }
 }
 
-async function fail(response: Response): Promise<never> {
-  let message = `Measurement request failed (${response.status}).`
-  let payload: Record<string, unknown> | null = null
-  try {
-    const body = await response.json()
-    if (body && typeof body === 'object') payload = body as Record<string, unknown>
-    if (typeof payload?.error === 'string') message = payload.error as string
-  } catch {
-    /* non-JSON error body */
-  }
-  throw new MeasurementApiError(response.status, message, payload)
+/**
+ * Typed error code → the status the REST tier used to answer with.
+ *
+ * These numbers are a **compatibility shim, not HTTP**. Nothing here speaks
+ * HTTP any more; the engine returns `MeasurementError::code()` and a message.
+ * But `status` is load-bearing in code this module does not own —
+ * channelStore.ts treats 404 as "this measurement is gone, mark the entry
+ * evicted and degrade to a re-import placeholder" — so the mapping has to keep
+ * meaning what it meant:
+ *
+ *   CHANNEL_NOT_FOUND       404  the id/group/channel is not there. The only
+ *                                code channelStore branches on.
+ *   RASTER_CAP_EXCEEDED     422  a well-formed request the engine refuses;
+ *   FORMULA_ERROR           422  the user must change something and retry.
+ *   MEASUREMENT_PARSE_FAILED 400 the *input itself* is unusable — an .mf4 this
+ *                                reader cannot decode. Distinct from 422
+ *                                because no edit to the request fixes it; the
+ *                                recording has to be re-exported.
+ *
+ * An unrecognised code gets 500, which no branch special-cases, so a future
+ * variant degrades to "show the message" rather than to a wrong recovery.
+ */
+const STATUS_BY_CODE: Record<string, number> = {
+  MEASUREMENT_PARSE_FAILED: 400,
+  CHANNEL_NOT_FOUND: 404,
+  FORMULA_ERROR: 422,
+  RASTER_CAP_EXCEEDED: 422,
 }
 
+/**
+ * Flattens the boundary's `{code, message, ...extras}` into the payload shape
+ * callers already parse. The Spring controller sent a flat body — `{error,
+ * code, actualPoints, suggestedDt}` — and calc.ts::parseOverCap reads
+ * `payload.code` / `payload.actualPoints` / `payload.suggestedDt` straight off
+ * it, so the nesting the wasm boundary uses is undone here rather than there.
+ */
+function toApiError(error: MeasurementErrorBody): MeasurementApiError {
+  const { code, message, ...extras } = error
+  const text = typeof message === 'string' ? message : 'The measurement engine reported a failure.'
+  const status = (typeof code === 'string' && STATUS_BY_CODE[code]) || 500
+  return new MeasurementApiError(status, text, { ...extras, code, error: text })
+}
+
+/**
+ * The window exactly as the boundary writes it — gaps are still `null`.
+ *
+ * Kept separate from `RemoteWindow` so the difference between the wire and the
+ * app type is stated rather than assumed: everything below converts one into
+ * the other, and `RemoteWindow`'s `number[]` is only true after it has.
+ */
+type WireWindow = Omit<RemoteWindow, 't' | 'v' | 'min' | 'max'> & {
+  t: (number | null)[]
+  v: (number | null)[] | null
+  min: (number | null)[] | null
+  max: (number | null)[] | null
+}
+
+/** Ditto for a calculated signal: a formula over a gap yields a gap. */
+type WireCalcResult = Omit<CalcResultDto, 't' | 'v'> & {
+  t: (number | null)[]
+  v: (number | null)[]
+}
+
+/**
+ * Undoes the boundary's non-finite encoding: `null` back to `NaN`.
+ *
+ * JSON has no `NaN`, and a gap in measured data *is* `NaN` — never an absent
+ * sample — so `finite_or_null` in crates/frees-wasm/src/measurement.rs writes
+ * holes as `null` rather than fabricating a `0`.
+ *
+ * The hole does not survive the trip on its own, and the failure is silent:
+ * `Float64Array.from([1, null])` is `[1, 0]`, and channelStore.ts builds its
+ * columns exactly that way, so an unconverted `null` draws a gap as a **spike
+ * to zero** — the invented data point the encoding exists to prevent. Undoing
+ * it here, at the module that owns the wire types, rather than at each consumer
+ * means `RemoteWindow.t: number[]` is honest: by the time a window leaves this
+ * function there are no `null`s left in it.
+ *
+ * A `null` *array* is a different thing from a `null` element — `v` is absent
+ * on a decimated window, `min`/`max` on an undecimated one — so it stays null.
+ */
+function nanFilled(values: (number | null)[] | null): number[] | null {
+  if (values === null) return null
+  return values.map((value) => (value === null ? NaN : value))
+}
+
+/** Resolves a boundary call to its payload, or throws MeasurementApiError. */
+async function unwrap<T>(pending: Promise<MeasurementEnvelope<T>>): Promise<T> {
+  let envelope: MeasurementEnvelope<T>
+  try {
+    envelope = await pending
+  } catch (e) {
+    // A rejection here is the *worker* failing — script load, an unexpected
+    // wasm trap, an OOM. Call sites only recognise MeasurementApiError, so it
+    // arrives as one, at a status no typed code maps to.
+    throw new MeasurementApiError(500, e instanceof Error ? e.message : String(e))
+  }
+  if (!envelope.ok) throw toApiError(envelope.error)
+  return envelope
+}
+
+/**
+ * Hands a .mf4 to the engine and gets its metadata back.
+ *
+ * Still takes a `File` — SignalBrowser passes one straight from the file
+ * picker. `arrayBuffer()` gives a fresh buffer the engine client then
+ * *transfers* into the worker rather than copying; see engineClient.call for
+ * why that distinction decides whether a large recording opens at all.
+ */
 export async function uploadMeasurement(file: File): Promise<RemoteMeasurement> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await fetch(`${API_BASE}/api/measurements`, { method: 'POST', body: form })
-  if (!response.ok) await fail(response)
-  return (await response.json()) as RemoteMeasurement
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  return unwrap(wasmMeasurementOpen<RemoteMeasurement>(bytes, file.name))
 }
 
 export async function fetchChannelWindow(
@@ -77,14 +195,17 @@ export async function fetchChannelWindow(
   to: number | null,
   maxPoints: number,
 ): Promise<RemoteWindow> {
-  const params = new URLSearchParams({ group: String(group), maxPoints: String(maxPoints) })
-  if (from !== null) params.set('from', String(from))
-  if (to !== null) params.set('to', String(to))
-  const response = await fetch(
-    `${API_BASE}/api/measurements/${id}/channels/${encodeURIComponent(channel)}?${params}`,
-  )
-  if (!response.ok) await fail(response)
-  return (await response.json()) as RemoteWindow
+  // The old query string, transcribed: the field names are the REST parameter
+  // names so the boundary and the route stay legible against each other.
+  const request = JSON.stringify({ measurementId: id, group, channel, from, to, maxPoints })
+  const window = await unwrap(wasmMeasurementChannelWindow<WireWindow>(request))
+  return {
+    ...window,
+    t: nanFilled(window.t) ?? [],
+    v: nanFilled(window.v),
+    min: nanFilled(window.min),
+    max: nanFilled(window.max),
+  }
 }
 
 export interface CalcRequestDto {
@@ -108,43 +229,27 @@ export interface CalcResultDto {
 }
 
 /**
- * Evaluate a calculated signal server-side (Phase 4). Small/call-free
- * formulas answer synchronously; property-function formulas over large
- * rasters come back as 202 + jobId and are polled here (decision 3 — no
- * mid-job cancel in v1, abandoning the poll just leaves the job to its TTL).
+ * Evaluate a calculated signal (Phase 4).
+ *
+ * The REST version had two paths: small formulas answered synchronously, and
+ * call-bearing formulas over large rasters came back 202 + jobId to be polled
+ * against the Redis job store. Both the broker and the store existed only
+ * because compute was remote, so **the polling is gone** — there is no job to
+ * poll, and the worker round-trip already keeps the UI thread free.
+ *
+ * The signature does not change, and deliberately: `async` here is the seam
+ * CLAUDE.md tells the port to preserve, so CalcSignalModal's `await
+ * calcSignal(request)` needs no rewrite and the 202 path can never be missed by
+ * a caller that forgot it existed.
  */
 export async function calcSignal(request: CalcRequestDto): Promise<CalcResultDto> {
-  const response = await fetch(`${API_BASE}/api/measurements/calc`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  })
-  if (response.status === 202) {
-    const ticket = (await response.json()) as { jobId?: string }
-    if (!ticket.jobId) throw new MeasurementApiError(202, 'Job submission did not return a jobId.')
-    return pollCalcJob(ticket.jobId)
-  }
-  if (!response.ok) await fail(response)
-  return (await response.json()) as CalcResultDto
-}
-
-async function pollCalcJob(jobId: string): Promise<CalcResultDto> {
-  const deadline = Date.now() + 5 * 60_000
-  while (Date.now() < deadline) {
-    const response = await fetch(`${API_BASE}/api/jobs/${jobId}`)
-    if (response.status === 404) throw new MeasurementApiError(404, 'Calc job not found (API node restarted?).')
-    if (!response.ok) await fail(response)
-    const state = (await response.json()) as { status: string; result?: CalcResultDto; error?: string }
-    if (state.status === 'COMPLETED' && state.result) return state.result
-    if (state.status === 'FAILED') {
-      throw new MeasurementApiError(422, state.error ?? 'Calculated-signal job failed.')
-    }
-    await new Promise((resolve) => setTimeout(resolve, 400))
-  }
-  throw new MeasurementApiError(408, 'Calculated-signal job timed out after 5 minutes.')
+  const result = await unwrap(wasmMeasurementCalc<WireCalcResult>(JSON.stringify(request)))
+  return { ...result, t: nanFilled(result.t) ?? [], v: nanFilled(result.v) ?? [] }
 }
 
 export function deleteMeasurement(id: string): void {
-  // Fire-and-forget; the backend TTL sweep is the safety net.
-  void fetch(`${API_BASE}/api/measurements/${id}`, { method: 'DELETE' }).catch(() => undefined)
+  // Still fire-and-forget, but the safety net changed: there is no TTL sweep
+  // any more, only the tab closing. Failing to free is a leak inside this page,
+  // not an orphan on someone's disk.
+  void wasmMeasurementClose(id).catch(() => undefined)
 }

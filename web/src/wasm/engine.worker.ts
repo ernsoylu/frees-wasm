@@ -2,14 +2,20 @@
 //
 // Protocol (see engineClient.ts, the only sender):
 //   request  {id, method: 'solve' | 'check' | 'reference' | 'version' |
-//                     'fluids' | 'propertyDiagram' | 'psychrometricChart',
-//             args: string[]}
+//                     'fluids' | 'propertyDiagram' | 'psychrometricChart' |
+//                     'measurementOpen' | …,
+//             args: string[], bytes?: Uint8Array}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
 // `result` is the raw JSON string the wasm boundary emits (a REST-shaped
 // SolveResponse/CheckResponse/LanguageReference; a bare semver string for
 // 'version') — parsing happens on the client side, so the worker only ever
 // posts strings.
+//
+// `bytes` is the one non-string channel, added for `measurementOpen`: a .mf4
+// recording is the only input the engine takes that is megabytes of binary
+// rather than a document. It rides as its own field so the client can hand the
+// backing ArrayBuffer to postMessage's transfer list — see engineClient.call.
 //
 // Failure discipline: nothing may kill the worker. The wasm boundary already
 // returns every *document* problem as data; this dispatch wraps the rest
@@ -18,6 +24,10 @@
 import init, {
   check,
   fluids,
+  measurement_calc,
+  measurement_channel_window,
+  measurement_close,
+  measurement_open,
   property_diagram,
   psychrometric_chart,
   reference,
@@ -39,7 +49,13 @@ export interface EngineRequest {
     | 'psychrometricChart'
     | 'replEvaluate'
     | 'replClear'
+    | 'measurementOpen'
+    | 'measurementChannelWindow'
+    | 'measurementCalc'
+    | 'measurementClose'
   args: string[]
+  /** Raw file bytes; only `measurementOpen` reads it, and it is transferred. */
+  bytes?: Uint8Array
 }
 
 export type EngineResponse =
@@ -69,7 +85,7 @@ ctx.onmessage = (event: MessageEvent<EngineRequest>) => {
 }
 
 const handle = async (event: MessageEvent<EngineRequest>) => {
-  const { id, method, args } = event.data
+  const { id, method, args, bytes } = event.data
   try {
     await ready
     let result: string
@@ -103,6 +119,27 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
         break
       case 'replClear':
         repl_clear(args[0] ?? 'null')
+        result = ''
+        break
+      // The opened file lives in this module for as long as the tab does, so
+      // every measurement call must land on the same worker instance — the
+      // same constraint the REPL has, satisfied the same way.
+      case 'measurementOpen':
+        // No silent empty parse: a missing `bytes` is a caller bug, and a
+        // zero-byte open would surface as a confusing "not an MDF4 file".
+        if (!bytes) throw new Error('measurementOpen requires the file bytes')
+        result = measurement_open(bytes, args[0] ?? '')
+        break
+      case 'measurementChannelWindow':
+        result = measurement_channel_window(args[0] ?? '')
+        break
+      case 'measurementCalc':
+        result = measurement_calc(args[0] ?? '')
+        break
+      // Whatever the boundary answers is discarded, as `repl_clear`'s is:
+      // deleteMeasurement is fire-and-forget, so there is no one left to tell.
+      case 'measurementClose':
+        measurement_close(args[0] ?? '')
         result = ''
         break
       default:

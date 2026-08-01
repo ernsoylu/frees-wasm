@@ -276,10 +276,104 @@ pinned by `crates/frees-core/tests/cas_control_robustness.rs`. Full context in
     and wasm has no timeout to fall back on — but "declined" needs to be
     sayable. (`cas/ops.rs::MAX_POW`, `cas/ops.rs::MAX_APART_DEGREE`)
 
+### Opened by Phase 10 (2026-08-01)
+
+The measurement surface (`crates/frees-core/src/measurement/`,
+`crates/frees-wasm/src/measurement.rs`). Pinned by
+`crates/frees-core/tests/measurement_parity.rs` and
+`crates/frees-core/tests/measurement_robustness.rs`. Full context in
+[`docs/status-phase10.md`](status-phase10.md).
+
+26. **MDF4 format coverage narrows, and the `mdf-sidecar` rung has no
+    successor.** The Java ran `Mf4Parser` (mdf4j, in-process) →
+    `FallbackMeasurementParser` → the Python **`mdf-sidecar`** (asammdf), whose
+    own docstring says it exists for *"DZ-compressed data blocks
+    (deflate/ZSTD/LZ4), the norm for OEM recordings"*. In the browser there is
+    no second process to fall back to. Against `mf4-rs` 3.6 this port **loses**
+    deflate `##DZ` (which mdf4j read), and loses ZSTD/LZ4 `##DZ`, VLSD string
+    storage and unsorted/multi-group data groups (which the sidecar read); it
+    **gains** rational, algebraic and table-lookup conversions over mdf4j's
+    identity + linear. `mf4-rs` has no decompressor anywhere in its dependency
+    tree — verified, its manifest carries no `flate`/`zstd`/`lz4`/`miniz`/`zlib`
+    edge — so closing this means one to three new crates in a bundle with 128 KiB
+    of headroom. **Deliberate, and the single largest functional regression in
+    the port so far.** The refusal happens at `open`, names the remedy
+    (re-export uncompressed) and does not let the user discover it one channel
+    at a time. Also narrowed, and *unproven* rather than deliberate: virtual
+    master channels (`cn_type` 3) are refused, and mdf4j's opaque
+    `isTimeMaster()` does not reveal whether the Java accepted them.
+    (`measurement/mdf4.rs::open`, `check_storage_chain`)
+27. **`movavg` recovers once a non-finite sample leaves its window; the Java's
+    does not.** `TimeSeriesEvaluator.movavg`'s running sum is a one-way door —
+    one `±∞` sample, or two large finite ones, poisons the accumulator and every
+    later point comes back `NaN`. Measured on a 500 000-point channel with one
+    `+∞` at the midpoint, that is 245 998 fabricated gaps over data that is
+    fine. This port tracks the window's `±∞` population with the same
+    add-on-entry/subtract-on-exit bookkeeping as `count` and recomputes once the
+    population reaches zero. **Deliberate**: a gap in a measurement tool is a
+    claim about the instrument, and inventing one is worse than a parity
+    difference. Everything adjacent is *not* changed — `NaN` samples are still
+    skipped rather than propagated, and `integral` still propagates `±∞` the
+    Java way, both pinned. (`measurement/calc.rs::movavg`,
+    `a_moving_average_recovers_over_a_window_of_realistic_width`)
+28. **Ragged and degenerate inputs answer where the Java throws.** Three sites,
+    one reason: the wasm release profile is `panic = "abort"`, so a throw takes
+    the whole module — and with it the recording the user was promised would
+    never leave the tab. (a) Mismatched `t`/`v` lengths: Java throws
+    `ArrayIndexOutOfBoundsException`, this port treats the series as its common
+    prefix. (b) A degenerate or out-of-range `min_max` window: Java throws, and
+    for `i1 < i0` its midpoint index is `(-1) >>> 1` = 2³¹−1; here the range is
+    clamped into the data and a degenerate range returns an empty `Envelope`.
+    (c) `raster::fixed` over an infinite span: Java's
+    `(long) Math.floor(inf) + 1` overflows to `Long.MIN_VALUE` and it silently
+    returns an **empty** raster (and `fixed(inf, inf, 1, 100)` returns
+    `[Infinity]`); here both are refused. **Deliberate.** One preserved blind
+    spot, kept so all three implementations stay bucket-for-bucket identical: a
+    decimation bucket whose samples are all `+∞` reports as a gap, because `+∞`
+    is the "nothing seen" sentinel — Java and the frontend's `decimate.ts` share
+    this, and it is pinned rather than fixed.
+    (`measurement/series.rs::at`, `measurement/decimate.rs::min_max`,
+    `measurement/raster.rs::fixed`)
+29. **Six structural ceilings exist here that have no Java analogue, because the
+    Java's equivalents were a server and a JVM.** mdf4j memory-mapped the file
+    and streamed records (its own spike test asserts <60 MB of heap on a 100 MB
+    file); a browser has bytes, not a file, so the whole recording plus its
+    decoded `f64` columns is held. `MAX_RECORDS` (16.7 M samples = 256 MiB per
+    channel), `MAX_BLOCKS`, `RETAINED_BYTES_BUDGET` (512 MiB across all open
+    files, LRU-evicted), `MAX_FORMULA_NODES` (1024),
+    `MAX_SYNTHETIC_SAMPLES` and `MAX_INPUT_COLUMN_SAMPLES` (128 MiB each)
+    replace them. The formula-width bound is the sharpest divergence of the six:
+    `TimeSeriesEvaluator` has none, and a shallow enormous formula measured
+    **51 s** to evaluate over a million-point raster and **781 MB** of synthetic
+    columns from 14 kB of text. **Deliberate.** *Note the shape, because it is
+    the same one as item 23: the Java's input validation lived in its
+    controllers, and a port that deletes the controllers must put it somewhere.*
+    Three of these six were also found to be **stated in the wrong unit** — a
+    file could satisfy them and still cost unbounded time or memory — and that
+    is what the robustness sweep fixed, not the ceilings themselves.
+30. **The boundary refuses three things the Java quietly accepted.** An
+    unrecognised interpolation mode is refused by name rather than defaulted to
+    `linear`; two inputs whose names collide only by case are refused rather
+    than one silently dropping the other (variable names are case-insensitive,
+    so `X` and `x` are one binding); and a text-declared channel stays text
+    rather than being sniffed into a number. An inverted window range returns an
+    empty window rather than throwing, which is the item-28 reason again.
+    **Deliberate.** (`crates/frees-wasm/src/measurement.rs`)
+
+**One divergence *closed* by this pass, engine-wide and worth flagging because
+it changes documents too.** `^` was C's `pow`, which answers `1` for
+`pow(1, NaN)` and `pow(±1, ±∞)` where Java's `Math.pow` answers `NaN`. Found in
+the calc tree, fixed there, then found *again* inside function-call arguments —
+which are not compiled and go to the document evaluator instead. The second fix
+is in `eval.rs::apply_binop`, so **every** frees document now answers `NaN` for
+`1^NaN` and `1^inf` where it previously answered `1`, which is what
+`ast/Evaluator` has always done. No corpus fixture changed. Two sites, one rule;
+both pinned in `measurement_parity.rs`.
+
 Full detail: workflow output `wk1ueuu8a` findings list (items 1–12); Phase 6's
 items are recorded in `docs/status-phase6.md`, Phase 7's in
-`docs/status-phase7.md`, items 19–23 in `docs/status-phase78.md`, and items
-24–25 in `docs/status-phase9.md`.
+`docs/status-phase7.md`, items 19–23 in `docs/status-phase78.md`, items
+24–25 in `docs/status-phase9.md`, and items 26–30 in `docs/status-phase10.md`.
 
 ## Commands
 

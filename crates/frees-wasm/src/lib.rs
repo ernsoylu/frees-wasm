@@ -35,7 +35,14 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use wasm_bindgen::prelude::*;
 
+mod measurement;
 mod repl;
+
+// The four measurement entry points live in their own module; re-exported so
+// the crate's Rust-side surface is flat, as it is for everything else here.
+pub use measurement::{
+    measurement_calc, measurement_channel_window, measurement_close, measurement_open,
+};
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
 /// Rust backtrace instead of `unreachable executed`, and decode the linked

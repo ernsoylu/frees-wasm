@@ -1,0 +1,12 @@
+A[1,1] = 0; A[1,2] = 1
+A[2,1] = -2; A[2,2] = -3
+G[1,1] = 1; G[2,1] = 0
+C[1,1] = 1; C[1,2] = 0
+Qn[1,1] = 1
+Rn[1,1] = 0.1
+[L] = lqe(A, G, C, Qn, Rn)
+np = [1]
+dp = [1, 1, 0]
+wc = 1
+[Kp, Ki, Kd] = pidtune(np, dp, 'PID', wc)
+[Kp2, Ki2, Kd2] = pidtune(np, dp, 'PI', wc)

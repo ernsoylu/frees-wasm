@@ -9,6 +9,10 @@ description = "The frees equation-solving engine — target-agnostic (native + w
 [dependencies]
 petgraph = { workspace = true }
 libm = { workspace = true }
+num-bigint = { workspace = true }
+num-integer = { workspace = true }
+num-rational = { workspace = true }
+num-traits = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [features]

@@ -768,11 +768,22 @@ fn a_call_statement_is_refused_rather_than_dropped() {
     );
 
     // A CALL naming an intrinsic the port has not reached keeps the explicit
-    // not-yet-supported refusal.
-    let err = failed("[a, b] = tf2ss(num, den)\nnum = 1\nden = 2\n");
+    // not-yet-supported refusal. Phase 9 wired the whole control-systems
+    // suite, so the four eigen/Euler decompositions are what is left.
+    let err = failed("[a, b] = eigen(m)\nm = 1\n");
     let text = message(&err);
-    assert!(text.contains("tf2ss"), "{text}");
+    assert!(text.contains("eigen"), "{text}");
     assert!(text.contains("not yet supported"), "{text}");
+}
+
+/// Phase 9: the control-systems `CALL` suite reaches its flattener and its
+/// kernel. `routh(den)` on `s^3 + s^2 + 2s + 8` reports two right-half-plane
+/// roots — the Java oracle's answer for `fixtures/golden/routh-stability`.
+#[test]
+fn a_control_systems_call_flattens_and_evaluates() {
+    let solution = solved("den = [1, 1, 2, 8]\n[nRHP, stable] = routh(den)\n");
+    assert_near(get(&solution, "nrhp"), 2.0);
+    assert_near(get(&solution, "stable"), 0.0);
 }
 
 // ---------------------------------------------------------------------------

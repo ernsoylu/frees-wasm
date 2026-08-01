@@ -450,6 +450,595 @@ pub fn svd_s_matrix(a: &Mat) -> Result<Mat> {
 }
 
 // ---------------------------------------------------------------------------
+// Inverse, general solve, pseudo-inverse
+// ---------------------------------------------------------------------------
+
+/// Solve `A·X = B` by LU with partial pivoting — the Commons Math
+/// `LUDecomposition.getSolver().solve(B)` semantics, including the `1e-11`
+/// singularity threshold (a singular `A` is an error, not a pseudo-solve).
+///
+/// Added in Phase 9: the control-design suite (`crate::control::design`)
+/// needs a general dense solve, which the Phase-4 kernels only had privately.
+pub fn solve(a: &Mat, b: &Mat) -> Result<Mat> {
+    lu_solve(a, b)
+}
+
+/// Matrix inverse via LU — Commons Math `MatrixUtils.inverse(m)`, which is
+/// `new LUDecomposition(m).getSolver().getInverse()`.
+pub fn inverse(a: &Mat) -> Result<Mat> {
+    let n = check_square(a, "inverse")?;
+    lu_solve(a, &identity(n))
+}
+
+/// Moore–Penrose pseudo-inverse via the SVD — Commons Math
+/// `SingularValueDecomposition.getSolver().getInverse()`, including its
+/// cut-off `tol = max(m, n) · s₀ · eps` below which a singular value is
+/// treated as zero.
+///
+/// The Java `ControllerDesign.lyap`/`dlyap`/`dare` fall back to this solver
+/// whenever the LU decomposition reports the Kronecker system singular.
+pub fn pinv(a: &Mat) -> Result<Mat> {
+    let (m, n) = check_rect(a, "pseudo-inverse")?;
+    let f = svd(a)?;
+    let tol = (m.max(n) as f64) * f.s[0] * 2.220446049250313e-16;
+    // pinv = V · diag(1/sᵢ) · Uᵀ, dropping the directions at or below `tol`.
+    let p = f.s.len();
+    let mut out = vec![vec![0.0; m]; n];
+    for i in 0..n {
+        for j in 0..m {
+            let mut sum = 0.0;
+            for k in 0..p {
+                if f.s[k] > tol {
+                    sum += f.v[i][k] * f.u[j][k] / f.s[k];
+                }
+            }
+            out[i][j] = sum;
+        }
+    }
+    Ok(out)
+}
+
+/// Solve `A·X = B` with LU, falling back to the SVD pseudo-inverse when `A`
+/// is singular. Mirrors the Java pattern
+/// `LUDecomposition(...).getSolver()`, `if (!isNonSingular()) SingularValueDecomposition(...)`.
+pub fn solve_or_pinv(a: &Mat, b: &Mat) -> Result<Mat> {
+    match lu_solve(a, b) {
+        Ok(x) => Ok(x),
+        Err(_) => Ok(mat_mul(&pinv(a)?, b)),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Eigen-decomposition of a general real matrix
+// ---------------------------------------------------------------------------
+
+/// Eigenvalues and eigenvectors of a **general** (not necessarily symmetric)
+/// real matrix.
+///
+/// The layout is the EISPACK / Commons Math one: a complex conjugate pair
+/// occupies two consecutive slots `j`, `j+1` with `im[j] > 0`, `im[j+1] < 0`,
+/// and columns `j`, `j+1` of [`Eigen::v`] hold the **real** and **imaginary**
+/// parts of the common eigenvector. Real eigenvalues carry `im = 0` and an
+/// ordinary real column.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Eigen {
+    /// Real parts of the eigenvalues, in real-Schur diagonal order.
+    pub re: Vec<f64>,
+    /// Imaginary parts; `0.0` for a real eigenvalue.
+    pub im: Vec<f64>,
+    /// Eigenvector matrix (n×n), columns aligned with `re`/`im`. Not
+    /// normalised — Commons Math does not normalise this path either.
+    pub v: Mat,
+}
+
+/// Commons Math `SchurTransformer.MAX_ITERATIONS`: the QR sweep gives up
+/// rather than spinning. JAMA's `hqr2`, which this transcribes, has no cap at
+/// all; in a browser an unbounded loop is not a debugging inconvenience but a
+/// hung tab, so the Commons Math bound is the one that ships.
+const SCHUR_MAX_ITERATIONS: usize = 100;
+
+/// Eigen-decomposition of a general real matrix: Householder reduction to
+/// upper Hessenberg form (`orthes`) followed by the Francis double-shift QR
+/// iteration with eigenvector back-substitution (`hqr2`).
+///
+/// This is the algorithm behind Commons Math's `EigenDecomposition` for a
+/// non-symmetric input (`HessenbergTransformer` + `SchurTransformer` +
+/// `findEigenVectors`), so eigenvalue **order** — which the Java's
+/// `PolynomialHelpers.roots` and `ControllerDesign.dare` inherit — matches in
+/// the cases that matter.
+///
+/// # Divergence
+///
+/// Commons Math tests the input for symmetry first and, when it is symmetric,
+/// takes a tridiagonal QL path that additionally **sorts the eigenvalues in
+/// decreasing order** and returns orthonormal vectors. That branch is not
+/// reproduced *here*: a symmetric input goes through the general path, so the
+/// values agree but the vector scaling need not.
+/// [`crate::control::tf::eigenvalues`] re-applies the decreasing sort on top.
+///
+/// # Non-finite input
+///
+/// A matrix containing a NaN or an infinity is **refused**. The Java reaches
+/// the same observable outcome by a longer road — Commons Math's QR sweep
+/// simply never converges and throws
+/// `MaxCountExceededException: illegal state: convergence failed`, which
+/// `PolynomialHelpers.roots` rewraps — but the failure has to be *detected*
+/// rather than hoped for: every deflation test on a NaN compares false, so the
+/// iteration can also terminate early and hand back a finite-looking answer
+/// that is entirely fictitious. Measured on `rlocus(num, den, 2)`, whose
+/// `(i−1)/(M−2)` gain schedule divides `0/0`: the Java throws, and an
+/// unguarded transcription of this kernel returns poles at `−1, −1`.
+pub fn eigen(a: &Mat) -> Result<Eigen> {
+    let n = check_square(a, "eigen")?;
+    if a.iter().flatten().any(|v| !v.is_finite()) {
+        return Err(err(
+            "eigen: the matrix contains a non-finite entry, so no eigenvalue \
+             can be computed",
+        ));
+    }
+    let mut h = a.clone();
+    let mut v = identity(n);
+    orthes(&mut h, &mut v, n);
+    let (re, im) = hqr2(&mut h, &mut v, n)?;
+    Ok(Eigen { re, im, v })
+}
+
+/// Householder reduction of `h` to upper Hessenberg form, accumulating the
+/// orthogonal transform into `v`. Port of the EISPACK `orthes`/`ortran` pair.
+fn orthes(h: &mut Mat, v: &mut Mat, n: usize) {
+    let high = n.saturating_sub(1);
+    let mut ort = vec![0.0; n];
+    for m in 1..high {
+        // Scale the column below the diagonal.
+        let mut scale = 0.0;
+        for i in m..=high {
+            scale += h[i][m - 1].abs();
+        }
+        if scale == 0.0 {
+            continue;
+        }
+        // The Householder vector, built from the bottom up as EISPACK does.
+        let mut hh = 0.0;
+        for i in (m..=high).rev() {
+            ort[i] = h[i][m - 1] / scale;
+            hh += ort[i] * ort[i];
+        }
+        let mut g = hh.sqrt();
+        if ort[m] > 0.0 {
+            g = -g;
+        }
+        hh -= ort[m] * g;
+        ort[m] -= g;
+
+        // H := (I - u u'/h) H (I - u u'/h)
+        for j in m..n {
+            let mut f = 0.0;
+            for i in (m..=high).rev() {
+                f += ort[i] * h[i][j];
+            }
+            f /= hh;
+            for i in m..=high {
+                h[i][j] -= f * ort[i];
+            }
+        }
+        for i in 0..=high {
+            let mut f = 0.0;
+            for j in (m..=high).rev() {
+                f += ort[j] * h[i][j];
+            }
+            f /= hh;
+            for j in m..=high {
+                h[i][j] -= f * ort[j];
+            }
+        }
+        ort[m] *= scale;
+        h[m][m - 1] = scale * g;
+    }
+
+    // Accumulate the reflectors into V (`ortran`), last minor first.
+    for m in (1..high).rev() {
+        if h[m][m - 1] == 0.0 {
+            continue;
+        }
+        for i in (m + 1)..=high {
+            ort[i] = h[i][m - 1];
+        }
+        for j in m..=high {
+            let mut g = 0.0;
+            for i in m..=high {
+                g += ort[i] * v[i][j];
+            }
+            // The double division is EISPACK's underflow guard; keep it.
+            g = (g / ort[m]) / h[m][m - 1];
+            for i in m..=high {
+                v[i][j] += g * ort[i];
+            }
+        }
+    }
+}
+
+/// Complex division `(xr + i·xi) / (yr + i·yi)`, EISPACK's `cdiv` — scaled by
+/// the larger denominator part so the intermediate does not overflow.
+fn cdiv(xr: f64, xi: f64, yr: f64, yi: f64) -> (f64, f64) {
+    if yr.abs() > yi.abs() {
+        let r = yi / yr;
+        let d = yr + r * yi;
+        ((xr + r * xi) / d, (xi - r * xr) / d)
+    } else {
+        let r = yr / yi;
+        let d = yi + r * yr;
+        ((r * xr + xi) / d, (r * xi - xr) / d)
+    }
+}
+
+/// Francis double-shift QR on the Hessenberg matrix `h`, accumulating into
+/// `v`, then back-substitution for the eigenvectors. Port of EISPACK `hqr2`
+/// (the algorithm Commons Math's `SchurTransformer` +
+/// `EigenDecomposition.findEigenVectors` implement).
+#[allow(clippy::too_many_lines)]
+fn hqr2(h: &mut Mat, v: &mut Mat, nn: usize) -> Result<(Vec<f64>, Vec<f64>)> {
+    let mut d = vec![0.0; nn];
+    let mut e = vec![0.0; nn];
+    let eps = f64::EPSILON / 2.0; // 2^-53 * 2 = 2^-52, EISPACK's `eps`
+    let mut exshift = 0.0;
+    let (mut p, mut q, mut r, mut s, mut z) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    let (mut t, mut w, mut x, mut y);
+
+    // Matrix norm over the Hessenberg band.
+    let mut norm = 0.0;
+    for i in 0..nn {
+        for j in i.saturating_sub(1)..nn {
+            norm += h[i][j].abs();
+        }
+    }
+
+    let mut iter = 0usize;
+    let mut n = nn as isize - 1;
+    while n >= 0 {
+        let nu = n as usize;
+        // Look for a single small sub-diagonal element.
+        let mut l = n;
+        while l > 0 {
+            let lu = l as usize;
+            s = h[lu - 1][lu - 1].abs() + h[lu][lu].abs();
+            if s == 0.0 {
+                s = norm;
+            }
+            if h[lu][lu - 1].abs() < eps * s {
+                break;
+            }
+            l -= 1;
+        }
+
+        if l == n {
+            // One root found.
+            h[nu][nu] += exshift;
+            d[nu] = h[nu][nu];
+            e[nu] = 0.0;
+            n -= 1;
+            iter = 0;
+        } else if l == n - 1 {
+            // Two roots found.
+            w = h[nu][nu - 1] * h[nu - 1][nu];
+            p = (h[nu - 1][nu - 1] - h[nu][nu]) / 2.0;
+            q = p * p + w;
+            z = q.abs().sqrt();
+            h[nu][nu] += exshift;
+            h[nu - 1][nu - 1] += exshift;
+            x = h[nu][nu];
+
+            if q >= 0.0 {
+                // Real pair.
+                z = if p >= 0.0 { p + z } else { p - z };
+                d[nu - 1] = x + z;
+                d[nu] = d[nu - 1];
+                if z != 0.0 {
+                    d[nu] = x - w / z;
+                }
+                e[nu - 1] = 0.0;
+                e[nu] = 0.0;
+                x = h[nu][nu - 1];
+                s = x.abs() + z.abs();
+                p = x / s;
+                q = z / s;
+                r = (p * p + q * q).sqrt();
+                p /= r;
+                q /= r;
+
+                for j in (nu - 1)..nn {
+                    z = h[nu - 1][j];
+                    h[nu - 1][j] = q * z + p * h[nu][j];
+                    h[nu][j] = q * h[nu][j] - p * z;
+                }
+                for i in 0..=nu {
+                    z = h[i][nu - 1];
+                    h[i][nu - 1] = q * z + p * h[i][nu];
+                    h[i][nu] = q * h[i][nu] - p * z;
+                }
+                for i in 0..nn {
+                    z = v[i][nu - 1];
+                    v[i][nu - 1] = q * z + p * v[i][nu];
+                    v[i][nu] = q * v[i][nu] - p * z;
+                }
+            } else {
+                // Complex pair.
+                d[nu - 1] = x + p;
+                d[nu] = x + p;
+                e[nu - 1] = z;
+                e[nu] = -z;
+            }
+            n -= 2;
+            iter = 0;
+        } else {
+            // No convergence yet — form the shift.
+            x = h[nu][nu];
+            y = 0.0;
+            w = 0.0;
+            if l < n {
+                y = h[nu - 1][nu - 1];
+                w = h[nu][nu - 1] * h[nu - 1][nu];
+            }
+
+            // Wilkinson's original ad-hoc shift.
+            if iter == 10 {
+                exshift += x;
+                for i in 0..=nu {
+                    h[i][i] -= x;
+                }
+                s = h[nu][nu - 1].abs() + h[nu - 1][nu - 2].abs();
+                x = 0.75 * s;
+                y = x;
+                w = -0.4375 * s * s;
+            }
+            // MATLAB's later ad-hoc shift.
+            if iter == 30 {
+                s = (y - x) / 2.0;
+                s = s * s + w;
+                if s > 0.0 {
+                    s = s.sqrt();
+                    if y < x {
+                        s = -s;
+                    }
+                    s = x - w / ((y - x) / 2.0 + s);
+                    for i in 0..=nu {
+                        h[i][i] -= s;
+                    }
+                    exshift += s;
+                    x = 0.964;
+                    y = 0.964;
+                    w = 0.964;
+                }
+            }
+            iter += 1;
+            if iter > SCHUR_MAX_ITERATIONS {
+                return Err(err(
+                    "eigen: the QR iteration did not converge (matrix too ill-conditioned)",
+                ));
+            }
+
+            // Look for two consecutive small sub-diagonal elements.
+            let mut m = n - 2;
+            while m >= l {
+                let mu = m as usize;
+                z = h[mu][mu];
+                r = x - z;
+                s = y - z;
+                p = (r * s - w) / h[mu + 1][mu] + h[mu][mu + 1];
+                q = h[mu + 1][mu + 1] - z - r - s;
+                r = h[mu + 2][mu + 1];
+                s = p.abs() + q.abs() + r.abs();
+                p /= s;
+                q /= s;
+                r /= s;
+                if m == l {
+                    break;
+                }
+                if h[mu][mu - 1].abs() * (q.abs() + r.abs())
+                    < eps
+                        * (p.abs() * (h[mu - 1][mu - 1].abs() + z.abs() + h[mu + 1][mu + 1].abs()))
+                {
+                    break;
+                }
+                m -= 1;
+            }
+            let mu = m as usize;
+            for i in (mu + 2)..=nu {
+                h[i][i - 2] = 0.0;
+                if i > mu + 2 {
+                    h[i][i - 3] = 0.0;
+                }
+            }
+
+            // The double QR step over rows l..n and columns m..n.
+            for k in mu..nu {
+                let notlast = k != nu - 1;
+                if k != mu {
+                    p = h[k][k - 1];
+                    q = h[k + 1][k - 1];
+                    r = if notlast { h[k + 2][k - 1] } else { 0.0 };
+                    x = p.abs() + q.abs() + r.abs();
+                    if x == 0.0 {
+                        continue;
+                    }
+                    p /= x;
+                    q /= x;
+                    r /= x;
+                }
+                s = (p * p + q * q + r * r).sqrt();
+                if p < 0.0 {
+                    s = -s;
+                }
+                if s == 0.0 {
+                    continue;
+                }
+                if k != mu {
+                    h[k][k - 1] = -s * x;
+                } else if l != m {
+                    h[k][k - 1] = -h[k][k - 1];
+                }
+                p += s;
+                x = p / s;
+                y = q / s;
+                z = r / s;
+                q /= p;
+                r /= p;
+
+                for j in k..nn {
+                    p = h[k][j] + q * h[k + 1][j];
+                    if notlast {
+                        p += r * h[k + 2][j];
+                        h[k + 2][j] -= p * z;
+                    }
+                    h[k][j] -= p * x;
+                    h[k + 1][j] -= p * y;
+                }
+                for i in 0..=nu.min(k + 3) {
+                    p = x * h[i][k] + y * h[i][k + 1];
+                    if notlast {
+                        p += z * h[i][k + 2];
+                        h[i][k + 2] -= p * r;
+                    }
+                    h[i][k] -= p;
+                    h[i][k + 1] -= p * q;
+                }
+                for i in 0..nn {
+                    p = x * v[i][k] + y * v[i][k + 1];
+                    if notlast {
+                        p += z * v[i][k + 2];
+                        v[i][k + 2] -= p * r;
+                    }
+                    v[i][k] -= p;
+                    v[i][k + 1] -= p * q;
+                }
+            }
+        }
+    }
+
+    // Back-substitute for the vectors of the quasi-triangular form.
+    if norm == 0.0 {
+        return Ok((d, e));
+    }
+    for nb in (0..nn).rev() {
+        p = d[nb];
+        q = e[nb];
+        if q == 0.0 {
+            // Real vector.
+            let mut l = nb;
+            h[nb][nb] = 1.0;
+            for i in (0..nb).rev() {
+                w = h[i][i] - p;
+                r = 0.0;
+                for j in l..=nb {
+                    r += h[i][j] * h[j][nb];
+                }
+                if e[i] < 0.0 {
+                    z = w;
+                    s = r;
+                    continue;
+                }
+                l = i;
+                if e[i] == 0.0 {
+                    h[i][nb] = if w != 0.0 { -r / w } else { -r / (eps * norm) };
+                } else {
+                    // Solve the 2×2 real system.
+                    x = h[i][i + 1];
+                    y = h[i + 1][i];
+                    q = (d[i] - p) * (d[i] - p) + e[i] * e[i];
+                    t = (x * s - z * r) / q;
+                    h[i][nb] = t;
+                    h[i + 1][nb] = if x.abs() > z.abs() {
+                        (-r - w * t) / x
+                    } else {
+                        (-s - y * t) / z
+                    };
+                }
+                // Overflow control.
+                t = h[i][nb].abs();
+                if (eps * t) * t > 1.0 {
+                    for j in i..=nb {
+                        h[j][nb] /= t;
+                    }
+                }
+            }
+        } else if q < 0.0 {
+            // Complex vector; `nb` is the second (negative-imaginary) slot.
+            let mut l = nb - 1;
+            if h[nb][nb - 1].abs() > h[nb - 1][nb].abs() {
+                h[nb - 1][nb - 1] = q / h[nb][nb - 1];
+                h[nb - 1][nb] = -(h[nb][nb] - p) / h[nb][nb - 1];
+            } else {
+                let (cr, ci) = cdiv(0.0, -h[nb - 1][nb], h[nb - 1][nb - 1] - p, q);
+                h[nb - 1][nb - 1] = cr;
+                h[nb - 1][nb] = ci;
+            }
+            h[nb][nb - 1] = 0.0;
+            h[nb][nb] = 1.0;
+            for i in (0..nb.saturating_sub(1)).rev() {
+                let mut ra = 0.0;
+                let mut sa = 0.0;
+                for j in l..=nb {
+                    ra += h[i][j] * h[j][nb - 1];
+                    sa += h[i][j] * h[j][nb];
+                }
+                w = h[i][i] - p;
+                if e[i] < 0.0 {
+                    z = w;
+                    r = ra;
+                    s = sa;
+                    continue;
+                }
+                l = i;
+                if e[i] == 0.0 {
+                    let (cr, ci) = cdiv(-ra, -sa, w, q);
+                    h[i][nb - 1] = cr;
+                    h[i][nb] = ci;
+                } else {
+                    // Solve the 2×2 complex system.
+                    x = h[i][i + 1];
+                    y = h[i + 1][i];
+                    let mut vr = (d[i] - p) * (d[i] - p) + e[i] * e[i] - q * q;
+                    let vi = (d[i] - p) * 2.0 * q;
+                    if vr == 0.0 && vi == 0.0 {
+                        vr = eps * norm * (w.abs() + q.abs() + x.abs() + y.abs() + z.abs());
+                    }
+                    let (cr, ci) = cdiv(x * r - z * ra + q * sa, x * s - z * sa - q * ra, vr, vi);
+                    h[i][nb - 1] = cr;
+                    h[i][nb] = ci;
+                    if x.abs() > z.abs() + q.abs() {
+                        h[i + 1][nb - 1] = (-ra - w * h[i][nb - 1] + q * h[i][nb]) / x;
+                        h[i + 1][nb] = (-sa - w * h[i][nb] - q * h[i][nb - 1]) / x;
+                    } else {
+                        let (cr2, ci2) = cdiv(-r - y * h[i][nb - 1], -s - y * h[i][nb], z, q);
+                        h[i + 1][nb - 1] = cr2;
+                        h[i + 1][nb] = ci2;
+                    }
+                }
+                // Overflow control.
+                t = h[i][nb - 1].abs().max(h[i][nb].abs());
+                if (eps * t) * t > 1.0 {
+                    for j in i..=nb {
+                        h[j][nb - 1] /= t;
+                        h[j][nb] /= t;
+                    }
+                }
+            }
+        }
+    }
+
+    // Back-transform to the eigenvectors of the original matrix.
+    for j in (0..nn).rev() {
+        for i in 0..nn {
+            let mut acc = 0.0;
+            for k in 0..=j {
+                acc += v[i][k] * h[k][j];
+            }
+            v[i][j] = acc;
+        }
+    }
+    Ok((d, e))
+}
+
+// ---------------------------------------------------------------------------
 // The synthetic `$`-intrinsic dispatcher
 // ---------------------------------------------------------------------------
 
@@ -532,7 +1121,8 @@ fn check_rect(a: &Mat, what: &str) -> Result<(usize, usize)> {
     Ok((m, n))
 }
 
-fn identity(n: usize) -> Mat {
+/// The n×n identity.
+pub fn identity(n: usize) -> Mat {
     let mut m = vec![vec![0.0; n]; n];
     for (i, row) in m.iter_mut().enumerate() {
         row[i] = 1.0;
@@ -540,30 +1130,48 @@ fn identity(n: usize) -> Mat {
     m
 }
 
-fn scal_mat(a: &Mat, factor: f64) -> Mat {
+/// `factor · A`.
+pub fn scal_mat(a: &Mat, factor: f64) -> Mat {
     a.iter()
         .map(|row| row.iter().map(|v| v * factor).collect())
         .collect()
 }
 
-fn add(a: &Mat, b: &Mat) -> Mat {
+/// `A + B` (same shape).
+pub fn add(a: &Mat, b: &Mat) -> Mat {
     a.iter()
         .zip(b)
         .map(|(ra, rb)| ra.iter().zip(rb).map(|(x, y)| x + y).collect())
         .collect()
 }
 
-fn sub(a: &Mat, b: &Mat) -> Mat {
+/// `A − B` (same shape).
+pub fn sub(a: &Mat, b: &Mat) -> Mat {
     a.iter()
         .zip(b)
         .map(|(ra, rb)| ra.iter().zip(rb).map(|(x, y)| x - y).collect())
         .collect()
 }
 
-fn mat_mul(a: &Mat, b: &Mat) -> Mat {
+/// `Aᵀ`.
+pub fn transpose(a: &Mat) -> Mat {
+    if a.is_empty() || a[0].is_empty() {
+        return Vec::new();
+    }
+    let (m, n) = (a.len(), a[0].len());
+    (0..n).map(|j| (0..m).map(|i| a[i][j]).collect()).collect()
+}
+
+/// `A · B`.
+///
+/// A degenerate operand (no rows, or rows of width zero) yields a matrix with
+/// the corresponding dimension zero rather than a panic — the state-space
+/// interconnections in `crate::control::design` legitimately build blocks for
+/// a subsystem with no states, and an index panic there is a wasm abort.
+pub fn mat_mul(a: &Mat, b: &Mat) -> Mat {
     let rows = a.len();
     let inner = b.len();
-    let cols = b[0].len();
+    let cols = if inner == 0 { 0 } else { b[0].len() };
     let mut out = vec![vec![0.0; cols]; rows];
     for i in 0..rows {
         for k in 0..inner {
@@ -859,5 +1467,165 @@ mod tests {
     #[test]
     fn eval_intrinsic_rejects_wrong_entry_count() {
         assert!(eval_intrinsic("det$2", &[1.0, 2.0, 3.0]).unwrap().is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase-9 additions: inverse / solve / pinv / eigen
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn inverse_reproduces_the_identity_and_refuses_a_singular_matrix() {
+        let a = vec![vec![4.0, 7.0], vec![2.0, 6.0]];
+        let inv = inverse(&a).unwrap();
+        assert_mat_eq(&inv, &[&[0.6, -0.7], &[-0.2, 0.4]], 1e-12);
+        assert_mat_eq(&mat_mul(&a, &inv), &[&[1.0, 0.0], &[0.0, 1.0]], 1e-12);
+        assert!(inverse(&vec![vec![1.0, 2.0], vec![2.0, 4.0]]).is_err());
+    }
+
+    #[test]
+    fn solve_answers_a_known_system() {
+        // [[2,1],[1,3]] x = [[5],[10]]  ->  x = [1, 3]
+        let x = solve(
+            &vec![vec![2.0, 1.0], vec![1.0, 3.0]],
+            &vec![vec![5.0], vec![10.0]],
+        )
+        .unwrap();
+        assert_mat_eq(&x, &[&[1.0], &[3.0]], 1e-12);
+    }
+
+    #[test]
+    fn pinv_satisfies_the_moore_penrose_identity_on_a_rank_deficient_matrix() {
+        let a = vec![vec![1.0, 2.0], vec![2.0, 4.0]];
+        let p = pinv(&a).unwrap();
+        // A A⁺ A = A is the defining property that survives rank deficiency.
+        let back = mat_mul(&mat_mul(&a, &p), &a);
+        assert_mat_eq(&back, &[&[1.0, 2.0], &[2.0, 4.0]], 1e-9);
+    }
+
+    #[test]
+    fn solve_or_pinv_falls_back_when_the_lu_reports_singular() {
+        let a = vec![vec![1.0, 2.0], vec![2.0, 4.0]];
+        let b = vec![vec![1.0], vec![2.0]];
+        // Consistent but singular: LU refuses, the pseudo-inverse answers.
+        assert!(solve(&a, &b).is_err());
+        let x = solve_or_pinv(&a, &b).unwrap();
+        let residual = sub(&mat_mul(&a, &x), &b);
+        for row in &residual {
+            for v in row {
+                assert!(v.abs() < 1e-9, "least-squares residual {v}");
+            }
+        }
+    }
+
+    #[test]
+    fn eigen_finds_real_eigenpairs() {
+        // Symmetric 2×2 with eigenvalues 1 and 3.
+        let a = vec![vec![2.0, 1.0], vec![1.0, 2.0]];
+        let e = eigen(&a).unwrap();
+        let mut vals: Vec<f64> = e.re.clone();
+        vals.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        assert!((vals[0] - 1.0).abs() < 1e-12, "{vals:?}");
+        assert!((vals[1] - 3.0).abs() < 1e-12, "{vals:?}");
+        assert!(e.im.iter().all(|v| *v == 0.0));
+        // A v = λ v, column by column.
+        for j in 0..2 {
+            let v: Vec<f64> = (0..2).map(|i| e.v[i][j]).collect();
+            for i in 0..2 {
+                let av: f64 = (0..2).map(|k| a[i][k] * v[k]).sum();
+                assert!((av - e.re[j] * v[i]).abs() < 1e-10, "A v != lambda v");
+            }
+        }
+    }
+
+    #[test]
+    fn eigen_stores_a_complex_pair_as_real_and_imaginary_columns() {
+        // Rotation generator: eigenvalues ±2i.
+        let a = vec![vec![0.0, -2.0], vec![2.0, 0.0]];
+        let e = eigen(&a).unwrap();
+        assert!(e.re.iter().all(|v| v.abs() < 1e-12), "{:?}", e.re);
+        assert!((e.im[0] - 2.0).abs() < 1e-12, "{:?}", e.im);
+        assert!((e.im[1] + 2.0).abs() < 1e-12, "{:?}", e.im);
+        // Columns 0 and 1 are Re(v) and Im(v) of the λ = 0 + 2i eigenvector:
+        //   A·vr = λr·vr − λi·vi   and   A·vi = λi·vr + λr·vi.
+        let (lr, li) = (e.re[0], e.im[0]);
+        let vr: Vec<f64> = (0..2).map(|i| e.v[i][0]).collect();
+        let vi: Vec<f64> = (0..2).map(|i| e.v[i][1]).collect();
+        for i in 0..2 {
+            let avr: f64 = (0..2).map(|k| a[i][k] * vr[k]).sum();
+            let avi: f64 = (0..2).map(|k| a[i][k] * vi[k]).sum();
+            assert!((avr - (lr * vr[i] - li * vi[i])).abs() < 1e-10, "Re part");
+            assert!((avi - (li * vr[i] + lr * vi[i])).abs() < 1e-10, "Im part");
+        }
+    }
+
+    /// The eigenvalue ORDER is user-visible through `PolynomialHelpers.roots`
+    /// and the root locus. This companion matrix is `s⁴ + 7s³ + 14s² + 8s`,
+    /// and the sequence below is what the Java oracle returns.
+    #[test]
+    fn eigen_reproduces_the_commons_math_ordering_of_a_companion_matrix() {
+        let c = [1.0, 7.0, 14.0, 8.0, 0.0];
+        let degree = 4;
+        let mut a = vec![vec![0.0; degree]; degree];
+        for j in 0..degree {
+            a[0][j] = -c[j + 1] / c[0];
+        }
+        for i in 1..degree {
+            a[i][i - 1] = 1.0;
+        }
+        let e = eigen(&a).unwrap();
+        let expected = [-4.0, -2.0, -1.0, 0.0];
+        for (i, want) in expected.iter().enumerate() {
+            assert!(
+                (e.re[i] - want).abs() < 1e-9,
+                "eigenvalue {i}: {} vs {want}",
+                e.re[i]
+            );
+            assert!(e.im[i].abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn eigen_handles_a_defective_matrix_without_hanging() {
+        // A single Jordan block: one eigenvalue 2 with algebraic multiplicity
+        // 3 and a one-dimensional eigenspace. The QR iteration must terminate.
+        let a = vec![
+            vec![2.0, 1.0, 0.0],
+            vec![0.0, 2.0, 1.0],
+            vec![0.0, 0.0, 2.0],
+        ];
+        let e = eigen(&a).unwrap();
+        for i in 0..3 {
+            assert!((e.re[i] - 2.0).abs() < 1e-9, "{:?}", e.re);
+            assert!(e.im[i].abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn eigen_rejects_a_non_square_matrix() {
+        assert!(eigen(&vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]]).is_err());
+    }
+
+    /// A NaN entry must be an error, not a plausible-looking answer. Without
+    /// the guard this exact matrix — the companion form `rlocus(…, M = 2)`
+    /// builds — comes back with eigenvalues `−1, −1`, while the Java throws
+    /// `convergence failed`.
+    #[test]
+    fn eigen_refuses_a_non_finite_matrix_instead_of_inventing_eigenvalues() {
+        let nan = vec![vec![-2.0, f64::NAN], vec![1.0, 0.0]];
+        let e = eigen(&nan).unwrap_err();
+        assert!(e.to_string().contains("non-finite"), "{e}");
+        assert!(eigen(&vec![vec![f64::INFINITY, 0.0], vec![0.0, 1.0]]).is_err());
+    }
+
+    #[test]
+    fn transpose_and_mat_mul_tolerate_degenerate_shapes() {
+        assert!(transpose(&Vec::new()).is_empty());
+        assert_eq!(transpose(&vec![vec![1.0, 2.0]]), vec![vec![1.0], vec![2.0]]);
+        // A block for a subsystem with no states: shapes collapse, no panic.
+        let empty: Mat = Vec::new();
+        let zero_wide: Mat = vec![Vec::new()];
+        let one_empty_row: Mat = vec![Vec::new()];
+        assert_eq!(mat_mul(&vec![vec![1.0, 2.0]], &empty), one_empty_row);
+        assert_eq!(mat_mul(&vec![vec![1.0]], &zero_wide), one_empty_row);
     }
 }

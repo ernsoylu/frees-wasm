@@ -1,18 +1,20 @@
-// solve(), check() and getReference() run fully in the browser: a Rust/WASM
-// engine inside a Web Worker (src/wasm/) replaces POST /api/solve, /api/check
-// and GET /api/reference, emitting the same REST wire shapes this module always
-// parsed. Endpoints whose engine features are not ported yet (REPL, optimize,
-// curve fit, fluids, plots, tables, Monte Carlo, control) are stubbed — a
-// neutral resolved value where the UI consumes data at boot, otherwise a
-// rejection naming the gap — so nothing in this module hits the network
-// anymore. runCompute/pollJob stay exported for the day a hybrid remote path
-// returns.
+// solve(), check(), getReference() and the REPL run fully in the browser: a
+// Rust/WASM engine inside a Web Worker (src/wasm/) replaces POST /api/solve,
+// /api/check, /api/repl/evaluate, /api/repl/clear and GET /api/reference,
+// emitting the same REST wire shapes this module always parsed. Endpoints
+// whose engine features are not ported yet (optimize, curve fit, tables,
+// Monte Carlo, control) are stubbed — a neutral resolved value where the UI
+// consumes data at boot, otherwise a rejection naming the gap — so nothing in
+// this module hits the network anymore. runCompute/pollJob stay exported for
+// the day a hybrid remote path returns.
 import {
   wasmCheck,
   wasmFluids,
   wasmPropertyDiagram,
   wasmPsychrometricChart,
   wasmReference,
+  wasmReplClear,
+  wasmReplEvaluate,
   wasmSolve,
 } from './wasm/engineClient'
 
@@ -424,11 +426,13 @@ export async function check(
       message: data.message ?? '',
       errorLine: data.errorLine ?? null,
       errors: data.errors ?? [],
-      // Not produced by the wasm boundary yet (Phases 5+); the App.tsx call
-      // sites treat empty collections as "the document declares none".
+      // PLOT blocks reach the boundary (Phase 9), so the Plots tab populates
+      // from a Check as well as from a Solve. The rest are not produced by the
+      // wasm boundary yet; the App.tsx call sites treat empty collections as
+      // "the document declares none".
+      definedPlots: data.definedPlots ?? [],
       codeTables: [],
       parametricTables: [],
-      definedPlots: [],
       stateTableDefs: [],
       connections: [],
     }
@@ -540,30 +544,42 @@ export interface ReplResponse {
   assignedVariables?: VariableResult[]
 }
 
-/** Evaluates a single REPL expression against the session's last solve.
- *  Not ported yet — resolves to a failed ReplResponse (the terminal prints
- *  `error`; its call site has no catch, so this must never reject). */
+/** Evaluates a single REPL expression against the workspace the last successful
+ *  solve left in the engine worker. The browser has exactly one session, so
+ *  `sessionId` is accepted and unused — the workspace lives in the wasm module,
+ *  which is the browser's `SolveContextCache`.
+ *
+ *  Never rejects: the terminal's call site has no catch, so worker/infrastructure
+ *  failures are folded into a failed ReplResponse like every document problem. */
 export async function replEvaluate(
   _sessionId: string,
-  _expression: string,
-  _unitSystem?: UnitSystem,
+  expression: string,
+  unitSystem: UnitSystem = 'SI',
 ): Promise<ReplResponse> {
-  return {
-    success: false,
-    value: null,
-    text: null,
-    units: null,
-    uncertainty: null,
-    error: NOT_IN_BROWSER_ENGINE,
-    name: null,
+  try {
+    return await wasmReplEvaluate(expression, unitSystem)
+  } catch (e) {
+    return {
+      success: false,
+      value: null,
+      text: null,
+      units: null,
+      uncertainty: null,
+      error: `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,
+      name: null,
+    }
   }
 }
 
 /** Clears all (or a specific) REPL-defined/overridden variables for the session.
- *  There is no REPL state in the browser engine yet — a best-effort no-op,
- *  same as the old fire-and-forget POST (App.tsx calls it with `void`). */
-export async function replClear(_sessionId: string, _variableName?: string): Promise<void> {
-  /* nothing to clear yet */
+ *  Fire-and-forget, same as the old POST (App.tsx calls it with `void`), so a
+ *  worker failure is swallowed rather than surfaced as an unhandled rejection. */
+export async function replClear(_sessionId: string, variableName?: string): Promise<void> {
+  try {
+    await wasmReplClear(variableName)
+  } catch {
+    /* the overlay is gone from the UI either way */
+  }
 }
 
 export type OptimizeMethod = 'brent' | 'nelder-mead' | 'bobyqa'

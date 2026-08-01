@@ -1,0 +1,54 @@
+{
+  "name": "ctl-pade_delay",
+  "source": "{ Pade delay approximants. The reads of npd/dpd are deliberate: they give the\n  document explicit array syntax, which is what marks it as matrix-carrying for\n  tests/matrix_expansion.rs (a bare `[npd, dpd] = pade(...)` encodes its\n  array-ness in mangled names only, and that pass would then expect the\n  expander to be a no-op on it). }\n[npd, dpd] = pade(0.2, 2)\n[np3, dp3] = pade(0.5, 3)\nlead2 = npd[1] / dpd[1]\nlead3 = np3[1] / dp3[1]\n",
+  "expect": {
+    "variables": {
+      "dp3[1]": 0.125,
+      "dp3[2]": 3.0,
+      "dp3[3]": 30.0,
+      "dp3[4]": 120.0,
+      "dpd[1]": 0.04000000000000001,
+      "dpd[2]": 1.2000000000000002,
+      "dpd[3]": 12.0,
+      "lead2": 1.0,
+      "lead3": -1.0,
+      "np3[1]": -0.125,
+      "np3[2]": 3.0,
+      "np3[3]": -30.0,
+      "np3[4]": 120.0,
+      "npd[1]": 0.04000000000000001,
+      "npd[2]": -1.2000000000000002,
+      "npd[3]": 12.0
+    },
+    "display_names": {
+      "dp3": "dp3",
+      "dp3[1]": "dp3[1]",
+      "dp3[2]": "dp3[2]",
+      "dp3[3]": "dp3[3]",
+      "dp3[4]": "dp3[4]",
+      "dpd": "dpd",
+      "dpd[1]": "dpd[1]",
+      "dpd[2]": "dpd[2]",
+      "dpd[3]": "dpd[3]",
+      "lead2": "lead2",
+      "lead3": "lead3",
+      "np3": "np3",
+      "np3[1]": "np3[1]",
+      "np3[2]": "np3[2]",
+      "np3[3]": "np3[3]",
+      "np3[4]": "np3[4]",
+      "npd": "npd",
+      "npd[1]": "npd[1]",
+      "npd[2]": "npd[2]",
+      "npd[3]": "npd[3]"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

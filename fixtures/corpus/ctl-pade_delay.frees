@@ -1,0 +1,9 @@
+{ Pade delay approximants. The reads of npd/dpd are deliberate: they give the
+  document explicit array syntax, which is what marks it as matrix-carrying for
+  tests/matrix_expansion.rs (a bare `[npd, dpd] = pade(...)` encodes its
+  array-ness in mangled names only, and that pass would then expect the
+  expander to be a no-op on it). }
+[npd, dpd] = pade(0.2, 2)
+[np3, dp3] = pade(0.5, 3)
+lead2 = npd[1] / dpd[1]
+lead3 = np3[1] / dp3[1]

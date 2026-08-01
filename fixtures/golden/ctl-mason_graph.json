@@ -1,0 +1,37 @@
+{
+  "name": "ctl-mason_graph",
+  "source": "{ Mason's gain formula over a 3-node signal-flow graph. }\nG[1,1] = 0; G[1,2] = 2; G[1,3] = 0\nG[2,1] = 0; G[2,2] = 0; G[2,3] = 3\nG[3,1] = 0; G[3,2] = 0; G[3,3] = 0\n[T] = mason(G, 1, 3)\n",
+  "expect": {
+    "variables": {
+      "G[1,1]": 0.0,
+      "G[1,2]": 2.0,
+      "G[1,3]": 0.0,
+      "G[2,1]": 0.0,
+      "G[2,2]": 0.0,
+      "G[2,3]": 3.0,
+      "G[3,1]": 0.0,
+      "G[3,2]": 0.0,
+      "G[3,3]": 0.0,
+      "t": 6.0
+    },
+    "display_names": {
+      "g": "G",
+      "g[1,1]": "G[1,1]",
+      "g[1,2]": "G[1,2]",
+      "g[1,3]": "G[1,3]",
+      "g[2,1]": "G[2,1]",
+      "g[2,2]": "G[2,2]",
+      "g[2,3]": "G[2,3]",
+      "g[3,1]": "G[3,1]",
+      "g[3,2]": "G[3,2]",
+      "g[3,3]": "G[3,3]"
+    },
+    "block_count": 10,
+    "ode_tables": [],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

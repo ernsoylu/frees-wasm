@@ -14,6 +14,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('./wasm/engineClient', () => ({
   wasmSolve: vi.fn(),
   wasmCheck: vi.fn(),
+  // api.ts imports these too (the REPL seam); unused here but a mocked module
+  // must declare every export its importer names.
+  wasmReplEvaluate: vi.fn(),
+  wasmReplClear: vi.fn(),
 }))
 
 import { check, solve, DEFAULT_STOP_CRITERIA } from './api'

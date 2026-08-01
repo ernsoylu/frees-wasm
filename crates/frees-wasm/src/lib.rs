@@ -35,6 +35,8 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use wasm_bindgen::prelude::*;
 
+mod repl;
+
 /// Install the panic hook so a wasm trap arrives in the console as a readable
 /// Rust backtrace instead of `unreachable executed`, and decode the linked
 /// property tables so the very first `fluids()` call already sees them.
@@ -159,14 +161,18 @@ fn overrides_of(request: &SolveRequest) -> Vec<VariableOverride> {
 /// `SolverApiSupport.unitSystem`: parse the requested display system,
 /// defaulting to SI on absence or an unknown value.
 fn unit_system_of(request: &SolveRequest) -> UnitSystem {
-    match request
-        .display_unit_system
-        .as_deref()
-        .map(str::to_ascii_uppercase)
-        .as_deref()
-    {
-        Some("ENG_SI") => UnitSystem::EngSi,
-        Some("ENGLISH") => UnitSystem::English,
+    match request.display_unit_system.as_deref() {
+        Some(name) => parse_unit_system(name),
+        None => UnitSystem::Si,
+    }
+}
+
+/// The unit-system name as the frontend spells it, defaulting to SI on an
+/// unknown value (the Java `SolverApiSupport.unitSystem` fallback).
+fn parse_unit_system(name: &str) -> UnitSystem {
+    match name.to_ascii_uppercase().as_str() {
+        "ENG_SI" => UnitSystem::EngSi,
+        "ENGLISH" => UnitSystem::English,
         _ => UnitSystem::Si,
     }
 }
@@ -253,6 +259,11 @@ pub fn solve(source: &str, request_json: &str) -> String {
             // `ComponentMetadata.build`, which resolves its bindings against
             // those rows.
             let cycle_path = fill_missing(&mut solution, source, request.fill_missing);
+            // `SolveContextCache.put` — the REPL evaluates against the last
+            // successful solve, so the workspace is refreshed here and nowhere
+            // else. A failed solve leaves the previous workspace in place,
+            // exactly as the Java cache does.
+            repl::store_session(source, &solution, system, &explicit_units);
             solve_success(
                 &solution,
                 &cycle_path,
@@ -589,6 +600,11 @@ fn solve_success(
         // shaped as `OdeTableDto` so the Tables window renders it through the
         // same path as a parametric table and the Plots window can graph it.
         "odeTables": ode_tables(solution),
+        // One entry per `PLOT '…' … END` block — the Java
+        // `SolveController`'s `plotsOf(parsed.plots())`. `App.tsx` maps each
+        // through `plotDefToSpec`, so this is what makes a declared plot
+        // render.
+        "definedPlots": plot_defs(&solution.plots),
         // Tornado breakdown: per dependent variable, its propagated sigma and
         // each source's signed contribution, largest sigma first — the Java
         // `SolveController.uncertaintyBreakdownOf`. Empty when the document
@@ -630,6 +646,28 @@ fn uncertainty_breakdown(solution: &Solution) -> Vec<Value> {
         .collect();
     entries.sort_by(|a, b| b.0.total_cmp(&a.0));
     entries.into_iter().map(|(_, value)| value).collect()
+}
+
+/// `definedPlots[]` — port of `SolveDtos.plotsOf`, which is a straight
+/// `new PlotDefDto(p.name(), p.attributes())` per declared plot.
+///
+/// The attribute map crosses as `Record<string, string[]>`: keys already
+/// lowercased by the parser, values in first-insertion order (the Java's
+/// `LinkedHashMap`). A JSON object does not *promise* key order, but
+/// `plotDefToSpec` looks attributes up by name, so only the per-key value
+/// order is load-bearing and that is a JSON array.
+fn plot_defs(plots: &[frees_core::parser::blocks::PlotDef]) -> Vec<Value> {
+    plots
+        .iter()
+        .map(|plot| {
+            let attributes: Map<String, Value> = plot
+                .attributes
+                .iter()
+                .map(|(key, values)| (key.to_string(), json!(values)))
+                .collect();
+            json!({ "name": plot.name, "attributes": attributes })
+        })
+        .collect()
 }
 
 /// `odeTables[]` — the sampled trajectory of every solved `DYNAMIC` block.
@@ -818,6 +856,10 @@ fn check_response(report: &CheckReport) -> String {
         "message": report.message,
         "errorLine": report.error_line,
         "errors": errors,
+        // The Java `CheckController` reports the declared plots too, which is
+        // what lets the Plots tab populate before the first solve —
+        // `App.tsx`'s `result?.definedPlots ?? checkResult?.definedPlots`.
+        "definedPlots": plot_defs(&report.plots),
     })
     .to_string()
 }
@@ -835,6 +877,7 @@ fn check_failure(message: String) -> String {
         "message": message,
         "errorLine": null,
         "errors": [],
+        "definedPlots": [],
     })
     .to_string()
 }
@@ -1095,6 +1138,63 @@ fn finite_or_null(value: f64) -> Value {
     serde_json::Number::from_f64(value).map_or(Value::Null, Value::Number)
 }
 
+/// The same rule for a value that is already optional: `None` and a
+/// non-finite number both become JSON `null`.
+fn json_number(value: f64) -> Option<Value> {
+    serde_json::Number::from_f64(value).map(Value::Number)
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/repl/evaluate and /api/repl/clear
+// ---------------------------------------------------------------------------
+
+/// Evaluate one REPL line against the workspace the last successful
+/// [`solve`] stored. `request_json` is `{"expression": "...",
+/// "unitSystem": "SI"}`; the reply is a `ReplResponse` JSON string.
+///
+/// Never throws: `ReplTerminal.tsx` awaits this without a `catch`, so a
+/// malformed request is reported as `success: false` like everything else.
+/// See [`repl`] for what is ported and the one unit divergence.
+#[wasm_bindgen]
+pub fn repl_evaluate(request_json: &str) -> String {
+    #[derive(Deserialize, Default)]
+    #[serde(default, rename_all = "camelCase")]
+    struct ReplRequest {
+        expression: String,
+        unit_system: Option<String>,
+    }
+    let request: ReplRequest = match serde_json::from_str(request_json) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "success": false,
+                "value": Value::Null,
+                "text": Value::Null,
+                "units": Value::Null,
+                "uncertainty": Value::Null,
+                "error": format!("Malformed REPL request: {err}"),
+                "name": Value::Null,
+                "assignedVariables": [],
+            })
+            .to_string()
+        }
+    };
+    let system = request
+        .unit_system
+        .as_deref()
+        .map_or(UnitSystem::Si, parse_unit_system);
+    repl::evaluate(&request.expression, system)
+}
+
+/// Drop the REPL's own variable overlays — all of them, or the one named.
+/// `name_json` is `""`/`"null"` for "all", otherwise a JSON string.
+/// Fire-and-forget: `App.tsx` calls it with `void`.
+#[wasm_bindgen]
+pub fn repl_clear(name_json: &str) {
+    let name: Option<String> = serde_json::from_str(name_json).unwrap_or(None);
+    repl::clear(name.as_deref());
+}
+
 // ---------------------------------------------------------------------------
 // Tests — every assertion here is about the *wire shape*: the exact camelCase
 // keys and JSON types `web/src/api.ts` declares.
@@ -1133,6 +1233,44 @@ mod tests {
     #[test]
     fn version_is_a_semver_string() {
         assert!(version().split('.').count() >= 3);
+    }
+
+    // ── definedPlots (SolveDtos.plotsOf) ──────────────────────────────────
+
+    /// The `PLOT '…' … END` payload `plots/fromCode.ts::plotDefToSpec`
+    /// consumes: a name and `Record<string, string[]>` attributes, keys
+    /// lowercased, every value an array even when the user wrote one.
+    #[test]
+    fn a_declared_plot_reaches_the_frontend_as_a_plot_def_dto() {
+        let source = "speed = 10\npower = 2 * speed\n\
+                      PLOT 'Power curve'\n  kind = xy\n  x = speed\n  y = power\n  \
+                      xlabel = 'Speed'\n  logx = true\nEND\n";
+        for payload in [solve(source, "{}"), check(source, "{}")] {
+            let v = parsed(&payload);
+            let plots = v["definedPlots"].as_array().expect("definedPlots array");
+            assert_eq!(plots.len(), 1, "{v}");
+            assert_eq!(plots[0]["name"], "Power curve", "{v}");
+            let attributes = plots[0]["attributes"]
+                .as_object()
+                .expect("attributes object");
+            assert_eq!(attributes["kind"], serde_json::json!(["xy"]), "{v}");
+            assert_eq!(attributes["x"], serde_json::json!(["speed"]), "{v}");
+            assert_eq!(attributes["y"], serde_json::json!(["power"]), "{v}");
+            assert_eq!(attributes["xlabel"], serde_json::json!(["Speed"]), "{v}");
+            assert_eq!(attributes["logx"], serde_json::json!(["true"]), "{v}");
+        }
+    }
+
+    #[test]
+    fn a_document_with_no_plot_block_reports_an_empty_list() {
+        assert_eq!(
+            parsed(&solve("x = 1\n", "{}"))["definedPlots"],
+            serde_json::json!([])
+        );
+        assert_eq!(
+            parsed(&check("x = 1\n", "{}"))["definedPlots"],
+            serde_json::json!([])
+        );
     }
 
     // ── SolveResponse: displayUnitSystem conversion (SolverApiSupport.toDisplay) ──

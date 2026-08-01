@@ -1,0 +1,13 @@
+{ Lyapunov and Riccati solvers. }
+A[1,1] = -1; A[1,2] = 0
+A[2,1] = 1;  A[2,2] = -2
+Qm[1,1] = 1; Qm[1,2] = 0
+Qm[2,1] = 0; Qm[2,2] = 1
+[P] = lyap(A, Qm)
+Ad[1,1] = 0.5; Ad[1,2] = 0.1
+Ad[2,1] = 0.0; Ad[2,2] = 0.8
+[Pd] = dlyap(Ad, Qm)
+Bd[1,1] = 0; Bd[2,1] = 1
+Rd[1,1] = 1
+[S] = dare(Ad, Bd, Qm, Rd)
+[Kd] = dlqr(Ad, Bd, Qm, Rd)

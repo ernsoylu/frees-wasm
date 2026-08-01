@@ -275,6 +275,62 @@ Two things this group establishes that no earlier fixture did:
   divergence, but it is why the promoted BDF probes are small and why
   `av_int_stiff_pair_ode15s` uses a linear 2-state system.
 
+### The `ctl-*` group (Phase 9 adversarial verification)
+
+19 documents written to hunt divergences in the newly-wired control-systems
+`CALL` surface. Between them they exercise **all 41 names** in
+`control::flatten::CALL_NAMES` (40 + `mason`). Each was authored, run through
+both engines and diffed on every variable; only exact agreement was promoted.
+
+| Fixture | What it pins |
+|---|---|
+| `ctl-lqr_dblint`, `ctl-lqr_3state`, `ctl-lqr_mimo` | `lqr` for 2/3 states and 2 inputs, plus the closed-loop `A − BK` spectrum via `pole` |
+| `ctl-lqr-stabilisable_*`, `ctl-lqr-marginal_uncontrollable` | LQR needs `(A,B)` **stabilisable**, not controllable: three rank-deficient controllability matrices whose unreachable mode decays, all of which must still solve. The complementary *unstabilisable* case is a recorded divergence, not a fixture — see below |
+| `ctl-place_acker` | `place` and `acker` on one plant, and the poles they realise |
+| `ctl-lyap_dare` | `lyap`, `dlyap`, `dare`, `dlqr` |
+| `ctl-lqe_pidtune` | `lqe`; `pidtune` in both `PID` and `PI` form |
+| `ctl-interconnect` | `series` / `parallel` / `feedback` over one pair |
+| `ctl-tf_roundtrip_proper` | `tf2ss` → `ss2tf` on a **biproper** plant (non-zero `D`) |
+| `ctl-ss2ss_ij` | `ss2tfij` at two output/input pairs and `ss2ss` under a similarity transform (both in `CALL` form — the sized-output assignment spelling is rejected by *both* engines) |
+| `ctl-zp_roundtrip` | `tf2zp` → `zp2tf` |
+| `ctl-ctrb_obsv_rank` | `ctrb`, `obsv`, `rank`, and `gram` in both `'c'` and `'o'` form |
+| `ctl-mason_graph` | `mason` over a 3-node signal-flow graph |
+| `ctl-c2d_d2c` | `c2d` → `d2c` |
+| `ctl-pade_delay` | `pade` at orders 2 and 3 |
+| `ctl-response_analysis` | `step`, `impulse`, `lsim`, `stepinfo`, `bode`, `nyquist`, `nichols`, `margin` — 101 variables |
+| `ctl-residue_routh_rlocus` | `residue`, `routh`, `rlocus`, `errorconst` — 524 variables, the largest in the corpus |
+
+**Three control results were deliberately *not* frozen**, because their outputs
+are not stable enough to gate on — record them here instead of pretending they
+are regressions:
+
+* **Repeated roots.** `pole` on a polynomial with a root of multiplicity `m`
+  produces spurious imaginary parts of order `eps^(1/m)`, and the two engines
+  land on *different* noise. Measured: `(s+1)(s+2)²` → `±4.06e-8` (Java) vs
+  `±4.32e-8` (Rust); `(s−1)³` → `±6.45e-6` vs `±6.49e-6`; `(s−1)⁴` → real parts
+  `0.99984819` vs `0.99984296`. That is textbook ill-conditioning at the
+  expected magnitude, present equally in both, and a fixture on it would be a
+  flake generator.
+* **`balreal` sign convention.** For `A = [0 1; −2 −3]`, `B = [0; 1]`,
+  `C = [1 0]` the two balanced realisations differ by exactly `T = diag(1, −1)`:
+  Java `Ab[1,2] = −0.9701425001453321`, Rust `+0.970142500145332`, and likewise
+  for `Bb[2,1]` / `Cb[1,2]`. Verified to be a pure state-basis flip —
+  `T·Aⱼ·T = Aᵣ`, `T·Bⱼ = Bᵣ`, `Cⱼ·T = Cᵣ` — with identical eigenvalues
+  `{−1, −2}` and identical transfer function `1/(s²+3s+2)`. Both are valid; a
+  balanced realisation is only unique up to that sign.
+* **LQR on an unstabilisable plant.** `A = [2 1; 0 3]`, `B = [1; 1]` has
+  `rank[B, AB] = 1` and the *unreachable* mode is `λ = +2`, so no stabilising
+  gain exists. The Java returns one anyway — and it does not stabilise. Measured
+  closed-loop spectra for the Java's `K`: `Q = I` → `{1.928, +2}`;
+  `Q = 10·I` → `{−9.099, +2}`; `Q = 20·I` → `{−14.54, +2}`; and for `Q = 11·I`
+  and `Q = 100·I` the Java instead errors "matrix is singular", i.e. its answer
+  is decided by which side of Commons Math's `1e-11` LU pivot threshold the
+  rounding falls on. This port refuses, and now names the mode
+  (`control::design::unstabilisable_mode`). Pinned as a unit test —
+  `design::tests::lqr_solves_stabilisable_plants_and_names_the_mode_when_it_cannot`
+  — rather than as a corpus fixture, because the corpus compares *against* the
+  Java and here the Java is wrong.
+
 ## Pending corpus
 
 `corpus-pending/` is a staging area with the same shape as the promoted corpus
@@ -371,6 +427,64 @@ document that starts passing because someone fixed the engine is the point.
 > | `method = ida` — the DAE path is assembled but not routed | 1 | `pressure-cooker` |
 > | table-vs-CoolProp accuracy (worst 2.9e-6; needs a `tolerances.json` entry, deliberately not added) | 1 | `state-tables-multifluid` |
 > | **cost, not correctness** — the live accessor converges to the oracle's `dk` to 4e-9 with a coarse `maxstep`, but does not finish in 7 min at the fixture's own `span/100` step cap. See `docs/status-phase7.md`. | 1 | `dyn_accessor_live` |
+>
+> **Re-check 2026-07-31, Phase 9 — the twelve holds that are *not* CAS or
+> control, re-run one by one: 23 staged, 1 promoted, 22 remain.** The eleven
+> control `CALL` documents and `partial-fractions` were left to Phase 9's own
+> agents; every other pending document was replayed through
+> `cargo run -qp frees-cli -- solve` and compared against its golden with the
+> gate's own rules. **Nothing was found that Phases 5–7 had silently fixed**,
+> but two of the twelve are real divergences rather than missing features, and
+> one hold was withdrawn:
+>
+> | Document | Verdict | Evidence |
+> |---|---|---|
+> | `state-tables-multifluid` | **promoted** | Solves; the only gap is table-vs-CoolProp, worst 2.8963e-6 on `hw_1 = Enthalpy(Water, P=10 kPa, T=45 C)`. Phase 7 measured this and declined to add the `tolerances.json` entry; it is added now, because this is precisely the mechanism the file exists for and 17 fixtures already carry the same one. |
+> | `heisler-transient` | **real divergence** | Not `heisler_temp` — `props/heisler.rs` is ported. The missing piece is the Java's `parser/StringVariables.java`, run as the last line of `EquationParser.parseResult` (`EquationParser.java:336`): it *deletes* every `IDENT$ = 'literal'` equation from the numeric system and substitutes the literal at every use. The port's own pipeline docstring (`crates/frees-core/src/engine.rs:1372`) lists that line in the ported order, but no such module exists and nothing calls it, so `geom$ = 'wall'` reaches the blocker as an equation and dies with *"string literal 'wall' cannot be evaluated as a number"*. The golden proves the Java rule: `geom$` is in `display_names` but **not** in `variables`, and `block_count` is 14 for 14 numeric variables. ~130 LOC + one call site. |
+> | `ev-battery-cooling-pid` | **real divergence** | Java solves it (`t_bat = 303.000000000087`, a 400-row `ode23s` table over 0..4000 s). Rust fails in under a second: *"Block 2 (2 equations) failed: Block 44 (79 equations) failed: `Dmass(R134a, P=1, Hmass=1)` is outside the generated property table"*. **Not a table-coverage limit** — every state the document really uses is servable (`Enthalpy(R134a, P=1.2 MPa, x=0)` = 265947.1989697985 against the golden's `hliq` 265947.2005481485, rel 5.8e-9; `Density(R134a, P=1.2 MPa, h=hliq)`, `Enthalpy`/`Density(R134a, P=350 kPa, x=1)` and `T_sat` all evaluate). `(P=1, Hmass=1)` is the **default initial guess** of the transient's 79-equation inner block, so the port never gets a finite first residual. See the note below. |
+> | `adv_moistair_dryair_three_way`, `adv_moistair_W_passthrough` | blocked | `Enthalpy(AirH2O, T, P, W)` → `HAPropsSI`, which no shipped backend implements: `props::propfun::RealFluid::ha_props_si` has a *declining* default, and both overrides in the tree (`props/psychro.rs`'s `ToyHumidAir`, `props/propfun.rs`'s recorded-answer stub) live inside `mod tests`. Needs a humid-air model at CoolProp accuracy, not a stand-in. |
+> | `hx-correlations-fluid` | blocked | D1. First line refused: `w_mu = Viscosity(Water, P=101325, T=320)` — *"'viscosity' is not a tabulated output"*. The `(P,h)` split table stores T, Dmass, Smass only. |
+> | `thermo-compliance` | blocked | D1, and **only** `CompressibilityFactor`: probed directly, `Z_real = CompressibilityFactor(R134a, T=323.15 [K], P=1000000 [Pa])` → *"'Z' is not a tabulated output"*, while `Volume` at the identical state returns 0.02179627269999244. Everything else in the document (`T_crit`, `P_crit`, `StagnationTemp`, `StagnationPres`) evaluates. **Do not trust the message the document itself produces** — *"`Z(R134a, P=1, T=1)` is outside the generated property table"* — it names the wrong cause and quotes 1 Pa / 1 K, because `solve_block_with_fallback`'s merge rung resets every variable of the merged block to its initial guess before re-solving, and the *last* rung's error is what gets reported. |
+> | `ev-thermal-management` | blocked | D1: `no property table for fluid 'INCOMP::MEG[0.50]'`. This build tabulates Water and R134a. |
+> | `pressure-cooker` | blocked | `method = ida`; the implicit-DAE path is assembled but not routed. |
+> | `estimator-gramian-balreal` | blocked | Control, as expected: `CALL lqe` refuses first, then `gram` and `balreal` behind it. Phase 9's control suite owns it. |
+> | `module_inside_for_loop` | blocked | Unchanged cluster-3 pipeline ordering: MODULE flattening must move past the `FOR` unroller. Refused loudly, which is the intended behaviour until it does. |
+> | `dyn_accessor_live` | blocked (cost) | Re-timed: **no output after 420 s**, consistent with Phase 7's >7 min. |
+>
+> **Two findings the next agent should not have to re-derive.**
+>
+> 1. *`docs/status-phase7.md`'s follow-up hypothesis 1 is closed — negatively.*
+>    It asks whether `try_univariate_bracketing_solve` is "gated too narrowly"
+>    because it requires `uses_property_call`. It is not: the Java gates it the
+>    same way, at `EquationSystemSolver.java:1148-1152`, with the reason spelled
+>    out — *"Scope this resort to property inversions … For ordinary algebra a
+>    bracketing rescue would bypass the user's Newton iteration-limit stop
+>    criterion and could pick a different root than Newton's basin."*
+>    `FinalValue('Temp') = 30` has no property call, so **neither** engine
+>    brackets it. The remaining lever is hypothesis 2 (`solve_pinned` re-blocks
+>    from scratch every step). Related and worth knowing: the Java's ladder is
+>    wall-clock bounded (`config.deadlineNanos()`, checked inside the bracketing
+>    sampler); wasm32 has no clock, so the port cannot inherit that escape hatch
+>    and must be cheap rather than interruptible.
+> 2. *A property failure at the initial guess is handled differently in the two
+>    engines, and `ev-battery-cooling-pid` is where it shows.* Java
+>    `NewtonSolver.residuals()` catches `PropertyEvaluationException` and writes
+>    `NaN` — *"an invalid state point … is a bad region, not a fatal error"* —
+>    so the line search and the retry ladder move on. The port matches that
+>    inside Newton (`engine.rs::BlockProblem::residual` fills `NaN` for
+>    `Property`/`Evaluation` errors) but **not before it**: `engine.rs::solve_block`
+>    evaluates a pre-Newton probe whose error is returned, so such a block never
+>    enters Newton at all and drops straight into `solve_block_with_fallback`.
+>    At 1×1 that ladder rescues it — probe: `T_t = Temperature(R134a, P=P_x, h=250000)`
+>    with `T_t = 280` starts at the out-of-box guess `P_x = 1` and still solves
+>    to `P_x = 372708.40925159707` — but at 79 unknowns only transformed guesses
+>    and a bidirectional merge apply, and neither fires. The Java engine was not
+>    re-run on this document (its golden already records that it converges), so
+>    the *exact* rung Java gets past t = 0 on is still unidentified; the two
+>    candidates are this probe and a better-seeded ODE inner solve. Note that
+>    even once it starts, this fixture carries the same live-accessor shape as
+>    `dyn_accessor_live` (`t_bat = FinalValue('bp.t')` over a 400-point
+>    `ode23s`), so it may hit the cost wall next.
 
 ```bash
 tools/golden-dumper/run.sh fixtures/corpus-pending/corpus fixtures/corpus-pending/golden
@@ -427,6 +541,13 @@ this machine. Rust also refuses them, so a naive comparison scores them green �
 that would bake a missing `.so` into the parity gate and turn it red the day
 someone installs CoolProp. They are deliberately **not** promoted. Regenerate
 their goldens with `COOLPROP_LIBRARY` set before trusting them.
+
+> **Closed 2026-07-31.** Every one of those eight has since been re-dumped with
+> `COOLPROP_LIBRARY` set — `run.sh` now exports it itself. No golden anywhere in
+> `fixtures/` records an `IllegalStateException` any more: all 22 remaining
+> pending goldens carry `expect.error = null` and real values. The paragraph
+> above is kept because the hazard it describes is permanent — a golden dumped
+> without the native library is a *recorded failure*, not a fixture.
 
 ### Engine fixes this staging area produced
 
@@ -490,43 +611,34 @@ batch value.
 
 | Document | Needs | Java solved it? |
 |---|---|---|
-| `adiabatic-flame-temp` | combustion kernel: `AdiabaticFlameTemp` | yes |
-| `control-analysis-report` | PLOT blocks | yes |
-| `controller-design-lqr-pid` | control-systems CALL: `lqr` | yes |
-| `cruise-control` | PLOT blocks | yes |
-| `cubic-eos-properties` | cubic-EOS kernel: `eos_z` | yes |
-| `damped-oscillator` | PARAMETRIC blocks (Java instead reports underspecified) | no — `SolverException` |
-| `damped-oscillator-ode` | DYNAMIC (ODE/DAE) blocks | yes |
-| `digital-control-c2d` | control-systems CALL: `c2d` | yes |
-| `driving-cycle-energy` | PARAMETRIC blocks (Java instead reports underspecified) | no — `SolverException` |
-| `engine-cycle-wiebe` | DYNAMIC (ODE/DAE) blocks | yes |
-| `estimator-gramian-balreal` | control-systems CALL: `lqe` | yes |
-| `gas-transport-mixture` | `eval.rs` to dispatch `mix_viscosity` / `mix_conductivity` into `props::transport` (the physics is ported and unit-tested against these very numbers; only the registry arm is missing) | yes |
-| `ev-battery-cooling-pid` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `ev-thermal-management` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `heisler-transient` | string variables (`name$ = 'text'`) | yes |
-| `inverse-laplace-residue` | control-systems CALL: `residue` | yes |
-| `karman-rocket` | property call: `MolarMass` | yes |
-| `material-conduction` | material database: `k_()` | yes |
-| `module_inside_for_loop` | MODULE flattening must run *after* FOR unrolling (see cluster 3) | yes |
-| `multi-objective-beam` | material database: `E_()` | yes |
-| `multi-output-destructuring` | control-systems CALL: `tf2ss` | yes |
-| `newton-cooling-transient` | DYNAMIC (ODE/DAE) blocks | yes |
-| `nichols-chart` | PLOT blocks | yes |
-| `partial-fractions` | SYMBOLIC / CAS | yes |
-| `pressure-cooker` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `projectile-trajectory` | PARAMETRIC blocks (Java instead reports underspecified) | no — `SolverException` |
-| `rankine-cycle` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `rankine-cycle-2` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `refrigeration-vcr` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `root-locus-analysis` | PLOT blocks | yes |
-| `routh-stability` | control-systems CALL: `routh` | yes |
-| `solver_singular_linear_cycle` | nothing — held: rank-deficient, so the solution set is a line (see cluster 4) | yes |
-| `sounding-rocket-trajectory` | DYNAMIC (ODE/DAE) blocks | yes |
-| `state-tables-multifluid` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `step-impulse-response` | PLOT blocks | yes |
-| `thermo-compliance` | oracle unavailable — Java needs the CoolProp native lib | no — `IllegalStateException` |
-| `transient-heat-rod` | DYNAMIC (ODE/DAE) blocks | yes |
+| `adv_moistair_W_passthrough` | a humid-air backend (`HAPropsSI`); the `RealFluid` default declines and the only override is test-only | yes |
+| `adv_moistair_dryair_three_way` | same `HAPropsSI` gap | yes |
+| `dyn_accessor_live` | **nothing missing — cost.** Correct with a coarse `maxstep`; no output after 420 s at the fixture's own `span/100` cap | yes |
+| `estimator-gramian-balreal` | **real divergence** — `control::design::balreal` inherits `linalg::svd`'s column-sign convention, so the second balancing basis vector is negated relative to Commons Math. `Ab[1,2]`, `Ab[2,1]`, `Bb[2,1]`, `Cb[1,2]` differ by sign only; the realisation is equivalent (same Hankel singular values, same I/O map) but not element-wise identical. The other six variables match. | yes |
+| `ev-battery-cooling-pid` | **real divergence** — the transient's 79-equation inner block dies on a property call at its *default guess*, `Dmass(R134a, P=1, Hmass=1)`; every state the document really uses is servable | yes |
+| `ev-thermal-management` | a property table for `INCOMP::MEG[0.50]` (D1: this build tabulates Water and R134a) | yes |
+| `heisler-transient` | **real divergence** — the `parser/StringVariables.java` pass (`IDENT$ = 'literal'` leaves the numeric system and is substituted at every use); `heisler_temp` itself is ported | yes |
+| `hx-correlations-fluid` | `Viscosity` / `Conductivity` as tabulated outputs (D1: the `(P,h)` table stores T, Dmass, Smass) | yes |
+| `module_inside_for_loop` | MODULE flattening must run *after* `FOR` unrolling (cluster 3) | yes |
+| `pressure-cooker` | `method = ida` — the implicit-DAE path is assembled but not routed | yes |
+| `thermo-compliance` | `CompressibilityFactor` as a tabulated output (D1); the rest of the document evaluates | yes |
+
+**Phase 9 promoted eleven of these** (2026-08-01): `control-analysis-report`,
+`controller-design-lqr-pid`, `cruise-control`, `digital-control-c2d`,
+`inverse-laplace-residue`, `multi-output-destructuring`, `nichols-chart`,
+`root-locus-analysis`, `routh-stability`, `step-impulse-response` and
+`partial-fractions` all match the oracle at the default `1e-9`, with no new
+`tolerances.json` entry. `estimator-gramian-balreal` is the only Phase-9
+document that did **not** promote, and its row above now records the measured
+reason rather than a missing feature. The corpus is **512 fixtures**.
+
+Every row was re-measured on 2026-07-31 by running the document through
+`frees-cli solve`; the "Java solved it?" column is each golden's own
+`expect.error`, which is `null` for all of them. The earlier version of this table
+had gone stale in both directions — it still listed documents promoted in
+Phases 5–7, and it still claimed "oracle unavailable — Java needs the CoolProp
+native lib" for seven documents whose goldens have since been re-dumped with
+`COOLPROP_LIBRARY` set and now carry real values.
 
 Two authoring hazards found the hard way, both worth repeating:
 

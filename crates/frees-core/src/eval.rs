@@ -1670,6 +1670,12 @@ pub fn intrinsic_names() -> Vec<&'static str> {
 /// Reporting them as *not yet supported* rather than *unknown function* keeps
 /// the distinction the parent engine cares about: a refusal is honest, a wrong
 /// answer is not.
+/// The two families whose names are implemented as a `CALL` intrinsic or a
+/// matrix construct rather than as a scalar expression function. Naming the
+/// *reason* keeps the message honest now that Phase 9 has wired both.
+const MATRIX_FAMILY: &str = "matrix constructs — use the CALL or matrix-assignment form";
+const CONTROL_FAMILY: &str = "control systems — use `CALL <name>(inputs : outputs)`";
+
 const UNPORTED: &[(&str, &str)] = &[
     // Phase 7/8 emptied two sections: the ten ODE Table accessors
     // (`ODEValue`/`FinalValue`/`MaxValue`/`MinValue`/`TimeAt`/`ODEAvg`/
@@ -1679,52 +1685,62 @@ const UNPORTED: &[(&str, &str)] = &[
     // `IntegralValue`) are all registered above and dispatch through
     // `EvalContext::ode` / `EvalContext::parametric`.
     // Matrices
-    ("inv", "matrices"),
-    ("det", "matrices"),
-    ("trace", "matrices"),
-    ("transpose", "matrices"),
-    ("eig", "matrices"),
-    ("eigvec", "matrices"),
-    ("rank", "matrices"),
-    ("norm", "matrices"),
-    ("cond", "matrices"),
-    ("svd", "matrices"),
-    ("qr", "matrices"),
-    ("cholesky", "matrices"),
-    ("matexp", "matrices"),
+    ("inv", MATRIX_FAMILY),
+    ("det", MATRIX_FAMILY),
+    ("trace", MATRIX_FAMILY),
+    ("transpose", MATRIX_FAMILY),
+    ("eig", MATRIX_FAMILY),
+    ("eigvec", MATRIX_FAMILY),
+    ("rank", MATRIX_FAMILY),
+    ("norm", MATRIX_FAMILY),
+    ("cond", MATRIX_FAMILY),
+    ("svd", MATRIX_FAMILY),
+    ("qr", MATRIX_FAMILY),
+    ("cholesky", MATRIX_FAMILY),
+    ("matexp", MATRIX_FAMILY),
     // Control systems
-    ("tf", "control systems"),
-    ("ss", "control systems"),
-    ("tf2ss", "control systems"),
-    ("ss2tf", "control systems"),
-    ("series", "control systems"),
-    ("parallel", "control systems"),
-    ("feedback", "control systems"),
-    ("impulse", "control systems"),
-    ("lsim", "control systems"),
-    ("bode", "control systems"),
-    ("nyquist", "control systems"),
-    ("nichols", "control systems"),
-    ("margin", "control systems"),
-    ("stepinfo", "control systems"),
-    ("c2d", "control systems"),
-    ("d2c", "control systems"),
-    ("rlocus", "control systems"),
-    ("routh", "control systems"),
-    ("pade", "control systems"),
-    ("lqr", "control systems"),
-    ("dlqr", "control systems"),
-    ("dare", "control systems"),
-    ("lyap", "control systems"),
-    ("dlyap", "control systems"),
-    ("ctrb", "control systems"),
-    ("obsv", "control systems"),
-    ("place", "control systems"),
-    ("acker", "control systems"),
-    ("lqe", "control systems"),
-    ("gram", "control systems"),
-    ("balreal", "control systems"),
-    ("pidtune", "control systems"),
+    ("tf", CONTROL_FAMILY),
+    ("ss", CONTROL_FAMILY),
+    ("tf2ss", CONTROL_FAMILY),
+    ("ss2tf", CONTROL_FAMILY),
+    ("series", CONTROL_FAMILY),
+    ("parallel", CONTROL_FAMILY),
+    ("feedback", CONTROL_FAMILY),
+    ("impulse", CONTROL_FAMILY),
+    ("lsim", CONTROL_FAMILY),
+    ("bode", CONTROL_FAMILY),
+    ("nyquist", CONTROL_FAMILY),
+    ("nichols", CONTROL_FAMILY),
+    ("margin", CONTROL_FAMILY),
+    ("stepinfo", CONTROL_FAMILY),
+    ("c2d", CONTROL_FAMILY),
+    ("d2c", CONTROL_FAMILY),
+    ("rlocus", CONTROL_FAMILY),
+    ("routh", CONTROL_FAMILY),
+    ("pade", CONTROL_FAMILY),
+    ("lqr", CONTROL_FAMILY),
+    ("dlqr", CONTROL_FAMILY),
+    ("dare", CONTROL_FAMILY),
+    ("lyap", CONTROL_FAMILY),
+    ("dlyap", CONTROL_FAMILY),
+    ("ctrb", CONTROL_FAMILY),
+    ("obsv", CONTROL_FAMILY),
+    ("place", CONTROL_FAMILY),
+    ("acker", CONTROL_FAMILY),
+    ("lqe", CONTROL_FAMILY),
+    ("gram", CONTROL_FAMILY),
+    ("balreal", CONTROL_FAMILY),
+    ("pidtune", CONTROL_FAMILY),
+    // Phase 9 note on the two blocks above: every one of those names is now
+    // implemented — the matrix ones by `parser::expand`, the control ones by
+    // `control::flatten` + `control::eval` — but **not as a scalar expression
+    // function**, which is the only thing this table is about. `lqr` is a
+    // `CALL` intrinsic and `inv` is a matrix construct; neither has an arm in
+    // the Java `Evaluator.evalCall` either (checked: it has none, so the Java
+    // answers "Unknown function"). Naming them here trades that message for
+    // "not yet supported", which is the friendlier half-truth the port has
+    // always given and which `family_of` now spells accurately.
+    //
     // (The whole Bessel family — J/Y/I/K, fixed- and arbitrary-order, both
     // spellings — is implemented above.)
     //
@@ -1738,9 +1754,10 @@ const UNPORTED: &[(&str, &str)] = &[
 fn unported_family(name: &str) -> Option<&'static str> {
     // The synthetic families this port still refuses wholesale. `prop$…` is
     // *not* one of them any more (Phase 5) — nor are `det$`/`qr$`/`chol$`/
-    // `expm$`/`svd$`/`proc$`/`fft$`/… , which `eval_synthetic` dispatches.
+    // `expm$`/`svd$`/`proc$`/`fft$`/… , which `eval_synthetic` dispatches, nor
+    // the control-systems set, which Phase 9 routed into `control::eval`.
     if name.contains('$') {
-        return Some("synthetic property / procedure / matrix / control-systems call");
+        return Some("synthetic property / procedure / matrix call");
     }
     UNPORTED
         .iter()
@@ -2427,6 +2444,20 @@ fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Res
                 None => Err(unsupported_synthetic(function)),
             }
         }
+        // The control-systems synthetics (`ss2tf$…`, `step$…`, `lqr$…`, 42
+        // heads in all) that `control::flatten` emits. Port of the
+        // `startsWith("<op>$")` chain in `Evaluator.evalCall` plus the
+        // `ControlSystemsEvaluator` delegation. Arguments are evaluated
+        // eagerly, the same shape `det$`/`qr$`/`svd$` already use — see
+        // `control::eval`'s note on the Java evaluators that read only a
+        // subset of their arguments.
+        _ if crate::control::eval::handles(function) => {
+            let values = eval_args(args, env)?;
+            match crate::control::eval::eval_intrinsic(function, &values) {
+                Some(result) => result,
+                None => Err(unsupported_synthetic(function)),
+            }
+        }
         _ => Err(unsupported_synthetic(function)),
     }
 }
@@ -2434,8 +2465,7 @@ fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Res
 fn unsupported_synthetic(function: &str) -> FreesError {
     FreesError::evaluation(format!(
         "not yet supported: {function} ({})",
-        unported_family(function)
-            .unwrap_or("synthetic property / procedure / matrix / control-systems call")
+        unported_family(function).unwrap_or("synthetic property / procedure / matrix call")
     ))
 }
 
@@ -5875,9 +5905,9 @@ mod tests {
     #[test]
     fn unported_java_arms_are_refused_by_name_and_family() {
         for (name, family) in [
-            ("det", "matrices"),
-            ("bode", "control systems"),
-            ("lqr", "control systems"),
+            ("det", MATRIX_FAMILY),
+            ("bode", CONTROL_FAMILY),
+            ("lqr", CONTROL_FAMILY),
         ] {
             let message = err(&Expr::call(name, vec![n(1.0)]));
             assert!(
@@ -6020,12 +6050,34 @@ mod tests {
         // list any more: they route into `crate::linalg`, exactly as the Java
         // `Evaluator.evalCall` routes them into `core.LinearAlgebra`. See
         // `linear_algebra_synthetics_are_dispatched`. `prop$…` left the list in
-        // Phase 5 — see `property_synthetics_are_dispatched`.
-        for name in ["eigen$val$1$3", "series$0$2$2"] {
+        // Phase 5 — see `property_synthetics_are_dispatched`, and the whole
+        // control-systems set left it in Phase 9 — see
+        // `control_systems_synthetics_are_dispatched`.
+        for name in ["eigen$val$1$3", "eulerdecompose$1$3"] {
             let message = err(&Expr::call(name, vec![n(1.0)]));
             assert!(message.contains("not yet supported"), "{name}: {message}");
             assert!(message.contains("synthetic"), "{name}: {message}");
         }
+    }
+
+    /// Phase 9: `control::eval` claims 42 synthetic heads. Reaching them from
+    /// here is what makes every control-systems `CALL` evaluable — without it
+    /// the flattener emits equations whose right-hand sides cannot be computed.
+    #[test]
+    fn control_systems_synthetics_are_dispatched() {
+        // series$<num|den>$<index>$<len1>$<len2> over (num1, den1, num2, den2),
+        // each left-padded to its transfer function's length. Cascading
+        // 1/(s+1) with 1/(s+2) gives a denominator s^2 + 3s + 2, so element 1
+        // (0-based, descending powers) is 3.
+        let value = ev(&Expr::call(
+            "series$den$1$2$2",
+            nums(&[0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 2.0]),
+        ));
+        assert!((value - 3.0).abs() < 1e-12, "{value}");
+        // A malformed one is an evaluation error from `control::eval`, not the
+        // family-level "not yet supported" refusal.
+        let message = err(&Expr::call("routh$0", vec![]));
+        assert!(!message.contains("not yet supported"), "{message}");
     }
 
     /// `prop$…` reaches `props::propfun`, which is what makes every fluid,
@@ -7034,8 +7086,9 @@ mod tests {
     #[test]
     fn unported_synthetic_families_still_refuse_honestly() {
         // `det$` left this list when `crate::linalg` was wired in; `prop$` left
-        // it in Phase 5 when `crate::props::propfun` was.
-        for name in ["eigen$val$0$2", "series$0$2$2"] {
+        // it in Phase 5 when `crate::props::propfun` was; the control-systems
+        // heads left it in Phase 9 when `crate::control::eval` was.
+        for name in ["eigen$val$0$2", "eulerrotate$1$3"] {
             let msg = err(&Expr::call(name, vec![n(1.0)]));
             assert!(msg.contains("not yet supported"), "{name}: {msg}");
         }

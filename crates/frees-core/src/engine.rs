@@ -218,6 +218,13 @@ pub struct Solution {
     /// uncertainty.
     pub uncertainty_contributions:
         BTreeMap<String, Vec<crate::analysis::uncertainty::UncertaintyContribution>>,
+    /// The `PLOT '…' … END` blocks the document declares, in declaration
+    /// order — the Java `SolveController`'s `plotsOf(parsed.plots())`.
+    ///
+    /// A plot never enters the equation system; it rides out on the result
+    /// only so the frontend can render it. Carried forward off the one parse
+    /// rather than re-parsed at the boundary (the Java re-parses `cleanText`).
+    pub plots: Vec<crate::parser::blocks::PlotDef>,
 }
 
 /// Diagnostics captured at the point a block solve gave up — the Java
@@ -355,6 +362,12 @@ pub struct CheckReport {
     /// [`CheckReport::solvable`].
     pub unit_warnings: Vec<String>,
     pub diagnostics: Vec<Diagnostic>,
+    /// The `PLOT '…' … END` blocks the document declares — the Java
+    /// `CheckController`'s `plotsOf(parsed.plots())`. Check reports them too so
+    /// the Plots tab populates before the first solve, which is what the
+    /// frontend's `result?.definedPlots ?? checkResult?.definedPlots` fallback
+    /// is for.
+    pub plots: Vec<crate::parser::blocks::PlotDef>,
 }
 
 /// Externally supplied per-variable solver information — one row of the
@@ -610,6 +623,7 @@ pub fn solve_with(
             ode_tables,
             uncertainties: BTreeMap::new(),
             uncertainty_contributions: BTreeMap::new(),
+            plots: doc.blocks.plots.clone(),
         });
     }
 
@@ -660,6 +674,9 @@ pub fn solve_with(
     // block inside each integration — runs at 1e-7, a tighter target than the
     // 1e-4 outer solve, exactly as the Java's two `relaxedOdeSettings` calls do.
     let inner_settings = relaxed_ode_settings(settings, 1e-7);
+    // Taken before the accessor bridge borrows `doc` for the rest of the
+    // function; plots are inert data and nothing downstream reads them.
+    let plots = doc.blocks.plots.clone();
     let bridge = ode_accessors.then(|| accessor_bridge(&doc, &inner_settings, &specs, base_ctx));
     let ctx = EvalContext {
         ode: bridge.as_ref().map(|b| b as &dyn OdeTableAccessors),
@@ -825,6 +842,7 @@ pub fn solve_with(
         ode_tables,
         uncertainties: propagation.uncertainties,
         uncertainty_contributions: propagation.contributions,
+        plots,
     })
 }
 
@@ -1225,6 +1243,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
                 inferred_units: BTreeMap::new(),
                 unit_warnings: Vec::new(),
                 diagnostics: check_diagnostics,
+                plots: doc.blocks.plots.clone(),
             });
         }
     };
@@ -1253,6 +1272,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
             inferred_units: BTreeMap::new(),
             unit_warnings: Vec::new(),
             diagnostics: check_diagnostics,
+            plots: doc.blocks.plots.clone(),
         });
     }
 
@@ -1306,6 +1326,7 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         inferred_units,
         unit_warnings: unit_report.warnings,
         diagnostics,
+        plots: doc.blocks.plots.clone(),
     };
 
     match block_system(&equations, &knowns) {
@@ -1597,23 +1618,21 @@ fn steady_storage_equations(
 
 /// Refuse a statement that parses but that the engine cannot honour.
 ///
-/// `Document::equations` walks past `SYMBOLIC` without comment. That is fine
-/// for a structural walk and fatal for a solve: dropping it would silently
-/// change what the document means. `CALL` statements are no longer refused
-/// here — they belong to [`crate::procedures::flatten_calls`] (pipeline stage
-/// 2), whose Phase-4 stub still refuses them by name, so nothing is ever
-/// silently dropped.
+/// The list is **empty**: every statement form the grammar admits now has a
+/// home. `CALL` belongs to [`crate::procedures::flatten_calls`] (pipeline
+/// stage 2) and [`crate::parser::expand`] (stage 3), which refuse the
+/// intrinsics they do not implement *by name*; `SYMBOLIC` is consumed by
+/// [`crate::parser::expand`]'s `flatten_identity`, which solves the identity
+/// through [`crate::cas::engine::solve_coefficients`] (Phase 9). The function
+/// is kept — rather than deleted with its call site — because it is the seam
+/// where the next statement form the AST grows gets refused instead of
+/// silently dropped, exactly as `parser::toplevel::unsupported_construct` is
+/// for block forms.
 fn reject_unsupported_statements(statements: &[Statement]) -> Result<()> {
     for statement in statements {
         match statement {
-            Statement::Eq(_) | Statement::CallProc { .. } => {}
+            Statement::Eq(_) | Statement::CallProc { .. } | Statement::Symbolic(_) => {}
             Statement::For { body, .. } => reject_unsupported_statements(body)?,
-            Statement::Symbolic(names) => {
-                return Err(FreesError::parse(format!(
-                    "`SYMBOLIC` is not supported by the wasm engine yet (declared: {})",
-                    names.join(", ")
-                )))
-            }
         }
     }
     Ok(())
@@ -1806,6 +1825,8 @@ fn syntax_failure_report(source: &str, err: &FreesError) -> CheckReport {
         inferred_units: BTreeMap::new(),
         unit_warnings: Vec::new(),
         diagnostics: vec![diagnostic],
+        // A document that did not parse declares nothing.
+        plots: Vec::new(),
     }
 }
 
@@ -3646,10 +3667,34 @@ mod tests {
         assert_close(value(&solution, "b"), 15.0);
     }
 
+    /// Phase 9 replaced the `SYMBOLIC` refusal with `CasIdentity`: an equation
+    /// involving the declared variable is an identity solved for its
+    /// coefficients, and a `SYMBOLIC` declaration on its own still leaves the
+    /// rest of the document alone.
     #[test]
-    fn symbolic_statements_are_refused_rather_than_dropped() {
-        let err = solve("SYMBOLIC s\nx = 1\n", &SolverSettings::default()).unwrap_err();
-        assert!(err.to_string_message().contains("SYMBOLIC"), "{err}");
+    fn a_symbolic_declaration_alone_does_not_disturb_the_document() {
+        let solution = solved("SYMBOLIC s\nx = 1\n");
+        assert_close(value(&solution, "x"), 1.0);
+        // The symbolic name is a declaration, never a solver unknown.
+        assert!(!solution.values.contains_key("s"), "{:?}", solution.values);
+    }
+
+    #[test]
+    fn a_symbolic_identity_is_solved_for_its_coefficients() {
+        // The partial-fraction residues of (s+3)/((s+1)(s+2)): A = 2, B = -1.
+        let solution = solved("SYMBOLIC s\ntf([1, 3], [1, 3, 2]) = A/(s+1) + B/(s+2)\n");
+        assert_close(value(&solution, "a"), 2.0);
+        assert_close(value(&solution, "b"), -1.0);
+    }
+
+    #[test]
+    fn an_identity_over_two_symbolic_variables_is_refused_by_name() {
+        let err = solve("SYMBOLIC s, t\ns = t\n", &SolverSettings::default()).unwrap_err();
+        assert!(
+            err.to_string_message()
+                .contains("only one SYMBOLIC variable"),
+            "{err}"
+        );
     }
 
     #[test]

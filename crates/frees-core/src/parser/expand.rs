@@ -79,6 +79,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ast::{BinOp, Equation, Expr, Statement};
+use crate::control;
 use crate::diag::{FreesError, Result};
 use crate::eval::{self, EvalContext, Scope};
 use crate::parser::defs::Definitions;
@@ -352,9 +353,14 @@ impl Flattener<'_> {
                     inputs,
                     outputs,
                     source_text,
-                } => {
-                    self.flatten_call_proc(name, inputs, outputs, source_text, loop_vars, &shapes)?
-                }
+                } => self.flatten_call_proc(
+                    name,
+                    inputs,
+                    outputs,
+                    source_text,
+                    loop_vars,
+                    &mut shapes,
+                )?,
                 Statement::Symbolic(_) => {
                     // Declaration only; the names were pre-collected.
                 }
@@ -495,7 +501,12 @@ impl Flattener<'_> {
             return self.flatten_eq(&range_lhs, &range_rhs, source, loop_vars, shapes);
         }
 
-        self.check_identity(lhs, rhs)?;
+        // An equation that involves a SYMBOLIC variable is a CAS identity:
+        // solve it for the remaining coefficients rather than treating the
+        // symbolic variable as a numeric unknown.
+        if let Some(variable) = self.identity_variable(lhs, rhs)? {
+            return self.flatten_identity(lhs, rhs, &variable, source);
+        }
 
         // Rewrite bare references to known matrix/vector variables (e.g. the
         // A, b in SolveLinear(A, b)) into their explicit A[1:r,1:c] form.
@@ -531,13 +542,13 @@ impl Flattener<'_> {
         self.push(Equation::new(expanded_lhs, expanded_rhs, source))
     }
 
-    /// The Java `identityVariable` check. CAS identity *solving*
-    /// (`flattenIdentity`, backed by Symja) is not ported, so an equation that
-    /// does involve a SYMBOLIC variable is refused explicitly rather than
-    /// mis-solved.
-    fn check_identity(&self, lhs: &Expr, rhs: &Expr) -> Result<()> {
+    /// The single `SYMBOLIC` variable this equation involves, or `None` when
+    /// it involves none. Port of `EquationParser.identityVariable`, including
+    /// its refusal of more than one — an identity is solved with respect to
+    /// one independent variable.
+    fn identity_variable(&self, lhs: &Expr, rhs: &Expr) -> Result<Option<String>> {
         if self.symbolic.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         let mut present: Vec<String> = lhs
             .variables()
@@ -548,7 +559,7 @@ impl Flattener<'_> {
             .into_iter()
             .collect();
         if present.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         if present.len() > 1 {
             return Err(parse_err(format!(
@@ -556,11 +567,37 @@ impl Flattener<'_> {
                 present.join(", ")
             )));
         }
-        let name = present.remove(0);
-        Err(parse_err(format!(
-            "SYMBOLIC identity equations (involving '{name}') are not supported by the \
-             wasm engine yet"
-        )))
+        Ok(Some(present.remove(0)))
+    }
+
+    /// Solve a CAS identity — an equation that must hold for *all* values of
+    /// the symbolic variable — for its coefficients, and emit each as a
+    /// concrete `name = value` equation so the ordinary solver reports it.
+    /// Port of `EquationParser.flattenIdentity`.
+    ///
+    /// The Java runs `TransferFunction.expandCalls` over both sides first, so
+    /// an identity may be written `tf([1,3],[1,3,2]) = A/(s+1) + B/(s+2)`.
+    /// That expander belongs to the control suite, not the CAS, which is why
+    /// `cas::engine::solve_coefficients_with` takes it as a hook; running it
+    /// here instead keeps `FreesError` propagation intact (routing it through
+    /// the hook would wrap a parse error inside a `CasError` and print the
+    /// prefix twice). A `CasException` becomes a `ParseException`, so the
+    /// message reaches the user verbatim.
+    fn flatten_identity(
+        &mut self,
+        lhs: &Expr,
+        rhs: &Expr,
+        variable: &str,
+        source: &str,
+    ) -> Result<()> {
+        let lhs = crate::control::tf::expand_calls(lhs, variable)?;
+        let rhs = crate::control::tf::expand_calls(rhs, variable)?;
+        let coefficients = crate::cas::engine::solve_coefficients(&lhs, &rhs, variable)
+            .map_err(|e| parse_err(e.to_string()))?;
+        for (name, value) in coefficients {
+            self.push(Equation::new(Expr::Var(name), Expr::num(value), source))?;
+        }
+        Ok(())
     }
 
     /// Routes `lhs = f(args)` to a dedicated matrix-function handler when `f`
@@ -947,11 +984,12 @@ impl Flattener<'_> {
     /// Port of the matrix slice of `EquationParser.flattenCallProc`:
     /// shape-resolves the arguments, pads omitted trailing outputs with sink
     /// variables, auto-sizes bare output names, then dispatches. In scope here
-    /// are `LUDecompose` and the Java `LIN_ALG_SIGNAL_STATS_CALLS` set; the
-    /// remaining Java CALL intrinsics (the control-systems suite plus the
-    /// eigen/Euler decompositions) are refused by name, and user
-    /// PROCEDURE/MODULE calls are expected to have been flattened upstream
-    /// (`procedures::flatten_calls`).
+    /// are `LUDecompose`, the Java `LIN_ALG_SIGNAL_STATS_CALLS` set and — via
+    /// the [`ControlHost`] adapter, exactly as the Java reaches
+    /// `ControlSystemsFlattener` through its `csFlattener` back-reference —
+    /// the whole control-systems suite. The eigen/Euler decompositions are
+    /// still refused by name, and user PROCEDURE/MODULE calls are expected to
+    /// have been flattened upstream (`procedures::flatten_calls`).
     fn flatten_call_proc(
         &mut self,
         name: &str,
@@ -959,7 +997,7 @@ impl Flattener<'_> {
         outputs: &[Expr],
         source: &str,
         loop_vars: &Scope,
-        shapes: &HashMap<String, Shape>,
+        shapes: &mut HashMap<String, Shape>,
     ) -> Result<()> {
         let def_name = name.to_ascii_lowercase();
         let inputs: Vec<Expr> = inputs.iter().map(|e| resolve_shapes(e, shapes)).collect();
@@ -982,6 +1020,14 @@ impl Flattener<'_> {
             "convolve" => self.flatten_convolve(&inputs, &outputs, source, loop_vars),
             "linfit" => self.flatten_lin_fit(&inputs, &outputs, source, loop_vars),
             "polyfit" => self.flatten_poly_fit(&inputs, &outputs, source, loop_vars),
+            _ if control::flatten::handles(&def_name) => {
+                let mut host = ControlHost {
+                    flattener: self,
+                    loop_vars,
+                    shapes,
+                };
+                control::flatten::flatten(&mut host, &def_name, &inputs, &outputs, source)
+            }
             _ if UNPORTED_CALL_INTRINSICS.contains(&def_name.as_str()) => Err(parse_err(format!(
                 "`CALL {def_name}` is not supported by the wasm engine yet"
             ))),
@@ -1024,7 +1070,8 @@ impl Flattener<'_> {
     /// from the inputs exactly as the flattener does, so `CALL QR(A : Q, R)`
     /// needs no restated lengths. Port of the `autoSizeCallOutputs` arms for
     /// the intrinsics in the matrix-expansion scope; the control-systems arms
-    /// arrive with their flatteners in Phase 9.
+    /// live in [`control::flatten::auto_size`] and are reached through the
+    /// fall-through below.
     fn auto_size_call_outputs(
         &self,
         def_name: &str,
@@ -1084,6 +1131,14 @@ impl Flattener<'_> {
                 // output as written and the flattener reports the real error.
                 let size = usize::try_from(degree.saturating_add(1)).unwrap_or(0);
                 set_vec(outputs, 0, size);
+            }
+            // The control-systems half of the same Java switch.
+            name if control::flatten::handles(name) => {
+                let view = ControlShapes {
+                    flattener: self,
+                    loop_vars,
+                };
+                control::flatten::auto_size(&view, name, inputs, outputs)?;
             }
             // Scalar-output or value-declared outputs: leave as written.
             _ => {}
@@ -2750,6 +2805,113 @@ impl Flattener<'_> {
 }
 
 // ---------------------------------------------------------------------------
+// The control-systems back-reference
+// ---------------------------------------------------------------------------
+
+/// The Java `ControlSystemsFlattener` holds an `EquationParser` and calls five
+/// of its methods back (`parseMatrixInfo`, `parseVectorInfo`, `expandExpr`,
+/// `constIndex`, `registerShape`) plus `ctx.out().add`. `control::flatten`
+/// states that back-reference as the [`Shapes`]/[`Host`] trait pair; these two
+/// adapters supply it over this pass's [`Flattener`].
+///
+/// Two adapters rather than one because `auto_size` runs *before* any
+/// emission and needs only `&Flattener`, while `flatten` needs `&mut`. Both
+/// delegate to the same three free functions, so there is one implementation
+/// of each query.
+struct ControlShapes<'a, 'b> {
+    flattener: &'b Flattener<'a>,
+    loop_vars: &'b Scope,
+}
+
+struct ControlHost<'a, 'b> {
+    flattener: &'b mut Flattener<'a>,
+    loop_vars: &'b Scope,
+    shapes: &'b mut HashMap<String, Shape>,
+}
+
+/// `parseMatrixInfo` plus the base name the Java `MatrixInfo` carries and this
+/// port's [`MatrixInfo`] does not (no other caller reads it).
+fn control_matrix_info(
+    flattener: &Flattener<'_>,
+    loop_vars: &Scope,
+    expr: &Expr,
+) -> Result<control::flatten::MatrixRef> {
+    let info = flattener.parse_matrix_info(expr, loop_vars)?;
+    Ok(control::flatten::MatrixRef {
+        name: array_access_name(expr),
+        rows: info.rows,
+        cols: info.cols,
+        elements: info.elements,
+    })
+}
+
+fn control_vector_info(
+    flattener: &Flattener<'_>,
+    loop_vars: &Scope,
+    expr: &Expr,
+) -> Result<control::flatten::VectorRef> {
+    let info = flattener.parse_vector_info(expr, loop_vars)?;
+    Ok(control::flatten::VectorRef {
+        name: array_access_name(expr),
+        size: info.size,
+        elements: info.elements,
+    })
+}
+
+/// Both `parse_*_info` calls above reject anything but an `ArrayAccess`, so
+/// the fallback is unreachable through them; it exists so the helper is total.
+fn array_access_name(expr: &Expr) -> String {
+    match expr {
+        Expr::ArrayAccess { name, .. } => name.clone(),
+        _ => String::new(),
+    }
+}
+
+impl control::flatten::Shapes for ControlShapes<'_, '_> {
+    fn matrix_info(&self, expr: &Expr) -> Result<control::flatten::MatrixRef> {
+        control_matrix_info(self.flattener, self.loop_vars, expr)
+    }
+    fn vector_info(&self, expr: &Expr) -> Result<control::flatten::VectorRef> {
+        control_vector_info(self.flattener, self.loop_vars, expr)
+    }
+    fn expand(&self, expr: &Expr) -> Result<Expr> {
+        self.flattener.expand_expr(expr, self.loop_vars)
+    }
+    fn const_index(&self, expr: &Expr) -> Result<i64> {
+        self.flattener.const_index(expr, self.loop_vars)
+    }
+}
+
+impl control::flatten::Shapes for ControlHost<'_, '_> {
+    fn matrix_info(&self, expr: &Expr) -> Result<control::flatten::MatrixRef> {
+        control_matrix_info(self.flattener, self.loop_vars, expr)
+    }
+    fn vector_info(&self, expr: &Expr) -> Result<control::flatten::VectorRef> {
+        control_vector_info(self.flattener, self.loop_vars, expr)
+    }
+    fn expand(&self, expr: &Expr) -> Result<Expr> {
+        self.flattener.expand_expr(expr, self.loop_vars)
+    }
+    fn const_index(&self, expr: &Expr) -> Result<i64> {
+        self.flattener.const_index(expr, self.loop_vars)
+    }
+}
+
+impl control::flatten::Host for ControlHost<'_, '_> {
+    fn register_shape(&mut self, name: &str, rows: usize, cols: usize) {
+        // The Java's three-argument `registerShape`, i.e. no declared
+        // dimensionality — every control-systems output goes through that one.
+        register_shape(self.shapes, name, rows, cols, None);
+    }
+    fn emit(&mut self, equation: Equation) -> Result<()> {
+        self.flattener.push(equation)
+    }
+    fn reserve(&self, planned: usize) -> Result<()> {
+        self.flattener.reserve(planned)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Shape registry and bare-name resolution
 // ---------------------------------------------------------------------------
 
@@ -3106,57 +3268,14 @@ fn set_mat(outputs: &mut [Expr], index: usize, rows: usize, cols: usize) {
 /// the matrix-expansion scope. Refused by name so a document using one fails
 /// loudly instead of being reported as an unknown procedure.
 ///
-/// These are the eigen/Euler decompositions and the control-systems suite,
-/// which land in **Phase 9** with the CAS. The dense linear-algebra, signal and
-/// statistics intrinsics that used to sit here (the Java
-/// `LIN_ALG_SIGNAL_STATS_CALLS` set) are wired above and must stay out of this
-/// list; `procedures::EXPANDED_CALL_TARGETS` is the matching stage-2 allowance.
-const UNPORTED_CALL_INTRINSICS: [&str; 44] = [
-    "eigenvalues",
-    "eigen",
-    "eulerrotate",
-    "eulerdecompose",
-    "ss2tf",
-    "ss2tfij",
-    "tf2ss",
-    "zp2tf",
-    "tf2zp",
-    "series",
-    "parallel",
-    "feedback",
-    "pole",
-    "zero",
-    "bode",
-    "nyquist",
-    "margin",
-    "step",
-    "impulse",
-    "lsim",
-    "lqr",
-    "dlqr",
-    "dare",
-    "lyap",
-    "dlyap",
-    "place",
-    "acker",
-    "lqe",
-    "gram",
-    "balreal",
-    "pidtune",
-    "rank",
-    "ctrb",
-    "obsv",
-    "ss2ss",
-    "stepinfo",
-    "pade",
-    "rlocus",
-    "routh",
-    "c2d",
-    "d2c",
-    "residue",
-    "nichols",
-    "errorconst",
-];
+/// What is left is the eigen/Euler decompositions. The dense linear-algebra,
+/// signal and statistics intrinsics (the Java `LIN_ALG_SIGNAL_STATS_CALLS`
+/// set) are wired above, and Phase 9 moved the whole control-systems suite out
+/// of here into [`control::flatten`] — both must stay out of this list, or
+/// `flatten_call_proc` short-circuits before their flatteners.
+/// `procedures::EXPANDED_CALL_TARGETS` is the matching stage-2 allowance.
+const UNPORTED_CALL_INTRINSICS: [&str; 4] =
+    ["eigenvalues", "eigen", "eulerrotate", "eulerdecompose"];
 
 /// The number of outputs a fixed-shape CALL intrinsic produces, used to pad
 /// trailing omission. `-1` for user-defined calls and for intrinsics whose
@@ -4466,24 +4585,12 @@ mod tests {
         );
     }
 
-    /// The Phase-9 control-systems suite must stay refused: wiring the dense
-    /// linear-algebra / signal / statistics set must not have leaked any of it
-    /// through.
+    /// Every wired CALL name must be gone from the refusal list, or
+    /// `flatten_call_proc` would short-circuit before its flattener. Covers
+    /// both the Phase-4 kernel set and the Phase-9 control-systems suite.
     #[test]
-    fn the_control_systems_suite_is_still_refused() {
-        for name in ["ss2tf", "tf2ss", "lqr", "bode", "step", "residue", "c2d"] {
-            assert!(
-                UNPORTED_CALL_INTRINSICS.contains(&name),
-                "`{name}` must remain refused until Phase 9"
-            );
-        }
-    }
-
-    /// …and the ten names that were wired must be gone from it, or
-    /// `flatten_call_proc` would still short-circuit before their flatteners.
-    #[test]
-    fn the_wired_kernel_intrinsics_left_the_unported_list() {
-        for name in [
+    fn the_wired_call_intrinsics_left_the_unported_list() {
+        let kernels = [
             "qr",
             "cholesky",
             "matexp",
@@ -4494,7 +4601,14 @@ mod tests {
             "convolve",
             "linfit",
             "polyfit",
-        ] {
+            "ludecompose",
+            "interp2",
+        ];
+        for name in kernels
+            .into_iter()
+            .chain(control::flatten::CALL_NAMES)
+            .chain(["mason"])
+        {
             assert!(
                 !UNPORTED_CALL_INTRINSICS.contains(&name),
                 "`{name}` is wired but still listed as unported"
@@ -4502,12 +4616,55 @@ mod tests {
         }
     }
 
+    /// …and the four that are genuinely unported must still be refused, by
+    /// name rather than as an unknown procedure.
+    #[test]
+    fn the_eigen_and_euler_decompositions_are_still_refused() {
+        for name in ["eigenvalues", "eigen", "eulerrotate", "eulerdecompose"] {
+            assert!(
+                UNPORTED_CALL_INTRINSICS.contains(&name),
+                "`{name}` is not implemented and must remain refused"
+            );
+            assert!(
+                !control::flatten::handles(name),
+                "`{name}` must not be claimed by control::flatten"
+            );
+        }
+    }
+
     // ── SYMBOLIC ────────────────────────────────────────────────────────────
 
+    /// Port of `flattenIdentity`: the identity is solved for its coefficients
+    /// and each becomes a concrete `name = value` equation the ordinary solver
+    /// reports. `a*s = 2*s` holds for all `s` exactly when `a = 2`.
     #[test]
-    fn symbolic_identities_are_refused_explicitly() {
-        let message = expand_err("SYMBOLIC s\na * s = 2 * s");
-        assert!(message.contains("SYMBOLIC identity"), "{message}");
+    fn a_symbolic_identity_becomes_one_equation_per_coefficient() {
+        let eqs = expand("SYMBOLIC s\na * s = 2 * s");
+        assert_eq!(sides(&eqs), vec![(var("a"), num(2.0))]);
+    }
+
+    /// The `TransferFunction.expandCalls` pre-pass: an identity may be written
+    /// with `tf(num, den)` on one side. `(s+3)/(s^2+3s+2) = A/(s+1) + B/(s+2)`
+    /// has residues `A = 2`, `B = -1`.
+    #[test]
+    fn a_tf_call_in_an_identity_is_expanded_before_it_is_solved() {
+        let eqs = expand("SYMBOLIC s\ntf([1, 3], [1, 3, 2]) = A/(s+1) + B/(s+2)");
+        assert_eq!(
+            sides(&eqs),
+            vec![(var("a"), num(2.0)), (var("b"), num(-1.0))]
+        );
+    }
+
+    /// A CAS failure surfaces as a parse error carrying the CAS's own words,
+    /// which is `flattenIdentity`'s `catch (CasException) -> ParseException`.
+    #[test]
+    fn an_unsolvable_identity_reports_the_cas_message() {
+        let message = expand_err("SYMBOLIC s\ns = s");
+        assert!(!message.is_empty(), "{message}");
+        assert!(
+            message.contains("identity") || message.contains("coefficient"),
+            "{message}"
+        );
     }
 
     #[test]

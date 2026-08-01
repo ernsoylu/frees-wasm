@@ -145,15 +145,23 @@ entirely on the Rust side.
 23 fixtures remain in `fixtures/corpus-pending/`. **None is blocked by this
 phase's work**, and the reason is recorded per fixture:
 
-| Blocker | Fixtures |
-|---|---|
-| control-systems `CALL`s not ported (`lqr`, `ss2tf`, `c2d`, `lqe`, `residue`, `nichols`, `rlocus`, `routh`, `step`, `pole`, `tf2ss`) | `control-analysis-report`, `controller-design-lqr-pid`, `cruise-control`, `digital-control-c2d`, `estimator-gramian-balreal`, `inverse-laplace-residue`, `multi-output-destructuring`, `nichols-chart`, `root-locus-analysis`, `routh-stability`, `step-impulse-response` |
-| property-backend limits (Phase 5: no `HAPropsSI`, no `INCOMP::` fluids, no viscosity/conductivity in the `(P,h)` split table, states outside the tabulated box) | `adv_moistair_W_passthrough`, `adv_moistair_dryair_three_way`, `ev-battery-cooling-pid`, `ev-thermal-management`, `hx-correlations-fluid`, `thermo-compliance` |
-| `SYMBOLIC` / `MODULE` inside `FOR` | `partial-fractions`, `module_inside_for_loop` |
-| string-valued variables in a numeric position | `heisler-transient` |
-| `method = ida` — the implicit-DAE path is assembled but not routed | `pressure-cooker` |
-| table-vs-CoolProp accuracy (worst 2.9e-6) — needs a `tolerances.json` entry, deliberately not added here | `state-tables-multifluid` |
-| **cost, not correctness** — see below | `dyn_accessor_live` |
+> **Updated 2026-08-01 by the Phase 9 close-out.** Twelve of these were
+> promoted (`fixtures/corpus` is now 531, up from 390 at the end of Phase 7);
+> the `Status` column below records what happened to each row. The full,
+> document-by-document re-check of every remaining hold lives in
+> [`fixtures/README.md`](../fixtures/README.md) under *"Re-check 2026-07-31,
+> Phase 9"*, and the phase write-up is
+> [`docs/status-phase9.md`](status-phase9.md).
+
+| Blocker | Fixtures | Status |
+|---|---|---|
+| control-systems `CALL`s not ported (`lqr`, `ss2tf`, `c2d`, `lqe`, `residue`, `nichols`, `rlocus`, `routh`, `step`, `pole`, `tf2ss`) | `control-analysis-report`, `controller-design-lqr-pid`, `cruise-control`, `digital-control-c2d`, `estimator-gramian-balreal`, `inverse-laplace-residue`, `multi-output-destructuring`, `nichols-chart`, `root-locus-analysis`, `routh-stability`, `step-impulse-response` | **CLOSED 2026-08-01** for ten of the eleven — Phase 9 ports all 41 control `CALL`s and they are promoted. `estimator-gramian-balreal` **remains open** for a *different* reason: `lqe`/`gram`/`balreal` all work and match, but `balreal`'s state signs differ from the oracle's (divergence ledger item 24) |
+| property-backend limits (Phase 5: no `HAPropsSI`, no `INCOMP::` fluids, no viscosity/conductivity in the `(P,h)` split table, states outside the tabulated box) | `adv_moistair_W_passthrough`, `adv_moistair_dryair_three_way`, `ev-battery-cooling-pid`, `ev-thermal-management`, `hx-correlations-fluid`, `thermo-compliance` | open. **Re-diagnosed 2026-07-31:** `ev-battery-cooling-pid` is *not* a table-coverage limit — every state it really uses is servable; it fails because a property failure at the **initial guess** is fatal before Newton in this port and merely `NaN` inside it in the Java. `thermo-compliance` is blocked by `CompressibilityFactor` alone |
+| `SYMBOLIC` / `MODULE` inside `FOR` | `partial-fractions`, `module_inside_for_loop` | **`partial-fractions` CLOSED 2026-08-01** — `SYMBOLIC` reaches `cas::engine::solve_coefficients` and the fixture is promoted (`A = 2`, `B = −1`), proved in-browser as well. `module_inside_for_loop` open: MODULE flattening must still move past the `FOR` unroller |
+| string-valued variables in a numeric position | `heisler-transient` | open, and **re-diagnosed 2026-07-31 as a real divergence, not a missing feature**: `parser/StringVariables.java` (~130 LOC + one call site) is named in this port's own pipeline docstring but does not exist |
+| `method = ida` — the implicit-DAE path is assembled but not routed | `pressure-cooker` | open, unchanged |
+| table-vs-CoolProp accuracy (worst 2.9e-6) — needs a `tolerances.json` entry, deliberately not added here | `state-tables-multifluid` | **CLOSED 2026-07-31** — the entry was added (`relative: 1e-5`, `measured: 2.8963e-6`) with the mechanism recorded in its `reason`; 17 fixtures already carry the same one |
+| **cost, not correctness** — see below | `dyn_accessor_live` | open. Re-timed 2026-07-31: **no output after 420 s**. Follow-up hypothesis 1 below is now **closed negatively** — see the note under it |
 
 ### `dyn_accessor_live`: the one honest performance finding
 
@@ -177,6 +185,18 @@ Two things a follow-up should look at, in this order:
    1×1 block path brackets before it iterates, this port's
    `try_univariate_bracketing_solve` is gated too narrowly (it currently
    requires `uses_property_call`).
+
+   > **CLOSED NEGATIVELY, 2026-07-31.** It is *not* gated too narrowly: the
+   > Java gates it the same way, at `EquationSystemSolver.java:1148-1152`, and
+   > says why — *"Scope this resort to property inversions … For ordinary
+   > algebra a bracketing rescue would bypass the user's Newton iteration-limit
+   > stop criterion and could pick a different root than Newton's basin."*
+   > `FinalValue('Temp') = 30` has no property call, so **neither** engine
+   > brackets it. The remaining lever is hypothesis 2. Worth knowing while
+   > pulling it: the Java's ladder is wall-clock bounded
+   > (`config.deadlineNanos()`, checked inside the bracketing sampler); wasm32
+   > has no clock, so the port cannot inherit that escape hatch and the ladder
+   > has to be *cheap* rather than interruptible.
 2. **`solve_pinned` re-blocks from scratch every step.** So does the Java, but a
    cached blocking for an unchanging subsystem is a pure win on the hottest loop
    the transient path has.

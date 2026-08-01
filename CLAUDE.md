@@ -12,12 +12,25 @@ browser a **working real-fluid property backend**, Phase 6 ports the acausal
 as embedded `.frees` data, and Phase 7 wires the **transient path**: `DYNAMIC`
 and `LINEARIZE` parse and reach the engine, ODE Tables publish on the wasm
 boundary, and the parity replay compares them. A Rust workspace ports the frees
-engine to WebAssembly. **2,534 tests** green, including a **500/500**
-golden-corpus parity replay against the real Java engine; wasm 2450.0 KiB raw /
-1177.8 KiB gzipped (budget 3072 KiB — **80 % used**). Solve, check, transient
-integration, real-fluid properties, property diagrams, component networks, the
-component datasheet and the language reference all run in-browser with **zero
-`/api/` traffic**.
+engine to WebAssembly. Solve, check, transient integration, real-fluid
+properties, property diagrams, component networks, the component datasheet, the
+language reference, the CAS REPL and the control-systems `CALL`s all run
+in-browser with **zero `/api/` traffic**. Current gate numbers live in
+[`docs/status-phase9.md`](docs/status-phase9.md) — do not trust a count copied
+into this paragraph.
+
+**Phase 9 is implemented and wired.** The Symja-replacement CAS
+(`crates/frees-core/src/cas/`: exact rational algebra over ℚ, a Zassenhaus
+factoriser, partial fractions, a Laplace transform table, `CasEngine` and
+`CasIdentity`) and the control-systems suite
+(`crates/frees-core/src/control/`: transfer functions, state space, LQR/place/
+LQE, PID tuning, time responses, and the 41-name `CALL` flattener) both reach a
+document, the REPL and the browser. Four new dependencies —
+`num-bigint`/`num-integer`/`num-rational`/`num-traits`, all MIT OR Apache-2.0.
+**531/531 fixtures** now match the oracle. Two things to know before building on
+it: **`Integrate` is a closed pattern table, not an integrator**
+(`docs/status-phase9.md` lists the exact boundary), and the **wasm bundle is
+3336 KiB against a 3072 KiB budget — the one red gate.**
 
 **Phase 8 is *mostly* not implemented.** `crates/frees-core/src/analysis/` exists
 and is unit-tested, but only **one** of its modules is reachable: `uncertainty`
@@ -37,12 +50,13 @@ planning further work.
 
 | Document | Contents |
 |---|---|
-| [`docs/status-phase78.md`](docs/status-phase78.md) | **Read first.** The Phase 7–8 robustness pass: the four defects an adversarial sweep of the transient and analysis surfaces found (two of them process *aborts*, one a silent wrong answer), the guards that close them, the browser proof, the raw gate numbers, and a ranked list of what these phases did **not** deliver — starting with "Phase 8's `analysis/` is not wired to anything" |
-| [`docs/status-phase7.md`](docs/status-phase7.md) | What Phase 7 delivers per area, the raw gate numbers, which 29 fixtures were promoted and why the remaining 23 are still blocked, and the one honest performance finding (`dyn_accessor_live`) |
+| [`docs/status-phase9.md`](docs/status-phase9.md) | **Read first.** Phase 9 — the from-scratch CAS and the control-systems suite, wired end to end: what shipped per area, the `O(n⁴)` CAS defect the adversarial sweep found and fixed (a 200-symbol `Expand` went from **256 s to 0.41 s**, and to **103 ms in the browser**), the twelve other attacks that found the bounds already in place, the browser proof, the raw gate numbers, the 31 promoted fixtures — and a ranked list of what Phase 9 did **not** deliver, starting with the exact boundary of `Integrate` and the **264 KiB bundle-budget breach** |
+| [`docs/status-phase78.md`](docs/status-phase78.md) | The Phase 7–8 robustness pass: the four defects an adversarial sweep of the transient and analysis surfaces found (two of them process *aborts*, one a silent wrong answer), the guards that close them, the browser proof, the raw gate numbers, and a ranked list of what these phases did **not** deliver — starting with "Phase 8's `analysis/` is not wired to anything" |
+| [`docs/status-phase7.md`](docs/status-phase7.md) | What Phase 7 delivers per area, the raw gate numbers, which 29 fixtures were promoted, and its pending table — **annotated with what Phase 9 closed** — plus the one honest performance finding (`dyn_accessor_live`) |
 | [`docs/status-phase6.md`](docs/status-phase6.md) | What Phase 6 delivers per area, the component-coverage numbers, what the component fuzz found, its gate numbers and fixture counts |
 | [`docs/status-phase5.md`](docs/status-phase5.md) | Phase 5 per area, the measured table-vs-CoolProp error, and its pending-fixture table (annotated with what Phase 6 closed) |
 | [`docs/status-phase4.md`](docs/status-phase4.md) | Phase 4 per area; its pending-fixture table is annotated with what Phase 5 closed |
-| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12, Phase 6 items 13–14, Phase 7 items 15–18, the Phase 7–8 robustness pass items 19–23), plus the Phase 0–3 inventory |
+| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger (items closed are struck through with a date; Phase 5 opened items 9–12, Phase 6 items 13–14, Phase 7 items 15–18, the Phase 7–8 robustness pass items 19–23, the Phase 9 robustness pass items 24–25), plus the Phase 0–3 inventory |
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
@@ -54,10 +68,11 @@ planning further work.
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 500 documents)
+                                       # (--release: the replay solves 531 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo test -p frees-core --test props_robustness       # the property-surface fuzz
 cargo test -p frees-core --test component_robustness   # the component-surface fuzz
+cargo test -p frees-core --test cas_control_robustness # the CAS + control fuzz
 cargo test -p frees-core --test dynamics_robustness    # the transient + analysis fuzz
                                        # (run this one in DEBUG too — the stack-overflow
                                        #  defect it found only reproduced unoptimised)

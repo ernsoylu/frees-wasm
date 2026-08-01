@@ -120,6 +120,11 @@
       "relative": 1e-5,
       "measured": 3.971e-6,
       "reason": "The component-layer Rankine loop: Pump/Boiler/Turbine/Condenser instances whose bodies call Volume(Water,P,h), Entropy(Water,P,h) and Enthalpy(Water,P,s). Same (P,h) split-table mechanism as rankine-cycle -- the turbine work tu.W amplifies the isentropic-outlet enthalpy error to 4.0e-6. The component expansion itself is exact; only the property values differ."
+    },
+    "state-tables-multifluid": {
+      "relative": 1e-5,
+      "measured": 2.8963e-6,
+      "reason": "Two STATE TABLE circuits whose every computed value is one Enthalpy() call on the (P,h) split table. hw_1 = Enthalpy(Water, P=10 kPa, T=45 C) sets the document's error: it is a (P,T) inverse bisection at a compressed-liquid state ~0.8 K below saturation, where h climbs steeply with T along a nearly flat pressure line, so the bisection's residual width shows up as 2.90e-6 in h. The other three are the same mechanism an order of magnitude smaller -- href_2 = Enthalpy(R134a, P=1.2 MPa, T=60 C) at 4.09e-7, hw_2 = Enthalpy(Water, P=8 MPa, T=480 C) at 1.11e-7 -- plus href_1 = Enthalpy(R134a, P=200 kPa, x=1), a (P,x) saturation-line read at 1.98e-8. None of the four is intercepted by the Java's own PhTableRegistry (that path is output T/Dmass/Smass at input (P,Hmass) only), so all four goldens are bit-exact CoolProp and the whole gap is this port's table."
     }
   }
 }

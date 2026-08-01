@@ -430,10 +430,6 @@ fn is_lazy_call(function: &str) -> bool {
 // CALL flattening (EquationParser.flattenCallProc)
 // ---------------------------------------------------------------------------
 
-/// CALL targets the Java `flattenCallProc` implements as intrinsics (control
-/// suite, linear algebra, signal/stats). They are not part of the procedural
-/// port; naming them keeps the refusal honest — "not yet supported", not
-/// "unknown".
 /// CALL targets whose flattener lives in [`crate::parser::expand`] (pipeline
 /// stage 3), not here. They must pass through this stage unchanged — refusing
 /// them would make the expansion-side flatteners unreachable, which is exactly
@@ -454,13 +450,10 @@ const EXPANDED_CALL_TARGETS: &[&str] = &[
     "convolve",
     "linfit",
     "polyfit",
-];
-
-const INTRINSIC_CALL_TARGETS: &[&str] = &[
-    "eigenvalues",
-    "eigen",
-    "eulerdecompose",
-    "eulerrotate",
+    // Phase 9: the control-systems suite. `expand::flatten_call_proc` hands
+    // these to `control::flatten`, which emits the `ss2tf$`/`step$`/`lqr$`/…
+    // synthetics `control::eval` decodes. The membership test below pins this
+    // list against `control::flatten::CALL_NAMES` so the two cannot drift.
     "ss2tf",
     "ss2tfij",
     "tf2ss",
@@ -501,8 +494,16 @@ const INTRINSIC_CALL_TARGETS: &[&str] = &[
     "residue",
     "nichols",
     "errorconst",
+    // `mason` is a real Java CALL intrinsic (`flattenMason` → `mason$<n>` →
+    // `evalMason`) that no earlier list named, so it was refused here and
+    // never reached the flattener at all.
     "mason",
 ];
+
+/// CALL targets the Java `flattenCallProc` implements as intrinsics that this
+/// port does not. Naming them keeps the refusal honest — "not yet supported",
+/// not "unknown".
+const INTRINSIC_CALL_TARGETS: &[&str] = &["eigenvalues", "eigen", "eulerdecompose", "eulerrotate"];
 
 /// Per-flatten module instance counter — the Java engine uses a shared
 /// `AtomicInteger` in the flatten context; a per-call counter is deterministic
@@ -1397,7 +1398,7 @@ mod tests {
 
     #[test]
     fn an_unported_intrinsic_call_keeps_the_refusal_message() {
-        for name in ["tf2ss", "eigenvalues", "lqr", "bode"] {
+        for name in ["eigenvalues", "eigen", "eulerdecompose", "eulerrotate"] {
             let doc = parse_document(&format!("[a, b] = {name}(m, n)")).unwrap();
             let err = flatten_calls(doc.statements, &doc.defs).unwrap_err();
             assert!(
@@ -1427,7 +1428,12 @@ mod tests {
             "polyfit",
             "ludecompose",
             "interp2",
-        ] {
+        ]
+        .into_iter()
+        // Phase 9 put the control-systems suite on the same route.
+        .chain(crate::control::flatten::CALL_NAMES)
+        .chain(["mason"])
+        {
             assert!(
                 EXPANDED_CALL_TARGETS.contains(&name),
                 "`{name}` must reach parser::expand"
@@ -1441,6 +1447,29 @@ mod tests {
             assert!(
                 matches!(out.as_slice(), [Statement::CallProc { name: n, .. }] if n == name),
                 "`{name}` was rewritten instead of passed through: {out:?}"
+            );
+        }
+    }
+
+    /// The stage-2 allowance and the stage-3 dispatcher must name the same
+    /// control-systems set. A name in `control::flatten::CALL_NAMES` but not
+    /// here is refused before it ever reaches its flattener — the exact defect
+    /// `mason` had.
+    #[test]
+    fn every_control_call_name_passes_this_stage() {
+        for name in crate::control::flatten::CALL_NAMES {
+            assert!(
+                EXPANDED_CALL_TARGETS.contains(&name),
+                "`{name}` is flattened by control::flatten but refused at stage 2"
+            );
+        }
+        for name in EXPANDED_CALL_TARGETS {
+            if crate::control::flatten::handles(name) {
+                continue;
+            }
+            assert!(
+                !INTRINSIC_CALL_TARGETS.contains(name),
+                "`{name}` is in both stage-2 lists"
             );
         }
     }

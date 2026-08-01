@@ -21,6 +21,8 @@ import init, {
   property_diagram,
   psychrometric_chart,
   reference,
+  repl_clear,
+  repl_evaluate,
   solve,
   version,
 } from './pkg/frees_wasm.js'
@@ -35,6 +37,8 @@ export interface EngineRequest {
     | 'fluids'
     | 'propertyDiagram'
     | 'psychrometricChart'
+    | 'replEvaluate'
+    | 'replClear'
   args: string[]
 }
 
@@ -90,6 +94,16 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
         break
       case 'psychrometricChart':
         result = psychrometric_chart(args[0] ?? '')
+        break
+      // The REPL evaluates against the workspace the last successful `solve`
+      // left in this module, so both calls must reach the *same* worker
+      // instance as the solve did. They do: engineClient keeps one.
+      case 'replEvaluate':
+        result = repl_evaluate(args[0] ?? '')
+        break
+      case 'replClear':
+        repl_clear(args[0] ?? 'null')
+        result = ''
         break
       default:
         throw new Error(`Unknown engine method: ${String(method)}`)

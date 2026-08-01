@@ -1,0 +1,5 @@
+{ Biproper: deg(num) == deg(den), so D is nonzero. }
+num = [2, 6, 5]
+den = [1, 4, 3]
+[Am, Bm, Cm, Dm] = tf2ss(num, den)
+[n2, d2] = ss2tf(Am, Bm, Cm, Dm)

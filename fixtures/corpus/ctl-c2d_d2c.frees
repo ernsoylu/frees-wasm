@@ -1,0 +1,6 @@
+num = [1]
+den = [1, 2, 1]
+Ts = 0.1
+[nd, dd] = c2d(num, den, Ts)
+[nc, dc] = d2c(nd, dd, Ts)
+[np, dp] = pade(0.2, 2)

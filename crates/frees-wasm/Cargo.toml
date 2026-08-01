@@ -19,3 +19,10 @@ console_error_panic_hook = { version = "0.1", optional = true }
 
 [features]
 default = ["console_error_panic_hook"]
+
+# wasm-pack invokes wasm-opt after cargo; without this it uses its default and
+# the module keeps opt-level=3 (speed) sizing from [profile.release]. `-Oz` is
+# the size-first setting, which is the right trade for a module the user
+# downloads before they can solve anything.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ['-Oz', '--enable-bulk-memory', '--enable-nontrapping-float-to-int']

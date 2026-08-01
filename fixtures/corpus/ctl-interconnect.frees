@@ -1,0 +1,8 @@
+{ series / parallel / feedback on the same pair; equal-length num/den. }
+n1 = [0, 0, 1]
+d1 = [0, 1, 1]
+n2 = [0, 2, 1]
+d2 = [1, 3, 2]
+[ns, ds] = series(n1, d1, n2, d2)
+[np, dp] = parallel(n1, d1, n2, d2)
+[nf, df] = feedback(n1, d1, n2, d2)

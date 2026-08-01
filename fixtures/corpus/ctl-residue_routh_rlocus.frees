@@ -1,0 +1,7 @@
+num = [0, 1, 3]
+den = [1, 3, 2]
+[rr, ri, pr2, pi2, kk] = residue(num, den)
+dr = [1, 1, 2, 8]
+[nrhp, stable] = routh(dr)
+[lk, lcpr, lcpi] = rlocus(num, den)
+[Kpos, Kvel, Kacc] = errorconst(num, den)

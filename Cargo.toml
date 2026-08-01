@@ -23,15 +23,26 @@ serde_json = "1"
 thiserror = "1"
 libm = "0.2"
 
+# Phase 9 CAS — exact rational arithmetic. The factoriser and the partial-fraction
+# decomposition must never touch f64 (`cas/mod.rs`, "Exactness"), and coefficients
+# in Hensel lifting routinely exceed 64 bits. Both crates are MIT OR Apache-2.0,
+# so they are compatible with frees' MIT licence and with static linking into wasm
+# (unlike Symja's LGPL-3.0 — see PLAN.md §6).
+num-bigint = "0.4"
+num-integer = "0.1"
+num-rational = "0.4"
+num-traits = "0.2"
+
 [profile.release]
-opt-level = 3
+# Size-first, not speed-first. `wasm-pack --release` uses THIS profile (the
+# separate [profile.release-wasm] below was never reachable), and the module is
+# downloaded before the user can solve anything, so bytes beat a few percent of
+# solver throughput. Native release builds are only used by the test suite.
+opt-level = "s"
 lto = true
 codegen-units = 1
 panic = "abort"
 
-# The wasm bundle is a product constraint (PLAN.md §3 D1). Optimise for size
-# where it does not cost solver throughput.
-[profile.release-wasm]
-inherits = "release"
-opt-level = "s"
-strip = true
+# NOTE: there is deliberately no [profile.release-wasm]. One existed from
+# Phase 0 and was dead config for nine phases — `wasm-pack --release` uses
+# [profile.release], which is why the size settings above live there.

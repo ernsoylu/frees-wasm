@@ -11,6 +11,7 @@ import type {
   DiagramResponse,
   LanguageReference,
   PsychartResponse,
+  ReplResponse,
   SolveResponse,
 } from '../api'
 import type { EngineRequest, EngineResponse } from './engine.worker'
@@ -82,6 +83,24 @@ export async function wasmCheck(
   requestJson: string,
 ): Promise<CheckResponse> {
   return JSON.parse(await call('check', [source, requestJson])) as CheckResponse
+}
+
+/** `POST /api/repl/evaluate`. The workspace lives inside the engine module —
+ *  the last successful `wasmSolve` stored it — so this must go through the
+ *  same worker, which it does (engineClient keeps exactly one). */
+export async function wasmReplEvaluate(
+  expression: string,
+  unitSystem: string,
+): Promise<ReplResponse> {
+  return JSON.parse(
+    await call('replEvaluate', [JSON.stringify({ expression, unitSystem })]),
+  ) as ReplResponse
+}
+
+/** `POST /api/repl/clear`. `undefined` clears every REPL overlay; a name
+ *  clears just that one. Resolves once the worker has done it. */
+export async function wasmReplClear(name?: string): Promise<void> {
+  await call('replClear', [JSON.stringify(name ?? null)])
 }
 
 /** The engine's language reference (units, built-in constants, intrinsics),

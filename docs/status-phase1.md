@@ -238,9 +238,48 @@ so no in-range request behaves differently. Each is pinned from both sides by
     larger gap, not just a bug: none of `analysis/` is reachable from a document
     or the wasm boundary yet, so its validation has no upstream owner.*
 
+### Opened by the Phase 9 robustness pass (2026-08-01)
+
+Both found by the adversarial sweep over the CAS and the control suite, and
+pinned by `crates/frees-core/tests/cas_control_robustness.rs`. Full context in
+[`docs/status-phase9.md`](status-phase9.md).
+
+24. **`balreal` returns a valid balanced realisation whose second state carries
+    the opposite sign from the oracle's.** Re-checking
+    `fixtures/corpus-pending/corpus/estimator-gramian-balreal.frees` against its
+    golden: `L` (the Kalman gain), `Wc` and `Wo` all match to better than
+    `1e-9`, and exactly four entries mismatch — `Ab[1,2]`, `Ab[2,1]`,
+    `Bb[2,1]`, `Cb[1,2]` — each with the right magnitude and the wrong sign.
+    That is a signature, not a coincidence: `T = Lc·V·S^{-1/2}` and
+    `T⁻¹ = S^{-1/2}·Uᵀ·Loᵀ`, so flipping the joint sign of column 2 of the SVD's
+    `U` and `V` flips column 2 of `T` and row 2 of `T⁻¹`, which flips exactly
+    `Ab`'s off-diagonal, `Bb`'s second row and `Cb`'s second column. An SVD's
+    singular vectors are determined only up to that joint sign; Commons Math and
+    `linalg::svd` choose differently, and neither is wrong. **Open, not
+    deliberate** — a fix means matching Commons Math's sign output, which cannot
+    be inferred from one data point, and the parity rule here is that a
+    convention is transcribed rather than invented. The invariants that matter
+    *are* asserted: the realisation is internally balanced (`Wc = Wo = diag(σ)`)
+    and the transfer function is unchanged by the balancing.
+    (`control/design.rs::balreal`,
+    `balreal_is_internally_balanced_even_though_its_state_signs_differ`)
+25. **The CAS's `MAX_POW = 64` silently turns "cannot factor" into "did not
+    factor".** `factor(x^100 + 1)` returns `1+x^100` — correct as a value,
+    unfactored as an answer — because `x^100` interned as one opaque generator
+    rather than being expanded. `factor(x^50 + 1)` at the same moment returns a
+    genuine factorisation. Symja factors both. There is no channel that
+    distinguishes *"proved irreducible"* from *"declined above the exponent
+    ceiling"*, so a user cannot tell which they were given. `Apart` has the same
+    shape at `MAX_APART_DEGREE = 64`: over the ceiling it returns the input
+    unchanged rather than saying it declined. **Open.** The ceilings themselves
+    are right — they are what stops `(x+1)^100000` being a denial of service,
+    and wasm has no timeout to fall back on — but "declined" needs to be
+    sayable. (`cas/ops.rs::MAX_POW`, `cas/ops.rs::MAX_APART_DEGREE`)
+
 Full detail: workflow output `wk1ueuu8a` findings list (items 1–12); Phase 6's
 items are recorded in `docs/status-phase6.md`, Phase 7's in
-`docs/status-phase7.md`, and items 19–23 in `docs/status-phase78.md`.
+`docs/status-phase7.md`, items 19–23 in `docs/status-phase78.md`, and items
+24–25 in `docs/status-phase9.md`.
 
 ## Commands
 

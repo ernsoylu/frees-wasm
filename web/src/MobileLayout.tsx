@@ -6,6 +6,7 @@ import {
   IconChartLine,
   IconTable,
   IconSettings,
+  IconDatabase,
   IconDeviceFloppy,
   IconChecks,
   IconFolderOpen,
@@ -34,6 +35,8 @@ interface MobileLayoutProps {
   onSaveProjectAs: () => void
   onNewProject: () => void
   onOpenProject: () => void
+  /** The browser-resident project library (Phase 11, D4). */
+  onOpenLibrary: () => void
   onPreferences: () => void
   onRenameProject: () => void
   onOpenExamples: () => void
@@ -56,6 +59,7 @@ export default function MobileLayout({
   onSaveProjectAs,
   onNewProject,
   onOpenProject,
+  onOpenLibrary,
   onPreferences,
   onRenameProject,
   onOpenExamples,
@@ -195,6 +199,12 @@ export default function MobileLayout({
                   onClick={onOpenProject}
                 >
                   Open Project
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconDatabase size={14} />}
+                  onClick={onOpenLibrary}
+                >
+                  Browser Projects
                 </Menu.Item>
                 <Menu.Item
                   leftSection={<IconDeviceFloppy size={14} />}

@@ -28,6 +28,7 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconCode,
+  IconDatabase,
   IconDeviceFloppy,
   IconFile,
   IconFilePlus,
@@ -819,6 +820,8 @@ interface TopBarProps {
   onRenameProject: () => void
   onNewProject: () => void
   onOpenProject: () => void
+  /** File menu: the browser-resident project library (Phase 11, D4). */
+  onOpenLibrary: () => void
   onSaveProject: () => void
   onSaveProjectAs: () => void
   onInsertFunction: (snippet: string) => void
@@ -895,6 +898,9 @@ export function TopBar(props: Readonly<TopBarProps>) {
             </Menu.Item>
             <Menu.Item leftSection={<IconFolderOpen size={14} />} onClick={props.onOpenProject}>
               Open Project…
+            </Menu.Item>
+            <Menu.Item leftSection={<IconDatabase size={14} />} onClick={props.onOpenLibrary}>
+              Browser Projects…
             </Menu.Item>
             <Menu.Item leftSection={<IconLayoutGrid size={14} />} onClick={props.onOpenExamples}>
               Open Example…

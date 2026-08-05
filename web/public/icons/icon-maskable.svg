@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Maskable variant: full-bleed background, glyph scaled into the safe
+       zone (the centre ~80%) so circular masks do not clip it. -->
+  <rect width="512" height="512" fill="#1a1b1e"/>
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+    <text x="120" y="360" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="340" fill="#38d9a9">f</text>
+    <rect x="296" y="212" width="120" height="30" rx="15" fill="#38d9a9"/>
+    <rect x="296" y="282" width="120" height="30" rx="15" fill="#63e6be"/>
+  </g>
+</svg>

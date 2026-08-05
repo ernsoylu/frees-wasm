@@ -15,7 +15,9 @@ export PATH="$HOME/.cargo/bin:$PATH"
 wasm-pack build ../crates/frees-wasm --release --target web --out-dir ../web/src/wasm/pkg
 ```
 
-(paths relative to `web/`; absolute paths work too).
+(paths relative to `web/`; absolute paths work too). The Dockerfile guards
+this: an image build fails fast when the pkg is absent instead of shipping a
+UI with no engine.
 
 ## Files the WASM port has touched
 
@@ -23,7 +25,7 @@ wasm-pack build ../crates/frees-wasm --release --target web --out-dir ../web/src
   `src/wasm/engineClient.ts` and keep their exported signatures; every other
   endpoint is a stub (neutral boot values or a "not yet available in the
   browser engine" rejection). `runCompute`/`pollJob` are kept, unwired, for a
-  future hybrid remote path.
+  future hybrid remote path (opt-in via `VITE_API_BASE`).
 - `src/wasm/` — **done**: `engine.worker.ts` (module worker hosting the wasm
   engine, `{id, method, args}` → `{id, ok, result|error}`) and
   `engineClient.ts` (lazy singleton, id correlation, typed
@@ -31,10 +33,27 @@ wasm-pack build ../crates/frees-wasm --release --target web --out-dir ../web/src
 - `src/defaultExample.ts` — **done**: boots a document the browser engine
   solves; the EV COMPONENT model is kept as `EV_THERMAL_EXAMPLE_TEXT` for
   Phase 6.
-- `src/analyzer/measurementApi.ts` — untouched (Data Analyzer is Phase 10; its
-  fetch failures are already user-visible upload errors).
-- `vite.config.ts` — untouched so far: Vite's stock `new Worker(new URL(...))`
-  handling bundles the worker and the `.wasm` asset without config.
+- `src/analyzer/measurementApi.ts` — **done (Phase 10)**: all four
+  measurement routes call the engine worker; a `.mf4` never leaves the tab.
+- `vite.config.ts` — forked: `buildInfoPlugin`, the vendor `manualChunks`
+  split, `rollup-plugin-visualizer`, and (Phase 11) `vite-plugin-pwa`. The
+  `/api` dev proxy is gone — nothing in `src/` calls a live endpoint.
+
+## Files Phase 11 added or forked (browser-native product layer)
+
+- `src/projectStore.ts` + `src/ProjectLibraryModal.tsx` — the IndexedDB
+  project library and durable autosave mirror (decision D4);
+  `src/project.ts` gains `normalizeStoredProject` so both storage backends
+  share one sanitize/migrate trust boundary. Wired into `src/App.tsx`,
+  `src/WorkspaceChrome.tsx`, `src/MobileLayout.tsx`.
+- `src/pwa.tsx` + `src/main.tsx` — service-worker registration with a
+  prompt-style update flow (a background activation must not yank hashed
+  chunks from under a live tab; see the comment in `vite.config.ts`).
+- `index.html` — theme-color, SVG favicon, apple-touch-icon; the manifest
+  link is injected by the PWA plugin.
+- `public/icons/` — the app icon set (SVG sources + rasterized PNGs).
+- `nginx.conf.template` + `Dockerfile` — static-only: the `/api` proxy
+  blocks, rate limiting and real-ip machinery went with the server.
 
 ## Everything else stays in sync with upstream
 
@@ -50,4 +69,5 @@ app fine but **cannot run the vitest suite**: jsdom@30 pulls undici@8, whose
 Node 22 — so every test file fails at environment setup with
 `TypeError: webidl.util.markAsUncloneable is not a function`. CI reads the
 `.nvmrc` via `setup-node`'s `node-version-file` and runs `npx vitest run`
-before the build. Verified locally: 33 files / 324 tests pass on v22.23.2.
+before the build. Verified locally: 39 files / 388 tests pass on v26.5.0
+(Phase 11; the Phase 10 run was 38/369 on v22.23.2).

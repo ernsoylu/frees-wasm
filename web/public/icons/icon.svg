@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- The frees mark: an italic f beside an equals sign — a document is
+       equations. Teal on Mantine dark, matching the in-app wordmark. -->
+  <rect width="512" height="512" rx="96" fill="#1a1b1e"/>
+  <text x="120" y="360" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="340" fill="#38d9a9">f</text>
+  <rect x="296" y="212" width="120" height="30" rx="15" fill="#38d9a9"/>
+  <rect x="296" y="282" width="120" height="30" rx="15" fill="#63e6be"/>
+</svg>

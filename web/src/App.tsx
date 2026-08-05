@@ -43,6 +43,7 @@ import {
   IconGrid4x4,
   IconLink,
   IconPrinter,
+  IconDatabase,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { buildShareUrl, clearShareHash, extractSharedText } from './share'
@@ -186,6 +187,15 @@ import {
   saveProjectLocal,
   writeBridgedKeys,
 } from './project'
+import {
+  clearAutosaveMirror,
+  loadStoredProject,
+  mirrorIsNewer,
+  readAutosaveMirror,
+  saveStoredProject,
+  writeAutosaveMirror,
+} from './projectStore'
+import { ProjectLibraryModal } from './ProjectLibraryModal'
 
 const STOP_CRITERIA_KEY = 'frees.stopCriteria'
 const UNIT_SYSTEM_KEY = 'frees.unitSystem'
@@ -397,6 +407,8 @@ export default function App() {
   const [renameOpen, setRenameOpen] = useState(false)
   const [saveAsOpen, setSaveAsOpen] = useState(false)
   const [showSaveCheck, setShowSaveCheck] = useState(false)
+  // Phase 11 (D4): the browser-resident project library.
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
   // Tracks unsaved changes; suppressed for one render-cycle after a project
   // load / new / save so the dirty-tracking effect doesn't fire falsely.
@@ -662,12 +674,19 @@ export default function App() {
 
   // Debounced autosave of the entire workspace to a single localStorage key,
   // superseding the scattered per-feature keys as the source of truth on reload.
+  // The same document also lands in the IndexedDB mirror (D4): localStorage is
+  // what boot reads synchronously, but its ~5 MB quota means this write can
+  // silently stop succeeding once whiteboard images or spreadsheets grow — the
+  // mirror is the durable copy that keeps updating past that point.
   useEffect(() => {
     const id = setTimeout(() => {
-      saveProjectLocal(buildProject(currentSlices()))
+      const project = buildProject(currentSlices())
+      saveProjectLocal(project)
+      void writeAutosaveMirror(project)
     }, 800)
     return () => clearTimeout(id)
   }, [currentSlices])
+
 
   // Clear the per-circuit fill-missing tracker once the solve finishes so the
   // next click correctly identifies which circuit triggered the loading state.
@@ -798,6 +817,10 @@ export default function App() {
     setCheckResult(null)
     writeBridgedKeys(p)
     saveProjectLocal(p)
+    // Keep the durable mirror in step (D4): a mirror left carrying the
+    // *previous* workspace would read as "newer" on the next boot and offer a
+    // restore of the exact state the user just navigated away from.
+    void writeAutosaveMirror(p)
     setWorkspaceEpoch((e) => e + 1)
     requestAnimationFrame(() => {
       dockRef.current?.restore(p.dockLayout)
@@ -813,6 +836,44 @@ export default function App() {
       }
     })
   }, [applyText])
+
+  // D4 quota recovery, once per boot: when the IndexedDB mirror is strictly
+  // newer than what localStorage booted, the localStorage autosave had started
+  // failing — offer the newer copy rather than silently restoring it, because
+  // the user may have *wanted* the state they are looking at.
+  const mirrorCheckedRef = useRef(false)
+  useEffect(() => {
+    if (mirrorCheckedRef.current || sharedBoot !== null) return
+    mirrorCheckedRef.current = true
+    const booted = bootRef.current ?? null
+    void readAutosaveMirror().then((mirror) => {
+      if (!mirrorIsNewer(mirror, booted)) return
+      const when = new Date(Date.parse(mirror.savedAt)).toLocaleString()
+      notifications.show({
+        id: 'autosave-mirror-restore',
+        color: 'yellow',
+        autoClose: false,
+        title: 'A newer autosave exists in browser storage',
+        message: (
+          <Stack gap="xs">
+            <Text size="sm">
+              The quick autosave fell behind (usually a storage-quota limit). A newer copy from {when} is
+              available.
+            </Text>
+            <Button
+              size="xs"
+              onClick={() => {
+                notifications.hide('autosave-mirror-restore')
+                applyProject(mirror)
+              }}
+            >
+              Restore newer autosave
+            </Button>
+          </Stack>
+        ),
+      })
+    })
+  }, [sharedBoot, applyProject])
 
   // If the project is dirty, show the save-check dialog; otherwise run immediately.
   const guardedAction = useCallback((action: () => void) => {
@@ -876,6 +937,36 @@ export default function App() {
     guardedAction(() => projectFileRef.current?.click())
   }, [guardedAction])
 
+  // Phase 11 (D4): the browser-resident project library. Saving is name-keyed
+  // with file semantics (same name overwrites); a failed explicit save is
+  // surfaced by the modal, never silent.
+  const handleSaveToBrowser = useCallback(async () => {
+    const meta = await saveStoredProject(projectName, buildProject(currentSlices()))
+    if (meta) isDirtyRef.current = false
+    return meta !== null
+  }, [currentSlices, projectName])
+
+  const handleOpenFromBrowser = useCallback(
+    (name: string) => {
+      guardedAction(() => {
+        void loadStoredProject(name).then((p) => {
+          if (p) {
+            applyProject(p)
+            setProjectName(name)
+            setLibraryOpen(false)
+          } else {
+            notifications.show({
+              color: 'yellow',
+              title: 'Could not open browser project',
+              message: 'It may have been deleted in another tab.',
+            })
+          }
+        })
+      })
+    },
+    [guardedAction, applyProject],
+  )
+
   const onProjectFileSelected = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
@@ -896,6 +987,7 @@ export default function App() {
     suppressDirtyRef.current = true
     isDirtyRef.current = false
     clearProjectLocal()
+    void clearAutosaveMirror()
     writeBridgedKeys({
       version: 1,
       savedAt: '',
@@ -1058,6 +1150,7 @@ export default function App() {
     suppressDirtyRef.current = true
     isDirtyRef.current = false
     clearProjectLocal()
+    void clearAutosaveMirror()
     writeBridgedKeys({
       version: 1,
       savedAt: '',
@@ -2023,6 +2116,8 @@ export default function App() {
         { id: 'proj-open', label: 'Open Project…', leftSection: <IconFolderOpen size={18} />, onClick: handleOpenProject },
         { id: 'proj-save', label: 'Save Project', leftSection: <IconDeviceFloppy size={18} />, onClick: handleSaveProject },
         { id: 'proj-saveas', label: 'Save Project As…', leftSection: <IconDeviceFloppy size={18} />, onClick: handleSaveProjectAs },
+        { id: 'proj-library', label: 'Browser Projects…', description: 'Projects saved in this browser — no server, no files', leftSection: <IconDatabase size={18} />, onClick: () => setLibraryOpen(true) },
+        { id: 'proj-save-browser', label: 'Save to Browser', description: 'Keep this project in the browser under its current name', leftSection: <IconDatabase size={18} />, onClick: () => { void handleSaveToBrowser().then((ok) => notifications.show(ok ? { color: 'teal', title: 'Saved to browser', message: `“${projectName}” is stored in this browser.` } : { color: 'yellow', title: 'Could not save to browser', message: 'Browser storage may be unavailable in this browsing mode.' })) } },
       ],
     },
     {
@@ -2719,6 +2814,7 @@ export default function App() {
             onSaveProjectAs={handleSaveProjectAs}
             onNewProject={handleNewProject}
             onOpenProject={handleOpenProject}
+            onOpenLibrary={() => setLibraryOpen(true)}
             onPreferences={() => setShowPreferences(true)}
             onRenameProject={handleRenameProject}
             onOpenExamples={() => setShowExamples(true)}
@@ -2837,6 +2933,7 @@ export default function App() {
           onRenameProject={handleRenameProject}
           onNewProject={handleNewProject}
           onOpenProject={handleOpenProject}
+          onOpenLibrary={() => setLibraryOpen(true)}
           onSaveProject={handleSaveProject}
           onSaveProjectAs={handleSaveProjectAs}
           onInsertFunction={insertFunction}
@@ -2967,6 +3064,14 @@ export default function App() {
         onSave={onSaveCheckSave}
         onDiscard={onSaveCheckDiscard}
         onCancel={onSaveCheckCancel}
+      />
+
+      <ProjectLibraryModal
+        opened={libraryOpen}
+        currentName={projectName}
+        onClose={() => setLibraryOpen(false)}
+        onSaveCurrent={handleSaveToBrowser}
+        onOpenProject={handleOpenFromBrowser}
       />
 
       <MessageModal

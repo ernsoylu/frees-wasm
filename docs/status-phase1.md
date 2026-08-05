@@ -375,6 +375,34 @@ items are recorded in `docs/status-phase6.md`, Phase 7's in
 `docs/status-phase7.md`, items 19–23 in `docs/status-phase78.md`, items
 24–25 in `docs/status-phase9.md`, and items 26–30 in `docs/status-phase10.md`.
 
+### Opened by Phase 11 (2026-08-05)
+
+The browser-native product layer. These diverge from the **vendored frontend
+and its deployment**, not from the Java engine — engine behaviour is untouched
+this phase. Full context in [`docs/status-phase11.md`](status-phase11.md).
+
+31. **Workspace autosave is now dual-written.** Upstream autosaves to one
+    `localStorage` key (`frees.project`) and silently stops updating past the
+    ~5 MB quota. This port mirrors every autosave into IndexedDB
+    (`projectStore.ts`, decision D4) and, when the mirror is strictly newer at
+    boot, *offers* — never forces — a restore. Upstream has no equivalent and
+    no recovery from a quota-dead autosave.
+
+32. **The web deployment is static-only.** The nginx `/api` proxy blocks, the
+    `limit_req` rate limiter and the `real_ip` trust machinery are deleted
+    from `web/nginx.conf.template` and `web/Dockerfile` — they guarded a
+    remote compute tier this build does not have. A hybrid deploy re-enters
+    through `VITE_API_BASE` (the adapter in `api.ts` is kept, unwired), and
+    would need `connect-src` widened in `security-headers.conf` for a
+    cross-origin backend.
+
+33. **The app is an installable PWA with a full-precache service worker.**
+    Upstream ships a manifest with `icons: []` (not installable) and no
+    service worker. This port precaches the entire built app (~30 MB,
+    including the wasm engine and the Plotly/spreadsheet lazy chunks) under a
+    prompt-style update flow. The trade is deliberate: first visit downloads
+    the whole tool; every later session — including offline — costs nothing.
+
 ## Commands
 
 ```bash

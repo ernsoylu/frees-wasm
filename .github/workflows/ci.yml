@@ -29,6 +29,19 @@ env:
   # already early-returns before parsing a byte of the library when a document
   # declares no components, so the chunk boundary exists in the code and only
   # the linker does not know about it.
+  #
+  # 2026-08-01, end of Phase 10 (recorded late, with Phases 7-9 uncarried —
+  # docs/status-phase10.md gap 9 called that erosion out; their numbers live in
+  # their status docs): 2944 KiB raw / 1390 KiB gzipped, 95.8% of the ceiling,
+  # 128 KiB of headroom. Phase 9's opt-level="s" spent the profile lever
+  # (-535 KiB); Phase 10's mf4-rs + measurement code cost +175.2 KiB. NEITHER
+  # DEBT WAS PAID and the headroom is now smaller than a typical phase.
+  #
+  # 2026-08-05, end of Phase 11: the wasm module is UNTOUCHED (still 2944 KiB
+  # raw / 1390 KiB gzipped) — the phase is JS-side (IndexedDB project library,
+  # service worker + PWA). The service worker precaches the full dist
+  # (~30 MB, dominated by Plotly/spreadsheet lazy chunks), which is a
+  # first-visit download cost, not a wasm-budget cost. Debts above still open.
   WASM_BUDGET_KB: 3072
 
 jobs:
@@ -151,6 +164,24 @@ jobs:
             exit 1
           fi
           echo "bundled wasm asset: $wasm ($(stat -c%s "$wasm") bytes)"
+
+      - name: Verify the PWA shipped in dist (Phase 11)
+        working-directory: web
+        run: |
+          set -euo pipefail
+          for f in dist/sw.js dist/manifest.webmanifest dist/icons/icon-512.png; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error::$f missing — the PWA layer did not build"
+              exit 1
+            fi
+          done
+          # The offline promise is only as good as the precache: the service
+          # worker must reference the wasm engine by its hashed name.
+          if ! grep -q '\.wasm' dist/sw.js; then
+            echo "::error::dist/sw.js does not precache the wasm engine"
+            exit 1
+          fi
+          echo "sw.js precaches $(grep -o 'revision' dist/sw.js | wc -l) manifest (present), wasm referenced"
 
   parity:
     name: parity corpus

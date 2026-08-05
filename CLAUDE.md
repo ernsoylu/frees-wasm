@@ -17,8 +17,29 @@ properties, property diagrams, component networks, the component datasheet, the
 language reference, the CAS REPL, the control-systems `CALL`s and the Data
 Analyzer's `.mf4` reading all run in-browser with **zero `/api/` traffic**.
 Current gate numbers live in
-[`docs/status-phase10.md`](docs/status-phase10.md) — do not trust a count copied
+[`docs/status-phase11.md`](docs/status-phase11.md) — do not trust a count copied
 into this paragraph.
+
+**Phase 11 is implemented and proven.** The browser-native product layer:
+the app is an **installable PWA** whose Workbox service worker precaches the
+entire built app (334 entries / ~30 MB incl. the wasm engine — offline reload,
+offline solve and the offline project library are proven by a Playwright run
+against a dumb static server in `docs/status-phase11.md`), an **IndexedDB
+project library** (`web/src/projectStore.ts`, decision
+[D4](docs/decisions/0004-project-storage.md)) gives Save-to-browser /
+Browser-Projects with name-keyed file semantics, and the workspace autosave is
+**dual-written** — localStorage stays the synchronous boot cache, IndexedDB is
+the durable mirror that survives quota and is *offered* (never forced) as a
+restore when it is strictly newer at boot. The web deploy is **static-only**:
+the nginx `/api` proxy blocks, rate limiter and real-ip machinery are deleted,
+and the Dockerfile fails fast when the generated wasm pkg is missing (it also
+now actually copies `public/`, which the old image never did). **No Rust
+changed** — the wasm bundle is untouched at 2944 KiB and all 531 fixtures
+still match. Zero new runtime dependencies; `vite-plugin-pwa` and
+`fake-indexeddb` are dev-only. Share links and `.frees` file save/open
+predate the phase (vendored) and are documented as such, honestly, in the
+status doc — read its "did not deliver" list before building on this layer;
+item 1 is that the optional remote-fallback adapter stays unwired by choice.
 
 **Phase 10 is implemented and wired.** `crates/frees-core/src/measurement/`
 (MDF4 reading over `mf4-rs`, sampled series, envelope decimation, raster
@@ -71,7 +92,8 @@ planning further work.
 
 | Document | Contents |
 |---|---|
-| [`docs/status-phase10.md`](docs/status-phase10.md) | **Read first.** Phase 10 — measured data in the tab: what shipped per area, the **fifteen** defects three adversarial sweeps found — listed individually so the count is checkable (seven end the session — five allocation aborts and two unbounded walks — two are silent wrong answers, one wedges the worker on an ordinary formula, and five are numeric-parity divergences against a live JDK oracle) — the browser proof against genuine asammdf bytes with **zero `/api/` requests**, the raw gate numbers, the measured `mf4-rs` bundle delta and the `nom 1.2.4` debt with its exit — and a ranked list of what Phase 10 did **not** deliver, starting with the `mdf-sidecar`'s three compressed formats, which now have no answer at all |
+| [`docs/status-phase11.md`](docs/status-phase11.md) | **Read first.** Phase 11 — the browser-native product layer: the installable-PWA + full-precache offline story with its browser proof (offline reload, offline solve, offline project library, zero network), the IndexedDB project library and dual-written autosave (decision D4), the static-only deploy, what was **already there** (share links, `.frees` save/open — stated plainly rather than claimed), and a ranked list of what Phase 11 did **not** deliver, starting with the still-unwired remote-fallback adapter |
+| [`docs/status-phase10.md`](docs/status-phase10.md) | Phase 10 — measured data in the tab: what shipped per area, the **fifteen** defects three adversarial sweeps found — listed individually so the count is checkable (seven end the session — five allocation aborts and two unbounded walks — two are silent wrong answers, one wedges the worker on an ordinary formula, and five are numeric-parity divergences against a live JDK oracle) — the browser proof against genuine asammdf bytes with **zero `/api/` requests**, the raw gate numbers, the measured `mf4-rs` bundle delta and the `nom 1.2.4` debt with its exit — and a ranked list of what Phase 10 did **not** deliver, starting with the `mdf-sidecar`'s three compressed formats, which now have no answer at all |
 | [`docs/status-phase9.md`](docs/status-phase9.md) | Phase 9 — the from-scratch CAS and the control-systems suite, wired end to end: what shipped per area, the `O(n⁴)` CAS defect the adversarial sweep found and fixed (a 200-symbol `Expand` went from **256 s to 0.41 s**, and to **103 ms in the browser**), the twelve other attacks that found the bounds already in place, the browser proof, the raw gate numbers, the 31 promoted fixtures — and a ranked list of what Phase 9 did **not** deliver, starting with the exact boundary of `Integrate`. **Its bundle section is stale**: the 3336 KiB breach it reports was fixed by the `opt-level = "s"` change in its own commit; see `docs/status-phase10.md` |
 | [`docs/status-phase78.md`](docs/status-phase78.md) | The Phase 7–8 robustness pass: the four defects an adversarial sweep of the transient and analysis surfaces found (two of them process *aborts*, one a silent wrong answer), the guards that close them, the browser proof, the raw gate numbers, and a ranked list of what these phases did **not** deliver — starting with "Phase 8's `analysis/` is not wired to anything" |
 | [`docs/status-phase7.md`](docs/status-phase7.md) | What Phase 7 delivers per area, the raw gate numbers, which 29 fixtures were promoted, and its pending table — **annotated with what Phase 9 closed** — plus the one honest performance finding (`dyn_accessor_live`) |

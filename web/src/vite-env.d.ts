@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/client" />
 
 // Baked in at build time by Vite's `define` from package.json (see vite.config.ts).
 declare const __APP_VERSION__: string

@@ -7,6 +7,7 @@ import 'katex/dist/katex.min.css'
 import { Center, createTheme, Loader, MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import ErrorBoundary from './ErrorBoundary'
+import { setupPwa } from './pwa'
 import './index.css'
 
 // The editor app and the (separate /help route) Help page are split into their
@@ -38,6 +39,9 @@ const theme = createTheme({
 })
 
 const isHelpPage = globalThis.location.pathname === '/help'
+
+// Register the service worker (no-op in dev, where the plugin disables it).
+setupPwa()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

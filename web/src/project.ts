@@ -192,6 +192,17 @@ function sanitizeProject(project: FreesProject): FreesProject | null {
   }
 }
 
+/**
+ * Normalize a project read back from any browser storage (localStorage,
+ * IndexedDB) to the current version and schema. Storage is outside the app's
+ * trust boundary regardless of which API it hides behind, so reads go through
+ * the same migrate-then-sanitize path as writes.
+ */
+export function normalizeStoredProject(raw: unknown): FreesProject | null {
+  if (raw == null || typeof raw !== 'object') return null
+  return sanitizeProject(migrate(raw as FreesProject))
+}
+
 export function saveProjectLocal(project: FreesProject) {
   const safe = sanitizeProject(project)
   if (safe == null) return

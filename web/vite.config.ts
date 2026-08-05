@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { VitePWA } from 'vite-plugin-pwa'
 import pkg from './package.json'
 
 // Inject the runtime build-info.js script into the production HTML.
@@ -20,8 +21,51 @@ function buildInfoPlugin() {
   }
 }
 
+// Phase 11: installable PWA + full offline session. The service worker
+// precaches every built asset — including the ~3 MB wasm engine and the large
+// lazy chunks (Plotly, the spreadsheet stack) — because "offline" for an
+// engineering tool means the whole tool, not just the shell that was visited
+// while online. `registerType: 'prompt'` keeps the old precache serving the
+// running tab and surfaces an in-app "update ready" notification (src/pwa.tsx)
+// instead of letting a background activation yank hashed chunks out from under
+// a live session (which is exactly the stale-chunk condition main.tsx's
+// vite:preloadError reload guards against).
+function pwaPlugin() {
+  return VitePWA({
+    registerType: 'prompt',
+    includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png'],
+    manifest: {
+      name: 'frees Equation Solver',
+      short_name: 'frees',
+      description:
+        'Declarative equation solving, acausal system modeling and measurement analysis — entirely in the browser.',
+      start_url: '.',
+      display: 'standalone',
+      background_color: '#1a1b1e',
+      theme_color: '#1a1b1e',
+      icons: [
+        { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml' },
+      ],
+    },
+    workbox: {
+      globPatterns: ['**/*.{js,css,html,wasm,svg,png,woff,woff2,json}'],
+      // Plotly (~4.8 MB) and the spreadsheet stack are above workbox's 2 MiB
+      // default; the point of this phase is that they work offline too.
+      maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+      navigateFallback: 'index.html',
+      // /api/ is the (optional, unwired) remote-fallback adapter's namespace —
+      // a navigation there must fail honestly, not serve the app shell.
+      navigateFallbackDenylist: [/^\/api\//],
+      cleanupOutdatedCaches: true,
+    },
+  })
+}
+
 export default defineConfig({
-  plugins: [react(), buildInfoPlugin(), visualizer({ open: false, filename: 'stats.html' })],
+  plugins: [react(), buildInfoPlugin(), pwaPlugin(), visualizer({ open: false, filename: 'stats.html' })],
   define: {
     // The app version from package.json, baked in at build time so the REPL
     // banner and About dialog show "v0.1.0" without a runtime lookup. Paired
@@ -75,24 +119,11 @@ export default defineConfig({
       },
     },
   },
+  // No /api dev proxy: nothing in src/ issues an /api request — the engine is
+  // in-bundle wasm (the former proxy served the retired Spring backend). The
+  // optional remote-fallback adapter is opt-in via VITE_API_BASE, which names
+  // an absolute origin and needs no proxy.
   server: {
     port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-    },
-  },
-  // `vite preview` serves the built bundle (the dev server can hit watcher
-  // ENOSPC limits here); give it the same /api proxy so host verification
-  // against the Docker backend works.
-  preview: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-    },
   },
 })

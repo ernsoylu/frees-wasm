@@ -55,6 +55,19 @@ UI with no engine.
 - `nginx.conf.template` + `Dockerfile` — static-only: the `/api` proxy
   blocks, rate limiting and real-ip machinery went with the server.
 
+## The feature clip (decision D5, 2026-08-05)
+
+The Min/Max, Curve Fit, PID Tuner, Monte Carlo and Parameter Estimation
+modals and the PDF/EPS export options are **deliberately removed**, not
+missing from the vendor sync: their engine features exist only as
+`NOT_IN_BROWSER_ENGINE` stubs, and this build's UI promises only what its
+engine does. Files deleted: the five `*Modal.tsx` components. Files forked
+for the clip: `App.tsx`, `WorkspaceChrome.tsx`, `Workspace.tsx`,
+`plots/exportPlot.ts`. The `api.ts` stubs and the `pidLoop`/`pidGainRewrite`
+helpers stay as the wiring seam. When re-syncing from upstream, re-apply the
+clip; when wiring a feature, restore its modal from git history and delete
+this paragraph's entry for it.
+
 ## Everything else stays in sync with upstream
 
 Do not fork other files. When upstream `../frEES/frontend` changes, re-run the

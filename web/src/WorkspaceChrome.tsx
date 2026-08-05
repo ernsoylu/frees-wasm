@@ -17,8 +17,6 @@ import {
 } from '@mantine/core'
 import {
   IconAdjustments,
-  IconChartHistogram,
-  IconCrosshair,
   IconBrush,
   IconChartGridDots,
   IconSitemap,
@@ -47,7 +45,6 @@ import {
   IconPlayerPlayFilled,
   IconSettings,
   IconTable,
-  IconTargetArrow,
   IconTerminal2,
   IconTrash,
   IconSearch,
@@ -141,11 +138,6 @@ interface RailProps {
   onDeleteTable?: (id: string) => void
   /** Open the singleton Fluid State table window. */
   onOpenStates?: () => void
-  onMinMax: () => void
-  onCurveFit: () => void
-  onPidTuner: () => void
-  onMonteCarlo: () => void
-  onParameterFit: () => void
   onPreferences: () => void
   onAbout: () => void
 }
@@ -415,9 +407,6 @@ export function Rail({
   onNewTable,
   onDeleteTable,
   onOpenStates,
-  onMinMax,
-  onCurveFit,
-  onPidTuner,
   onPreferences,
   onAbout,
 }: Readonly<RailProps>) {
@@ -443,9 +432,6 @@ export function Rail({
 
   const iconSize = 22
   const tools = [
-    { label: 'Min/Max', tip: 'Min/Max (optimization)', icon: IconTargetArrow, onClick: onMinMax },
-    { label: 'Curve Fit', tip: 'Curve Fit (least squares)', icon: IconMathFunction, onClick: onCurveFit },
-    { label: 'PID Tuner', tip: 'PID Tuner (auto-tune P/PI/PID gains)', icon: IconAdjustments, onClick: onPidTuner },
     { label: 'Preferences', tip: 'Preferences', icon: IconSettings, onClick: onPreferences },
     { label: 'About', tip: 'About', icon: IconInfoCircle, onClick: onAbout },
   ]
@@ -840,11 +826,6 @@ interface TopBarProps {
   onOpenTerminal: () => void
   /** Tools menu: equation tools (also reachable from the left rail). */
   onVariableInfo: () => void
-  onMinMax: () => void
-  onCurveFit: () => void
-  onPidTuner: () => void
-  onMonteCarlo: () => void
-  onParameterFit: () => void
 }
 
 function solveTooltipFor(canSolve: boolean, isTable: boolean): string {
@@ -995,21 +976,6 @@ export function TopBar(props: Readonly<TopBarProps>) {
             <Menu.Label>Equation tools</Menu.Label>
             <Menu.Item leftSection={<IconVariable size={14} />} onClick={props.onVariableInfo}>
               Variable Information
-            </Menu.Item>
-            <Menu.Item leftSection={<IconTargetArrow size={14} />} onClick={props.onMinMax}>
-              Min / Max (optimize)
-            </Menu.Item>
-            <Menu.Item leftSection={<IconMathFunction size={14} />} onClick={props.onCurveFit}>
-              Curve Fit
-            </Menu.Item>
-            <Menu.Item leftSection={<IconAdjustments size={14} />} onClick={props.onPidTuner}>
-              PID Tuner
-            </Menu.Item>
-            <Menu.Item leftSection={<IconChartHistogram size={14} />} onClick={props.onMonteCarlo}>
-              Monte Carlo Uncertainty
-            </Menu.Item>
-            <Menu.Item leftSection={<IconCrosshair size={14} />} onClick={props.onParameterFit}>
-              Parameter Estimation
             </Menu.Item>
             <Menu.Divider />
             <Menu.Label>Auxiliary panels</Menu.Label>

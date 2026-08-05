@@ -20,6 +20,14 @@ Current gate numbers live in
 [`docs/status-phase12.md`](docs/status-phase12.md) — do not trust a count copied
 into this paragraph.
 
+**The dead-end UI is clipped (decision
+[D5](docs/decisions/0005-feature-clip.md), after Phase 12).** The Min/Max,
+Curve Fit, PID Tuner, Monte Carlo and Parameter Estimation modals and the
+PDF/EPS exports are removed — they only ever surfaced `NOT_IN_BROWSER_ENGINE`
+stubs. The stubs, the pid helpers and Phase 8's `analysis/` module remain as
+the wiring seam (ledger item 36); the Tables workbook stays (its GUI Solve is
+also stubbed but the workbook is core UI — a wire-next candidate, not a clip).
+
 **Phase 12 is implemented — the plan's last phase.** A hardening pass that
 changed **zero engine lines**: the parity corpus grew **531 → 701** (a
 212-candidate harvest of the Java test classes via

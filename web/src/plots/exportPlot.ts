@@ -1,18 +1,17 @@
 import type { PlotlyFigure } from 'plotly.js-dist-min'
-import { exportVector } from '../api'
 
 /**
  * Plot file export. SVG/PNG/JPG come straight from Plotly (raster at 4x
- * scale for print resolution); PDF and EPS are transcoded from the SVG by
- * the backend (Apache FOP) so they stay fully vector.
+ * scale for print resolution). PDF/EPS are clipped (decision D5): they were
+ * transcoded server-side by Apache FOP, which has no browser-engine
+ * equivalent, and the api.ts stub could only reject. SVG covers the
+ * fully-vector need client-side.
  */
 
-export type ExportFormat = 'svg' | 'png' | 'jpg' | 'pdf' | 'eps'
+export type ExportFormat = 'svg' | 'png' | 'jpg'
 
 export const EXPORT_FORMATS: { value: ExportFormat; label: string }[] = [
   { value: 'svg', label: 'SVG (vector)' },
-  { value: 'pdf', label: 'PDF (vector)' },
-  { value: 'eps', label: 'EPS (vector)' },
   { value: 'png', label: 'PNG (high resolution)' },
   { value: 'jpg', label: 'JPG (high resolution)' },
 ]
@@ -56,11 +55,6 @@ export async function exportPlot(
   if (format === 'svg') {
     const svg = await figureToSvg(figure)
     downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), filename)
-    return
-  }
-  if (format === 'pdf' || format === 'eps') {
-    const svg = await figureToSvg(figure)
-    downloadBlob(await exportVector(svg, format), filename)
     return
   }
   const { default: Plotly } = await import('plotly.js-dist-min')

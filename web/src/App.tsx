@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
   Title,
-  useComputedColorScheme,
 } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
 import { Spotlight, SpotlightActionGroupData } from '@mantine/spotlight'
@@ -30,13 +29,11 @@ import {
   IconInfoCircle,
   IconKeyboard,
   IconLayoutGrid,
-  IconAdjustments,
   IconMathFunction,
   IconPlayerPlayFilled,
   IconSearch,
   IconSettings,
   IconTable,
-  IconTargetArrow,
   IconTemperature,
   IconVariable,
   IconWaveSine,
@@ -52,12 +49,10 @@ import {
   check,
   CheckResponse,
   DEFAULT_STOP_CRITERIA,
-  extractPlant,
   getFluids,
   solve,
   replClear,
   solveTable,
-  runMonteCarlo,
   SolveResponse,
   StopCriteria,
   UnitSystem,
@@ -137,14 +132,13 @@ const ExamplesModal = lazy(() => import('./ExamplesModal'))
 // and only needed once a plot window is opened or a modal is invoked.
 const PlotTab = lazy(() => import('./PlotTab'))
 const ComponentWizardModal = lazy(() => import('./ComponentWizardModal'))
-const MinMaxModal = lazy(() => import('./MinMaxModal'))
-const CurveFitModal = lazy(() => import('./CurveFitModal'))
-const PidTunerModal = lazy(() => import('./PidTunerModal'))
-const MonteCarloModal = lazy(() => import('./MonteCarloModal'))
 const SliderStrip = lazy(() => import('./SliderStrip'))
-const ParameterFitModal = lazy(() => import('./ParameterFitModal'))
-type PidType = 'p' | 'pi' | 'pid'
 const PlotConfigModal = lazy(() => import('./plots/PlotConfigModal'))
+// Clipped (decision D5): the Min/Max, Curve Fit, PID Tuner, Monte Carlo and
+// Parameter Fit modals launched engine features that only exist as
+// NOT_IN_BROWSER_ENGINE stubs in api.ts. The stubs (and the pidLoop /
+// pidGainRewrite helpers) remain as the wiring seam; the UI stops promising
+// what the engine cannot do.
 
 const lazyTabFallback = (
   <Center h="100%">
@@ -153,10 +147,7 @@ const lazyTabFallback = (
 )
 import { PlotSpec, PlotKind } from './plots/types'
 import { plotDefToSpec } from './plots/fromCode'
-import type { ComponentGroup } from './Workspace'
 const Workspace = lazy(() => import('./Workspace'))
-import { rewritePidGains } from './pidGainRewrite'
-import { analyzePidLoop } from './pidLoop'
 const ReplTerminal = lazy(() => import('./ReplTerminal'))
 const MobileLayout = lazy(() => import('./MobileLayout'))
 import { DOCS_TOPICS } from './docsTopics'
@@ -171,10 +162,7 @@ import { Rail, TopBar } from './WorkspaceChrome'
 import type { WorkspaceDockHandle, OpenWindow } from './workspace/WorkspaceDock'
 const WorkspaceDock = lazy(() => import('./workspace/WorkspaceDock').then(m => ({ default: m.WorkspaceDock })))
 import { detectStates } from './plots/stateTable'
-import {
-  formatValue,
-  withStableKeys,
-} from './format'
+import { withStableKeys } from './format'
 import { FUNCTION_CATEGORIES, catalogFunctionNames } from './functionCatalog'
 import {
   buildProject,
@@ -450,22 +438,6 @@ export default function App() {
     () => boot?.varDrafts ?? {},
   )
   const [showVariableInfo, setShowVariableInfo] = useState(false)
-  const [showMinMax, setShowMinMax] = useState(false)
-  const [showMonteCarlo, setShowMonteCarlo] = useState(false)
-  const [showParameterFit, setShowParameterFit] = useState(false)
-  const [showCurveFit, setShowCurveFit] = useState(false)
-  const computedScheme = useComputedColorScheme('dark')
-  // PID Tuner: null = closed; the object carries what to tune. `instanceName`
-  // set → Apply rewrites that SigPID's gains in the editor; absent (Tools menu)
-  // → Apply inserts a tuned SigPID snippet.
-  const [pidTuner, setPidTuner] = useState<{
-    instanceName?: string
-    initial?: { type: PidType; kp: number; ki: number; kd: number }
-    subject?: string
-    plant?: { num: number[]; den: number[] }
-    plantLoading?: boolean
-    plantError?: string
-  } | null>(null)
   const [showAbout, setShowAbout] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [showComponentWizard, setShowComponentWizard] = useState(false)
@@ -509,47 +481,6 @@ export default function App() {
     editorRef.current?.setDoc(next)
   }, [])
 
-  /** Open the PID Tuner for a solved SigPID: seed its current gains and try to
-   *  auto-extract the plant from the loop (falling back to manual entry). */
-  const openPidTunerFor = useCallback((c: ComponentGroup) => {
-    const gain = (key: string): number => {
-      const p = c.params.find((x) => x.name.toLowerCase() === key)
-      return typeof p?.value === 'number' ? p.value : 0
-    }
-    const kp = gain('kp')
-    const ki = gain('ki')
-    const kd = gain('kd')
-    let type: PidType = 'p'
-    if (kd !== 0) type = 'pid'
-    else if (ki !== 0) type = 'pi'
-    const initial = { type, kp, ki, kd }
-
-    const loop = analyzePidLoop(textRef.current, c.name)
-    if (loop === null) {
-      // Couldn't read the wiring — open with manual plant entry.
-      setPidTuner({
-        instanceName: c.name,
-        initial,
-        subject: c.name,
-        plantError: 'Could not identify the loop automatically — enter the plant transfer function.',
-      })
-      return
-    }
-    setPidTuner({ instanceName: c.name, initial, subject: c.name, plantLoading: true })
-    extractPlant({ text: textRef.current, dynamic: loop.dynamic, reference: loop.reference, output: loop.output, referenceOnSp: loop.referenceOnSp, type, kp, ki, kd })
-      .then((plant) =>
-        setPidTuner((prev) =>
-          prev && prev.instanceName === c.name ? { ...prev, plant, plantLoading: false } : prev,
-        ),
-      )
-      .catch((e: unknown) =>
-        setPidTuner((prev) =>
-          prev && prev.instanceName === c.name
-            ? { ...prev, plantLoading: false, plantError: `Auto-linearization failed (${e instanceof Error ? e.message : String(e)}). Enter the plant manually.` }
-            : prev,
-        ),
-      )
-  }, [])
   // Dockview workspace manager: imperative handle + set of currently-open
   // window kinds (drives the sidebar's open-state indicators).
   const dockRef = useRef<WorkspaceDockHandle | null>(null)
@@ -2097,9 +2028,6 @@ export default function App() {
       group: 'Tools',
       actions: [
         { id: 'tool-variables', label: 'Variable Information', leftSection: <IconVariable size={18} />, onClick: () => setShowVariableInfo(true) },
-        { id: 'tool-minmax', label: 'Min/Max (Optimization)', leftSection: <IconTargetArrow size={18} />, onClick: () => setShowMinMax(true) },
-        { id: 'tool-curvefit', label: 'Curve Fit', leftSection: <IconMathFunction size={18} />, onClick: () => setShowCurveFit(true) },
-        { id: 'tool-pidtune', label: 'PID Tuner', description: 'Auto-tune P/PI/PID gains for a plant transfer function', leftSection: <IconAdjustments size={18} />, onClick: () => setPidTuner({}) },
         { id: 'tool-preferences', label: 'Preferences', leftSection: <IconSettings size={18} />, onClick: () => setShowPreferences(true) },
         { id: 'tool-about', label: 'About', leftSection: <IconInfoCircle size={18} />, onClick: () => setShowAbout(true) },
       ],
@@ -2522,7 +2450,6 @@ export default function App() {
             diagnostics={result}
             onEdit={() => setShowVariableInfo(true)}
             onExportSpreadsheet={exportToSpreadsheet}
-            onTunePid={openPidTunerFor}
             pinnedNames={pinnedSliderNames}
             pinnableNames={pinnableNames}
             onPin={pinSlider}
@@ -2889,11 +2816,6 @@ export default function App() {
         }}
         onNewAnalyzer={createAnalyzer}
         onDeleteAnalyzer={deleteAnalyzer}
-        onMinMax={() => setShowMinMax(true)}
-        onCurveFit={() => setShowCurveFit(true)}
-          onPidTuner={() => setPidTuner({})}
-          onMonteCarlo={() => setShowMonteCarlo(true)}
-          onParameterFit={() => setShowParameterFit(true)}
         onPreferences={() => setShowPreferences(true)}
         onAbout={() => setShowAbout(true)}
       />
@@ -2946,11 +2868,6 @@ export default function App() {
           onOpenWorkspace={() => dockRef.current?.open('workspace')}
           onOpenTerminal={() => dockRef.current?.open('terminal')}
           onVariableInfo={() => setShowVariableInfo(true)}
-          onMinMax={() => setShowMinMax(true)}
-          onCurveFit={() => setShowCurveFit(true)}
-          onPidTuner={() => setPidTuner({})}
-          onMonteCarlo={() => setShowMonteCarlo(true)}
-          onParameterFit={() => setShowParameterFit(true)}
         />
         <input
           ref={projectFileRef}
@@ -3171,98 +3088,6 @@ export default function App() {
             setShowVariableInfo(false)
           }}
         />
-      )}
-
-      {showMinMax && (
-        <Suspense fallback={null}>
-          <MinMaxModal
-            variables={variables}
-            text={text}
-            stopCriteria={stopCriteria}
-            complexMode={complexMode}
-            variableInfo={buildVariableInfo()}
-            unitSystem={unitSystem}
-            onClose={() => setShowMinMax(false)}
-          />
-        </Suspense>
-      )}
-
-      {showCurveFit && (
-        <Suspense fallback={null}>
-          <CurveFitModal
-            tables={tables}
-            defaultTableId={activeTableId}
-            onClose={() => setShowCurveFit(false)}
-            onInsertEquation={(eq) => {
-              applyText(textRef.current.trim() + '\n\n' + eq)
-            }}
-          />
-        </Suspense>
-      )}
-
-      {pidTuner !== null && (
-        <Suspense fallback={null}>
-          <PidTunerModal
-            opened
-            onClose={() => setPidTuner(null)}
-            initial={pidTuner.initial}
-            subject={pidTuner.subject}
-            plant={pidTuner.plant}
-            plantLoading={pidTuner.plantLoading}
-            plantError={pidTuner.plantError}
-            dark={computedScheme === 'dark'}
-            onApply={(g) => {
-              if (pidTuner.instanceName) {
-                // Rewrite the SigPID's gains in place in the editor text.
-                applyText(rewritePidGains(textRef.current, pidTuner.instanceName, g))
-              } else {
-                // Tools-menu path: drop a ready-to-wire SigPID snippet.
-                const parts = [`Kp=${formatValue(g.kp)}`]
-                if (g.type !== 'p') parts.push(`Ki=${formatValue(g.ki)}`)
-                if (g.type === 'pid') parts.push(`Kd=${formatValue(g.kd)}`)
-                applyText(
-                  `${textRef.current.trim()}\n\n// PID Tuner result\nSigPID PID(${parts.join(', ')})`,
-                )
-              }
-            }}
-          />
-        </Suspense>
-      )}
-
-      {showMonteCarlo && (
-        <Suspense fallback={null}>
-          <MonteCarloModal
-            opened
-            onClose={() => setShowMonteCarlo(false)}
-            onRun={(samples, seed) =>
-              runMonteCarlo(
-                effectiveText(),
-                { ...stopCriteria, complexMode },
-                buildVariableInfo(),
-                unitSystem,
-                functionTableDtos(),
-                samples,
-                seed,
-              )
-            }
-          />
-        </Suspense>
-      )}
-
-      {showParameterFit && (
-        <Suspense fallback={null}>
-          <ParameterFitModal
-            opened
-            onClose={() => setShowParameterFit(false)}
-            text={effectiveText()}
-            stopCriteria={{ ...stopCriteria, complexMode }}
-            variableInfo={buildVariableInfo()}
-            functionTables={functionTableDtos()}
-            analyzers={analyzers}
-            tables={tables}
-            onApply={(next) => applyText(next)}
-          />
-        </Suspense>
       )}
 
       {newPlotKind && (

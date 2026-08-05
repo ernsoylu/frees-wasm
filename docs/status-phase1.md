@@ -422,6 +422,15 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     per-document counter is better behaved and will never match). Oracle-side
     hazard, recorded in `fixtures/README.md`; not a Rust defect.
 
+36. **The dead-end analysis UI is clipped (decision D5, 2026-08-05).** The
+    Min/Max, Curve Fit, PID Tuner, Monte Carlo and Parameter Estimation
+    modals and the PDF/EPS plot exports are removed from the product rather
+    than shipped as `NOT_IN_BROWSER_ENGINE` apologies. The upstream frontend
+    keeps them (its backend answers); this build's UI promises only what its
+    engine does. The `api.ts` stubs, the pid helpers and the Phase 8
+    `analysis/` module remain as the wiring seam, with acceptance fixtures
+    staged in `corpus-pending/`.
+
 ## Commands
 
 ```bash

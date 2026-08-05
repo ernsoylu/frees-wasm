@@ -1,0 +1,8 @@
+Battery2RC B(Voc=400, R0=0.05, R1=0.01, C1=1000, R2=0.02, C2=5000, Vrc1_0=0, Vrc2_0=0)
+Resistor   RL(R=4)
+Ground     G()
+connect(B.p, RL.a)
+connect(B.n, RL.b, G.port)
+DYNAMIC d(method = ode45, time = 0 .. 200, points = 100)
+END
+Vf = FinalValue('b.p.v')

@@ -1,0 +1,50 @@
+{
+  "name": "integral-adiabatic-flame-temperature",
+  "source": "T_reactants = 298.15 [K]\nhf_ch4 = -74850\nhf_o2 = 0\nhf_n2 = 0\nhf_co2 = -393520\nhf_h2o = -241820\nH_reactants = 1 * hf_ch4 + 2 * hf_o2 + 7.52 * hf_n2\ndH_co2 = Integral(Cp_co2, T, 298.15, T_flame)\ndH_h2o = Integral(Cp_h2o, T, 298.15, T_flame)\ndH_n2 = Integral(Cp_n2, T, 298.15, T_flame)\nCp_co2 = 22.26 + 5.981e-2 * T - 3.501e-5 * T^2 + 7.469e-9 * T^3\nCp_h2o = 32.24 + 0.1923e-2 * T + 1.055e-5 * T^2 - 3.595e-9 * T^3\nCp_n2 = 28.90 - 0.1571e-2 * T + 0.8081e-5 * T^2 - 2.873e-9 * T^3\nH_products = 1 * (hf_co2 + dH_co2) + 2 * (hf_h2o + dH_h2o) + 7.52 * (hf_n2 + dH_n2)\nH_reactants = H_products\n",
+  "expect": {
+    "variables": {
+      "Cp_co2": 66.30171035394427,
+      "Cp_h2o": 48.408468118524304,
+      "Cp_n2": 32.60933580800637,
+      "H_products": -74850.0,
+      "H_reactants": -74850.0,
+      "T": 2344.669306422365,
+      "T_flame": 2344.669306422365,
+      "T_reactants": 298.15,
+      "dH_co2": 113602.62588360484,
+      "dH_h2o": 89260.79395208073,
+      "dH_n2": 67843.85454949917,
+      "hf_ch4": -74850.0,
+      "hf_co2": -393520.0,
+      "hf_h2o": -241820.0,
+      "hf_n2": 0.0,
+      "hf_o2": 0.0
+    },
+    "display_names": {
+      "cp_co2": "Cp_co2",
+      "cp_h2o": "Cp_h2o",
+      "cp_n2": "Cp_n2",
+      "dh_co2": "dH_co2",
+      "dh_h2o": "dH_h2o",
+      "dh_n2": "dH_n2",
+      "h_products": "H_products",
+      "h_reactants": "H_reactants",
+      "hf_ch4": "hf_ch4",
+      "hf_co2": "hf_co2",
+      "hf_h2o": "hf_h2o",
+      "hf_n2": "hf_n2",
+      "hf_o2": "hf_o2",
+      "t": "T",
+      "t_flame": "T_flame",
+      "t_reactants": "T_reactants"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

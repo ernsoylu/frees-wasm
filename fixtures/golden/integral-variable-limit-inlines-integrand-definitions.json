@@ -1,0 +1,26 @@
+{
+  "name": "integral-variable-limit-inlines-integrand-definitions",
+  "source": "g = 3 * t^2\nF = Integral(g, t, 0, b)\nF = 8\n",
+  "expect": {
+    "variables": {
+      "F": 8.0,
+      "b": 2.0,
+      "g": 12.0,
+      "t": 2.0
+    },
+    "display_names": {
+      "b": "b",
+      "f": "F",
+      "g": "g",
+      "t": "t"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

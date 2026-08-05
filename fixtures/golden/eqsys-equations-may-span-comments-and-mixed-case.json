@@ -1,0 +1,22 @@
+{
+  "name": "eqsys-equations-may-span-comments-and-mixed-case",
+  "source": "{ inlet } TEMP = 300\npressure = Temp * 2 \"ideal-ish\"\n",
+  "expect": {
+    "variables": {
+      "TEMP": 300.0,
+      "pressure": 600.0
+    },
+    "display_names": {
+      "pressure": "pressure",
+      "temp": "TEMP"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

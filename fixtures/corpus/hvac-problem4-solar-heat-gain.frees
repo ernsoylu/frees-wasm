@@ -1,0 +1,15 @@
+{ Problem 4: Solar Heat Gain Through Windows }
+U_value = 1.1
+T_in = 75
+T_out = 95
+A_window = 40
+
+SHGF_North = 47
+SHGF_East = 215
+SHGF_West = 215
+
+Q_North = A_window * SHGF_North + U_value * A_window * (T_out - T_in)
+Q_East = A_window * SHGF_East + U_value * A_window * (T_out - T_in)
+Q_West = A_window * SHGF_West + U_value * A_window * (T_out - T_in)
+
+Q_total = Q_North + Q_East + Q_West

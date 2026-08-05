@@ -1,0 +1,15 @@
+{ Problem 10: Multi-Stage Food Freezing }
+mass = 10000
+T_in = 40
+T_freeze = 28
+T_out = 0
+Cp_above = 0.83
+Cp_below = 0.53
+L_fusion = 98
+
+Q_sensible_above = mass * Cp_above * (T_in - T_freeze)
+Q_latent_freeze = mass * L_fusion
+Q_sensible_below = mass * Cp_below * (T_freeze - T_out)
+
+Q_total_btu = Q_sensible_above + Q_latent_freeze + Q_sensible_below
+Q_total_millions = Q_total_btu / 1e6

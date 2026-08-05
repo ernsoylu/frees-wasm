@@ -1,0 +1,24 @@
+{
+  "name": "eqsys-solves-milestone-one-system",
+  "source": "x+y=3\ny=z-4\nz=x^2-3\n",
+  "expect": {
+    "variables": {
+      "x": 2.7015621187164243,
+      "y": 0.29843788128357573,
+      "z": 4.298437881283576
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y",
+      "z": "z"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

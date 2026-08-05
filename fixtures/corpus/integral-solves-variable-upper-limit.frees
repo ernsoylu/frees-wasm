@@ -1,0 +1,2 @@
+F = Integral(2*t, t, 0, b)
+F = 9

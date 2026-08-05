@@ -1,0 +1,21 @@
+{
+  "name": "proc-function-factorial",
+  "source": "FUNCTION Factorial(n)\n  IF n <= 1 THEN\n    Factorial := 1\n  ELSE\n    Factorial := n * Factorial(n-1)\n  END\nEND\n\ny = Factorial(5)\n",
+  "expect": {
+    "variables": {
+      "y": 120.0
+    },
+    "display_names": {
+      "n": "n",
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

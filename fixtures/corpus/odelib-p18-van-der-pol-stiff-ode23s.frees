@@ -1,0 +1,7 @@
+mu = 1000
+DYNAMIC vdp (method = ode23s, t = 0 .. 1, points = 100, rtol = 1e-4, atol = 1e-7)
+  der(y1) = y2
+  der(y2) = mu * (1 - y1*y1) * y2 - y1
+  y1(0) = 2
+  y2(0) = 0
+END

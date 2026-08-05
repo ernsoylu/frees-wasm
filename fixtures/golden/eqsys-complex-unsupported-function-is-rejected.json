@@ -1,0 +1,22 @@
+{
+  "name": "eqsys-complex-unsupported-function-is-rejected",
+  "source": "y = tan(z)\nz = 1\n",
+  "expect": {
+    "variables": {
+      "y": 1.5574077246549023,
+      "z": 1.0
+    },
+    "display_names": {
+      "y": "y",
+      "z": "z"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

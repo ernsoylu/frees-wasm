@@ -1,0 +1,54 @@
+{
+  "name": "ctltime-pure-gain-step-is-constant",
+  "source": "num = [5]\nden = [1]\nt[1] = 0; t[2] = 0.5; t[3] = 1; t[4] = 2; t[5] = 3; t[6] = 4; t[7] = 5\nCALL step(num[1:1], den[1:1], t[1:7] : y[1:7])\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "num[1]": 5.0,
+      "t[1]": 0.0,
+      "t[2]": 0.5,
+      "t[3]": 1.0,
+      "t[4]": 2.0,
+      "t[5]": 3.0,
+      "t[6]": 4.0,
+      "t[7]": 5.0,
+      "y[1]": 5.0,
+      "y[2]": 5.0,
+      "y[3]": 5.0,
+      "y[4]": 5.0,
+      "y[5]": 5.0,
+      "y[6]": 5.0,
+      "y[7]": 5.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "num": "num",
+      "num[1]": "num[1]",
+      "t": "t",
+      "t[1]": "t[1]",
+      "t[2]": "t[2]",
+      "t[3]": "t[3]",
+      "t[4]": "t[4]",
+      "t[5]": "t[5]",
+      "t[6]": "t[6]",
+      "t[7]": "t[7]",
+      "y": "y",
+      "y[1]": "y[1]",
+      "y[2]": "y[2]",
+      "y[3]": "y[3]",
+      "y[4]": "y[4]",
+      "y[5]": "y[5]",
+      "y[6]": "y[6]",
+      "y[7]": "y[7]"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

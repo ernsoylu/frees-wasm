@@ -1,0 +1,10 @@
+{ Problem 6: Run-Around Water Cycle }
+gpm = 15
+delta_T_water = 10
+T_air_in = 75
+cfm = 5000
+
+{ Heat transfer rate }
+Q = 500 * gpm * delta_T_water
+Q = 1.1 * cfm * delta_T_air
+T_air_out = T_air_in - delta_T_air

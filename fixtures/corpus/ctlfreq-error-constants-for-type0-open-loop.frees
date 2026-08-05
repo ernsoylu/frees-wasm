@@ -1,0 +1,3 @@
+num = [0, 0, 20]
+den = [1, 6, 5]
+CALL errorconst(num[1:3], den[1:3] : Kp, Kv, Ka)

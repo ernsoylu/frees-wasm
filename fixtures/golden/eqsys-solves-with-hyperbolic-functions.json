@@ -1,0 +1,32 @@
+{
+  "name": "eqsys-solves-with-hyperbolic-functions",
+  "source": "y = sinh(x)\nz = cosh(x)\nw = tanh(x)\nx_asinh = arcsinh(y)\nx_acosh = arccosh(z)\nx_atanh = arctanh(w)\nx = 1.25\n",
+  "expect": {
+    "variables": {
+      "w": 0.8482836399575129,
+      "x": 1.25,
+      "x_acosh": 1.25,
+      "x_asinh": 1.25,
+      "x_atanh": 1.25,
+      "y": 1.6019190803008256,
+      "z": 1.8884238771610158
+    },
+    "display_names": {
+      "w": "w",
+      "x": "x",
+      "x_acosh": "x_acosh",
+      "x_asinh": "x_asinh",
+      "x_atanh": "x_atanh",
+      "y": "y",
+      "z": "z"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "ctldesign-pidtune-pid-design",
+  "source": "num = [0, 0, 1]\nden = [1, 1, 0]\nwc = 1\nCALL pidtune(num[1:3], den[1:3], 'PID', wc : Kp, Ki, Kd)\n",
+  "expect": {
+    "variables": {
+      "Kd": 0.8901194830787665,
+      "Ki": 0.5240940792943284,
+      "Kp": 1.3660254037844386,
+      "den[1]": 1.0,
+      "den[2]": 1.0,
+      "den[3]": 0.0,
+      "num[1]": 0.0,
+      "num[2]": 0.0,
+      "num[3]": 1.0,
+      "wc": 1.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "kd": "Kd",
+      "ki": "Ki",
+      "kp": "Kp",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]",
+      "num[3]": "num[3]",
+      "wc": "wc"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

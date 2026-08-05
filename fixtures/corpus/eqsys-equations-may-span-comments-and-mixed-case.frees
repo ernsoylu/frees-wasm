@@ -1,0 +1,2 @@
+{ inlet } TEMP = 300
+pressure = Temp * 2 "ideal-ish"

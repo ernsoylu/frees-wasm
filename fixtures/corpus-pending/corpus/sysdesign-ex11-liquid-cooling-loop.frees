@@ -1,0 +1,12 @@
+LiquidSource    SRC(fluid$=EG50, mdot=0.3, P=200000, T=315)
+LiquidPump      PUMP(fluid$=EG50, eta=0.6)
+LiquidColdPlate CP(Q=5000)
+LiquidWallHX    RAD(fluid$=EG50, UA=800)
+ThermalSource   AMB(T=298)
+LiquidSink      OUT()
+connect(SRC.out, PUMP.in)
+connect(PUMP.out, CP.in)
+connect(CP.out, RAD.in)
+connect(RAD.wall, AMB.port)
+connect(RAD.out, OUT.in)
+OUT.in.P = 200000

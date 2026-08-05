@@ -1,0 +1,40 @@
+{
+  "name": "sysdesign-ex18-powertrain-vehicle",
+  "source": "MeanValueEngine ENG(throttle=0.8, Tpeak=50, w_peak=20, FMEP_a=1, FMEP_b=0.1)\nTransmission    TR(ratio=2, eta=0.9)\nGradeRoadLoad   ROAD(Crr=5, Caero=0.5, m=100, g=9.81, grade=0)\nconnect(ENG.shaft, TR.in)\nconnect(TR.out, ROAD.shaft)\n",
+  "expect": {
+    "variables": {
+      "eng.shaft.tau": -2.8490773527549416,
+      "eng.shaft.w": 1.0132689078774484,
+      "eng.t_fric": 1.101326890787745,
+      "eng.t_ind": 3.9504042435426863,
+      "eng.t_wot": 4.938005304428358,
+      "road.shaft.tau": 5.1283392349588945,
+      "road.shaft.w": 0.5066344539387242,
+      "tr.in.tau": 2.8490773527549416,
+      "tr.in.w": 1.0132689078774484,
+      "tr.out.tau": -5.1283392349588945,
+      "tr.out.w": 0.5066344539387242
+    },
+    "display_names": {
+      "eng$shaft$tau": "eng.shaft.tau",
+      "eng$shaft$w": "eng.shaft.w",
+      "eng$t_fric": "eng.t_fric",
+      "eng$t_ind": "eng.t_ind",
+      "eng$t_wot": "eng.t_wot",
+      "road$shaft$tau": "road.shaft.tau",
+      "road$shaft$w": "road.shaft.w",
+      "tr$in$tau": "tr.in.tau",
+      "tr$in$w": "tr.in.w",
+      "tr$out$tau": "tr.out.tau",
+      "tr$out$w": "tr.out.w"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

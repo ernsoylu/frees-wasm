@@ -1,0 +1,7 @@
+g = 9.81
+m = 70
+c = 0.25
+DYNAMIC fall2 (method = ode45, t = 0 .. 20, points = 300, rtol = 1e-9)
+  der(v) = g - (c / m) * v * v
+  v(0) = 0
+END

@@ -1,0 +1,31 @@
+{
+  "name": "ctlfreq-routh-counts-unstable-right-half-plane-poles",
+  "source": "den = [1, 1, 2, 8]\nCALL routh(den[1:4] : nRHP, stable)\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "den[2]": 1.0,
+      "den[3]": 2.0,
+      "den[4]": 8.0,
+      "nRHP": 2.0,
+      "stable": 0.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "den[4]": "den[4]",
+      "nrhp": "nRHP",
+      "stable": "stable"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

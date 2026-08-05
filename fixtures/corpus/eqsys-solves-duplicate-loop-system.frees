@@ -1,0 +1,6 @@
+N = 5
+X[1] = 10
+FOR i = 2 TO N
+   X[i] = X[i-1] + i
+End
+Total = Sum(X[1:N])

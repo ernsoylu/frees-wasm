@@ -1,0 +1,6 @@
+k = 0.1
+Ta = 20
+DYNAMIC cooling (method = ode5, time = 0 .. 30, points = 200)
+  der(T) = -k * (T - Ta)
+  T(0) = 90
+END

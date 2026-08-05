@@ -1,0 +1,5 @@
+TABLE shift(x)
+  -50   -10
+   50    30
+END
+y = shift(0)

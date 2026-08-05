@@ -1,0 +1,22 @@
+{
+  "name": "eqsys-residuals-are-reported-per-equation",
+  "source": "x = 5\ny = x + 2\n",
+  "expect": {
+    "variables": {
+      "x": 5.0,
+      "y": 7.0
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

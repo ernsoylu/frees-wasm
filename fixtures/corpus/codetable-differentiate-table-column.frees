@@ -1,0 +1,6 @@
+TABLE g(x)
+  10   100
+  20   400
+  30   900
+END
+d = Differentiate('g', 2, 1, 25)

@@ -1,0 +1,5 @@
+k = 0.175
+DYNAMIC decay (method = ode1, t = 0 .. 20, points = 800)
+  der(c) = -k * c
+  c(0) = 100
+END

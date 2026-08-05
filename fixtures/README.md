@@ -194,11 +194,17 @@ and its variable pin, solver bounds/root selection, units, operator precedence).
 See **Pending corpus** below for the staging area and what is still blocked.
 Extend it further from, in rough order of value:
 
-1. `web/src/examples.ts` + `web/src/defaultExample.ts` — **harvested**; all 48
-   are staged, 12 promoted
-2. `../frEES/frontend/src/docs/*.md` (documented snippets)
-3. the `*ExamplesTest.java` classes (`CycleExamplesTest`, `HvacExamplesTest`,
-   `SystemDesignExamplesTest`) — already whole-document round-trips
+1. `web/src/examples.ts` + `web/src/defaultExample.ts` — **harvested and
+   exhausted**: 47 unique documents, 41 promoted, 6 pending
+2. `../frEES/frontend/src/docs/*.md` (documented snippets) — still untouched
+3. the Java test classes — **harvested (Phase 12)**:
+   `tools/harvest-java-tests/harvest.py` extracted 212 candidates from 13
+   classes (both `"""` text blocks and `\n`-concatenated `solve(...)`
+   arguments, resolving same-file constants and locals); 191 survived golden
+   review, **170 promoted**, 21 pending with classified blockers. The
+   remaining Java documents are the ones the harvester cannot represent:
+   tests that pass extra `solve(...)` arguments (complex mode, `ProcDef`
+   function tables), `String.format` templates, and cross-file constants
 4. `../frEES/backend/core/src/main/resources/components/*.frees` — all 295
    library components, once the component expander lands (Phase 6)
 
@@ -534,6 +540,9 @@ point on that line with a residual at machine zero — Java `(2, 1, 0)`, Rust
 `(2+6.6e-14, 1+6.6e-14, 6.6e-14)`. That agrees inside the tolerance table today,
 but promoting it would freeze an arbitrary point of a continuum into the gate.
 Held deliberately, for the same reason as the CoolProp eight.
+*(Stale as written — kept for the reasoning. The Phase 7 re-check promoted it
+after the two engines agreed inside tolerance; see the re-check note above.
+This paragraph predates that and survived two audits; corrected 2026-08-05.)*
 
 Separately, **8 documents have no usable golden**: the Java oracle refused them
 with `IllegalStateException: The CoolProp native library is not available` on
@@ -604,8 +613,15 @@ compares exactly. **Do not freeze a fixture whose golden mentions
 per-document counter is arguably better behaved and will never match the Java
 batch value.
 
-(Also: `~` is not user-writable syntax. `CALL QR(A : Q, ~)` is a Java
-`ParseException` — sinks come only from *omitted trailing* outputs.)
+(A correction, found by the Phase 12 harvest: `~` **is** user-writable in the
+destructuring form — `[whole, ~] = DivMod(17, 5)` parses — and an explicit
+scalar `~` there is **not** hidden from `display_names` the way an
+omitted-trailing scalar sink is. The golden records `~ignored~N` with the
+JVM-batch-global counter value, so the "scalar sinks are safe" rule above
+covers *omitted-trailing* sinks only. Do not freeze an explicit-`~`
+destructuring fixture either; `multiout-user-function-with-tilde-discard` was
+dropped for exactly this. In `CALL` argument lists `~` remains a
+`ParseException`.)
 
 ### Still pending
 
@@ -639,6 +655,22 @@ had gone stale in both directions — it still listed documents promoted in
 Phases 5–7, and it still claimed "oracle unavailable — Java needs the CoolProp
 native lib" for seven documents whose goldens have since been re-dumped with
 `COOLPROP_LIBRARY` set and now carry real values.
+
+**Re-check 2026-08-05, Phase 12 harvest — 212 extracted from 13 Java test
+classes, 170 promoted, corpus 531 → 701, pending 11 → 32.** The harvester
+(`tools/harvest-java-tests/harvest.py`, manifest beside it) and its full
+triage are in `docs/status-phase12.md`. The 21 new pending rows, by blocker:
+
+| Documents | Blocked on |
+|---|---|
+| `linalg-full-svd`, `multiout-svd-discard-with-tilde`, `ctldesign-balreal-invariants-integration`, `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2` | the recorded `linalg::svd` **column-sign convention** divergence (same mechanism as `estimator-gramian-balreal` above — sign-only element flips, invariants identical) |
+| `sysdesign-ex16-moving-boundary-evaporator` | the recorded **default-guess property probe** divergence (same mechanism as `ev-battery-cooling-pid` above — `T(R134a, P=1, Hmass=1)` at the pre-Newton probe) |
+| `eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`, `eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`, `eqsys-solves-eigenvalues-of-symmetric-matrix` | **`CALL eigenvalues` / `eigen` is not wired** — the one genuinely new gap this harvest found (ledger item 34) |
+| `hvac-problem2-face-and-bypass`, `hvac-problem3-psychrometric-balancing`, `hvac-problem9-air-supply-wet-bulb`, `sysdesign-ex12-moist-air-ahu`, `sysdesign-ex13-humidifier` | the `HAPropsSI` humid-air gap (as `adv_moistair_*` above) |
+| `sysdesign-ex06-pneumatic`, `sysdesign-ex06-pneumatic-2`, `sysdesign-ex07-pneumatic-servo` | no property table for `Air` (D1) |
+| `sysdesign-ex11-liquid-cooling-loop` | no property table for `INCOMP::MEG[0.50]` (D1, as `ev-thermal-management`) |
+| `sysdesign-ex17-ac-expansion-valve`, `sysdesign-ex20-zeotropic-blend` | D1 table-vs-CoolProp accuracy (worst 7.9e-8 / 2.9e-8) — promotable **only** with a measured `tolerances.json` entry, deliberately not added in bulk |
+| `sysdesign-ex01-thermal-network-2` | asymptotic FP noise: a column decays to machine zero and the two engines sit one ~4.5e-12 quantum apart, above the 1e-12 absolute floor as the value shrinks |
 
 Two authoring hazards found the hard way, both worth repeating:
 

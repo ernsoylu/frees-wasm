@@ -1,0 +1,10 @@
+k1 = 1000
+k2 = 1
+DYNAMIC chain (method = ode15s, t = 0 .. 5, points = 150, rtol = 1e-7)
+  der(a) = -k1 * a
+  der(b) =  k1 * a - k2 * b
+  der(cc) = k2 * b
+  a(0) = 1
+  b(0) = 0
+  cc(0) = 0
+END

@@ -1,0 +1,5 @@
+PneumaticSupply     SUP(fluid$=Air, P=700000, T=300)
+PneumaticServoValve SV(fluid$=Air, Cmax=1e-8, b=0.3, u=0.5)
+PneumaticAtmosphere ATM(P=100000)
+connect(SUP.out, SV.in)
+connect(SV.out, ATM.port)

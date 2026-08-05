@@ -1,0 +1,4 @@
+num = [0, 1]
+den = [1, 1]
+omega = [1, 10, 100]
+CALL bode(num, den, omega : mag, phase)

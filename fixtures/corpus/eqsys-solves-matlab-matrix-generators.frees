@@ -1,0 +1,5 @@
+I = eye(3)
+Z = zeros(2,2)
+u = ones(3,1)
+D = diag([2; 5; 7])
+g = linspace(0, 10, 5)

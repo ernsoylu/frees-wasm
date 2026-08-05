@@ -1,0 +1,20 @@
+{
+  "name": "eqsys-bounds-select-root",
+  "source": "x^2 = 4\n",
+  "expect": {
+    "variables": {
+      "x": 2.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

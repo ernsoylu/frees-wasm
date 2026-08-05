@@ -1,0 +1,65 @@
+{
+  "name": "sysdesign-ex05-fuel-cell-stack",
+  "source": "COMPONENT CurrentDraw(p, n)\n  PARAM Idraw\n  p.I = Idraw\n  p.I + n.I = 0\nEND\nFuelCellStack FC(ncells=10, area=0.01, i0=10, ilim=20000, Rohm=1e-5, E0=1.18, alpha=0.5, Eth=1.48, T=343)\nCurrentDraw   LOAD(Idraw=50)\nThermalSource COOL(T=343)\nConvection    HS(htc=200, area=1)\nGround        G()\nconnect(FC.p, LOAD.p)\nconnect(FC.n, LOAD.n, G.port)\nconnect(FC.heat, HS.a)\nconnect(HS.b, COOL.port)\n",
+  "expect": {
+    "variables": {
+      "cool.port.qdot": 360.8040755436647,
+      "cool.port.t": 343.0,
+      "fc.heat.qdot": -360.8040755436647,
+      "fc.heat.t": 344.8040203777183,
+      "fc.i": 5000.0,
+      "fc.i_cell": 50.0,
+      "fc.n.i": 50.0,
+      "fc.n.v": 0.0,
+      "fc.p.i": -50.0,
+      "fc.p.v": 7.583918489126706,
+      "fc.q": 360.8040755436647,
+      "fc.v_cell": 0.7583918489126706,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "hs.a.qdot": 360.8040755436647,
+      "hs.a.t": 344.8040203777183,
+      "hs.b.qdot": -360.8040755436647,
+      "hs.b.t": 343.0,
+      "hs.q": 360.8040755436647,
+      "load.n.i": -50.0,
+      "load.n.v": 0.0,
+      "load.p.i": 50.0,
+      "load.p.v": 7.583918489126706
+    },
+    "display_names": {
+      "cool$port$qdot": "cool.port.qdot",
+      "cool$port$t": "cool.port.t",
+      "fc$heat$qdot": "fc.heat.qdot",
+      "fc$heat$t": "fc.heat.t",
+      "fc$i": "fc.i",
+      "fc$i_cell": "fc.i_cell",
+      "fc$n$i": "fc.n.i",
+      "fc$n$v": "fc.n.v",
+      "fc$p$i": "fc.p.i",
+      "fc$p$v": "fc.p.v",
+      "fc$q": "fc.q",
+      "fc$v_cell": "fc.v_cell",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "hs$a$qdot": "hs.a.qdot",
+      "hs$a$t": "hs.a.t",
+      "hs$b$qdot": "hs.b.qdot",
+      "hs$b$t": "hs.b.t",
+      "hs$q": "hs.q",
+      "idraw": "Idraw",
+      "load$n$i": "load.n.i",
+      "load$n$v": "load.n.v",
+      "load$p$i": "load.p.i",
+      "load$p$v": "load.p.v"
+    },
+    "block_count": 23,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

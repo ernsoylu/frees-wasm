@@ -1,0 +1,40 @@
+{
+  "name": "ctlfreq-c2d-zoh-discretizes-first-order-plant",
+  "source": "num = [0, 2]\nden = [1, 2]\nTs = 0.1\nCALL c2d(num[1:2], den[1:2], Ts, 'zoh' : numz[1:2], denz[1:2])\n",
+  "expect": {
+    "variables": {
+      "Ts": 0.1,
+      "den[1]": 1.0,
+      "den[2]": 2.0,
+      "denz[1]": 1.0,
+      "denz[2]": -0.8187307530779818,
+      "num[1]": 0.0,
+      "num[2]": 2.0,
+      "numz[1]": 0.0,
+      "numz[2]": 0.18126924692201812
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "denz": "denz",
+      "denz[1]": "denz[1]",
+      "denz[2]": "denz[2]",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]",
+      "numz": "numz",
+      "numz[1]": "numz[1]",
+      "numz[2]": "numz[2]",
+      "ts": "Ts"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

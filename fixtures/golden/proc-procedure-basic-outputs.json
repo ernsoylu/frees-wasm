@@ -1,0 +1,24 @@
+{
+  "name": "proc-procedure-basic-outputs",
+  "source": "PROCEDURE Swap(a, b : c, d)\n  c := b\n  d := a\nEND\n\nCALL Swap(3, 7 : x, y)\n",
+  "expect": {
+    "variables": {
+      "x": 7.0,
+      "y": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "proc-milestone3-factorial-and-arrays",
+  "source": "FUNCTION Factorial(n)\n  IF n <= 1 THEN\n    Factorial := 1\n  ELSE\n    Factorial := n * Factorial(n-1)\n  END\nEND\n\nFOR i = 1 TO 5\n  f[i] = Factorial(i)\nEND\n",
+  "expect": {
+    "variables": {
+      "f[1]": 1.0,
+      "f[2]": 2.0,
+      "f[3]": 6.0,
+      "f[4]": 24.0,
+      "f[5]": 120.0
+    },
+    "display_names": {
+      "f": "f",
+      "f[1]": "f[1]",
+      "f[2]": "f[2]",
+      "f[3]": "f[3]",
+      "f[4]": "f[4]",
+      "f[5]": "f[5]",
+      "i": "i",
+      "n": "n"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

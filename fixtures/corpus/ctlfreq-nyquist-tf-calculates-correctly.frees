@@ -1,0 +1,4 @@
+num = [0, 1]
+den = [1, 1]
+omega = [1.0]
+CALL nyquist(num[1:2], den[1:2], omega[1:1] : real[1:1], imag[1:1])

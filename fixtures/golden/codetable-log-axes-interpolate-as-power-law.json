@@ -1,0 +1,20 @@
+{
+  "name": "codetable-log-axes-interpolate-as-power-law",
+  "source": "TABLE flow(re) XLOG YLOG\n  10      10\n  1000    1000\nEND\ny = flow(100)\n",
+  "expect": {
+    "variables": {
+      "y": 100.0
+    },
+    "display_names": {
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

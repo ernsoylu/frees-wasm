@@ -1,0 +1,21 @@
+{
+  "name": "proc-function-used-in-expression",
+  "source": "FUNCTION Square(x)\n  Square := x * x\nEND\n\nz = Square(4) + Square(3)\n",
+  "expect": {
+    "variables": {
+      "z": 25.0
+    },
+    "display_names": {
+      "x": "x",
+      "z": "z"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

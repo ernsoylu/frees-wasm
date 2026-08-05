@@ -1,0 +1,68 @@
+{
+  "name": "hvac-problem2-face-and-bypass",
+  "source": "{ Problem 2: Face and Bypass Control Load }\nV_dot_supply = 20000\nV_dot_oa = 5000\nT_room = 80\nrh_room = 0.50\nT_oa_db = 90\nT_oa_wb = 74\nT_coil_out_db = 58\nT_coil_out_wb = 56\nP_atm_psia = 14.696\n\nP_atm = P_atm_psia * 6894.76\nT_room_K = (T_room - 32) * 5/9 + 273.15\nT_oa_db_K = (T_oa_db - 32) * 5/9 + 273.15\nT_oa_wb_K = (T_oa_wb - 32) * 5/9 + 273.15\nT_coil_out_db_K = (T_coil_out_db - 32) * 5/9 + 273.15\nT_coil_out_wb_K = (T_coil_out_wb - 32) * 5/9 + 273.15\n\nv_supply = 13.25\nm_dot_supply = V_dot_supply * 60 / v_supply\n\nf_oa = V_dot_oa / V_dot_supply\nf_return = 1 - f_oa\n\nh_room = Enthalpy(AirH2O, T=T_room_K, R=rh_room, P=P_atm) / 2326.0\nh_oa = Enthalpy(AirH2O, T=T_oa_db_K, B=T_oa_wb_K, P=P_atm) / 2326.0\nh_mix = f_oa * h_oa + f_return * h_room\nh_supply = Enthalpy(AirH2O, T=T_coil_out_db_K, B=T_coil_out_wb_K, P=P_atm) / 2326.0\n\nQ_dot_coil_btu = m_dot_supply * (h_mix - h_supply)\nQ_dot_coil_tons = Q_dot_coil_btu / 12000\n",
+  "expect": {
+    "variables": {
+      "P_atm": 101325.39296,
+      "P_atm_psia": 14.696,
+      "Q_dot_coil_btu": 812755.6663974994,
+      "Q_dot_coil_tons": 67.72963886645829,
+      "T_coil_out_db": 58.0,
+      "T_coil_out_db_K": 287.59444444444443,
+      "T_coil_out_wb": 56.0,
+      "T_coil_out_wb_K": 286.4833333333333,
+      "T_oa_db": 90.0,
+      "T_oa_db_K": 305.3722222222222,
+      "T_oa_wb": 74.0,
+      "T_oa_wb_K": 296.4833333333333,
+      "T_room": 80.0,
+      "T_room_K": 299.81666666666666,
+      "V_dot_oa": 5000.0,
+      "V_dot_supply": 20000.0,
+      "f_oa": 0.25,
+      "f_return": 0.75,
+      "h_mix": 25.127438965598717,
+      "h_oa": 29.824689002326824,
+      "h_room": 23.56168895335602,
+      "h_supply": 16.153261815792995,
+      "m_dot_supply": 90566.03773584905,
+      "rh_room": 0.5,
+      "v_supply": 13.25
+    },
+    "display_names": {
+      "f_oa": "f_oa",
+      "f_return": "f_return",
+      "h_mix": "h_mix",
+      "h_oa": "h_oa",
+      "h_room": "h_room",
+      "h_supply": "h_supply",
+      "m_dot_supply": "m_dot_supply",
+      "p_atm": "P_atm",
+      "p_atm_psia": "P_atm_psia",
+      "q_dot_coil_btu": "Q_dot_coil_btu",
+      "q_dot_coil_tons": "Q_dot_coil_tons",
+      "rh_room": "rh_room",
+      "t_coil_out_db": "T_coil_out_db",
+      "t_coil_out_db_k": "T_coil_out_db_K",
+      "t_coil_out_wb": "T_coil_out_wb",
+      "t_coil_out_wb_k": "T_coil_out_wb_K",
+      "t_oa_db": "T_oa_db",
+      "t_oa_db_k": "T_oa_db_K",
+      "t_oa_wb": "T_oa_wb",
+      "t_oa_wb_k": "T_oa_wb_K",
+      "t_room": "T_room",
+      "t_room_k": "T_room_K",
+      "v_dot_oa": "V_dot_oa",
+      "v_dot_supply": "V_dot_supply",
+      "v_supply": "v_supply"
+    },
+    "block_count": 25,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

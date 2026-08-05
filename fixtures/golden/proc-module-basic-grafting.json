@@ -1,0 +1,32 @@
+{
+  "name": "proc-module-basic-grafting",
+  "source": "MODULE Doubler(x : y)\n  y = 2 * x\nEND\n\nCALL Doubler(5 : a)\nCALL Doubler(10 : b)\n",
+  "expect": {
+    "variables": {
+      "a": 10.0,
+      "b": 20.0,
+      "doubler$1$x": 5.0,
+      "doubler$1$y": 10.0,
+      "doubler$2$x": 10.0,
+      "doubler$2$y": 20.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "doubler$1$x": "doubler$1$x",
+      "doubler$1$y": "doubler$1$y",
+      "doubler$2$x": "doubler$2$x",
+      "doubler$2$y": "doubler$2$y",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

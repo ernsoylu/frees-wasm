@@ -1,0 +1,14 @@
+COMPONENT GasCap(port)
+  PARAM domain$ = gas
+  port.mdot = 0
+END
+PneumaticSupply  SUP(fluid$=Air, P=700000, T=300)
+PneumaticOrifice ORI(fluid$=Air, C=1e-8, b=0.3)
+PneumaticVolume  VOL(V=0.001, T=300, R=287, P0=120000)
+GasCap           CAP()
+connect(SUP.out, ORI.in)
+connect(ORI.out, VOL.in)
+connect(VOL.out, CAP.port)
+DYNAMIC fill(method = ode23s, time = 0 .. 30, points = 100)
+END
+Pf = FinalValue('vol.in.p')

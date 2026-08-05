@@ -1,0 +1,4 @@
+num = [0, 0, 1]
+den = [1, 1, 0]
+wc = 1
+CALL pidtune(num[1:3], den[1:3], 'PID', wc : Kp, Ki, Kd)

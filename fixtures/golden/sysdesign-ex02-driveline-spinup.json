@@ -1,0 +1,42 @@
+{
+  "name": "sysdesign-ex02-driveline-spinup",
+  "source": "TorqueSource     TS(T=12)\nInertia          J(J=3, w0=0)\nRotationalDamper D(c=0.6)\nMechGround       G()\nconnect(TS.a, J.port, D.a)\nconnect(TS.b, D.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "d.a.tau": 12.0,
+      "d.a.w": 20.0,
+      "d.b.tau": -12.0,
+      "d.b.w": 0.0,
+      "g.port.tau": 0.0,
+      "g.port.w": 0.0,
+      "j.port.tau": 0.0,
+      "j.port.w": 20.0,
+      "ts.a.tau": -12.0,
+      "ts.a.w": 20.0,
+      "ts.b.tau": 12.0,
+      "ts.b.w": 0.0
+    },
+    "display_names": {
+      "d$a$tau": "d.a.tau",
+      "d$a$w": "d.a.w",
+      "d$b$tau": "d.b.tau",
+      "d$b$w": "d.b.w",
+      "g$port$tau": "g.port.tau",
+      "g$port$w": "g.port.w",
+      "j$port$tau": "j.port.tau",
+      "j$port$w": "j.port.w",
+      "ts$a$tau": "ts.a.tau",
+      "ts$a$w": "ts.a.w",
+      "ts$b$tau": "ts.b.tau",
+      "ts$b$w": "ts.b.w"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

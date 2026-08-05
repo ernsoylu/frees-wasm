@@ -1,0 +1,24 @@
+{
+  "name": "codetable-lookup-cell-and-row-count-and-row",
+  "source": "TABLE g(x)\n  10   100\n  20   400\n  30   900\nEND\nn = NLookupRows('g')\nc = Lookup('g', 2, 2)\nr = LookupRow('g', 1, 25)\n",
+  "expect": {
+    "variables": {
+      "c": 400.0,
+      "n": 3.0,
+      "r": 2.5
+    },
+    "display_names": {
+      "c": "c",
+      "n": "n",
+      "r": "r"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

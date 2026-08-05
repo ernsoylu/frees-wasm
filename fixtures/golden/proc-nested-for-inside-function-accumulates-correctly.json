@@ -1,0 +1,24 @@
+{
+  "name": "proc-nested-for-inside-function-accumulates-correctly",
+  "source": "FUNCTION DoubleSum(n)\n  s := 0\n  FOR i = 1 TO n\n    FOR j = 1 TO n\n      s = s + i * j\n    END\n  END\n  DoubleSum := s\nEND\n\nx = DoubleSum(3)\n",
+  "expect": {
+    "variables": {
+      "x": 36.0
+    },
+    "display_names": {
+      "i": "i",
+      "j": "j",
+      "n": "n",
+      "s": "s",
+      "x": "x"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

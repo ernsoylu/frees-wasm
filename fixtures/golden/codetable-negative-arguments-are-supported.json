@@ -1,0 +1,20 @@
+{
+  "name": "codetable-negative-arguments-are-supported",
+  "source": "TABLE shift(x)\n  -50   -10\n   50    30\nEND\ny = shift(0)\n",
+  "expect": {
+    "variables": {
+      "y": 10.0
+    },
+    "display_names": {
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

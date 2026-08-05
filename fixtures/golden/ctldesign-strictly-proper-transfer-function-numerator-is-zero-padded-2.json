@@ -1,0 +1,34 @@
+{
+  "name": "ctldesign-strictly-proper-transfer-function-numerator-is-zero-padded-2",
+  "source": "num = [1, 5]\nden = [1, 3, 2]\n[zr, zi] = zero(num, den)\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "den[2]": 3.0,
+      "den[3]": 2.0,
+      "num[1]": 1.0,
+      "num[2]": 5.0,
+      "zi[1]": 0.0,
+      "zr[1]": -5.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]",
+      "zi[1]": "zi[1]",
+      "zr[1]": "zr[1]"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

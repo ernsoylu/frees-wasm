@@ -1,0 +1,5 @@
+TABLE htc(re : t = 100, 200)
+  0    0    0
+  10   10   30
+END
+U = Interpolate2D('htc', 5, 150)

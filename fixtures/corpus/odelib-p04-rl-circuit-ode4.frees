@@ -1,0 +1,6 @@
+L = 1
+R = 1.5
+DYNAMIC rl (method = ode4, t = 0 .. 2, points = 200)
+  der(i) = -(R / L) * i
+  i(0) = 0.5
+END

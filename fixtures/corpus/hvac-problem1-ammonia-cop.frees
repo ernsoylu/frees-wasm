@@ -1,0 +1,13 @@
+{ Problem 1: Ammonia Refrigeration Cycle COP }
+P_suction = 38.5
+superheat = 20
+P_discharge = 229
+m_dot = 22
+
+h1 = 627.0      { Enthalpy entering compressor }
+h2 = 745.0      { Enthalpy leaving compressor }
+h3 = 161.1      { Saturated liquid leaving condenser }
+
+COP = (h1 - h3) / (h2 - h1)
+Q_dot_cool = m_dot * (h1 - h3)
+W_dot_comp = m_dot * (h2 - h1)

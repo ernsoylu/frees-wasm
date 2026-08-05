@@ -1,0 +1,22 @@
+{
+  "name": "integral-rejects-integral-in-complex-mode",
+  "source": "F = Integral(t, t, 0, 1)\n",
+  "expect": {
+    "variables": {
+      "F": 0.4999999999999601,
+      "t": 1.0
+    },
+    "display_names": {
+      "f": "F",
+      "t": "t"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

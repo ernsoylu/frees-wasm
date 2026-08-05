@@ -1,0 +1,9 @@
+L = 5
+R = 280
+Cap = 1e-4
+DYNAMIC rlc (method = ode23, t = 0 .. 0.2, points = 400, rtol = 1e-9)
+  der(q) = i
+  der(i) = -(R/L) * i - (1/(L*Cap)) * q
+  q(0) = 1
+  i(0) = 0
+END

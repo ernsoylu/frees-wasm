@@ -1,0 +1,11 @@
+a = 1.2
+b = 0.6
+cc = 0.8
+d = 0.3
+DYNAMIC lv (method = ode45, t = 0 .. 30, points = 600, rtol = 1e-9)
+  der(x) = a*x - b*x*y
+  der(y) = -cc*y + d*x*y
+  V = d*x - cc*ln(x) + b*y - a*ln(y)
+  x(0) = 2
+  y(0) = 1
+END

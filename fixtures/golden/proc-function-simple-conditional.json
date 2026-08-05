@@ -1,0 +1,23 @@
+{
+  "name": "proc-function-simple-conditional",
+  "source": "FUNCTION AbsVal(x)\n  IF x >= 0 THEN\n    AbsVal := x\n  ELSE\n    AbsVal := -x\n  END\nEND\n\na = AbsVal(-7)\nb = AbsVal(3)\n",
+  "expect": {
+    "variables": {
+      "a": 7.0,
+      "b": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "x": "x"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

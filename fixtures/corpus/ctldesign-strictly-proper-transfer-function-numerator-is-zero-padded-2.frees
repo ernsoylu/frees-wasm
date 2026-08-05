@@ -1,0 +1,3 @@
+num = [1, 5]
+den = [1, 3, 2]
+[zr, zi] = zero(num, den)

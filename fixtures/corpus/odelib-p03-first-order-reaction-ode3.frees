@@ -1,0 +1,7 @@
+k = 0.7
+DYNAMIC reaction (method = ode3, t = 0 .. 5, points = 300)
+  der(cA) = -k * cA
+  der(cB) =  k * cA
+  cA(0) = 1
+  cB(0) = 0
+END

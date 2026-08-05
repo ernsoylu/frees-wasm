@@ -1,0 +1,3 @@
+A = [2 0; 0 4]
+b = [6; 8]
+x = SolveLinear(A, b)

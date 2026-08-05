@@ -1,0 +1,6 @@
+MODULE Shift(x : y)
+  buf = -x + sin(0)
+  y = buf + 1
+END
+
+CALL Shift(4 : out)

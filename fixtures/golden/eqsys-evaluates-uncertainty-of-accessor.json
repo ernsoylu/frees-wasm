@@ -1,0 +1,27 @@
+{
+  "name": "eqsys-evaluates-uncertainty-of-accessor",
+  "source": "y = x\nx = 5\nu_y = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "u_y": 0.0,
+      "uncertaintyof$u_y": 0.0,
+      "uncertaintyof$x": 0.0,
+      "uncertaintyof$y": 0.0,
+      "x": 5.0,
+      "y": 5.0
+    },
+    "display_names": {
+      "u_y": "u_y",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

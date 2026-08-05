@@ -1,0 +1,5 @@
+x + y = 5
+x - y = 1
+A[1,1] = x; A[1,2] = 0
+A[2,1] = 0; A[2,2] = y
+CALL Eigenvalues(A[1:2,1:2] : lambda[1:2])

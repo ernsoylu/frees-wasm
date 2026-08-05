@@ -1,0 +1,58 @@
+{
+  "name": "sysdesign-ex13-humidifier",
+  "source": "MoistAirSource SRC(P=101325, T=295, W=0.005, mdot=2)\nHumidifier     HUM(mdot_w=0.002, h_w=2.5e6)\nMoistAirSink   SNK()\nconnect(SRC.out, HUM.in)\nconnect(HUM.out, SNK.in)\n",
+  "expect": {
+    "variables": {
+      "hum.in.h": 34682.93902027844,
+      "hum.in.mdot": 2.0,
+      "hum.in.p": 101325.0,
+      "hum.in.w": 0.005,
+      "hum.out.h": 37182.93902027844,
+      "hum.out.mdot": 2.0,
+      "hum.out.p": 101325.0,
+      "hum.out.w": 0.006,
+      "snk.h": 37182.93902027844,
+      "snk.in.h": 37182.93902027844,
+      "snk.in.mdot": 2.0,
+      "snk.in.p": 101325.0,
+      "snk.in.w": 0.006,
+      "snk.mdot": 2.0,
+      "snk.p": 101325.0,
+      "snk.w": 0.006,
+      "src.out.h": 34682.93902027844,
+      "src.out.mdot": 2.0,
+      "src.out.p": 101325.0,
+      "src.out.w": 0.005
+    },
+    "display_names": {
+      "hum$in$h": "hum.in.h",
+      "hum$in$mdot": "hum.in.mdot",
+      "hum$in$p": "hum.in.p",
+      "hum$in$w": "hum.in.w",
+      "hum$out$h": "hum.out.h",
+      "hum$out$mdot": "hum.out.mdot",
+      "hum$out$p": "hum.out.p",
+      "hum$out$w": "hum.out.w",
+      "snk$h": "snk.h",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "snk$in$w": "snk.in.w",
+      "snk$mdot": "snk.mdot",
+      "snk$p": "snk.p",
+      "snk$w": "snk.w",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "src$out$w": "src.out.w"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

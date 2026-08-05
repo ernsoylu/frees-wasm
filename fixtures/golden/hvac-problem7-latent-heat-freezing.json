@@ -1,0 +1,28 @@
+{
+  "name": "hvac-problem7-latent-heat-freezing",
+  "source": "{ Problem 7: Specific & Latent Heat of Freezing }\nmass = 10000\nT_freeze = 27\nT_storage = -10\nCp_below = 0.37\n\nQ_required = mass * Cp_below * (T_freeze - T_storage)\n",
+  "expect": {
+    "variables": {
+      "Cp_below": 0.37,
+      "Q_required": 136900.0,
+      "T_freeze": 27.0,
+      "T_storage": -10.0,
+      "mass": 10000.0
+    },
+    "display_names": {
+      "cp_below": "Cp_below",
+      "mass": "mass",
+      "q_required": "Q_required",
+      "t_freeze": "T_freeze",
+      "t_storage": "T_storage"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,6 @@
+TABLE htc(re)
+  1000   50
+  2000   80
+END
+Re = 1500
+U = htc(Re)

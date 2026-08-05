@@ -1,0 +1,2 @@
+x = 2*t
+F = Integral(x^2, t, 0, 1)

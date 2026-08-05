@@ -1,0 +1,36 @@
+{
+  "name": "eqsys-eigen-waits-for-matrix-entries-solved-elsewhere",
+  "source": "x + y = 5\nx - y = 1\nA[1,1] = x; A[1,2] = 0\nA[2,1] = 0; A[2,2] = y\nCALL Eigenvalues(A[1:2,1:2] : lambda[1:2])\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 3.0,
+      "A[1,2]": 0.0,
+      "A[2,1]": 0.0,
+      "A[2,2]": 2.0,
+      "lambda[1]": 2.0,
+      "lambda[2]": 3.0,
+      "x": 3.0,
+      "y": 2.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "lambda": "lambda",
+      "lambda[1]": "lambda[1]",
+      "lambda[2]": "lambda[2]",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

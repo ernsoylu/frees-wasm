@@ -1,0 +1,24 @@
+{
+  "name": "integral-integrates-sine",
+  "source": "f = sin(t)\nQ = Integral(f, t, 0, 3.141592653589793)\n",
+  "expect": {
+    "variables": {
+      "Q": 1.9999993342983777,
+      "f": 1.2246467991473532E-16,
+      "t": 3.141592653589793
+    },
+    "display_names": {
+      "f": "f",
+      "q": "Q",
+      "t": "t"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

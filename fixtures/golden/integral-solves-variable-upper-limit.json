@@ -1,0 +1,24 @@
+{
+  "name": "integral-solves-variable-upper-limit",
+  "source": "F = Integral(2*t, t, 0, b)\nF = 9\n",
+  "expect": {
+    "variables": {
+      "F": 9.0,
+      "b": 3.0,
+      "t": 3.0
+    },
+    "display_names": {
+      "b": "b",
+      "f": "F",
+      "t": "t"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

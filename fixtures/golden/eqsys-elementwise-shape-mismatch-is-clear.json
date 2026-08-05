@@ -1,0 +1,18 @@
+{
+  "name": "eqsys-elementwise-shape-mismatch-is-clear",
+  "source": "A = [1 2 3]\nB = [1 2]\nC = A .* B\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Matrix dimensions must agree for element-wise '.*': 3x1 vs 2x1"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

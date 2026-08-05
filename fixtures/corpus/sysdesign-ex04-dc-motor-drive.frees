@@ -1,0 +1,13 @@
+VoltageSource    VS(E=48)
+DCMotor          M(Kt=0.2, Ke=0.2, R=0.5)
+Ground           G()
+Inertia          J(J=0.02, w0=0)
+RotationalDamper D(c=0.01)
+MechGround       MG()
+connect(VS.p, M.p)
+connect(VS.n, M.n, G.port)
+connect(M.shaft, J.port, D.a)
+connect(D.b, MG.port)
+DYNAMIC run(method = ode45, time = 0 .. 5, points = 100)
+END
+wf = FinalValue('j.port.w')

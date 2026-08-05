@@ -1,0 +1,22 @@
+{
+  "name": "codetable-check-accepts-code-table",
+  "source": "TABLE htc(re)\n  1000   50\n  2000   80\nEND\nRe = 1500\nU = htc(Re)\n",
+  "expect": {
+    "variables": {
+      "Re": 1500.0,
+      "U": 65.0
+    },
+    "display_names": {
+      "re": "Re",
+      "u": "U"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

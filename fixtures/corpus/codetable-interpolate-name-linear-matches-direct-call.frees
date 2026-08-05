@@ -1,0 +1,5 @@
+TABLE flow(re)
+  0     0
+  100   100
+END
+y = Interpolate('flow', 50)

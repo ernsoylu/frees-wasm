@@ -1,0 +1,5 @@
+TABLE fanPressure(rpm)
+  1000   100
+  2000   200
+END
+dP = FANPRESSURE(1500)

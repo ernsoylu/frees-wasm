@@ -1,0 +1,37 @@
+{
+  "name": "ctlfreq-nyquist-tf-calculates-correctly",
+  "source": "num = [0, 1]\nden = [1, 1]\nomega = [1.0]\nCALL nyquist(num[1:2], den[1:2], omega[1:1] : real[1:1], imag[1:1])\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "den[2]": 1.0,
+      "imag[1]": -0.5,
+      "num[1]": 0.0,
+      "num[2]": 1.0,
+      "omega[1]": 1.0,
+      "real[1]": 0.5
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "imag": "imag",
+      "imag[1]": "imag[1]",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]",
+      "omega": "omega",
+      "omega[1]": "omega[1]",
+      "real": "real",
+      "real[1]": "real[1]"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

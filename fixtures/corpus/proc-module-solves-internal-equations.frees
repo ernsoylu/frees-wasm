@@ -1,0 +1,6 @@
+MODULE Linear(m, b : y)
+  y = m * x_int + b
+  x_int = 3
+END
+
+CALL Linear(2, 1 : result)

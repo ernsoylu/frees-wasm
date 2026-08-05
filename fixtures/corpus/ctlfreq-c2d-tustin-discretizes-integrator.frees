@@ -1,0 +1,4 @@
+num = [0, 1]
+den = [1, 0]
+Ts = 0.1
+CALL c2d(num[1:2], den[1:2], Ts, 'tustin' : numz[1:2], denz[1:2])

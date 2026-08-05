@@ -1,0 +1,40 @@
+{
+  "name": "hvac-problem4-solar-heat-gain",
+  "source": "{ Problem 4: Solar Heat Gain Through Windows }\nU_value = 1.1\nT_in = 75\nT_out = 95\nA_window = 40\n\nSHGF_North = 47\nSHGF_East = 215\nSHGF_West = 215\n\nQ_North = A_window * SHGF_North + U_value * A_window * (T_out - T_in)\nQ_East = A_window * SHGF_East + U_value * A_window * (T_out - T_in)\nQ_West = A_window * SHGF_West + U_value * A_window * (T_out - T_in)\n\nQ_total = Q_North + Q_East + Q_West\n",
+  "expect": {
+    "variables": {
+      "A_window": 40.0,
+      "Q_East": 9480.0,
+      "Q_North": 2760.0,
+      "Q_West": 9480.0,
+      "Q_total": 21720.0,
+      "SHGF_East": 215.0,
+      "SHGF_North": 47.0,
+      "SHGF_West": 215.0,
+      "T_in": 75.0,
+      "T_out": 95.0,
+      "U_value": 1.1
+    },
+    "display_names": {
+      "a_window": "A_window",
+      "q_east": "Q_East",
+      "q_north": "Q_North",
+      "q_total": "Q_total",
+      "q_west": "Q_West",
+      "shgf_east": "SHGF_East",
+      "shgf_north": "SHGF_North",
+      "shgf_west": "SHGF_West",
+      "t_in": "T_in",
+      "t_out": "T_out",
+      "u_value": "U_value"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

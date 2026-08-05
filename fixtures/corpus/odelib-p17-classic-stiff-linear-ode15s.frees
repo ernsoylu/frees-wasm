@@ -1,0 +1,4 @@
+DYNAMIC stiff (method = ode15s, t = 0 .. 0.4, points = 200, rtol = 1e-7)
+  der(y) = -1000*y + 3000 - 2000*exp(-t)
+  y(0) = 0
+END

@@ -1,0 +1,50 @@
+{
+  "name": "hvac-problem9-air-supply-wet-bulb",
+  "source": "{ Problem 9: Air Supply Wet-Bulb Determination }\nT_room_db = 75\nT_room_wb = 63\nT_supply_db = 58\nQ_sensible = 200000\nSHF = 0.80\nV_dot_supply = 10700\nP_atm_psia = 14.696\n\nP_atm = P_atm_psia * 6894.76\nT_room_db_K = (T_room_db - 32) * 5/9 + 273.15\nT_room_wb_K = (T_room_wb - 32) * 5/9 + 273.15\nT_supply_db_K = (T_supply_db - 32) * 5/9 + 273.15\n\nh_room = Enthalpy(AirH2O, T=T_room_db_K, B=T_room_wb_K, P=P_atm) / 2326.0\nQ_total = Q_sensible / SHF\n\nQ_total = 4.5 * V_dot_supply * (h_room - h_supply)\nT_supply_wb_K = WetBulb(AirH2O, T=T_supply_db_K, H=h_supply * 2326.0, P=P_atm)\nT_supply_wb = (T_supply_wb_K - 273.15) * 9/5 + 32\n",
+  "expect": {
+    "variables": {
+      "P_atm": 101325.39296,
+      "P_atm_psia": 14.696,
+      "Q_sensible": 200000.0,
+      "Q_total": 250000.0,
+      "SHF": 0.8,
+      "T_room_db": 75.0,
+      "T_room_db_K": 297.0388888888889,
+      "T_room_wb": 63.0,
+      "T_room_wb_K": 290.3722222222222,
+      "T_supply_db": 58.0,
+      "T_supply_db_K": 287.59444444444443,
+      "T_supply_wb": 55.14501904548729,
+      "T_supply_wb_K": 286.0083439141596,
+      "V_dot_supply": 10700.0,
+      "h_room": 20.809561106214815,
+      "h_supply": 15.617453110368501
+    },
+    "display_names": {
+      "h_room": "h_room",
+      "h_supply": "h_supply",
+      "p_atm": "P_atm",
+      "p_atm_psia": "P_atm_psia",
+      "q_sensible": "Q_sensible",
+      "q_total": "Q_total",
+      "shf": "SHF",
+      "t_room_db": "T_room_db",
+      "t_room_db_k": "T_room_db_K",
+      "t_room_wb": "T_room_wb",
+      "t_room_wb_k": "T_room_wb_K",
+      "t_supply_db": "T_supply_db",
+      "t_supply_db_k": "T_supply_db_K",
+      "t_supply_wb": "T_supply_wb",
+      "t_supply_wb_k": "T_supply_wb_K",
+      "v_dot_supply": "V_dot_supply"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

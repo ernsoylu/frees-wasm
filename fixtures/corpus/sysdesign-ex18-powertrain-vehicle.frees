@@ -1,0 +1,5 @@
+MeanValueEngine ENG(throttle=0.8, Tpeak=50, w_peak=20, FMEP_a=1, FMEP_b=0.1)
+Transmission    TR(ratio=2, eta=0.9)
+GradeRoadLoad   ROAD(Crr=5, Caero=0.5, m=100, g=9.81, grade=0)
+connect(ENG.shaft, TR.in)
+connect(TR.out, ROAD.shaft)

@@ -1,0 +1,5 @@
+k = 0.06
+DYNAMIC tank (method = ode23, t = 0 .. 20, points = 200, rtol = 1e-8)
+  der(y) = -k * sqrt(y)
+  y(0) = 3
+END

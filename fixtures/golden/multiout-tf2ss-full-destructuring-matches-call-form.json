@@ -1,0 +1,53 @@
+{
+  "name": "multiout-tf2ss-full-destructuring-matches-call-form",
+  "source": "num = [0, 0, 1]\nden = [1, 3, 2]\nCALL tf2ss(num, den : A[1:2,1:2], B[1:2], C[1:2], D)\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": -3.0,
+      "A[1,2]": -2.0,
+      "A[2,1]": 1.0,
+      "A[2,2]": 0.0,
+      "B[1]": 1.0,
+      "B[2]": 0.0,
+      "C[1]": 0.0,
+      "C[2]": 1.0,
+      "D": 0.0,
+      "den[1]": 1.0,
+      "den[2]": 3.0,
+      "den[3]": 2.0,
+      "num[1]": 0.0,
+      "num[2]": 0.0,
+      "num[3]": 1.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "b": "B",
+      "b[1]": "B[1]",
+      "b[2]": "B[2]",
+      "c": "C",
+      "c[1]": "C[1]",
+      "c[2]": "C[2]",
+      "d": "D",
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]",
+      "num[3]": "num[3]"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

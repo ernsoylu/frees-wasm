@@ -1,0 +1,15 @@
+T_reactants = 298.15 [K]
+hf_ch4 = -74850
+hf_o2 = 0
+hf_n2 = 0
+hf_co2 = -393520
+hf_h2o = -241820
+H_reactants = 1 * hf_ch4 + 2 * hf_o2 + 7.52 * hf_n2
+dH_co2 = Integral(Cp_co2, T, 298.15, T_flame)
+dH_h2o = Integral(Cp_h2o, T, 298.15, T_flame)
+dH_n2 = Integral(Cp_n2, T, 298.15, T_flame)
+Cp_co2 = 22.26 + 5.981e-2 * T - 3.501e-5 * T^2 + 7.469e-9 * T^3
+Cp_h2o = 32.24 + 0.1923e-2 * T + 1.055e-5 * T^2 - 3.595e-9 * T^3
+Cp_n2 = 28.90 - 0.1571e-2 * T + 0.8081e-5 * T^2 - 2.873e-9 * T^3
+H_products = 1 * (hf_co2 + dH_co2) + 2 * (hf_h2o + dH_h2o) + 7.52 * (hf_n2 + dH_n2)
+H_reactants = H_products

@@ -1,0 +1,45 @@
+{
+  "name": "sysdesign-ex07-pneumatic-servo",
+  "source": "PneumaticSupply     SUP(fluid$=Air, P=700000, T=300)\nPneumaticServoValve SV(fluid$=Air, Cmax=1e-8, b=0.3, u=0.5)\nPneumaticAtmosphere ATM(P=100000)\nconnect(SUP.out, SV.in)\nconnect(SV.out, ATM.port)\n",
+  "expect": {
+    "variables": {
+      "atm.port.h": 424949.973620621,
+      "atm.port.mdot": 0.004099875951248402,
+      "atm.port.p": 100000.0,
+      "sup.out.h": 424949.973620621,
+      "sup.out.mdot": 0.004099875951248402,
+      "sup.out.p": 700000.0,
+      "sv.in.h": 424949.973620621,
+      "sv.in.mdot": 0.004099875951248402,
+      "sv.in.p": 700000.0,
+      "sv.out.h": 424949.973620621,
+      "sv.out.mdot": 0.004099875951248402,
+      "sv.out.p": 100000.0,
+      "sv.t_in": 300.0000000000002
+    },
+    "display_names": {
+      "air": "Air",
+      "atm$port$h": "atm.port.h",
+      "atm$port$mdot": "atm.port.mdot",
+      "atm$port$p": "atm.port.p",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "sv$in$h": "sv.in.h",
+      "sv$in$mdot": "sv.in.mdot",
+      "sv$in$p": "sv.in.p",
+      "sv$out$h": "sv.out.h",
+      "sv$out$mdot": "sv.out.mdot",
+      "sv$out$p": "sv.out.p",
+      "sv$t_in": "sv.t_in"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

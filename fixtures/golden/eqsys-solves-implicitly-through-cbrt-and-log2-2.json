@@ -1,0 +1,20 @@
+{
+  "name": "eqsys-solves-implicitly-through-cbrt-and-log2-2",
+  "source": "log2(w) = 5\n",
+  "expect": {
+    "variables": {
+      "w": 32.0
+    },
+    "display_names": {
+      "w": "w"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

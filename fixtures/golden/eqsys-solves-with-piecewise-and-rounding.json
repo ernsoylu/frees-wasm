@@ -1,0 +1,36 @@
+{
+  "name": "eqsys-solves-with-piecewise-and-rounding",
+  "source": "a = round(1.6)\nb = round(1.2345, 2)\nc = floor(2.8)\nd = ceil(2.1)\ne = trunc(-3.7)\nf = sign(-4.2)\ng = factorial(3.0)\nh = step(0.0)\nh2 = step(-0.5)\n",
+  "expect": {
+    "variables": {
+      "a": 2.0,
+      "b": 1.23,
+      "c": 2.0,
+      "d": 3.0,
+      "e": -3.0,
+      "f": -1.0,
+      "g": 6.0,
+      "h": 1.0,
+      "h2": 0.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e",
+      "f": "f",
+      "g": "g",
+      "h": "h",
+      "h2": "h2"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

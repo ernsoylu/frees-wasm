@@ -1,0 +1,1 @@
+F = 2*Integral(t, t, 0, 1)

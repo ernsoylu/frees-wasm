@@ -1,0 +1,8 @@
+num = [0, 0, 100]
+den = [1, 15, 100]
+t = 0:0.005:1.5
+CALL step(num[1:3], den[1:3], t[1:301] : y[1:301])
+CALL stepinfo(t[1:301], y[1:301] : Tr, Tp, Ts, OS)
+Td = 0.2
+order = 2
+CALL pade(Td, order : num_delay[1:3], den_delay[1:3])

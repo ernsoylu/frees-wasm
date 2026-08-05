@@ -1,0 +1,7 @@
+{ Problem 7: Specific & Latent Heat of Freezing }
+mass = 10000
+T_freeze = 27
+T_storage = -10
+Cp_below = 0.37
+
+Q_required = mass * Cp_below * (T_freeze - T_storage)

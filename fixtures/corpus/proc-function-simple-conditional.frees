@@ -1,0 +1,10 @@
+FUNCTION AbsVal(x)
+  IF x >= 0 THEN
+    AbsVal := x
+  ELSE
+    AbsVal := -x
+  END
+END
+
+a = AbsVal(-7)
+b = AbsVal(3)

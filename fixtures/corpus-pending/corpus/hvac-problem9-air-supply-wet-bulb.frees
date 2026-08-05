@@ -1,0 +1,20 @@
+{ Problem 9: Air Supply Wet-Bulb Determination }
+T_room_db = 75
+T_room_wb = 63
+T_supply_db = 58
+Q_sensible = 200000
+SHF = 0.80
+V_dot_supply = 10700
+P_atm_psia = 14.696
+
+P_atm = P_atm_psia * 6894.76
+T_room_db_K = (T_room_db - 32) * 5/9 + 273.15
+T_room_wb_K = (T_room_wb - 32) * 5/9 + 273.15
+T_supply_db_K = (T_supply_db - 32) * 5/9 + 273.15
+
+h_room = Enthalpy(AirH2O, T=T_room_db_K, B=T_room_wb_K, P=P_atm) / 2326.0
+Q_total = Q_sensible / SHF
+
+Q_total = 4.5 * V_dot_supply * (h_room - h_supply)
+T_supply_wb_K = WetBulb(AirH2O, T=T_supply_db_K, H=h_supply * 2326.0, P=P_atm)
+T_supply_wb = (T_supply_wb_K - 273.15) * 9/5 + 32

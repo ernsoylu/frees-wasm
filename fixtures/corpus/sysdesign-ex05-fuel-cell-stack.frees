@@ -1,0 +1,14 @@
+COMPONENT CurrentDraw(p, n)
+  PARAM Idraw
+  p.I = Idraw
+  p.I + n.I = 0
+END
+FuelCellStack FC(ncells=10, area=0.01, i0=10, ilim=20000, Rohm=1e-5, E0=1.18, alpha=0.5, Eth=1.48, T=343)
+CurrentDraw   LOAD(Idraw=50)
+ThermalSource COOL(T=343)
+Convection    HS(htc=200, area=1)
+Ground        G()
+connect(FC.p, LOAD.p)
+connect(FC.n, LOAD.n, G.port)
+connect(FC.heat, HS.a)
+connect(HS.b, COOL.port)

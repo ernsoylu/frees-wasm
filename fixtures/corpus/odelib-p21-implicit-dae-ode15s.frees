@@ -1,0 +1,4 @@
+DYNAMIC dae (method = ode15s, t = 0 .. 1)
+  x(0) = 1
+  der(x) + x = 0
+END

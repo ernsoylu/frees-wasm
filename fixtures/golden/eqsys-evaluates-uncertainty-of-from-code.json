@@ -1,0 +1,27 @@
+{
+  "name": "eqsys-evaluates-uncertainty-of-from-code",
+  "source": "x = 10\ny = 2 * x\nUncertaintyOf(x) = 0.05 * x\nu_y = UncertaintyOf(y)\n",
+  "expect": {
+    "variables": {
+      "u_y": 1.0,
+      "uncertaintyof$u_y": 0.0,
+      "uncertaintyof$x": 0.5,
+      "uncertaintyof$y": 1.0,
+      "x": 10.0,
+      "y": 20.0
+    },
+    "display_names": {
+      "u_y": "u_y",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

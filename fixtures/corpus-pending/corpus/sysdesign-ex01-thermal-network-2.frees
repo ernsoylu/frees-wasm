@@ -1,0 +1,11 @@
+ThermalSource hot(T=400)
+Conduction    c1(k=5, area=1, L=0.1)
+ThermalMass   M(C=8000, T0=305)
+Convection    cv(htc=15, area=2)
+ThermalSource amb(T=300)
+connect(hot.port, c1.a)
+connect(c1.b, M.port, cv.a)
+connect(cv.b, amb.port)
+DYNAMIC r(method = ode45, time = 0 .. 6000, points = 120)
+END
+Tf = FinalValue('m.port.t')

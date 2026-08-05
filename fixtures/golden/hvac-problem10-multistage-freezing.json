@@ -1,0 +1,42 @@
+{
+  "name": "hvac-problem10-multistage-freezing",
+  "source": "{ Problem 10: Multi-Stage Food Freezing }\nmass = 10000\nT_in = 40\nT_freeze = 28\nT_out = 0\nCp_above = 0.83\nCp_below = 0.53\nL_fusion = 98\n\nQ_sensible_above = mass * Cp_above * (T_in - T_freeze)\nQ_latent_freeze = mass * L_fusion\nQ_sensible_below = mass * Cp_below * (T_freeze - T_out)\n\nQ_total_btu = Q_sensible_above + Q_latent_freeze + Q_sensible_below\nQ_total_millions = Q_total_btu / 1e6\n",
+  "expect": {
+    "variables": {
+      "Cp_above": 0.83,
+      "Cp_below": 0.53,
+      "L_fusion": 98.0,
+      "Q_latent_freeze": 980000.0,
+      "Q_sensible_above": 99600.0,
+      "Q_sensible_below": 148400.0,
+      "Q_total_btu": 1228000.0,
+      "Q_total_millions": 1.228,
+      "T_freeze": 28.0,
+      "T_in": 40.0,
+      "T_out": 0.0,
+      "mass": 10000.0
+    },
+    "display_names": {
+      "cp_above": "Cp_above",
+      "cp_below": "Cp_below",
+      "l_fusion": "L_fusion",
+      "mass": "mass",
+      "q_latent_freeze": "Q_latent_freeze",
+      "q_sensible_above": "Q_sensible_above",
+      "q_sensible_below": "Q_sensible_below",
+      "q_total_btu": "Q_total_btu",
+      "q_total_millions": "Q_total_millions",
+      "t_freeze": "T_freeze",
+      "t_in": "T_in",
+      "t_out": "T_out"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

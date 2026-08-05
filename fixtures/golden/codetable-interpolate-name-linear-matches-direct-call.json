@@ -1,0 +1,20 @@
+{
+  "name": "codetable-interpolate-name-linear-matches-direct-call",
+  "source": "TABLE flow(re)\n  0     0\n  100   100\nEND\ny = Interpolate('flow', 50)\n",
+  "expect": {
+    "variables": {
+      "y": 50.0
+    },
+    "display_names": {
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

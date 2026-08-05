@@ -1,0 +1,32 @@
+{
+  "name": "hvac-problem5-enthalpy-wheel",
+  "source": "{ Problem 5: Enthalpy Wheel Heat Recovery }\nV_dot_oa = 1500\nT_oa_db = 95\nT_oa_wb = 78\nT_room_db = 75\nrh_room = 0.50\neffectiveness = 0.80\n\nT_tempered_db = T_oa_db - (T_oa_db - T_room_db) * effectiveness\n",
+  "expect": {
+    "variables": {
+      "T_oa_db": 95.0,
+      "T_oa_wb": 78.0,
+      "T_room_db": 75.0,
+      "T_tempered_db": 79.0,
+      "V_dot_oa": 1500.0,
+      "effectiveness": 0.8,
+      "rh_room": 0.5
+    },
+    "display_names": {
+      "effectiveness": "effectiveness",
+      "rh_room": "rh_room",
+      "t_oa_db": "T_oa_db",
+      "t_oa_wb": "T_oa_wb",
+      "t_room_db": "T_room_db",
+      "t_tempered_db": "T_tempered_db",
+      "v_dot_oa": "V_dot_oa"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,6 @@
+TABLE pumpHead(q)
+  0      50
+  10     30
+END
+h1 = pumpHead(-5)
+h2 = pumpHead(999)

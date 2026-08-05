@@ -403,6 +403,25 @@ this phase. Full context in [`docs/status-phase11.md`](status-phase11.md).
     prompt-style update flow. The trade is deliberate: first visit downloads
     the whole tool; every later session — including offline — costs nothing.
 
+### Opened by Phase 12 (2026-08-05)
+
+The hardening pass: corpus growth to 701, property-based fuzzing, benchmarks.
+Full context in [`docs/status-phase12.md`](status-phase12.md).
+
+34. **`CALL eigenvalues` / `CALL eigen` are not wired.** The Java routes both
+    through Commons Math's eigen-decomposition; this port refuses them
+    explicitly. Found by the Phase 12 harvest (three
+    `eqsys-*eigen*` documents, staged in `corpus-pending/`). The
+    infrastructure exists (`linalg.rs` has the QR machinery); the CALL
+    flattener simply never grew the names.
+
+35. **An explicit `~` discard in destructuring leaks Java's global sink
+    counter.** `[whole, ~] = DivMod(17, 5)` records `~ignored~N` in the
+    oracle's `display_names` with a JVM-batch-global `N` — unreproducible
+    across dump runs, so such fixtures can never be frozen (this port's
+    per-document counter is better behaved and will never match). Oracle-side
+    hazard, recorded in `fixtures/README.md`; not a Rust defect.
+
 ## Commands
 
 ```bash

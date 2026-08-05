@@ -1,0 +1,25 @@
+{
+  "name": "eqsys-unit-on-matrix-literal-and-range-assign",
+  "source": "c[1:3] = [2, 3, 4] [kg]\n",
+  "expect": {
+    "variables": {
+      "c[1]": 2.0,
+      "c[2]": 3.0,
+      "c[3]": 4.0
+    },
+    "display_names": {
+      "c": "c",
+      "c[1]": "c[1]",
+      "c[2]": "c[2]",
+      "c[3]": "c[3]"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

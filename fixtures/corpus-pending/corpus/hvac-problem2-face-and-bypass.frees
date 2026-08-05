@@ -1,0 +1,31 @@
+{ Problem 2: Face and Bypass Control Load }
+V_dot_supply = 20000
+V_dot_oa = 5000
+T_room = 80
+rh_room = 0.50
+T_oa_db = 90
+T_oa_wb = 74
+T_coil_out_db = 58
+T_coil_out_wb = 56
+P_atm_psia = 14.696
+
+P_atm = P_atm_psia * 6894.76
+T_room_K = (T_room - 32) * 5/9 + 273.15
+T_oa_db_K = (T_oa_db - 32) * 5/9 + 273.15
+T_oa_wb_K = (T_oa_wb - 32) * 5/9 + 273.15
+T_coil_out_db_K = (T_coil_out_db - 32) * 5/9 + 273.15
+T_coil_out_wb_K = (T_coil_out_wb - 32) * 5/9 + 273.15
+
+v_supply = 13.25
+m_dot_supply = V_dot_supply * 60 / v_supply
+
+f_oa = V_dot_oa / V_dot_supply
+f_return = 1 - f_oa
+
+h_room = Enthalpy(AirH2O, T=T_room_K, R=rh_room, P=P_atm) / 2326.0
+h_oa = Enthalpy(AirH2O, T=T_oa_db_K, B=T_oa_wb_K, P=P_atm) / 2326.0
+h_mix = f_oa * h_oa + f_return * h_room
+h_supply = Enthalpy(AirH2O, T=T_coil_out_db_K, B=T_coil_out_wb_K, P=P_atm) / 2326.0
+
+Q_dot_coil_btu = m_dot_supply * (h_mix - h_supply)
+Q_dot_coil_tons = Q_dot_coil_btu / 12000

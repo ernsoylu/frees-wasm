@@ -1,0 +1,8 @@
+FUNCTION Bad(n)
+  FOR i = 1 TO n
+    CALL pole(i, i : a, b)
+  END
+  Bad := 1
+END
+
+y = Bad(2)

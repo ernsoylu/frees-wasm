@@ -1,0 +1,9 @@
+{ Problem 5: Enthalpy Wheel Heat Recovery }
+V_dot_oa = 1500
+T_oa_db = 95
+T_oa_wb = 78
+T_room_db = 75
+rh_room = 0.50
+effectiveness = 0.80
+
+T_tempered_db = T_oa_db - (T_oa_db - T_room_db) * effectiveness

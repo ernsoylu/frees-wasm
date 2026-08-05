@@ -1,0 +1,38 @@
+{
+  "name": "hvac-problem1-ammonia-cop",
+  "source": "{ Problem 1: Ammonia Refrigeration Cycle COP }\nP_suction = 38.5\nsuperheat = 20\nP_discharge = 229\nm_dot = 22\n\nh1 = 627.0      { Enthalpy entering compressor }\nh2 = 745.0      { Enthalpy leaving compressor }\nh3 = 161.1      { Saturated liquid leaving condenser }\n\nCOP = (h1 - h3) / (h2 - h1)\nQ_dot_cool = m_dot * (h1 - h3)\nW_dot_comp = m_dot * (h2 - h1)\n",
+  "expect": {
+    "variables": {
+      "COP": 3.9483050847457624,
+      "P_discharge": 229.0,
+      "P_suction": 38.5,
+      "Q_dot_cool": 10249.8,
+      "W_dot_comp": 2596.0,
+      "h1": 627.0,
+      "h2": 745.0,
+      "h3": 161.1,
+      "m_dot": 22.0,
+      "superheat": 20.0
+    },
+    "display_names": {
+      "cop": "COP",
+      "h1": "h1",
+      "h2": "h2",
+      "h3": "h3",
+      "m_dot": "m_dot",
+      "p_discharge": "P_discharge",
+      "p_suction": "P_suction",
+      "q_dot_cool": "Q_dot_cool",
+      "superheat": "superheat",
+      "w_dot_comp": "W_dot_comp"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

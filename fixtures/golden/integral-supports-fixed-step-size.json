@@ -1,0 +1,22 @@
+{
+  "name": "integral-supports-fixed-step-size",
+  "source": "F = Integral(t, t, 0, 2, 0.01)\n",
+  "expect": {
+    "variables": {
+      "F": 1.9999999999999984,
+      "t": 2.0
+    },
+    "display_names": {
+      "f": "F",
+      "t": "t"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

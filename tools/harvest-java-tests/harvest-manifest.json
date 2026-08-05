@@ -1,0 +1,1274 @@
+{
+  "codetable-check-accepts-code-table": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "checkAcceptsCodeTable"
+  },
+  "codetable-clamps-outside-range": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "clampsOutsideRange"
+  },
+  "codetable-differentiate-table-column": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "differentiateTableColumn"
+  },
+  "codetable-interpolate-name-linear-matches-direct-call": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "interpolateNameLinearMatchesDirectCall"
+  },
+  "codetable-interpolate1-cubic-spline-through-collinear-points-is-linear": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "interpolate1CubicSplineThroughCollinearPointsIsLinear"
+  },
+  "codetable-interpolate2-d-name-matches-curve-family": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "interpolate2DNameMatchesCurveFamily"
+  },
+  "codetable-log-axes-interpolate-as-power-law": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "logAxesInterpolateAsPowerLaw"
+  },
+  "codetable-lookup-cell-and-row-count-and-row": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "lookupCellAndRowCountAndRow"
+  },
+  "codetable-mixed-case-call-resolves-to-table": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "mixedCaseCallResolvesToTable"
+  },
+  "codetable-negative-arguments-are-supported": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "negativeArgumentsAreSupported"
+  },
+  "codetable-one-dimensional-table-interpolates": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "oneDimensionalTableInterpolates"
+  },
+  "codetable-table-function-participates-in-newton-solve": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "tableFunctionParticipatesInNewtonSolve"
+  },
+  "codetable-two-dimensional-curve-family-interpolates": {
+    "class": "CodeTableTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "twoDimensionalCurveFamilyInterpolates"
+  },
+  "ctldesign-acker-double-integrator": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ackerDoubleIntegrator"
+  },
+  "ctldesign-balreal-invariants-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "balrealInvariantsIntegration"
+  },
+  "ctldesign-bare-matrix-names-into-control-calls-resolve-shapes": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "bareMatrixNamesIntoControlCallsResolveShapes"
+  },
+  "ctldesign-bare-matrix-names-into-control-calls-resolve-shapes-2": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "bareMatrixNamesIntoControlCallsResolveShapes"
+  },
+  "ctldesign-dare-dlqr-scalar-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "dareDlqrScalarIntegration"
+  },
+  "ctldesign-dlyap-diagonal-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "dlyapDiagonalIntegration"
+  },
+  "ctldesign-gram-controllability-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "gramControllabilityIntegration"
+  },
+  "ctldesign-improper-transfer-function-still-rejected": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "improperTransferFunctionStillRejected"
+  },
+  "ctldesign-lqe-scalar-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "lqeScalarIntegration"
+  },
+  "ctldesign-lqr-double-integrator": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "lqrDoubleIntegrator"
+  },
+  "ctldesign-lyap-diagonal-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "lyapDiagonalIntegration"
+  },
+  "ctldesign-pidtune-pid-design": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "pidtunePidDesign"
+  },
+  "ctldesign-place-double-integrator": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "placeDoubleIntegrator"
+  },
+  "ctldesign-rank-ctrb-obsv-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "rankCtrbObsvIntegration"
+  },
+  "ctldesign-rlocus-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "rlocusIntegration"
+  },
+  "ctldesign-ss-connections-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ssConnectionsIntegration"
+  },
+  "ctldesign-ss2ss-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ss2ssIntegration"
+  },
+  "ctldesign-step-info-and-pade-integration": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "stepInfoAndPadeIntegration"
+  },
+  "ctldesign-step-response-uses-default-time-grid-when-time-omitted": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "stepResponseUsesDefaultTimeGridWhenTimeOmitted"
+  },
+  "ctldesign-strictly-proper-transfer-function-numerator-is-zero-padded": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "strictlyProperTransferFunctionNumeratorIsZeroPadded"
+  },
+  "ctldesign-strictly-proper-transfer-function-numerator-is-zero-padded-2": {
+    "class": "ControlSystemDesignTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "strictlyProperTransferFunctionNumeratorIsZeroPadded"
+  },
+  "ctlfreq-bode-tf-calculates-correctly": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "bodeTfCalculatesCorrectly"
+  },
+  "ctlfreq-c2d-tustin-discretizes-integrator": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "c2dTustinDiscretizesIntegrator"
+  },
+  "ctlfreq-c2d-zoh-discretizes-first-order-plant": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "c2dZohDiscretizesFirstOrderPlant"
+  },
+  "ctlfreq-error-constants-for-type0-open-loop": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "errorConstantsForType0OpenLoop"
+  },
+  "ctlfreq-margin-tf-calculates-correctly": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "marginTfCalculatesCorrectly"
+  },
+  "ctlfreq-mason-signal-flow-graph": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "masonSignalFlowGraph"
+  },
+  "ctlfreq-nichols-matches-bode-data": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "nicholsMatchesBodeData"
+  },
+  "ctlfreq-nyquist-tf-calculates-correctly": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "nyquistTfCalculatesCorrectly"
+  },
+  "ctlfreq-pole-ss-calculates-correctly": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "poleSsCalculatesCorrectly"
+  },
+  "ctlfreq-pole-tf-calculates-correctly": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "poleTfCalculatesCorrectly"
+  },
+  "ctlfreq-residue-computes-inverse-laplace-residues": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "residueComputesInverseLaplaceResidues"
+  },
+  "ctlfreq-residue-repeated-poles-with-order-output": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "residueRepeatedPolesWithOrderOutput"
+  },
+  "ctlfreq-residue-simple-form-rejects-repeated-poles": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "residueSimpleFormRejectsRepeatedPoles"
+  },
+  "ctlfreq-routh-counts-unstable-right-half-plane-poles": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "routhCountsUnstableRightHalfPlanePoles"
+  },
+  "ctlfreq-routh-reports-stable-system": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "routhReportsStableSystem"
+  },
+  "ctlfreq-zero-ss-calculates-correctly": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "zeroSsCalculatesCorrectly"
+  },
+  "ctlfreq-zero-tf-calculates-correctly": {
+    "class": "ControlSystemFrequencyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "zeroTfCalculatesCorrectly"
+  },
+  "ctltime-first-order-impulse-response": {
+    "class": "ControlSystemTimeResponseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "firstOrderImpulseResponse"
+  },
+  "ctltime-first-order-step-response": {
+    "class": "ControlSystemTimeResponseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "firstOrderStepResponse"
+  },
+  "ctltime-lsim-constant-input-matches-step": {
+    "class": "ControlSystemTimeResponseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "lsimConstantInputMatchesStep"
+  },
+  "ctltime-lsim-ramp-input-on-first-order-system": {
+    "class": "ControlSystemTimeResponseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "lsimRampInputOnFirstOrderSystem"
+  },
+  "ctltime-pure-gain-step-is-constant": {
+    "class": "ControlSystemTimeResponseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "pureGainStepIsConstant"
+  },
+  "ctltime-second-order-step-overshoot": {
+    "class": "ControlSystemTimeResponseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "secondOrderStepOvershoot"
+  },
+  "ctltime-state-space-step-matches-transfer-function": {
+    "class": "ControlSystemTimeResponseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "stateSpaceStepMatchesTransferFunction"
+  },
+  "curvefn-adjusts-outof-range-guesses-to-range-average": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "adjustsOutofRangeGuessesToRangeAverage"
+  },
+  "curvefn-clamps-outside-the-tabulated-range": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "clampsOutsideTheTabulatedRange"
+  },
+  "curvefn-clamps-outside-the-tabulated-range-2": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "clampsOutsideTheTabulatedRange"
+  },
+  "curvefn-curve-functions-work-inside-larger-systems": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "curveFunctionsWorkInsideLargerSystems"
+  },
+  "curvefn-family-parameter-clamps-to-outer-curves": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "familyParameterClampsToOuterCurves"
+  },
+  "curvefn-family-parameter-clamps-to-outer-curves-2": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "familyParameterClampsToOuterCurves"
+  },
+  "curvefn-interpolates-across-the-curve-family-parameter": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "interpolatesAcrossTheCurveFamilyParameter"
+  },
+  "curvefn-interpolates-single-curve-linearly": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "interpolatesSingleCurveLinearly"
+  },
+  "curvefn-log-axes-interpolate-as-power-laws": {
+    "class": "CurveFunctionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "logAxesInterpolateAsPowerLaws"
+  },
+  "eqsys-bounds-select-root": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "boundsSelectRoot"
+  },
+  "eqsys-complex-abs-is-magnitude": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexAbsIsMagnitude"
+  },
+  "eqsys-complex-literals": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexLiterals"
+  },
+  "eqsys-complex-real-and-imag": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexRealAndImag"
+  },
+  "eqsys-complex-solving": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexSolving"
+  },
+  "eqsys-complex-unsupported-function-is-rejected": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "complexUnsupportedFunctionIsRejected"
+  },
+  "eqsys-eigen-waits-for-matrix-entries-solved-elsewhere": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "eigenWaitsForMatrixEntriesSolvedElsewhere"
+  },
+  "eqsys-elementwise-left-divide": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "elementwiseLeftDivide"
+  },
+  "eqsys-elementwise-multiply-and-divide": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "elementwiseMultiplyAndDivide"
+  },
+  "eqsys-elementwise-multiply-and-divide-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "elementwiseMultiplyAndDivide"
+  },
+  "eqsys-elementwise-power-and-scalar-broadcast": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "elementwisePowerAndScalarBroadcast"
+  },
+  "eqsys-elementwise-power-and-scalar-broadcast-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "elementwisePowerAndScalarBroadcast"
+  },
+  "eqsys-elementwise-power-and-scalar-broadcast-3": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "elementwisePowerAndScalarBroadcast"
+  },
+  "eqsys-elementwise-shape-mismatch-is-clear": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "elementwiseShapeMismatchIsClear"
+  },
+  "eqsys-elementwise-works-with-generators": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "elementwiseWorksWithGenerators"
+  },
+  "eqsys-equations-may-span-comments-and-mixed-case": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "equationsMaySpanCommentsAndMixedCase"
+  },
+  "eqsys-evaluates-cbrt-and-log2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaluatesCbrtAndLog2"
+  },
+  "eqsys-evaluates-uncertainty-of-accessor": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaluatesUncertaintyOfAccessor"
+  },
+  "eqsys-evaluates-uncertainty-of-from-code": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaluatesUncertaintyOfFromCode"
+  },
+  "eqsys-guess-value-selects-root": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "guessValueSelectsRoot"
+  },
+  "eqsys-propagates-uncertainty-multiple-inputs": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "propagatesUncertaintyMultipleInputs"
+  },
+  "eqsys-propagates-uncertainty-simple": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "propagatesUncertaintySimple"
+  },
+  "eqsys-real-mode-real-and-imag": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "realModeRealAndImag"
+  },
+  "eqsys-residuals-are-reported-per-equation": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "residualsAreReportedPerEquation"
+  },
+  "eqsys-respects-iteration-limit-from-stop-criteria": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "respectsIterationLimitFromStopCriteria"
+  },
+  "eqsys-solves-claude-md-reference-system": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesClaudeMdReferenceSystem"
+  },
+  "eqsys-solves-duplicate-loop-system": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesDuplicateLoopSystem"
+  },
+  "eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesEigenDecompositionWithVectorsAndDownstreamEquations"
+  },
+  "eqsys-solves-eigenvalues-of-symmetric-matrix": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesEigenvaluesOfSymmetricMatrix"
+  },
+  "eqsys-solves-implicitly-through-cbrt-and-log2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesImplicitlyThroughCbrtAndLog2"
+  },
+  "eqsys-solves-implicitly-through-cbrt-and-log2-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesImplicitlyThroughCbrtAndLog2"
+  },
+  "eqsys-solves-matlab-inv-det-aliases": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesMatlabInvDetAliases"
+  },
+  "eqsys-solves-matlab-matrix-generators": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesMatlabMatrixGenerators"
+  },
+  "eqsys-solves-matlab-style-bare-name-inverse-and-mat-vec": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesMatlabStyleBareNameInverseAndMatVec"
+  },
+  "eqsys-solves-matlab-style-bare-name-inverse-and-mat-vec-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesMatlabStyleBareNameInverseAndMatVec"
+  },
+  "eqsys-solves-matlab-style-bare-name-matrix": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesMatlabStyleBareNameMatrix"
+  },
+  "eqsys-solves-milestone-one-system": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesMilestoneOneSystem"
+  },
+  "eqsys-solves-power-factor-correction-complex": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesPowerFactorCorrectionComplex"
+  },
+  "eqsys-solves-sequential-system-via-blocks": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesSequentialSystemViaBlocks"
+  },
+  "eqsys-solves-with-complex-helpers": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesWithComplexHelpers"
+  },
+  "eqsys-solves-with-conditionals-and-series": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesWithConditionalsAndSeries"
+  },
+  "eqsys-solves-with-hyperbolic-functions": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesWithHyperbolicFunctions"
+  },
+  "eqsys-solves-with-piecewise-and-rounding": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesWithPiecewiseAndRounding"
+  },
+  "eqsys-underdetermined-system-fails-with-clear-message": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "underdeterminedSystemFailsWithClearMessage"
+  },
+  "eqsys-unit-on-matrix-literal-and-range-assign": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "unitOnMatrixLiteralAndRangeAssign"
+  },
+  "eqsys-unit-on-vector-literal-solves": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "unitOnVectorLiteralSolves"
+  },
+  "eqsys-variable-case-follows-first-appearance": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "variableCaseFollowsFirstAppearance"
+  },
+  "hvac-problem1-ammonia-cop": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem1_ammoniaCOP"
+  },
+  "hvac-problem10-multistage-freezing": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem10_multistageFreezing"
+  },
+  "hvac-problem2-face-and-bypass": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem2_faceAndBypass"
+  },
+  "hvac-problem3-psychrometric-balancing": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem3_psychrometricBalancing"
+  },
+  "hvac-problem4-solar-heat-gain": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem4_solarHeatGain"
+  },
+  "hvac-problem5-enthalpy-wheel": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem5_enthalpyWheel"
+  },
+  "hvac-problem6-run-around-cycle": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem6_runAroundCycle"
+  },
+  "hvac-problem7-latent-heat-freezing": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem7_latentHeatFreezing"
+  },
+  "hvac-problem8-pumping-and-friction": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem8_pumpingAndFriction"
+  },
+  "hvac-problem9-air-supply-wet-bulb": {
+    "class": "HvacExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "problem9_airSupplyWetBulb"
+  },
+  "integral-adiabatic-flame-temperature": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "adiabaticFlameTemperature"
+  },
+  "integral-free-variable-limit-is-rejected": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "freeVariableLimitIsRejected"
+  },
+  "integral-integrates-polynomial-directly": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "integratesPolynomialDirectly"
+  },
+  "integral-integrates-sine": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "integratesSine"
+  },
+  "integral-rejects-integral-in-complex-mode": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "rejectsIntegralInComplexMode"
+  },
+  "integral-solves-initial-value-problem": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesInitialValueProblem"
+  },
+  "integral-solves-integral-nested-in-expression": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesIntegralNestedInExpression"
+  },
+  "integral-solves-subsystem-at-every-step": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesSubsystemAtEveryStep"
+  },
+  "integral-solves-variable-upper-limit": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesVariableUpperLimit"
+  },
+  "integral-supports-fixed-step-size": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "supportsFixedStepSize"
+  },
+  "integral-variable-limit-inlines-integrand-definitions": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "variableLimitInlinesIntegrandDefinitions"
+  },
+  "linalg-cholesky-known-factor": {
+    "class": "LinearAlgebraCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "choleskyKnownFactor"
+  },
+  "linalg-full-svd": {
+    "class": "LinearAlgebraCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "fullSvd"
+  },
+  "linalg-mat-exp-nilpotent": {
+    "class": "LinearAlgebraCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "matExpNilpotent"
+  },
+  "linalg-mat-exp-rotation-generator": {
+    "class": "LinearAlgebraCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "matExpRotationGenerator"
+  },
+  "linalg-qr-reconstructs-and-is-triangular": {
+    "class": "LinearAlgebraCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "qrReconstructsAndIsTriangular"
+  },
+  "linalg-singular-values-of-diagonal": {
+    "class": "LinearAlgebraCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "singularValuesOfDiagonal"
+  },
+  "linalg-trace-and-frobenius-norm": {
+    "class": "LinearAlgebraCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "traceAndFrobeniusNorm"
+  },
+  "multiout-colon-form-partial-omission-also-works": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "colonFormPartialOmissionAlsoWorks"
+  },
+  "multiout-mid-list-tilde-on-two-output": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "midListTildeOnTwoOutput"
+  },
+  "multiout-mid-list-tilde-on-two-output-2": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "midListTildeOnTwoOutput"
+  },
+  "multiout-ss2tf-destructuring": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ss2tfDestructuring"
+  },
+  "multiout-ss2tf-destructuring-2": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ss2tfDestructuring"
+  },
+  "multiout-svd-discard-with-tilde": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "svdDiscardWithTilde"
+  },
+  "multiout-svd-discard-with-tilde-2": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "svdDiscardWithTilde"
+  },
+  "multiout-tf2ss-full-destructuring-matches-call-form": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "tf2ssFullDestructuringMatchesCallForm"
+  },
+  "multiout-tf2ss-full-destructuring-matches-call-form-2": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "tf2ssFullDestructuringMatchesCallForm"
+  },
+  "multiout-tf2ss-partial-trailing-omission": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "tf2ssPartialTrailingOmission"
+  },
+  "multiout-user-function-with-tilde-discard": {
+    "class": "MultiOutputDestructuringTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "userFunctionWithTildeDiscard"
+  },
+  "odelib-p01-radioactive-decay-ode1": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p01_radioactiveDecay_ode1"
+  },
+  "odelib-p02-rc-charging-ode2": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p02_rcCharging_ode2"
+  },
+  "odelib-p03-first-order-reaction-ode3": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p03_firstOrderReaction_ode3"
+  },
+  "odelib-p04-rl-circuit-ode4": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p04_rlCircuit_ode4"
+  },
+  "odelib-p05-newton-cooling-ode5": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p05_newtonCooling_ode5"
+  },
+  "odelib-p06-parachutist-linear-drag-ode45": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p06_parachutistLinearDrag_ode45"
+  },
+  "odelib-p07-tank-draining-ode23": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p07_tankDraining_ode23"
+  },
+  "odelib-p08-logistic-growth-ode45": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p08_logisticGrowth_ode45"
+  },
+  "odelib-p09-terminal-velocity-quadratic-drag-ode45": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p09_terminalVelocityQuadraticDrag_ode45"
+  },
+  "odelib-p10-mass-spring-damper-ode45": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p10_massSpringDamper_ode45"
+  },
+  "odelib-p11-undamped-shm-ode4-energy-conserved": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p11_undampedSHM_ode4_energyConserved"
+  },
+  "odelib-p12-pendulum-small-angle-ode5": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p12_pendulumSmallAngle_ode5"
+  },
+  "odelib-p13-series-rlc-ode23": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p13_seriesRLC_ode23"
+  },
+  "odelib-p14-lotka-volterra-ode45-conserved-invariant": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p14_lotkaVolterra_ode45_conservedInvariant"
+  },
+  "odelib-p15-coupled-mixing-tanks-ode23": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p15_coupledMixingTanks_ode23"
+  },
+  "odelib-p16-two-body-circular-orbit-ode45": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p16_twoBodyCircularOrbit_ode45"
+  },
+  "odelib-p17-classic-stiff-linear-ode15s": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p17_classicStiffLinear_ode15s"
+  },
+  "odelib-p18-van-der-pol-stiff-ode23s": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p18_vanDerPolStiff_ode23s"
+  },
+  "odelib-p19-robertson-kinetics-ode23s-mass-conserved": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p19_robertsonKinetics_ode23s_massConserved"
+  },
+  "odelib-p20-stiff-reaction-chain-ode15s": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p20_stiffReactionChain_ode15s"
+  },
+  "odelib-p21-implicit-dae-ode15s": {
+    "class": "OdeProblemLibraryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "p21_implicitDAE_ode15s"
+  },
+  "proc-call-inside-procedure-for-is-rejected-not-silently-dropped": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "callInsideProcedureForIsRejectedNotSilentlyDropped"
+  },
+  "proc-function-factorial": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "functionFactorial"
+  },
+  "proc-function-repeat-until": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "functionRepeatUntil"
+  },
+  "proc-function-simple-conditional": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "functionSimpleConditional"
+  },
+  "proc-function-used-in-expression": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "functionUsedInExpression"
+  },
+  "proc-function-while-loop": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "functionWhileLoop"
+  },
+  "proc-milestone3-factorial-and-arrays": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "milestone3FactorialAndArrays"
+  },
+  "proc-module-basic-grafting": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "moduleBasicGrafting"
+  },
+  "proc-module-namespaces-function-calls-and-negation": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "moduleNamespacesFunctionCallsAndNegation"
+  },
+  "proc-module-solves-internal-equations": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "moduleSolvesInternalEquations"
+  },
+  "proc-multi-output-function-basic": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "multiOutputFunctionBasic"
+  },
+  "proc-multi-output-function-with-conditional": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "multiOutputFunctionWithConditional"
+  },
+  "proc-nested-for-inside-function-accumulates-correctly": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "nestedForInsideFunctionAccumulatesCorrectly"
+  },
+  "proc-procedure-basic-outputs": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "procedureBasicOutputs"
+  },
+  "proc-procedure-with-conditional": {
+    "class": "ProceduralFeaturesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "procedureWithConditional"
+  },
+  "sysdesign-ex01-thermal-network": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex01_thermalNetwork"
+  },
+  "sysdesign-ex01-thermal-network-2": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ex01_thermalNetwork"
+  },
+  "sysdesign-ex02-driveline-spinup": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex02_drivelineSpinup"
+  },
+  "sysdesign-ex02-driveline-spinup-2": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ex02_drivelineSpinup"
+  },
+  "sysdesign-ex03-ev-battery-thermal": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex03_evBatteryThermal"
+  },
+  "sysdesign-ex04-dc-motor-drive": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex04_dcMotorDrive"
+  },
+  "sysdesign-ex05-fuel-cell-stack": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex05_fuelCellStack"
+  },
+  "sysdesign-ex06-pneumatic": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex06_pneumatic"
+  },
+  "sysdesign-ex06-pneumatic-2": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex06_pneumatic"
+  },
+  "sysdesign-ex07-pneumatic-servo": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex07_pneumaticServo"
+  },
+  "sysdesign-ex08-hydraulic-power-unit": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex08_hydraulicPowerUnit"
+  },
+  "sysdesign-ex09-hydraulic-relief": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex09_hydraulicRelief"
+  },
+  "sysdesign-ex10-pi-thermostat-control": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex10_piThermostatControl"
+  },
+  "sysdesign-ex11-liquid-cooling-loop": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex11_liquidCoolingLoop"
+  },
+  "sysdesign-ex12-moist-air-ahu": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex12_moistAirAHU"
+  },
+  "sysdesign-ex13-humidifier": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex13_humidifier"
+  },
+  "sysdesign-ex14-gas-mixture-blend": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex14_gasMixtureBlend"
+  },
+  "sysdesign-ex15-refrigeration-closed-cycle": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex15_refrigerationClosedCycle"
+  },
+  "sysdesign-ex16-moving-boundary-evaporator": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex16_movingBoundaryEvaporator"
+  },
+  "sysdesign-ex17-ac-expansion-valve": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex17_acExpansionValve"
+  },
+  "sysdesign-ex18-powertrain-vehicle": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex18_powertrainVehicle"
+  },
+  "sysdesign-ex19-battery2rc-discharge": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex19_battery2rcDischarge"
+  },
+  "sysdesign-ex20-zeotropic-blend": {
+    "class": "SystemDesignExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ex20_zeotropicBlend"
+  }
+}

@@ -1,0 +1,6 @@
+PROCEDURE Swap(a, b : c, d)
+  c := b
+  d := a
+END
+
+CALL Swap(3, 7 : x, y)

@@ -1,0 +1,50 @@
+{
+  "name": "sysdesign-ex01-thermal-network",
+  "source": "ThermalSource hot(T=400)\nConduction    c1(k=5, area=1, L=0.1)\nThermalMass   M(C=8000, T0=305)\nConvection    cv(htc=15, area=2)\nThermalSource amb(T=300)\nconnect(hot.port, c1.a)\nconnect(c1.b, M.port, cv.a)\nconnect(cv.b, amb.port)\n",
+  "expect": {
+    "variables": {
+      "amb.port.qdot": 1875.0,
+      "amb.port.t": 300.0,
+      "c1.a.qdot": 1875.0,
+      "c1.a.t": 400.0,
+      "c1.b.qdot": -1875.0,
+      "c1.b.t": 362.5,
+      "c1.q": 1875.0,
+      "cv.a.qdot": 1875.0,
+      "cv.a.t": 362.5,
+      "cv.b.qdot": -1875.0,
+      "cv.b.t": 300.0,
+      "cv.q": 1875.0,
+      "hot.port.qdot": -1875.0,
+      "hot.port.t": 400.0,
+      "m.port.qdot": 0.0,
+      "m.port.t": 362.5
+    },
+    "display_names": {
+      "amb$port$qdot": "amb.port.qdot",
+      "amb$port$t": "amb.port.t",
+      "c1$a$qdot": "c1.a.qdot",
+      "c1$a$t": "c1.a.t",
+      "c1$b$qdot": "c1.b.qdot",
+      "c1$b$t": "c1.b.t",
+      "c1$q": "c1.q",
+      "cv$a$qdot": "cv.a.qdot",
+      "cv$a$t": "cv.a.t",
+      "cv$b$qdot": "cv.b.qdot",
+      "cv$b$t": "cv.b.t",
+      "cv$q": "cv.q",
+      "hot$port$qdot": "hot.port.qdot",
+      "hot$port$t": "hot.port.t",
+      "m$port$qdot": "m.port.qdot",
+      "m$port$t": "m.port.t"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

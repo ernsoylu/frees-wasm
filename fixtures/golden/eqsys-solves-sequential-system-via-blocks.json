@@ -1,0 +1,24 @@
+{
+  "name": "eqsys-solves-sequential-system-via-blocks",
+  "source": "a = 10\nb = a * 2\nc = a + b\n",
+  "expect": {
+    "variables": {
+      "a": 10.0,
+      "b": 20.0,
+      "c": 30.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

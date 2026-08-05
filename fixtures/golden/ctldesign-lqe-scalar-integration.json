@@ -1,0 +1,35 @@
+{
+  "name": "ctldesign-lqe-scalar-integration",
+  "source": "A[1,1] = -1\nG[1,1] = 1\nC[1,1] = 1\nQ[1,1] = 1\nR = 1\nCALL lqe(A[1:1,1:1], G[1:1,1:1], C[1:1,1:1], Q[1:1,1:1], R : L[1:1,1:1])\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": -1.0,
+      "C[1,1]": 1.0,
+      "G[1,1]": 1.0,
+      "L[1,1]": 0.41421356237309503,
+      "Q[1,1]": 1.0,
+      "R": 1.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "c": "C",
+      "c[1,1]": "C[1,1]",
+      "g": "G",
+      "g[1,1]": "G[1,1]",
+      "l": "L",
+      "l[1,1]": "L[1,1]",
+      "q": "Q",
+      "q[1,1]": "Q[1,1]",
+      "r": "R"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "linalg-mat-exp-rotation-generator",
+  "source": "A = [0, 1; -1, 0]\nCALL MatExp(A : E)\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 0.0,
+      "A[1,2]": 1.0,
+      "A[2,1]": -1.0,
+      "A[2,2]": 0.0,
+      "E[1,1]": 0.5403023058681398,
+      "E[1,2]": 0.8414709848078965,
+      "E[2,1]": -0.8414709848078965,
+      "E[2,2]": 0.54030230586814
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "e": "E",
+      "e[1,1]": "E[1,1]",
+      "e[1,2]": "E[1,2]",
+      "e[2,1]": "E[2,1]",
+      "e[2,2]": "E[2,2]"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

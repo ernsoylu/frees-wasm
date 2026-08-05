@@ -1,0 +1,7 @@
+y = sinh(x)
+z = cosh(x)
+w = tanh(x)
+x_asinh = arcsinh(y)
+x_acosh = arccosh(z)
+x_atanh = arctanh(w)
+x = 1.25

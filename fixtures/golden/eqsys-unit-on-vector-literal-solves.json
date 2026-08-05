@@ -1,0 +1,29 @@
+{
+  "name": "eqsys-unit-on-vector-literal-solves",
+  "source": "c = [2 3 4 5 6] [kg]\n",
+  "expect": {
+    "variables": {
+      "c[1]": 2.0,
+      "c[2]": 3.0,
+      "c[3]": 4.0,
+      "c[4]": 5.0,
+      "c[5]": 6.0
+    },
+    "display_names": {
+      "c": "c",
+      "c[1]": "c[1]",
+      "c[2]": "c[2]",
+      "c[3]": "c[3]",
+      "c[4]": "c[4]",
+      "c[5]": "c[5]"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "codetable-mixed-case-call-resolves-to-table",
+  "source": "TABLE fanPressure(rpm)\n  1000   100\n  2000   200\nEND\ndP = FANPRESSURE(1500)\n",
+  "expect": {
+    "variables": {
+      "dP": 150.0
+    },
+    "display_names": {
+      "dp": "dP"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

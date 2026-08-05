@@ -1,0 +1,22 @@
+{
+  "name": "eqsys-solves-claude-md-reference-system",
+  "source": "x^2 + y^3 = 77\nx / y = 1.23456\n",
+  "expect": {
+    "variables": {
+      "x": 4.694012391660914,
+      "y": 3.802174371161316
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

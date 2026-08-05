@@ -1,0 +1,20 @@
+{
+  "name": "eqsys-guess-value-selects-root",
+  "source": "4^x - 3 * 2^(x+1) + 8 = 0\n",
+  "expect": {
+    "variables": {
+      "x": 1.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

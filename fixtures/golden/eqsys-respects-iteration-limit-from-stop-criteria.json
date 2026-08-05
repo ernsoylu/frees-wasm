@@ -1,0 +1,20 @@
+{
+  "name": "eqsys-respects-iteration-limit-from-stop-criteria",
+  "source": "x^2 = 2\n",
+  "expect": {
+    "variables": {
+      "x": 1.4142135623730951
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

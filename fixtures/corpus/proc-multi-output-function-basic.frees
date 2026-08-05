@@ -1,0 +1,6 @@
+FUNCTION [q, r] = DivMod(a, b)
+  q := trunc(a / b)
+  r := a - q * b
+END
+
+[whole, rem] = DivMod(17, 5)

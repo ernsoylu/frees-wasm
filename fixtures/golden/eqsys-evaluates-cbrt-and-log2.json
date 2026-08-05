@@ -1,0 +1,22 @@
+{
+  "name": "eqsys-evaluates-cbrt-and-log2",
+  "source": "y = cbrt(27)\nz = log2(8)\n",
+  "expect": {
+    "variables": {
+      "y": 3.0,
+      "z": 3.0
+    },
+    "display_names": {
+      "y": "y",
+      "z": "z"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,8 @@
+g = 32.2
+l = 2
+DYNAMIC pend (method = ode5, t = 0 .. 3, points = 600)
+  der(theta) = omega
+  der(omega) = -(g/l) * theta
+  theta(0) = pi# / 4
+  omega(0) = 0
+END

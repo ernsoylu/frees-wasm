@@ -1,0 +1,23 @@
+{
+  "name": "proc-function-repeat-until",
+  "source": "FUNCTION SumN(n)\n  i := 1\n  s := 0\n  REPEAT\n    s := s + i\n    i := i + 1\n  UNTIL i > n\n  SumN := s\nEND\n\nresult = SumN(10)\n",
+  "expect": {
+    "variables": {
+      "result": 55.0
+    },
+    "display_names": {
+      "i": "i",
+      "n": "n",
+      "result": "result",
+      "s": "s"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,11 @@
+FUNCTION SumWhile(n)
+  i := 1
+  s := 0
+  WHILE i <= n DO
+    s := s + i
+    i := i + 1
+  END
+  SumWhile := s
+END
+
+result = SumWhile(10)

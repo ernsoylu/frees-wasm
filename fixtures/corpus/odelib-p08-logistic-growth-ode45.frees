@@ -1,0 +1,6 @@
+r = 0.026
+K = 12000
+DYNAMIC logistic (method = ode45, t = 0 .. 100, points = 200, rtol = 1e-9)
+  der(p) = r * (1 - p / K) * p
+  p(0) = 2555
+END

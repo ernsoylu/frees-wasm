@@ -1,0 +1,8 @@
+w = 2
+DYNAMIC shm (method = ode4, t = 0 .. 6.283185307, points = 400)
+  der(x) = v
+  der(v) = -w*w * x
+  E = 0.5 * v*v + 0.5 * w*w * x*x
+  x(0) = 1
+  v(0) = 0
+END

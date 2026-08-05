@@ -1,0 +1,8 @@
+kk = 0.5
+DYNAMIC tanks (method = ode23, t = 0 .. 20, points = 200, rtol = 1e-8)
+  der(c1) = kk * (c2 - c1)
+  der(c2) = kk * (c1 - c2)
+  total = c1 + c2
+  c1(0) = 10
+  c2(0) = 0
+END

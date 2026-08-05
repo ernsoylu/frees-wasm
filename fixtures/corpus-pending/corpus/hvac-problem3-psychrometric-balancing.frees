@@ -1,0 +1,37 @@
+{ Problem 3: Psychrometric Room Balancing }
+Q_sensible = 90000
+Q_latent = 40000
+V_dot_supply = 3600
+T_supply_db = 55
+T_room_db = 78
+rh_room = 0.45
+T_oa_db = 92
+T_oa_wb = 76
+V_dot_oa = 700
+P_atm_psia = 14.696
+
+V_dot_return = V_dot_supply - V_dot_oa
+f_oa = V_dot_oa / V_dot_supply
+f_return = V_dot_return / V_dot_supply
+
+T_entering_db = f_oa * T_oa_db + f_return * T_room_db
+T_entering_K = (T_entering_db - 32) * 5/9 + 273.15
+
+P_atm = P_atm_psia * 6894.76
+T_room_K = (T_room_db - 32) * 5/9 + 273.15
+T_oa_K = (T_oa_db - 32) * 5/9 + 273.15
+T_oa_wb_K = (T_oa_wb - 32) * 5/9 + 273.15
+
+h_room = Enthalpy(AirH2O, T=T_room_K, R=rh_room, P=P_atm) / 2326.0
+h_oa = Enthalpy(AirH2O, T=T_oa_K, B=T_oa_wb_K, P=P_atm) / 2326.0
+h_mix = f_oa * h_oa + f_return * h_room
+
+T_entering_wb_K = WetBulb(AirH2O, T=T_entering_K, H=h_mix * 2326.0, P=P_atm)
+T_entering_wb = (T_entering_wb_K - 273.15) * 9/5 + 32
+
+Q_total = Q_sensible + Q_latent + V_dot_oa * 4.5 * (h_oa - h_room)
+h_leaving = h_mix - Q_total / (4.5 * V_dot_supply)
+
+T_supply_K = (T_supply_db - 32) * 5/9 + 273.15
+T_leaving_wb_K = WetBulb(AirH2O, T=T_supply_K, H=h_leaving * 2326.0, P=P_atm)
+T_leaving_wb = (T_leaving_wb_K - 273.15) * 9/5 + 32

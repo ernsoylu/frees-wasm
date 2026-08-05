@@ -1,0 +1,9 @@
+FUNCTION Factorial(n)
+  IF n <= 1 THEN
+    Factorial := 1
+  ELSE
+    Factorial := n * Factorial(n-1)
+  END
+END
+
+y = Factorial(5)

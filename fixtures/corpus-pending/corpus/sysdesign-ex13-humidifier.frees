@@ -1,0 +1,5 @@
+MoistAirSource SRC(P=101325, T=295, W=0.005, mdot=2)
+Humidifier     HUM(mdot_w=0.002, h_w=2.5e6)
+MoistAirSink   SNK()
+connect(SRC.out, HUM.in)
+connect(HUM.out, SNK.in)

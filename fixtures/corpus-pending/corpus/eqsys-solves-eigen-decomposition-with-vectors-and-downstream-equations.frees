@@ -1,0 +1,4 @@
+A[1,1] = 2; A[1,2] = 1
+A[2,1] = 1; A[2,2] = 2
+CALL Eigen(A[1:2,1:2] : lambda[1:2], V[1:2,1:2])
+trace = lambda[1] + lambda[2]

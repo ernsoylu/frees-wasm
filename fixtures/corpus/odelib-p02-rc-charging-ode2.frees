@@ -1,0 +1,7 @@
+R = 1000
+C = 1e-6
+es = 10
+DYNAMIC rc (method = ode2, t = 0 .. 0.006, points = 400)
+  der(e) = (es - e) / (R * C)
+  e(0) = 0
+END

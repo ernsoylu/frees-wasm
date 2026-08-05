@@ -1,0 +1,11 @@
+FUNCTION DoubleSum(n)
+  s := 0
+  FOR i = 1 TO n
+    FOR j = 1 TO n
+      s = s + i * j
+    END
+  END
+  DoubleSum := s
+END
+
+x = DoubleSum(3)

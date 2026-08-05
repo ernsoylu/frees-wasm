@@ -1,0 +1,44 @@
+{
+  "name": "ctlfreq-margin-tf-calculates-correctly",
+  "source": "num = [0.0, 0.0, 0.0, 2.0]\nden = [1.0, 3.0, 2.0, 0.0]\nCALL margin(num[1:4], den[1:4] : gm, pm, w_cg, w_cp)\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "den[2]": 3.0,
+      "den[3]": 2.0,
+      "den[4]": 0.0,
+      "gm": 9.54199040100347,
+      "num[1]": 0.0,
+      "num[2]": 0.0,
+      "num[3]": 0.0,
+      "num[4]": 2.0,
+      "pm": 32.61195554044622,
+      "w_cg": 0.7493809182718495,
+      "w_cp": 1.414213550433955
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "den[4]": "den[4]",
+      "gm": "gm",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]",
+      "num[3]": "num[3]",
+      "num[4]": "num[4]",
+      "pm": "pm",
+      "w_cg": "w_cg",
+      "w_cp": "w_cp"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

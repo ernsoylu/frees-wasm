@@ -1,0 +1,5 @@
+FUNCTION Square(x)
+  Square := x * x
+END
+
+z = Square(4) + Square(3)

@@ -1,0 +1,5 @@
+HydraulicSupply SUP(P=8000000)
+ReliefValve     RV(Pcrack=5000000, K=1e-6, eps=10000)
+HydraulicTank   TNK(P=0)
+connect(SUP.out, RV.in)
+connect(RV.out, TNK.port)

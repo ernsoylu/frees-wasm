@@ -1,0 +1,46 @@
+{
+  "name": "hvac-problem8-pumping-and-friction",
+  "source": "{ Problem 8: Pumping and Friction Head }\nT_water = 90\ngpm = 26000\nf_factor = 0.01\nL_eq = 2425\nz_elev = 160\nP_inlet = 20\nOD = 36\nt_wall = 0.375\n\nID = (OD - 2 * t_wall) / 12\nV = (gpm * 0.1337 / 60) / (pi# / 4 * ID^2)\nh_friction = f_factor * (L_eq / ID) * (V^2 / 64.4)\nh_total = z_elev + h_friction\n\nh_inlet = P_inlet * 2.31\nh_pump = h_total - h_inlet\n",
+  "expect": {
+    "variables": {
+      "ID": 2.9375,
+      "L_eq": 2425.0,
+      "OD": 36.0,
+      "P_inlet": 20.0,
+      "T_water": 90.0,
+      "V": 8.548853464497839,
+      "f_factor": 0.01,
+      "gpm": 26000.0,
+      "h_friction": 9.368363775701464,
+      "h_inlet": 46.2,
+      "h_pump": 123.16836377570145,
+      "h_total": 169.36836377570145,
+      "t_wall": 0.375,
+      "z_elev": 160.0
+    },
+    "display_names": {
+      "f_factor": "f_factor",
+      "gpm": "gpm",
+      "h_friction": "h_friction",
+      "h_inlet": "h_inlet",
+      "h_pump": "h_pump",
+      "h_total": "h_total",
+      "id": "ID",
+      "l_eq": "L_eq",
+      "od": "OD",
+      "p_inlet": "P_inlet",
+      "t_wall": "t_wall",
+      "t_water": "T_water",
+      "v": "V",
+      "z_elev": "z_elev"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

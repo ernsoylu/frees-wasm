@@ -1,0 +1,26 @@
+{
+  "name": "codetable-table-function-participates-in-newton-solve",
+  "source": "TABLE htc(re)\n  1000   50\n  2000   80\n  4000   120\nEND\nRe = 2000\nA = 2.5\nU = htc(Re)\nQ = U * A\n",
+  "expect": {
+    "variables": {
+      "A": 2.5,
+      "Q": 200.0,
+      "Re": 2000.0,
+      "U": 80.0
+    },
+    "display_names": {
+      "a": "A",
+      "q": "Q",
+      "re": "Re",
+      "u": "U"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,17 @@
+{ Problem 8: Pumping and Friction Head }
+T_water = 90
+gpm = 26000
+f_factor = 0.01
+L_eq = 2425
+z_elev = 160
+P_inlet = 20
+OD = 36
+t_wall = 0.375
+
+ID = (OD - 2 * t_wall) / 12
+V = (gpm * 0.1337 / 60) / (pi# / 4 * ID^2)
+h_friction = f_factor * (L_eq / ID) * (V^2 / 64.4)
+h_total = z_elev + h_friction
+
+h_inlet = P_inlet * 2.31
+h_pump = h_total - h_inlet

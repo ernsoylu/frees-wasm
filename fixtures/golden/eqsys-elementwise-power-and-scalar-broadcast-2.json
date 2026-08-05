@@ -1,0 +1,32 @@
+{
+  "name": "eqsys-elementwise-power-and-scalar-broadcast-2",
+  "source": "A = [1 2 3]\nC = A .* 2\n",
+  "expect": {
+    "variables": {
+      "A[1]": 1.0,
+      "A[2]": 2.0,
+      "A[3]": 3.0,
+      "C[1]": 2.0,
+      "C[2]": 4.0,
+      "C[3]": 6.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1]": "A[1]",
+      "a[2]": "A[2]",
+      "a[3]": "A[3]",
+      "c": "C",
+      "c[1]": "C[1]",
+      "c[2]": "C[2]",
+      "c[3]": "C[3]"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

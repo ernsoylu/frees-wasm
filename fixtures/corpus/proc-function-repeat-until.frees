@@ -1,0 +1,11 @@
+FUNCTION SumN(n)
+  i := 1
+  s := 0
+  REPEAT
+    s := s + i
+    i := i + 1
+  UNTIL i > n
+  SumN := s
+END
+
+result = SumN(10)

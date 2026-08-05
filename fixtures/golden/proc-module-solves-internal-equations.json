@@ -1,0 +1,32 @@
+{
+  "name": "proc-module-solves-internal-equations",
+  "source": "MODULE Linear(m, b : y)\n  y = m * x_int + b\n  x_int = 3\nEND\n\nCALL Linear(2, 1 : result)\n",
+  "expect": {
+    "variables": {
+      "linear$1$b": 1.0,
+      "linear$1$m": 2.0,
+      "linear$1$x_int": 3.0,
+      "linear$1$y": 7.0,
+      "result": 7.0
+    },
+    "display_names": {
+      "b": "b",
+      "linear$1$b": "linear$1$b",
+      "linear$1$m": "linear$1$m",
+      "linear$1$x_int": "linear$1$x_int",
+      "linear$1$y": "linear$1$y",
+      "m": "m",
+      "result": "result",
+      "x_int": "x_int",
+      "y": "y"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

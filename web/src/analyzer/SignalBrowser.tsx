@@ -1,5 +1,5 @@
 // The analyzer's variable/signal browser (the "Variables" window): file
-// import (CSV/MF4 + solved ODE/Parametric tables), template-mode relocation
+// import (CSV + solved ODE/Parametric tables), template-mode relocation
 // (§2.5b), per-file time offsets, and the searchable channel list that
 // assigns signals to the selected strip.
 //
@@ -37,8 +37,7 @@ import {
   IconTable,
   IconTrash,
 } from '@tabler/icons-react'
-import { channelStore, flattenRemoteChannels } from './channelStore'
-import { uploadMeasurement } from './measurementApi'
+import { channelStore } from './channelStore'
 import {
   importCsvFile,
   type ImportedMeasurement,
@@ -197,50 +196,6 @@ export default function SignalBrowser({
       setImporting(true)
       setImportError(null)
       try {
-        // .mf4 goes to the backend measurement service (RemoteSource); the
-        // browser only ever sees windowed decimated envelopes.
-        if (file.name.toLowerCase().endsWith('.mf4')) {
-          const remote = await uploadMeasurement(file)
-          if (relocateId !== undefined) {
-            const required = spec.strips
-              .flatMap((s) => s.signals)
-              .filter((sig) => sig.measurementId === relocateId)
-              .map((sig) => sig.channel)
-            const stored = spec.files.find((f) => f.measurementId === relocateId)?.signature
-            const check = checkRelocatedFile(
-              [...new Set(required)],
-              flattenRemoteChannels(remote).map((c) => c.display),
-              stored ?? { name: file.name, size: -1, headerHash: 'mf4' },
-              { size: remote.size, headerHash: 'mf4' },
-            )
-            if (check.status === 'rejected') {
-              setImportError(
-                `Wrong file: it is missing the channel(s) ${check.missingChannels.join(', ')} that this analyzer uses.`,
-              )
-              return
-            }
-            // Advisory (size drift) applies immediately for remote files —
-            // the upload already happened; the strips just rebind.
-            const meta = channelStore.registerRemote(remote, spec.id, relocateId)
-            updateSpec((cur) => ({
-              ...cur,
-              files: cur.files.map((f) =>
-                f.measurementId === relocateId ? { ...f, signature: meta.signature } : f,
-              ),
-            }))
-          } else {
-            const meta = channelStore.registerRemote(remote, spec.id)
-            updateSpec((cur) => ({
-              ...cur,
-              files: [
-                ...cur.files,
-                { measurementId: meta.measurementId, signature: meta.signature },
-              ],
-            }))
-          }
-          onAfterImport?.()
-          return
-        }
         const outcome = await importCsvFile(file, choice)
         if (outcome.status === 'needs-time') {
           setPendingTime({ file, candidates: outcome.candidates, relocateId })
@@ -355,7 +310,7 @@ export default function SignalBrowser({
   return (
     <Stack gap="xs" h="100%" style={{ minHeight: 0 }}>
       <Group gap="xs" wrap="nowrap">
-        <FileButton onChange={(f) => void handleImport(f)} accept=".csv,.tsv,.txt,.mf4,text/csv">
+        <FileButton onChange={(f) => void handleImport(f)} accept=".csv,.tsv,.txt,text/csv">
           {(props) => (
             <Button
               {...props}
@@ -364,7 +319,7 @@ export default function SignalBrowser({
               leftSection={<IconFileImport size={14} />}
               loading={importing}
             >
-              Import CSV/MF4
+              Import CSV
             </Button>
           )}
         </FileButton>
@@ -432,14 +387,13 @@ export default function SignalBrowser({
         <Stack gap="sm">
           {spec.files.length === 0 && (
             <Text size="xs" c="dimmed" ta="center" mt="lg">
-              Import a CSV/TSV/MF4 measurement file — or a solved ODE/Parametric table — to browse
+              Import a CSV/TSV measurement file — or a solved ODE/Parametric table — to browse
               its signals.
             </Text>
           )}
           {spec.files.map((f) => {
             const meta = channelStore.getMeta(f.measurementId)
             const loaded = channelStore.isLoaded(f.measurementId)
-            const remoteError = channelStore.remoteError(f.measurementId)
             return (
               <Box key={f.measurementId}>
                 <Group justify="space-between" gap={4} wrap="nowrap">
@@ -480,11 +434,6 @@ export default function SignalBrowser({
                     />
                   </Group>
                 )}
-                {remoteError !== null && (
-                  <Alert color="red" p={6} mt={4} icon={<IconAlertTriangle size={14} />}>
-                    <Text size="xs">{remoteError}</Text>
-                  </Alert>
-                )}
                 {!loaded && (
                   // Template mode (§2.5b): the layout survived the project
                   // round-trip; the samples did not. One re-pick repopulates
@@ -497,7 +446,7 @@ export default function SignalBrowser({
                       </Text>
                       <FileButton
                         onChange={(nf) => void handleImport(nf, undefined, f.measurementId)}
-                        accept=".csv,.tsv,.txt,.mf4,text/csv"
+                        accept=".csv,.tsv,.txt,text/csv"
                       >
                         {(props) => (
                           <Button

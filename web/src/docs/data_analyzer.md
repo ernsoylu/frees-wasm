@@ -5,8 +5,8 @@ The **Data Analyzer** brings recorded measurement data — test-bench logs, ECU/
 
 ## Importing data
 - **CSV / TSV** files parse **in your browser** (nothing is uploaded): delimiters are auto-detected, a bracketed unit row under the header (`[s],[m/s],[Nm]`) is honored, and empty cells become gaps. The time column is found by name (`time`, `t`, `timestamp`, …), by monotonicity, and by format (ISO-8601 timestamps, epoch seconds/milliseconds, relative seconds). If it's ambiguous — or the data is index-based — a dialog asks you to pick a column or enter a fixed sample interval; frees never guesses silently. Duplicate or out-of-order timestamps are a hard import error naming the offending rows.
-- **ASAM MDF4 (`.mf4`)** files upload to the backend (200 MB cap), are indexed there, and stream back as decimated windows — the browser never holds the raw file. Uncompressed files are parsed in-process; DZ-compressed recordings (deflate/ZSTD/LZ4, the usual OEM format) are handled by the asammdf sidecar when the deployment includes it. Channels keep their recorded units, channel groups with different rasters are all listed, and linear conversions are applied.
 - Columns whose values are all 0/1 (or `true`/`false`) are tagged **bool** and drawn as stepped traces; text-valued channels are listed but not plottable.
+- ASAM MDF4 (`.mf4`) is **not supported** in this build. Export the recording as CSV from your measurement tool and import that — everything stays in your browser either way.
 
 ## Oscilloscope
 Signals are plotted in stacked **strips** that share one time axis. Add a strip, then click **+** next to a channel in the signal browser to assign it to the selected strip; colors are assigned from a fixed palette and stay stable across sessions.
@@ -32,7 +32,6 @@ Attach several files to one analyzer and mix their channels freely in strips. To
 ## Saving and export
 - **Export CSV** writes the assigned signals over the visible window on a merged raster (step-hold filled) — the file re-imports cleanly.
 - The `.frees` project stores the analyzer's **layout and signal assignments, never the samples** (they can be gigabytes). Reopening a project shows the full layout with a *Locate file…* banner per file; one re-pick repopulates every strip. A wrong file — one missing the channels the analyzer uses — is rejected outright; a same-name file with a different size or content gets an explicit "use anyway" prompt.
-- Server-side `.mf4` files are held per node with a time-to-live; if the backend restarts you'll see the same *Locate file…* banner and can simply re-upload.
 
 [Related: calc-signals, plot-code, digitizer-fit]
 

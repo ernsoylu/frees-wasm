@@ -20,6 +20,16 @@ Current gate numbers live in
 [`docs/status-phase12.md`](docs/status-phase12.md) — do not trust a count copied
 into this paragraph.
 
+**MDF4 is removed (decision [D6](docs/decisions/0006-remove-mdf4.md), after
+Phase 12).** The `.mf4` reader, `mf4-rs` (and its `meval` → `nom 1.2.4`
+future-incompat debt — the build's only such warning, now zero), the
+boundary's opened-file registry, and the analyzer's remote-source path are
+gone; **the Data Analyzer is CSV-only** and `measurement_calc` survives,
+stateless, with inline inputs. The Phase 10 paragraph below is therefore
+**historical**: its measurement surface shipped, was hardened, and was then
+deliberately removed — read D6 for why, and ledger item 37. The binary
+fixture it says must be committed no longer exists.
+
 **The dead-end UI is clipped (decision
 [D5](docs/decisions/0005-feature-clip.md), after Phase 12).** The Min/Max,
 Curve Fit, PID Tuner, Monte Carlo and Parameter Estimation modals and the
@@ -154,10 +164,8 @@ cargo test -p frees-core --test cas_control_robustness # the CAS + control fuzz
 cargo test -p frees-core --test dynamics_robustness    # the transient + analysis fuzz
                                        # (run this one in DEBUG too — the stack-overflow
                                        #  defect it found only reproduced unoptimised)
-cargo test -p frees-core --test measurement_robustness # the .mf4 / calc-signal fuzz
+cargo test -p frees-core --test measurement_robustness # the calc-signal/raster fuzz
 cargo test -p frees-core --test measurement_parity     # measurement vs the JDK oracle
-                                       # (needs fixtures/measurement/a_small_uncompressed.mf4 —
-                                       #  the only binary fixture in the repo)
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
 cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
 cargo fmt --all --check                                 # CI gate

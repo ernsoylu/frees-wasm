@@ -38,11 +38,11 @@ use wasm_bindgen::prelude::*;
 mod measurement;
 mod repl;
 
-// The four measurement entry points live in their own module; re-exported so
+// The calculated-signal entry point lives in its own module; re-exported so
 // the crate's Rust-side surface is flat, as it is for everything else here.
-pub use measurement::{
-    measurement_calc, measurement_channel_window, measurement_close, measurement_open,
-};
+// (The `.mf4` open/window/close entry points were removed with the MDF4
+// feature — signals now reach `measurement_calc` inline.)
+pub use measurement::measurement_calc;
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
 /// Rust backtrace instead of `unreachable executed`, and decode the linked

@@ -2373,7 +2373,7 @@ export default function App() {
       }
 
       // Data Analyzer: rename + the signal browser (a measurement-suite-style
-      // dockable variable window) — import CSV/MF4 or solved tables and assign channels to the
+      // dockable variable window) — import CSV or solved tables and assign channels to the
       // selected strip without leaving the Inspector.
       if (fw?.kind === 'analyzer') {
         const an = analyzers.find((x) => `analyzer:${x.id}` === fw.id)

@@ -38,7 +38,7 @@ export type MouseMode = 'zoom' | 'pan'
 
 const CURSOR_COLORS = { a: '#ffd43b', b: '#3bc9db' } as const
 
-/** Min ms between live pan dispatches (remote windows refetch per range). */
+/** Min ms between live pan dispatches (windows are re-decimated per range). */
 const PAN_DISPATCH_MS = 80
 
 interface Props {

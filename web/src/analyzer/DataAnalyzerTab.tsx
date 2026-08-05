@@ -1,4 +1,4 @@
-// Data Analyzer window (todo.md Phases 1–5): CSV/.mf4 import → signal browser
+// Data Analyzer window (todo.md Phases 1–5): CSV import → signal browser
 // (SignalBrowser.tsx, also hosted by the Inspector) → multi-strip oscilloscope
 // (uPlot) with synced hover cursor, A/B measurement cursors with per-signal
 // value readout (§2.5e), Table / Statistics / Event List / Scatter / Histogram
@@ -224,8 +224,7 @@ function buildStripData(
       MAX_POINTS,
     )
     if (win === null) {
-      // null = evicted/unknown (banner) OR a remote window still in flight
-      // (loaded → just wait; the store notifies when it lands).
+      // null = evicted/unknown → the "Locate file…" banner.
       if (!channelStore.isLoaded(sig.measurementId)) missing.push(sig.channel)
       continue
     }
@@ -298,15 +297,13 @@ function stripOptions(
 // ---------------------------------------------------------------------------
 // Per-strip signal list (oscilloscope-tool parity): Style | Name | Unit | Value | A | B | Δ.
 // Value follows the hover cursor live; A/B/Δ read the measurement cursors.
-// Remote (.mf4) values may briefly show a ~approximation until the exact raw
-// micro-window lands (the store notifies → storeVersion re-renders).
 // ---------------------------------------------------------------------------
 
 const SIGNAL_LIST_GRID = '10px minmax(60px, 1fr) 30px 58px 58px 58px 58px 18px'
 
-function fmtHit(hit: { v: number; approx?: boolean } | null): string {
+function fmtHit(hit: { v: number } | null): string {
   if (hit === null) return '—'
-  return `${hit.approx ? '~' : ''}${formatValue(hit.v)}`
+  return formatValue(hit.v)
 }
 
 const NUM_CELL: CSSProperties = {
@@ -356,10 +353,7 @@ function SignalRow({
   const hover = hoverT === null ? null : offsetExactValueAt(sig, offset, hoverT)
   const a = cursors.a === null ? null : offsetExactValueAt(sig, offset, cursors.a)
   const b = cursors.b === null ? null : offsetExactValueAt(sig, offset, cursors.b)
-  const delta =
-    a !== null && b !== null
-      ? { v: b.v - a.v, approx: a.approx === true || b.approx === true }
-      : null
+  const delta = a !== null && b !== null ? { v: b.v - a.v } : null
   return (
     <Box
       px={6}

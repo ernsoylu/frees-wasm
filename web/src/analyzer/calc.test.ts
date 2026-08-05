@@ -36,9 +36,8 @@ describe('buildCalcRequest', () => {
       { mode: 'merge' },
     )
     expect(request.inputs).toHaveLength(1)
-    expect(request.inputs[0].inline?.t).toEqual([0, 1, 2])
-    expect(request.inputs[0].inline?.v).toEqual([1, 2, 3])
-    expect(request.inputs[0].measurementId).toBeUndefined()
+    expect(request.inputs[0].inline.t).toEqual([0, 1, 2])
+    expect(request.inputs[0].inline.v).toEqual([1, 2, 3])
     channelStore.release(meta.measurementId, 'calc-test-analyzer')
   })
 

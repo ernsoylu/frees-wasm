@@ -14,17 +14,15 @@ class FakeWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null
   onerror: ((e: { message?: string }) => void) | null = null
   onmessageerror: (() => void) | null = null
-  posted: { id: number; method: string; args: string[]; bytes?: Uint8Array }[] = []
-  transfers: (Transferable[] | undefined)[] = []
+  posted: { id: number; method: string; args: string[] }[] = []
   terminated = false
 
   constructor() {
     FakeWorker.instances.push(this)
   }
 
-  postMessage(msg: unknown, transfer?: Transferable[]) {
+  postMessage(msg: unknown) {
     this.posted.push(msg as (typeof this.posted)[number])
-    this.transfers.push(transfer)
   }
 
   terminate() {
@@ -112,13 +110,12 @@ describe('engineClient worker lifecycle', () => {
     await expect(good).resolves.toBe('0.1.0')
   })
 
-  it('measurement bytes ride the transfer list, not a clone', async () => {
-    const { wasmMeasurementOpen } = await client()
-    const bytes = new Uint8Array([1, 2, 3])
-    const p = wasmMeasurementOpen(bytes, 'a.mf4')
+  it('a calc envelope resolves through the one remaining measurement call', async () => {
+    const { wasmMeasurementCalc } = await client()
+    const p = wasmMeasurementCalc('{"name":"c1"}')
     const w = FakeWorker.instances[0]
-    expect(w.transfers[0]).toEqual([bytes.buffer])
-    w.onmessage?.({ data: { id: w.posted[0].id, ok: true, result: '{"ok":true}' } })
-    await expect(p).resolves.toEqual({ ok: true })
+    expect(w.posted[0].method).toBe('measurementCalc')
+    w.onmessage?.({ data: { id: w.posted[0].id, ok: true, result: '{"ok":true,"name":"c1"}' } })
+    await expect(p).resolves.toEqual({ ok: true, name: 'c1' })
   })
 })

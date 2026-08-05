@@ -431,6 +431,17 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     `analysis/` module remain as the wiring seam, with acceptance fixtures
     staged in `corpus-pending/`.
 
+37. **MDF4 is removed outright (decision D6, 2026-08-05).** The `.mf4`
+    reader, the `mf4-rs` dependency (and with it `meval` → `nom 1.2.4`, the
+    workspace's only future-incompat warning — now zero), the boundary's
+    opened-file registry and three of its four measurement exports, and the
+    analyzer's remote-source path are gone. The Data Analyzer is CSV-only;
+    `measurement_calc` survives, stateless, inputs inline. Three of Phase
+    10's fifteen defect regressions and both MDF4 fuzz properties left with
+    the surface they defended. Divergence from the Java baseline is now
+    total for this format rather than partial: where Phase 10 read a subset,
+    this build reads none, and says so in the analyzer's Help page.
+
 ## Commands
 
 ```bash

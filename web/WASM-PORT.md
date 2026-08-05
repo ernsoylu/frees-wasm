@@ -33,8 +33,12 @@ UI with no engine.
 - `src/defaultExample.ts` — **done**: boots a document the browser engine
   solves; the EV COMPONENT model is kept as `EV_THERMAL_EXAMPLE_TEXT` for
   Phase 6.
-- `src/analyzer/measurementApi.ts` — **done (Phase 10)**: all four
-  measurement routes call the engine worker; a `.mf4` never leaves the tab.
+- `src/analyzer/measurementApi.ts` — **done (Phase 10), then narrowed
+  (D6)**: MDF4 reading is removed; the one surviving route is `calcSignal`,
+  stateless with inline inputs. The Data Analyzer is CSV-only — CSV parses on
+  the main thread and never leaves the tab; the analyzer's remote-source
+  variant (`channelStore`, `SignalBrowser` `.mf4` accepts) is deleted with
+  it. See docs/decisions/0006-remove-mdf4.md.
 - `vite.config.ts` — forked: `buildInfoPlugin`, the vendor `manualChunks`
   split, `rollup-plugin-visualizer`, and (Phase 11) `vite-plugin-pwa`. The
   `/api` dev proxy is gone — nothing in `src/` calls a live endpoint.

@@ -60,37 +60,13 @@ function spawn(): Worker {
   return w
 }
 
-/**
- * Posts one request. `bytes`, when present, is sent as a **transferable**: its
- * ArrayBuffer is moved into the worker, not structured-cloned.
- *
- * That matters because the payload here is a measurement recording — routinely
- * tens to hundreds of megabytes. A structured clone would allocate a second
- * copy and memcpy the whole file, so a 300 MB .mf4 would momentarily need
- * 600 MB across the two heaps; on wasm32, where the engine's own address space
- * tops out at 4 GB and realistically much less, that copy is the difference
- * between opening the file and an out-of-memory trap. Transferring costs
- * nothing and detaches the sender's view, which is safe precisely because
- * `file.arrayBuffer()` hands us a fresh buffer nobody else holds.
- */
-function call(
-  method: EngineRequest['method'],
-  args: string[],
-  bytes?: Uint8Array,
-): Promise<string> {
+/** Posts one request and resolves with the worker's raw JSON-string reply. */
+function call(method: EngineRequest['method'], args: string[]): Promise<string> {
   worker ??= spawn()
   const id = nextId++
   return new Promise<string>((resolve, reject) => {
     pending.set(id, { resolve, reject })
-    const message = { id, method, args, bytes } satisfies EngineRequest
-    // `bytes.buffer` may be a SharedArrayBuffer per the DOM lib's typing;
-    // only a plain ArrayBuffer is transferable, so narrow before listing it.
-    const buffer = bytes?.buffer
-    if (buffer instanceof ArrayBuffer) {
-      worker?.postMessage(message, [buffer])
-    } else {
-      worker?.postMessage(message)
-    }
+    worker?.postMessage({ id, method, args } satisfies EngineRequest)
   })
 }
 
@@ -187,12 +163,12 @@ export async function wasmPsychrometricChart(
 
 // ── measurement boundary ────────────────────────────────────────────────────
 //
-// These four differ from every call above in that they are *stateful*: an
-// opened file stays resident in the engine module, keyed by `measurementId`,
-// until `measurementClose`. They therefore share the plot calls' "problems are
-// data" convention rather than the solve calls' — a failure comes back as a
-// typed body, not a rejected promise, so the caller can switch on `error.code`.
-// Mapping those codes onto anything user-facing is measurementApi.ts's job.
+// One call remains after the MDF4 removal (decision D6): calculated signals.
+// It is stateless — every input series rides inline in the request, sampled
+// from the frontend's channelStore — and shares the plot calls' "problems are
+// data" convention: a failure comes back as a typed body, not a rejected
+// promise, so the caller can switch on `error.code`. Mapping those codes onto
+// anything user-facing is measurementApi.ts's job.
 
 /** Typed failure body. `code` is `MeasurementError::code()` in frees-core. */
 export interface MeasurementErrorBody {
@@ -220,36 +196,9 @@ function measurementEnvelope<T>(payload: string): MeasurementEnvelope<T> {
   }
 }
 
-/**
- * Reads a measurement file into the engine. The bytes are transferred, so the
- * caller's view is detached on return — pass a buffer nobody else holds.
- */
-export async function wasmMeasurementOpen<T>(
-  bytes: Uint8Array,
-  name: string,
-): Promise<MeasurementEnvelope<T>> {
-  return measurementEnvelope<T>(await call('measurementOpen', [name], bytes))
-}
-
-/** One channel over a time window, decimated to at most `maxPoints`. */
-export async function wasmMeasurementChannelWindow<T>(
-  requestJson: string,
-): Promise<MeasurementEnvelope<T>> {
-  return measurementEnvelope<T>(
-    await call('measurementChannelWindow', [requestJson]),
-  )
-}
-
 /** Evaluates a calculated signal over a merged or fixed raster. */
 export async function wasmMeasurementCalc<T>(
   requestJson: string,
 ): Promise<MeasurementEnvelope<T>> {
   return measurementEnvelope<T>(await call('measurementCalc', [requestJson]))
-}
-
-/** Frees an opened file's samples. Unknown ids are not an error. */
-export async function wasmMeasurementClose(
-  measurementId: string,
-): Promise<void> {
-  await call('measurementClose', [measurementId])
 }

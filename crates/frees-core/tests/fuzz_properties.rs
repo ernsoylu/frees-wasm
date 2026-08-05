@@ -14,9 +14,9 @@
 //!   and early-parse failures; almost never reaches the solver.
 //! * **Structure-aware** — a small grammar that emits documents which *parse*
 //!   (identifiers, unit annotations, FOR/GUESS blocks, function calls,
-//!   matrices), and an MDF4 mutator that splices bytes inside a genuine
-//!   asammdf recording so the block-graph pre-flight sees plausible links.
-//!   These reach the depths the unstructured ones cannot.
+//!   matrices). These reach the depths the unstructured ones cannot. (The
+//!   MDF4 byte-splicing properties were removed with the format reader,
+//!   decision D6.)
 //!
 //! Case counts are tuned so the whole file stays inside ~a minute in release
 //! CI (`PROPTEST_CASES` overrides for a longer local soak). Shrinking is
@@ -31,7 +31,6 @@
 
 use proptest::prelude::*;
 
-use frees_core::measurement::mdf4;
 use frees_core::{check, parse_document, solve, SolverSettings};
 
 // ── the survival oracle ─────────────────────────────────────────────────────
@@ -232,57 +231,5 @@ proptest! {
     fn arbitrary_unit_annotations_are_answered(u in "[ -~]{0,40}") {
         let doc = format!("x = 1 [{u}]\n");
         survives(&doc)?;
-    }
-}
-
-// ── MDF4 byte splicing ──────────────────────────────────────────────────────
-
-/// The genuine asammdf recording the parity suite uses; mutations of real
-/// bytes keep enough structure that the block-graph walk engages instead of
-/// refusing at the `##ID` header.
-fn seed_recording() -> &'static [u8] {
-    include_bytes!("../../../fixtures/measurement/a_small_uncompressed.mf4")
-}
-
-proptest! {
-    #![proptest_config(ProptestConfig { cases: 192, ..ProptestConfig::default() })]
-
-    /// Splice arbitrary bytes at arbitrary offsets into a real recording:
-    /// `mdf4::open` must answer, in bounded time, for every mutation.
-    #[test]
-    fn spliced_mdf4_bytes_are_answered(
-        edits in prop::collection::vec((0usize..26_000, any::<u8>()), 1..24),
-        truncate_to in prop::option::of(0usize..27_000),
-    ) {
-        let mut bytes = seed_recording().to_vec();
-        for (offset, value) in edits {
-            let len = bytes.len();
-            bytes[offset % len] = value;
-        }
-        if let Some(t) = truncate_to {
-            bytes.truncate(t);
-        }
-        let outcome = std::panic::catch_unwind(|| {
-            let _ = mdf4::open(bytes.clone());
-        });
-        prop_assert!(outcome.is_ok(), "mdf4::open panicked on a spliced recording");
-    }
-
-    /// The same, but targeting the 64-bit link/length fields specifically:
-    /// aligned 8-byte overwrites forge block addresses and sizes, which is
-    /// where the pre-flight bounds earn their keep.
-    #[test]
-    fn forged_mdf4_links_are_answered(
-        edits in prop::collection::vec((0usize..3_200, any::<u64>()), 1..8),
-    ) {
-        let mut bytes = seed_recording().to_vec();
-        for (slot, value) in edits {
-            let at = (slot * 8) % (bytes.len() - 8);
-            bytes[at..at + 8].copy_from_slice(&value.to_le_bytes());
-        }
-        let outcome = std::panic::catch_unwind(|| {
-            let _ = mdf4::open(bytes.clone());
-        });
-        prop_assert!(outcome.is_ok(), "mdf4::open panicked on forged links");
     }
 }

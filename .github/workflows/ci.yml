@@ -42,6 +42,12 @@ env:
   # service worker + PWA). The service worker precaches the full dist
   # (~30 MB, dominated by Plotly/spreadsheet lazy chunks), which is a
   # first-visit download cost, not a wasm-budget cost. Debts above still open.
+  #
+  # 2026-08-05, MDF4 removal (decision D6): 2832 KiB raw / 1345 KiB gzipped —
+  # the FIRST decrease since Phase 6 (−112 KiB: mdf4.rs + mf4-rs + the
+  # opened-file registry), and the workspace's only future-incompat warning
+  # (meval -> nom 1.2.4) left with it. 92.2% of the ceiling, 240 KiB headroom.
+  # The two structural debts above remain the real levers.
   WASM_BUDGET_KB: 3072
 
 jobs:

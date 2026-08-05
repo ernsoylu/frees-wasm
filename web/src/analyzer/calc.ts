@@ -1,8 +1,7 @@
 // Pure helpers for the calculated-signal modal (todo.md Phase 4): request
-// assembly (local signals ride inline, server-side .mf4 channels go by
-// address), the over-cap recovery transform, and result → measurement
-// conversion so calc channels land in the ChannelStore as first-class
-// channels.
+// assembly (every signal samples from the ChannelStore and rides inline),
+// the over-cap recovery transform, and result → measurement conversion so
+// calc channels land in the ChannelStore as first-class channels.
 
 import { channelStore } from './channelStore'
 import type { ImportedMeasurement } from './csvImport'
@@ -28,16 +27,6 @@ export function buildCalcRequest(
   raster: CalcRaster,
 ): CalcRequestDto {
   const inputs: CalcRequestDto['inputs'] = bindings.map((b) => {
-    const remote = channelStore.remoteAddress(b.signal)
-    if (remote) {
-      return {
-        var: b.var,
-        interp: b.interp,
-        measurementId: remote.serverId,
-        channel: remote.name,
-        group: remote.group,
-      }
-    }
     const raw = channelStore.getRawRange(b.signal, null, null)
     if (!raw) {
       throw new Error(

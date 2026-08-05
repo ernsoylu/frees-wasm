@@ -1,5 +1,6 @@
-//! Adversarial robustness for the Phase 10 measurement surface: MDF4 reading,
-//! resampling, decimation, raster construction and calculated signals.
+//! Adversarial robustness for the measurement surface: resampling,
+//! decimation, raster construction and calculated signals. (MDF4 reading was
+//! removed in decision D6; its attack tests went with it.)
 //!
 //! Same rule as [`tests/dynamics_robustness.rs`](dynamics_robustness.rs):
 //! **every entry point answers with a `Result` in bounded time.** Not a panic,
@@ -7,35 +8,18 @@
 //! stakes are higher here than anywhere else in the port, for two reasons the
 //! module docs state and this file tests:
 //!
-//! * the input is a **file from an arbitrary tool** — a self-describing graph
-//!   of blocks whose every length and address comes out of the bytes
-//!   themselves — so "malformed" is the normal case, not the exotic one;
+//! * the inputs are **columns from arbitrary CSV files and formulas typed by
+//!   the user** — hostile values (NaN, infinities, denormals) are the normal
+//!   case, not the exotic one;
 //! * the wasm release profile is `panic = "abort"`, so a panic is not a
-//!   diagnostic the shim can render. It is the tab, and with it the recording
-//!   the user was promised would never leave it.
+//!   diagnostic the shim can render. It is the tab.
 //!
-//! Five of these tests are regressions for defects the robustness audit found
-//! and fixed. All five share a shape: a bound that looked sufficient because it
-//! was stated in the wrong unit.
+//! Several of these tests are regressions for defects the robustness audit
+//! found and fixed, sharing a shape: a bound that looked sufficient because
+//! it was stated in the wrong unit. (The MDF4 attack surface — corrupt block
+//! graphs, forged links, implausible cycle counts — was removed with the
+//! format reader itself in decision D6; its regression tests went with it.)
 //!
-//! * [`a_long_block_chain_is_decided_in_bounded_time`] — `mdf4.rs`'s
-//!   `MAX_BLOCKS` bounds how many blocks the pre-flight walk *visits*, but the
-//!   visited list was a `Vec` scanned linearly, so the walk's **cost** was the
-//!   square of that ceiling. `##DG` blocks may overlap and the walk reads only
-//!   their first 40 bytes, so the ceiling is reachable from a 40 MB file.
-//!   Measured on the old form, in release: 10 000 blocks 0.11 s, 40 000 1.0 s,
-//!   160 000 **17.6 s** — about eleven minutes at the ceiling, with the worker
-//!   wedged and nothing able to cancel it. (`mdf4.rs::visit`.)
-//! * `mdf4.rs`'s `a_declared_cycle_count_far_above_the_records_present_is_refused`
-//!   — a `##CG` block's `cn_cycle_count` is what `mf4-rs` passes to
-//!   `Vec::with_capacity` before it decodes anything, and `probe_records`
-//!   bounded that number only by the file's own length, while the `MAX_RECORDS`
-//!   test used `min(declared, physical)`. Trailing padding raises the bound for
-//!   free: measured, a 4 195 160-byte file holding **80** samples produced two
-//!   vectors of 4 195 160 capacity. At the wasm boundary's own 512 MiB file
-//!   limit that shape asks for 8 GiB against a 4 GiB address space.
-//!   (That test needs the `mf4-rs` writer to build its fixture, so it lives in
-//!   the module's own test block rather than here.)
 //! * [`a_span_between_two_infinities_is_refused_rather_than_answered_empty`] —
 //!   `inf - inf` is `NaN`, which slips past `t1 >= t0`, and `(NaN + 1.0) as u64`
 //!   saturates to zero. `fixed` answered an empty raster, so the whole
@@ -110,7 +94,7 @@ use frees_core::measurement::calc::{contains_call, evaluate, parse_formula};
 use frees_core::measurement::decimate::{lower_bound, min_max};
 use frees_core::measurement::raster::{fixed, suggest_dt, union};
 use frees_core::measurement::series::{Interp, SampledSeries};
-use frees_core::measurement::{mdf4, MeasurementError, MeasurementSource};
+use frees_core::measurement::MeasurementError;
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -818,117 +802,6 @@ fn hostile_formula_text_is_always_a_diagnostic() {
         }
     }
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// MDF4 — malformed bytes
-// ────────────────────────────────────────────────────────────────────────────
-
-/// The 168-byte floor, the identifier, and everything shorter than a header.
-#[test]
-fn truncated_and_foreign_bytes_are_refused_by_sentence() {
-    for len in [0usize, 1, 7, 8, 63, 64, 103, 167] {
-        let bytes = vec![0u8; len];
-        match mdf4::open(bytes) {
-            Err(MeasurementError::Parse(m)) => {
-                assert!(m.contains("MDF"), "{len} bytes -> {m}");
-            }
-            other => panic!("{len} bytes -> {other:?}"),
-        }
-    }
-    // A well-sized file that is not an MDF4 at all names its own first bytes.
-    let mut zip = vec![0u8; 4096];
-    zip[..4].copy_from_slice(b"PK\x03\x04");
-    match mdf4::open(zip) {
-        Err(MeasurementError::Parse(m)) => assert!(m.contains("PK"), "{m}"),
-        other => panic!("{other:?}"),
-    }
-}
-
-/// A long chain of overlapping `##DG` blocks, through the public entry point.
-///
-/// Blocks may overlap — nothing in the format forbids it, and the declared
-/// `block_len` never has to match the spacing — and every field the pre-flight
-/// walk reads from a data group lies in its first 40 bytes. So a chain of *N*
-/// data groups costs `40·N` bytes, and the block ceiling is reachable from a
-/// 40 MB file. Whatever `open` decides about such a file, it has to decide it
-/// in bounded time: with a linear membership test in the walk's visited list
-/// the cost was the **square** of the chain length — 17.6 s at 160 000 blocks
-/// in release, extrapolating to eleven minutes at the ceiling, with the worker
-/// wedged and no way to cancel.
-#[test]
-fn a_long_block_chain_is_decided_in_bounded_time() {
-    const SPACING: u64 = 40;
-    const FIRST_DG: u64 = 256;
-    const COUNT: u64 = 300_000;
-
-    let mut bytes = vec![0u8; (FIRST_DG + SPACING * COUNT + 256) as usize];
-    bytes[..8].copy_from_slice(b"MDF     ");
-    bytes[64..68].copy_from_slice(b"##HD");
-    bytes[72..80].copy_from_slice(&104u64.to_le_bytes());
-    bytes[80..88].copy_from_slice(&6u64.to_le_bytes());
-    bytes[88..96].copy_from_slice(&FIRST_DG.to_le_bytes());
-    for k in 0..COUNT {
-        let a = (FIRST_DG + SPACING * k) as usize;
-        bytes[a..a + 4].copy_from_slice(b"##DG");
-        bytes[a + 8..a + 16].copy_from_slice(&64u64.to_le_bytes());
-        bytes[a + 16..a + 24].copy_from_slice(&4u64.to_le_bytes());
-        let next = if k + 1 < COUNT {
-            FIRST_DG + SPACING * (k + 1)
-        } else {
-            0
-        };
-        bytes[a + 24..a + 32].copy_from_slice(&next.to_le_bytes());
-    }
-
-    let start = std::time::Instant::now();
-    let outcome = mdf4::open(bytes);
-    let elapsed = start.elapsed();
-    assert!(
-        outcome.is_err(),
-        "a chain of empty data groups is not a recording"
-    );
-    assert!(
-        elapsed < std::time::Duration::from_secs(30),
-        "{COUNT} chained blocks took {elapsed:?}"
-    );
-}
-
-/// Random bytes behind a valid identifier: the block-graph walk is the only
-/// thing standing between them and `mf4-rs`'s unchecked link arithmetic.
-#[test]
-fn random_bytes_behind_a_valid_identifier_never_abort() {
-    let mut rng = Lcg::new();
-    for _ in 0..2_000 {
-        let mut bytes = vec![0u8; 512];
-        for chunk in bytes.chunks_mut(8) {
-            chunk.copy_from_slice(&rng.next_u64().to_le_bytes()[..chunk.len()]);
-        }
-        bytes[..8].copy_from_slice(b"MDF     ");
-        match mdf4::open(bytes) {
-            Ok(source) => {
-                // If it opened, every follow-on call must also answer.
-                let _ = source.metadata();
-                let _ = source.channel(0, "time");
-                let _ = source.channel(usize::MAX, "");
-            }
-            Err(MeasurementError::Parse(_) | MeasurementError::NotFound(_)) => {}
-            Err(other) => panic!("{other:?}"),
-        }
-    }
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Numeric parity against the Java oracle
-// ────────────────────────────────────────────────────────────────────────────
-//
-// The three tests below are pinned to numbers a live JDK 26 run of
-// `MergedRaster` printed, not to numbers derived from this port. They are the
-// residue of a bit-exact sweep: every scalar of a 160 731-line dump (30 000
-// `at` probes, 12 000 `lower_bound` probes, thousands of envelope buckets,
-// 2 500 cases each of `delta`/`integral`/`movavg`/`delay`, 1 500 `fixed` and
-// 1 200 `union` calls) was compared against the Java as raw bits, and only
-// `suggest_dt`'s decade and `fixed`'s point count disagreed. The rest of what
-// the sweep covered is already pinned in `tests/measurement_parity.rs`.
 
 /// **Regression.** `pow10` deferred every decade outside `[-30, 30]` to
 /// `libm::pow`, on the reasoning that the error there is an ULP and an ULP is

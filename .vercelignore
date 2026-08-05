@@ -1,0 +1,43 @@
+# .vercelignore — trims what `vercel` (CLI) uploads as deployment source.
+# Syntax is .gitignore-style, including `!` negation.
+#
+# Reasoning: the on-Vercel build (vercel.json -> tools/vercel-build.sh) needs
+# exactly: Cargo.toml, Cargo.lock, rust-toolchain.toml, crates/**, web/**
+# (sources, package.json, package-lock.json, .npmrc, .nvmrc, public/, scripts/),
+# and tools/vercel-build.sh. Everything ignored below is provably outside that
+# set. Do NOT add crates/ or web/scripts/ here — the wasm-pack build needs every
+# workspace member's manifest and sources, and `npm run build` runs
+# web/scripts/compile-docs.js first.
+
+# Rust build artifacts (multi-GB locally) — Vercel rebuilds from source.
+target/
+
+# Stray wasm-pack output at the repo root, and the generated engine package:
+# tools/vercel-build.sh regenerates web/src/wasm/pkg on every build.
+pkg/
+web/src/wasm/pkg/
+
+# npm state — the installCommand runs `npm ci` on Vercel; a stale local dist
+# must never mask a broken build.
+web/node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo
+web/stats.html
+
+# Parity corpus + golden fixtures (~9 MB) — test-only. The property tables the
+# engine embeds are copies under crates/frees-core/src/props/data/ (see
+# CLAUDE.md), so nothing at build time reads fixtures/.
+fixtures/
+
+# Java oracle tooling (needs a JDK and the ../frEES checkout — can never run on
+# Vercel) and the local static-serve helper. tools/vercel-build.sh itself must
+# stay in the upload: ignore the directory's contents, then negate the script.
+tools/*
+!tools/vercel-build.sh
+
+# Repo meta not consumed by the build.
+docs/
+PLAN.md
+CLAUDE.md
+sonar-project.properties
+rankine-snap.yml

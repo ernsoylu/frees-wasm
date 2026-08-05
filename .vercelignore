@@ -9,35 +9,41 @@
 # workspace member's manifest and sources, and `npm run build` runs
 # web/scripts/compile-docs.js first.
 
+# Every pattern below is ANCHORED with a leading slash. gitignore semantics
+# make an unanchored `docs/` match at ANY depth — the first deploy attempt
+# removed web/src/docs/ (the Help-page sources compile-docs.js reads) exactly
+# that way, and the build died in tsc on the missing ./docs/DocDiagrams.
+
 # Rust build artifacts (multi-GB locally) — Vercel rebuilds from source.
-target/
+/target/
 
 # Stray wasm-pack output at the repo root, and the generated engine package:
 # tools/vercel-build.sh regenerates web/src/wasm/pkg on every build.
-pkg/
-web/src/wasm/pkg/
+/pkg/
+/web/src/wasm/pkg/
 
 # npm state — the installCommand runs `npm ci` on Vercel; a stale local dist
 # must never mask a broken build.
-web/node_modules/
-web/dist/
-web/tsconfig.tsbuildinfo
-web/stats.html
+/web/node_modules/
+/web/dist/
+/web/tsconfig.tsbuildinfo
+/web/stats.html
 
 # Parity corpus + golden fixtures (~9 MB) — test-only. The property tables the
 # engine embeds are copies under crates/frees-core/src/props/data/ (see
 # CLAUDE.md), so nothing at build time reads fixtures/.
-fixtures/
+/fixtures/
 
 # Java oracle tooling (needs a JDK and the ../frEES checkout — can never run on
 # Vercel) and the local static-serve helper. tools/vercel-build.sh itself must
 # stay in the upload: ignore the directory's contents, then negate the script.
-tools/*
-!tools/vercel-build.sh
+/tools/*
+!/tools/vercel-build.sh
 
-# Repo meta not consumed by the build.
-docs/
-PLAN.md
-CLAUDE.md
-sonar-project.properties
-rankine-snap.yml
+# Repo meta not consumed by the build. /docs is the repo-root status/decision
+# tree — NOT web/src/docs, which the build compiles into the Help page.
+/docs/
+/PLAN.md
+/CLAUDE.md
+/sonar-project.properties
+/rankine-snap.yml

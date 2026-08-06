@@ -646,6 +646,19 @@ pub fn solve_with(
     // floor and the solve chases numerical dust.
     let ode_accessors =
         !doc.dynamics.is_empty() && crate::ode::accessors::contains_accessor(&equations);
+    // Keep the pre-augmentation equations for the dimensional check below. The
+    // `+ 0·v` terms are a *solver* device — they exist so Tarjan and the
+    // Jacobian can see the coupling — and they are dimensional nonsense: they
+    // add an ODE input variable to whatever the accessor equation's left side
+    // already was, so the checker unified `t_bat` with an enthalpy and reported
+    // `t_bat = FinalValue('bp.t')` as [m^2 s^-2] against a dimensionless right
+    // side. The check path never augments, which is why `Check` was clean and
+    // only `Solve` warned.
+    let unaugmented = if ode_accessors {
+        Some(equations.clone())
+    } else {
+        None
+    };
     let equations = if ode_accessors {
         augment_accessor_dependencies(&doc, equations)
     } else {
@@ -815,8 +828,11 @@ pub fn solve_with(
     // `checkUnits` + `unitsByLowerName`): declared units feed the checker, and
     // the result map is the derived units overlaid by the declared ones —
     // a declared unit always wins over a dimensionally derived one.
-    let declared = declared_units(&equations, overrides, &components.member_units);
-    let unit_report = crate::units::checker::check_units(&equations, &declared);
+    // Dimensions come from the document the user wrote, not from the augmented
+    // copy the solver runs on (see `unaugmented` above).
+    let unit_equations = unaugmented.as_deref().unwrap_or(&equations);
+    let declared = declared_units(unit_equations, overrides, &components.member_units);
+    let unit_report = crate::units::checker::check_units(unit_equations, &declared);
     let mut inferred_units = unit_report.inferred;
     inferred_units.extend(declared);
 

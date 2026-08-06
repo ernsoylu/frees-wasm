@@ -758,7 +758,7 @@ fn material_lookups_outside_their_table_are_refused_by_name() {
 /// `props::tables::install_from_bytes`. Every corruption must be a `Result`.
 #[test]
 fn a_corrupted_property_table_is_refused_at_every_byte_position() {
-    let good = frees_core::props::tables::WATER_PHTAB;
+    let good = &frees_core::props::tables::water_phtab().expect("water unpacks")[..];
     assert!(SaturationSplitTable::decode_generated(good).is_ok());
 
     // Every truncation length on a log scale, plus the exact header boundaries.
@@ -819,10 +819,10 @@ fn a_corrupted_property_table_is_refused_at_every_byte_position() {
 #[test]
 fn table_lookups_exactly_on_and_just_outside_every_grid_edge_are_bounded() {
     for bytes in [
-        frees_core::props::tables::WATER_PHTAB,
-        frees_core::props::tables::R134A_PHTAB,
+        frees_core::props::tables::water_phtab().unwrap(),
+        frees_core::props::tables::r134a_phtab().unwrap(),
     ] {
-        let t = SaturationSplitTable::decode_generated(bytes).unwrap();
+        let t = SaturationSplitTable::decode_generated(&bytes).unwrap();
         let mut probes: Vec<(f64, f64)> = Vec::new();
         for p in [
             t.p_min(),

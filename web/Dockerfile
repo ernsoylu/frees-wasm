@@ -44,6 +44,16 @@ RUN VITE_COMMIT_HASH="${VITE_COMMIT_HASH:-${RAILWAY_GIT_COMMIT_SHA:-dev}}" \
     VITE_API_BASE="${VITE_API_BASE}" \
     npm run build
 
+# Precompress everything nginx's `gzip_static on` can serve, at a level the
+# runtime would never pay for on the fly. The originals stay next to the .gz
+# siblings so a client that sends no Accept-Encoding still gets a response.
+# Skipped for already-compressed formats (png/woff2), where gzip only adds
+# bytes.
+RUN find /app/dist -type f \
+        \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.wasm' \
+           -o -name '*.json' -o -name '*.svg' -o -name '*.webmanifest' \) \
+        -size +1k -exec gzip -9 -k {} +
+
 # Runtime stage: unprivileged nginx (runs as uid 101, listens on 8080) serves
 # the static bundle. There is no backend and no /api proxy — the engine ships
 # inside the bundle as WebAssembly (Phase 11). The config is still a template

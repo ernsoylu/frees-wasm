@@ -39,24 +39,82 @@ function stripLegacyKatexFontsPlugin() {
 }
 
 // Univer's render engine lazy-loads hyphenation dictionaries (a docs-engine
-// text-layout feature) as one chunk per language — ~80 chunks, ~3 MB. The
-// spreadsheet never enables hyphenation, so no session ever fetches them;
-// precaching them would make every install download dead data. Derive the
-// exact chunk-name globs from the package's own dist filenames (Vite names
-// each emitted chunk "<original stem>-<hash>.js") so the ignore list tracks
-// Univer upgrades instead of hardcoding locale names.
-function univerHyphenationGlobIgnores(): string[] {
+// text-layout feature) as one chunk per language — ~80 chunks, ~4.4 MB. A
+// dictionary is only ever *consulted* when `hyphenConfig()` is satisfied, which
+// needs `autoHyphenation` set on the section break config; the sheets preset
+// never sets it, so no cell layout can reach `hyphenate()`. Derive the exact
+// module filenames from the package's own dist listing so this tracks Univer
+// upgrades instead of hardcoding locale names.
+const UNIVER_HYPHENATION_ES_DIR = 'node_modules/@univerjs/engine-render/lib/es'
+
+function univerHyphenationModules(): string[] {
   const patternNames = new Set(
     readdirSync(
       'node_modules/@univerjs/engine-render/lib/types/components/docs/layout/hyphenation/patterns',
     ).map((f) => f.replace(/\.d\.ts$/, '')),
   )
-  return readdirSync('node_modules/@univerjs/engine-render/lib/es')
-    .filter((f) => {
-      const m = f.match(/^(.*)-[A-Za-z0-9_-]{8}\.js$/)
-      return m !== null && patternNames.has(m[1])
-    })
-    .map((f) => `**/${f.replace(/\.js$/, '')}-*.js`)
+  return readdirSync(UNIVER_HYPHENATION_ES_DIR).filter((f) => {
+    const m = f.match(/^(.*)-[A-Za-z0-9_-]{8}\.js$/)
+    return m !== null && patternNames.has(m[1])
+  })
+}
+
+// Vite names each emitted chunk "<original stem>-<hash>.js".
+//
+// With stripUniverHyphenationPlugin below working, this list matches nothing —
+// no dictionary chunk is emitted to ignore. It is kept as a backstop, and that
+// is not theoretical: an intermediate version of that plugin silently stopped
+// firing (missing `enforce: 'pre'`), the build stayed green, all ~4.4 MB of
+// dictionaries came back into dist — and this list is what kept them out of the
+// precache, holding it at 15020 KiB while dist ballooned to 19.06 MB. Cheap
+// insurance against exactly the failure mode that already happened once.
+function univerHyphenationGlobIgnores(): string[] {
+  return univerHyphenationModules().map((f) => `**/${f.replace(/\.js$/, '')}-*.js`)
+}
+
+// Excluding the dictionaries from the precache stopped them being *downloaded*,
+// but Rollup still emitted all ~80 of them — 4.4 MB of dist that no client can
+// reach and every deploy has to carry. Resolve each one to an empty module so
+// they are never emitted at all.
+//
+// This is safe because of how Univer consumes them: `Hyphen.loadPattern(lang)`
+// awaits the dynamic import and does `loaded?.[snackToPascal(lang)]`, then
+// `if (pattern == null) return` — an empty namespace is the already-handled
+// "no such dictionary" path, not an error.
+//
+// It also fixes a real bug rather than only saving bytes. `Hyphen`'s
+// constructor eagerly calls `loadPattern('en-gb')`, and `DocumentSkeleton`
+// constructs `Hyphen` unconditionally — so every spreadsheet render fetched the
+// 102 kB en-gb chunk, which the precache exclusion above had already told the
+// service worker to ignore. Online that was a wasted download; offline it was a
+// failed one. Now it resolves to the no-op the surrounding code already knows
+// how to handle. `en-us` is unaffected either way: Univer inlines it into its
+// own entry and preloads it synchronously.
+// All ~80 imports are redirected to ONE shared virtual module rather than each
+// being stubbed in place, so Rollup emits a single tiny chunk instead of ~80
+// near-identical ones. (Stubbing in place still cost 77 files — small, but they
+// are exactly the kind of unreachable output this plugin exists to remove.)
+const HYPHENATION_STUB_ID = '\0univer-hyphenation-stub'
+
+function stripUniverHyphenationPlugin() {
+  const stubbed = new Set(univerHyphenationModules())
+  return {
+    name: 'strip-univer-hyphenation',
+    // `pre` is load-bearing: a normal-order plugin's resolveId runs *after*
+    // vite:resolve has already resolved the relative specifier to the real
+    // dictionary file, so the redirect never fires and all ~4.4 MB come back —
+    // silently, with a green build. If this plugin ever stops saving bytes,
+    // check this line first.
+    enforce: 'pre' as const,
+    resolveId(source: string, importer: string | undefined) {
+      if (importer === undefined || !importer.includes('@univerjs/engine-render')) return null
+      const file = source.split('?')[0].split('/').pop()
+      return file !== undefined && stubbed.has(file) ? HYPHENATION_STUB_ID : null
+    },
+    load(id: string) {
+      return id === HYPHENATION_STUB_ID ? 'export default undefined\n' : null
+    },
+  }
 }
 
 // Phase 11: installable PWA + full offline session. The service worker
@@ -109,7 +167,14 @@ function pwaPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), buildInfoPlugin(), stripLegacyKatexFontsPlugin(), pwaPlugin(), visualizer({ open: false, filename: 'stats.html' })],
+  plugins: [
+    react(),
+    buildInfoPlugin(),
+    stripLegacyKatexFontsPlugin(),
+    stripUniverHyphenationPlugin(),
+    pwaPlugin(),
+    visualizer({ open: false, filename: 'stats.html' }),
+  ],
   define: {
     // The app version from package.json, baked in at build time so the REPL
     // banner and About dialog show "v0.1.0" without a runtime lookup. Paired
@@ -138,7 +203,19 @@ export default defineConfig({
           // at runtime (React undefined inside Mantine). Pin them to the
           // react chunk, which everything loads first and imports nothing back.
           if (id.includes('commonjsHelpers')) return 'react'
-          if (id.includes('docsCatalog.ts') || id.includes('referenceCatalog.ts') || id.includes('examples.ts') || id.includes('searchIndex.ts')) {
+          // The boot path needs exactly one string out of this family — App.tsx
+          // imports DEFAULT_EXAMPLE_TEXT from defaultExample.ts (9 kB). Left to
+          // Rollup's auto-placement that module landed in `docs-data` (because
+          // examples.ts also imports it), which made the App chunk statically
+          // import 1068 kB of reference documentation on every cold start.
+          // Pinning it to its own chunk cuts that to 9 kB.
+          if (id.includes('defaultExample.ts')) return 'default-example'
+          // Likewise, ExamplesModal (3 kB, lazy) needs only examples.ts (51 kB);
+          // sharing a chunk with referenceCatalog.ts made opening the Examples
+          // dialog a 1 MB download. Keep the two apart — the whole reference
+          // corpus is reachable only from the (lazy) Help page.
+          if (id.includes('examples.ts')) return 'examples-data'
+          if (id.includes('docsCatalog.ts') || id.includes('referenceCatalog.ts') || id.includes('searchIndex.ts')) {
             return 'docs-data'
           }
           if (!id.includes('node_modules')) return undefined

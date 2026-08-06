@@ -3,7 +3,13 @@ import ReactDOM from 'react-dom/client'
 import '@mantine/core/styles.css'
 import '@mantine/notifications/styles.css'
 import '@mantine/spotlight/styles.css'
-import 'katex/dist/katex.min.css'
+// KaTeX's stylesheet is imported by Latex.tsx, its only consumer, NOT here.
+// Importing it at the entry pulled the whole `katex` manual chunk onto the boot
+// path: manualChunks routes anything matching /katex/ — the stylesheet included
+// — into that chunk, so the entry's CSS dependency made its 254 kB of JS a
+// static import of index.js, and through the chunk graph of every other chunk
+// in the app. KaTeX only ever renders inside <Latex>, which only the (lazy)
+// Help page mounts.
 import { Center, createTheme, Loader, MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import ErrorBoundary from './ErrorBoundary'

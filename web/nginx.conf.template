@@ -20,6 +20,35 @@ server {
     # Nothing here accepts uploads; measurement files are read in-tab.
     client_max_body_size 1m;
 
+    # Compression. This container served the whole bundle uncompressed until
+    # now — 19.3 MB on the wire where 6.2 MB would do, and the two biggest
+    # files are the ones that suffer most (the 3.3 MB wasm engine gzips to
+    # 1.8 MB, the 5.4 MB spreadsheet chunk to 1.5 MB). Vercel compresses at
+    # its edge, so only the Docker path was affected, which is why it went
+    # unnoticed.
+    #
+    # `gzip_static on` serves the .gz siblings the Dockerfile precompresses at
+    # `gzip -9`, so the runtime spends no CPU on the big immutable assets;
+    # `gzip on` is the fallback for anything without a sibling (build-info.js,
+    # which is written at container start).
+    gzip_static on;
+    gzip on;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_vary on;
+    gzip_proxied any;
+    # application/wasm is not in nginx's default gzip_types, and it is the
+    # single largest asset in the bundle.
+    gzip_types
+        application/javascript
+        application/json
+        application/manifest+json
+        application/wasm
+        image/svg+xml
+        text/css
+        text/plain
+        text/xml;
+
     # Vite emits content-hashed filenames under /assets, so a new build always
     # has new URLs — cache them forever and skip revalidation.
     location /assets/ {

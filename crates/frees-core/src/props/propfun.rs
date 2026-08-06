@@ -2196,7 +2196,7 @@ mod tests {
     #[test]
     fn a_generated_table_answers_only_the_constants_it_actually_carries() {
         let table = crate::props::satsplit::SaturationSplitTable::decode_generated(
-            crate::props::tables::WATER_PHTAB,
+            &crate::props::tables::water_phtab().unwrap(),
         )
         .unwrap();
         let backend = TableBackend::new(vec![table]);

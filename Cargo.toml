@@ -23,6 +23,12 @@ serde_json = "1"
 thiserror = "1"
 libm = "0.2"
 
+# The container the linked property grids ship in — deflated at build time,
+# inflated once at install time. `default-features = false` + `with-alloc`
+# keeps `std` out, so the same code serves wasm32 and native.
+# MIT — compatible with frees' licence and with static linking.
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+
 # Phase 9 CAS — exact rational arithmetic. The factoriser and the partial-fraction
 # decomposition must never touch f64 (`cas/mod.rs`, "Exactness"), and coefficients
 # in Hensel lifting routinely exceed 64 bits. Both crates are MIT OR Apache-2.0,
@@ -42,6 +48,15 @@ num-traits = "0.2"
 # separate [profile.release-wasm] below was never reachable), and the module is
 # downloaded before the user can solve anything, so bytes beat a few percent of
 # solver throughput. Native release builds are only used by the test suite.
+#
+# `"z"` was measured on 2026-08-06 and NOT taken. It is worth a real 336.7 KiB
+# (3031.0 → 2694.3 KiB), but it costs more than "a few percent": the 704-document
+# parity replay goes 179.95 s → 198.41 s, **+10.3 %**, and the z figure is if
+# anything flattering (that run overlapped a container build; the s run had the
+# machine to itself). The trade was declined because the module is already under
+# the 3072 KiB budget without it — it is a bonus, not a rescue — so the only
+# thing on offer was 11 % of bytes for 10 % of solver throughput. Revisit if a
+# future phase puts the budget back in the red; the lever is one word.
 opt-level = "s"
 lto = true
 codegen-units = 1

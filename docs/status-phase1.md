@@ -106,8 +106,12 @@ equivalent of. Their full write-up is
    remaining CoolProp fluids — including air *states* (it has a transport grid,
    not a `(P,h)` table, and now says exactly that). **Open and structural** —
    closing it fully still means shipping `coolprop.wasm` (D1 option A, still
-   available). D7 also put the wasm bundle **273 KiB over its 3072 KiB budget**;
-   read D7's consequences section before adding another fluid.
+   available). D7 also put the wasm bundle 273 KiB over its 3072 KiB budget;
+   that breach was **closed 2026-08-06** by packing the linked artifacts
+   (byte-plane shuffle + deflate in `crates/frees-core/build.rs`, inflated once
+   at install time), which took the module to **3031.0 KiB — under budget by
+   41 KiB** without dropping or coarsening a grid. Read D7's consequences
+   section before adding another fluid: 41 KiB is less than one `.phtab`.
 10. **Twenty parity fixtures compare at a declared tolerance, not `1e-9`.** A
     direct consequence of 9: no table-backed engine can match full-accuracy
     CoolProp goldens at `1e-9`. `fixtures/tolerances.json` relaxes the *numeric*

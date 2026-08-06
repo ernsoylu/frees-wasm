@@ -153,6 +153,54 @@ above is the honest measurement, and shrinking the shipped set back under
 3072 KiB is a one-line change to `BUILTIN_TABLES` / `BUILTIN_AUX` if the budget
 is judged the more important constraint.
 
+### Resolved 2026-08-06 — the breach is closed, and "compression is not a lever" was wrong
+
+The budget did **not** have to move, and no grid had to be dropped or coarsened.
+The claim above — that compression is not a lever because gzip only reaches
+0.87–0.94 on these files — is a correct measurement of the wrong thing. It
+measures *plain* deflate over the artifacts as written, where each `f32` sits
+interleaved with its neighbours: consecutive samples of a smooth function differ
+only in their low mantissa bytes, but every 4-byte group still looks distinct to
+LZ77, so it finds almost nothing to match.
+
+Transposing each artifact into byte planes first — all byte-0s, then all
+byte-1s, the HDF5 "shuffle" filter — puts the near-constant sign and exponent
+bytes of thousands of consecutive samples next to each other, and deflate then
+does what it always could:
+
+```
+   raw                1014 KB
+   deflate             904 KB   (0.89 — the number this document quoted)
+   shuffle + deflate   685 KB   (0.68)
+```
+
+`crates/frees-core/build.rs` packs the artifacts on the way into the binary and
+`props/tables.rs` unpacks them once, at install time. The transform is a pure
+byte permutation followed by a lossless codec, so it is indifferent to what the
+bytes mean: the `FRPHTAB1` / `FRAUX1` decoders still receive the generator's own
+bytes, and the artifacts under `src/props/data/` and `fixtures/` are untouched.
+Nothing in this document's error table changes, because nothing about the grids
+changed.
+
+```
+   before   3347.8 KiB raw / 1807.1 KiB gzipped
+   after    3031.0 KiB raw / 1589.9 KiB gzipped
+   budget   3072.0 KiB
+            98.7 % of budget — UNDER by 41.0 KiB
+```
+
+The data section falls 1374.1 KiB → 1014.0 KiB; `miniz_oxide`'s inflate costs
+11.0 KiB of code section, one new dependency (MIT, `default-features = false`,
+no `std`), and a few milliseconds once per worker. `cargo test --release
+--workspace` is green, all 704 fixtures included.
+
+Two consequences for the paragraphs above. The options table is now moot — the
+row that was missing from it is the one that won. And the note under "What this
+does not close" that `hx-correlations-fluid`'s fourth grid "would add to a bundle
+that is already over" no longer applies: there are 41 KiB of headroom, and a
+`PRESSURE_TEMPERATURE` grid for water would pack the same way the other eight
+do. That remains unbuilt, but the bundle is no longer the reason.
+
 ## What this does not close
 
 `hx-correlations-fluid` remains blocked. It calls `htc_1phase('Water', P, T)` —

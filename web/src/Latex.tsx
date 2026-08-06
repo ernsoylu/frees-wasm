@@ -1,5 +1,9 @@
 import { useEffect, useRef } from 'react'
 import katex from 'katex'
+// Colocated with the only component that renders KaTeX markup, so the
+// stylesheet travels with the lazy chunk that needs it instead of anchoring
+// the katex JS chunk to the entry (see main.tsx).
+import 'katex/dist/katex.min.css'
 
 interface Props {
   math: string

@@ -14,6 +14,15 @@ num-integer = { workspace = true }
 num-rational = { workspace = true }
 num-traits = { workspace = true }
 serde = { workspace = true, optional = true }
+# Inflate only — see build.rs and props/tables.rs. The compressor half of the
+# crate is unreachable from the library and LTO drops it; what is linked is the
+# ~19 KB inflate core, against ~329 KB saved off the data section.
+miniz_oxide = { workspace = true }
+
+# The same crate on the other side of the pipe: build.rs does the deflating.
+# Build dependencies are host-only and never reach the wasm module.
+[build-dependencies]
+miniz_oxide = { workspace = true }
 
 [features]
 default = []

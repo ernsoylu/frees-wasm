@@ -142,9 +142,51 @@ the two already tabulated. All four are closed by one new artifact kind
 (`FRAUX1`) plus an ordinary `table-gen` run. **The example solves** — 169 blocks,
 231 Newton iterations, COP 3.75, with its open-circuit energy balance closing to
 9e-13 W — and grades against the JDK oracle at `8.951e-4` worst variable,
-`1.0e-6` median over 229 variables. Corpus 702 → **704**. The cost is the
-**bundle budget, now breached by 273.1 KiB**; D7's consequences section lays out
-the measured options, none of which fit without moving the budget.
+`1.0e-6` median over 229 variables. Corpus 702 → **704**. It cost the bundle
+budget a 273.1 KiB breach, which is **since closed** — see the size pass below.
+
+**The size pass is done (2026-08-06), and it changed no engine behaviour.** The
+wasm is **3031.0 KiB raw / 1589.9 KiB gzipped, back under the 3072 KiB budget
+with 41 KiB spare**, and the built web app is **20.25 MB → 14.7 MB of `dist`**.
+All 704 fixtures still match, `cargo clippy` (native + wasm32) and `cargo fmt`
+are clean, and vitest is 40 files / 384 tests green. Four findings, each
+measured:
+
+* **D7's "compression is not a lever" was wrong** — correctly measured, wrongly
+  concluded. Plain deflate reaches only 0.89 on the `f32` property grids, but
+  transposing each artifact into byte planes first (the HDF5 shuffle filter)
+  takes 1014 KB → 685 KB, because the near-constant exponent bytes of thousands
+  of consecutive samples then sit together. `crates/frees-core/build.rs` packs,
+  `props/tables.rs` unpacks once at install time; it is a pure byte permutation
+  plus a lossless codec, so the decoders still see the generator's own bytes and
+  the artifacts under `src/props/data/` and `fixtures/` are untouched. One new
+  dependency (`miniz_oxide`, MIT, inflate only, 11 KiB of code section).
+* **Univer's ~80 hyphenation dictionaries were still being emitted** — 4.4 MB of
+  `dist`. They had been excluded from the precache, which stopped the download
+  but not the build output. They are stubbed at resolve time now. This also
+  fixed a latent offline bug: Univer's `DocumentSkeleton` constructor eagerly
+  loads the `en-gb` dictionary, so every spreadsheet render fetched a 102 KB
+  chunk the service worker had been told to ignore. All ~80 imports redirect to
+  one shared stub chunk, which is why `dist` is **95 files where it was 171**.
+  The plugin needs `enforce: 'pre'` — without it Rollup resolves the real
+  dictionary first and the 4.4 MB come back *with a green build*; the precache
+  `globIgnores` list is kept as the backstop that catches exactly that.
+* **The App chunk statically imported 1068 KB of reference documentation on
+  every cold start**, to reach one 9 KB default-example string that Rollup's
+  auto-placement had put in the `docs-data` chunk. Split. Opening the Examples
+  modal likewise pulled the whole reference catalog; it now pulls 51 KB.
+* **The nginx image served the entire bundle uncompressed** — no `gzip`
+  directive at all, 19.3 MB on the wire where 6.2 MB would do. Only the Docker
+  path was affected (Vercel compresses at its edge), which is why it went
+  unnoticed. `gzip_static` plus precompression in the build stage.
+
+One more, latency rather than bytes: KaTeX's stylesheet was imported at the
+entry, and because `manualChunks` routes anything matching `/katex/` into the
+`katex` chunk, that made its 254 KB of JS a static import of the entry — and
+through the chunk graph, of every chunk in the app. KaTeX renders only inside
+`<Latex>`, which only the lazy Help page mounts (the `$$…$$` blocks in
+`symbolic_cas.md`, `language_fundamentals.md` and `tutorials.md`). The import
+now lives in `Latex.tsx`.
 
 | Document | Contents |
 |---|---|
@@ -228,9 +270,9 @@ tools/aux-gen/run.sh --sweep           # its error-vs-resolution ladder; writes 
 
 The property backend is **linked into the binary**: `crates/frees-core/src/props/data/*.phtab`
 are copies of `fixtures/proptables/*.phtab`, and `data/*.fraux` of
-`fixtures/auxtables/*.fraux`, all `include_bytes!`d by `props/tables.rs` and
-installed on the first `solve`/`check`. Regenerating them means copying them
-across as well as into `fixtures/`.
+`fixtures/auxtables/*.fraux`, all packed by `build.rs`, `include_bytes!`d by
+`props/tables.rs` and installed on the first `solve`/`check`. Regenerating them
+means copying them across as well as into `fixtures/`.
 
 There are **two** artifact kinds, and the difference is load-bearing:
 
@@ -246,11 +288,18 @@ There are **two** artifact kinds, and the difference is load-bearing:
   only place `htc_evap`/`htc_cond`/`dp_2phase` ever ask, and the reason that
   costs ~14 KB per fluid instead of ~256 KB).
 
-Together they are 771 KB of the wasm bundle's **3345.1 KiB — which is 273.1 KiB
-OVER the 3072 KiB budget.** That breach is D7's, it is deliberate, and it is
-documented with its options in that decision rather than hidden; read it before
-adding a fourth fluid. Note that compression is not an escape: these are f32
-grids of smooth functions and gzip only reaches 0.87–0.94 on them.
+Neither kind is embedded verbatim. `crates/frees-core/build.rs` transposes each
+artifact into `f32` byte planes and deflates it; `props/tables.rs` inflates it
+once, at install time, and hands the decoders the generator's own bytes. That
+takes the nine files from 1014 KB on disk to **~678 KB of data section**, and is
+what put the module back under budget at **3031.0 KiB against 3072 KiB** after
+D7's 273.1 KiB breach. The shuffle is the load-bearing half: plain deflate only
+reaches 0.89 on these grids (which is what D7 measured before concluding, wrongly,
+that compression was not a lever), and byte planes take it to 0.68. **Regenerating
+a table needs no extra step** — copy the new `.phtab`/`.fraux` into
+`src/props/data/` as before and `build.rs` re-packs it; the checked-in artifacts
+stay exactly as the generators wrote them. Read D7 before adding a fourth fluid:
+the headroom is 41 KiB, which is less than one full `.phtab`.
 
 The **component library is also linked in**, the same way and for the same
 reason: `crates/frees-core/src/components/library-data/*.frees` is 122 KB of DSL

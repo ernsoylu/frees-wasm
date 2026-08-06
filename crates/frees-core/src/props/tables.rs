@@ -11,16 +11,21 @@
 //! # Linked, not fetched — and why that diverges from D1
 //!
 //! D1 says the tables are "lazily fetched per fluid, not linked into the wasm,
-//! so the wasm budget is untouched". They are linked here instead, with
-//! `include_bytes!`. The reason is that a solve is **synchronous**: `PropsSI`
-//! is called from inside the Newton residual, and there is no point in that
-//! call stack where a Rust engine can await a `fetch`. Making it work the D1
-//! way means either pre-fetching every table at worker start-up — which pays
-//! the same bytes on every page load, and pays them *before* the first solve
-//! rather than during it — or restructuring the solver around an async property
-//! source. Linking costs 526 KB of the 900 KB the wasm budget had spare and
+//! so the wasm budget is untouched". They are linked here instead. The reason
+//! is that a solve is **synchronous**: `PropsSI` is called from inside the
+//! Newton residual, and there is no point in that call stack where a Rust
+//! engine can await a `fetch`. Making it work the D1 way means either
+//! pre-fetching every table at worker start-up — which pays the same bytes on
+//! every page load, and pays them *before* the first solve rather than during
+//! it — or restructuring the solver around an async property source. Linking
 //! keeps the engine usable from `frees-cli`, the parity harness and the browser
 //! through one code path.
+//!
+//! What linking costs is now ~678 KB rather than the 1014 KB the artifacts
+//! occupy on disk: they are deflated by `build.rs` and inflated once here, at
+//! install time. See [`mod@packed`] and `build.rs` for the container and for
+//! why a byte-plane shuffle is what makes deflate bite on `f32` grids that
+//! D7 measured as barely compressible.
 //!
 //! The seam D1 wanted is still here: [`install_from_bytes`] takes an arbitrary
 //! `FRPHTAB1` slice, so a fetched table can be added at runtime without
@@ -44,46 +49,133 @@
 
 use std::sync::Arc;
 
-use crate::diag::Result;
+use crate::diag::{FreesError, Result};
 use crate::props::auxtable::AuxTable;
 use crate::props::propfun::{self, TableBackend};
 use crate::props::satsplit::SaturationSplitTable;
 
-/// Water, `FRPHTAB1`, generated from CoolProp 8.0.0.
-pub const WATER_PHTAB: &[u8] = include_bytes!("data/water.phtab");
-/// R134a, `FRPHTAB1`, generated from CoolProp 8.0.0.
-pub const R134A_PHTAB: &[u8] = include_bytes!("data/r134a.phtab");
-/// R1234yf, `FRPHTAB1`, generated from CoolProp 8.0.0.
-pub const R1234YF_PHTAB: &[u8] = include_bytes!("data/r1234yf.phtab");
+/// The artifacts are **packed**, not embedded verbatim: `build.rs` transposes
+/// each one into `f32` byte planes and deflates it, which takes the nine files
+/// from 1014 KB to ~685 KB of wasm data section. See that file for why the
+/// shuffle is what makes deflate work here at all, and note that the packing is
+/// a pure byte permutation plus a lossless codec — the `FRPHTAB1` / `FRAUX1`
+/// bytes this module hands to the decoders are the generator's own, byte for
+/// byte, and the artifacts under `src/props/data/` and `fixtures/` are
+/// unchanged.
+///
+/// Container: `b"FRZ1"`, `u32` little-endian unpacked length, raw deflate
+/// stream.
+mod packed {
+    macro_rules! packed {
+        ($konst:ident, $file:literal) => {
+            pub const $konst: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/", $file, ".frz"));
+        };
+    }
+    packed!(WATER_PHTAB, "water.phtab");
+    packed!(R134A_PHTAB, "r134a.phtab");
+    packed!(R1234YF_PHTAB, "r1234yf.phtab");
+    packed!(MEG_FRAUX, "meg.fraux");
+    packed!(MPG_FRAUX, "mpg.fraux");
+    packed!(AIR_FRAUX, "air.fraux");
+    packed!(WATER_SAT_FRAUX, "water-sat.fraux");
+    packed!(R134A_SAT_FRAUX, "r134a-sat.fraux");
+    packed!(R1234YF_SAT_FRAUX, "r1234yf-sat.fraux");
+}
 
+/// Byte-plane width, matching `build.rs`.
+const STRIDE: usize = 4;
+
+/// Undoes one packed artifact, yielding the generator's original bytes.
+///
+/// This is infallible in practice — the input is produced by `build.rs` in the
+/// same build — but it parses, so it reports rather than panics, on the same
+/// grounds as [`builtin_tables`].
+fn unpack(packed: &[u8]) -> Result<Vec<u8>> {
+    let bad = |what: String| FreesError::property(format!("packed property artifact: {what}"));
+    if packed.len() < 8 || &packed[..4] != b"FRZ1" {
+        return Err(bad("bad container header".into()));
+    }
+    let len = u32::from_le_bytes([packed[4], packed[5], packed[6], packed[7]]) as usize;
+    let shuffled = miniz_oxide::inflate::decompress_to_vec(&packed[8..])
+        .map_err(|e| bad(format!("inflate failed ({e:?})")))?;
+    if shuffled.len() != len {
+        return Err(bad(format!(
+            "inflated {} bytes, header claims {len}",
+            shuffled.len()
+        )));
+    }
+
+    // Transpose the byte planes back. `n` must match build.rs's split exactly
+    // or the planes land at the wrong offsets, so it is derived the same way.
+    let n = len / STRIDE;
+    let mut out = vec![0u8; len];
+    for i in 0..n {
+        for b in 0..STRIDE {
+            out[i * STRIDE + b] = shuffled[b * n + i];
+        }
+    }
+    out[n * STRIDE..].copy_from_slice(&shuffled[n * STRIDE..]);
+    Ok(out)
+}
+
+/// Water, `FRPHTAB1`, generated from CoolProp 8.0.0.
+pub fn water_phtab() -> Result<Vec<u8>> {
+    unpack(packed::WATER_PHTAB)
+}
+/// R134a, `FRPHTAB1`, generated from CoolProp 8.0.0.
+pub fn r134a_phtab() -> Result<Vec<u8>> {
+    unpack(packed::R134A_PHTAB)
+}
+/// R1234yf, `FRPHTAB1`, generated from CoolProp 8.0.0.
+pub fn r1234yf_phtab() -> Result<Vec<u8>> {
+    unpack(packed::R1234YF_PHTAB)
+}
 /// Aqueous mono-ethylene glycol, `FRAUX1` (`tools/aux-gen`).
-pub const MEG_FRAUX: &[u8] = include_bytes!("data/meg.fraux");
+pub fn meg_fraux() -> Result<Vec<u8>> {
+    unpack(packed::MEG_FRAUX)
+}
 /// Aqueous mono-propylene glycol, `FRAUX1`.
-pub const MPG_FRAUX: &[u8] = include_bytes!("data/mpg.fraux");
+pub fn mpg_fraux() -> Result<Vec<u8>> {
+    unpack(packed::MPG_FRAUX)
+}
 /// Air single-phase transport over `(P,T)`, `FRAUX1`.
-pub const AIR_FRAUX: &[u8] = include_bytes!("data/air.fraux");
+pub fn air_fraux() -> Result<Vec<u8>> {
+    unpack(packed::AIR_FRAUX)
+}
 /// Water transport on the saturation line, `FRAUX1`.
-pub const WATER_SAT_FRAUX: &[u8] = include_bytes!("data/water-sat.fraux");
+pub fn water_sat_fraux() -> Result<Vec<u8>> {
+    unpack(packed::WATER_SAT_FRAUX)
+}
 /// R134a transport on the saturation line, `FRAUX1`.
-pub const R134A_SAT_FRAUX: &[u8] = include_bytes!("data/r134a-sat.fraux");
+pub fn r134a_sat_fraux() -> Result<Vec<u8>> {
+    unpack(packed::R134A_SAT_FRAUX)
+}
 /// R1234yf transport on the saturation line, `FRAUX1`.
-pub const R1234YF_SAT_FRAUX: &[u8] = include_bytes!("data/r1234yf-sat.fraux");
+pub fn r1234yf_sat_fraux() -> Result<Vec<u8>> {
+    unpack(packed::R1234YF_SAT_FRAUX)
+}
 
 /// Every split table linked into this build, in the order they are installed.
+///
+/// The slices are **packed**, not `FRPHTAB1` — pass them through [`unpack`]
+/// (or use [`builtin_tables`], which does) before handing them to
+/// `decode_generated`. [`install_from_bytes`] is the opposite case and takes
+/// artifact bytes directly, because its input comes from outside this build.
 pub const BUILTIN_TABLES: [(&str, &[u8]); 3] = [
-    ("water.phtab", WATER_PHTAB),
-    ("r134a.phtab", R134A_PHTAB),
-    ("r1234yf.phtab", R1234YF_PHTAB),
+    ("water.phtab", packed::WATER_PHTAB),
+    ("r134a.phtab", packed::R134A_PHTAB),
+    ("r1234yf.phtab", packed::R1234YF_PHTAB),
 ];
 
-/// Every `FRAUX1` grid linked into this build.
+/// Every `FRAUX1` grid linked into this build, packed on the same terms as
+/// [`BUILTIN_TABLES`].
 pub const BUILTIN_AUX: [(&str, &[u8]); 6] = [
-    ("meg.fraux", MEG_FRAUX),
-    ("mpg.fraux", MPG_FRAUX),
-    ("air.fraux", AIR_FRAUX),
-    ("water-sat.fraux", WATER_SAT_FRAUX),
-    ("r134a-sat.fraux", R134A_SAT_FRAUX),
-    ("r1234yf-sat.fraux", R1234YF_SAT_FRAUX),
+    ("meg.fraux", packed::MEG_FRAUX),
+    ("mpg.fraux", packed::MPG_FRAUX),
+    ("air.fraux", packed::AIR_FRAUX),
+    ("water-sat.fraux", packed::WATER_SAT_FRAUX),
+    ("r134a-sat.fraux", packed::R134A_SAT_FRAUX),
+    ("r1234yf-sat.fraux", packed::R1234YF_SAT_FRAUX),
 ];
 
 /// Decodes the linked tables.
@@ -91,10 +183,15 @@ pub const BUILTIN_AUX: [(&str, &[u8]); 6] = [
 /// A malformed artifact is an error, not a panic: the decode is a real parse of
 /// bytes that a regenerated `tools/table-gen` run could get wrong, and a build
 /// whose tables do not load should say so rather than abort a wasm module.
+///
+/// The unpacked bytes are a local temporary that dies with each iteration, so
+/// only one artifact's worth of them is ever live: peak memory is the packed
+/// data section plus the largest single grid, where embedding verbatim held all
+/// nine unpacked for the process's lifetime.
 pub fn builtin_tables() -> Result<Vec<SaturationSplitTable>> {
     BUILTIN_TABLES
         .iter()
-        .map(|(_, bytes)| SaturationSplitTable::decode_generated(bytes))
+        .map(|(_, bytes)| SaturationSplitTable::decode_generated(&unpack(bytes)?))
         .collect()
 }
 
@@ -102,7 +199,7 @@ pub fn builtin_tables() -> Result<Vec<SaturationSplitTable>> {
 pub fn builtin_aux() -> Result<Vec<AuxTable>> {
     BUILTIN_AUX
         .iter()
-        .map(|(_, bytes)| AuxTable::decode(bytes))
+        .map(|(_, bytes)| AuxTable::decode(&unpack(bytes)?))
         .collect()
 }
 
@@ -259,7 +356,7 @@ mod tests {
         let _guard = propfun::test_swap_guard();
         let previous = propfun::backend();
         // Re-installing water's own bytes must replace it, not duplicate it.
-        let fluids = install_from_bytes(WATER_PHTAB).expect("install");
+        let fluids = install_from_bytes(&water_phtab().expect("water unpacks")).expect("install");
         // Three split tables plus the three aux-served names, and water exactly
         // once — re-installing its own bytes must replace it, not duplicate it.
         assert_eq!(fluids.len(), 6, "{fluids:?}");
@@ -295,13 +392,14 @@ mod tests {
             assert!(!err.is_empty(), "{bad:?}");
         }
         // A truncated real file: the header is valid, the payload is not there.
-        let truncated = &WATER_PHTAB[..WATER_PHTAB.len() / 2];
+        let water = water_phtab().expect("water unpacks");
+        let truncated = &water[..water.len() / 2];
         let err = install_from_bytes(truncated)
             .unwrap_err()
             .to_string_message();
         assert!(err.contains("declares"), "{err}");
         // A real file with one header byte corrupted.
-        let mut flipped = WATER_PHTAB.to_vec();
+        let mut flipped = water.clone();
         flipped[10] = 7; // elem_kind
         let err = install_from_bytes(&flipped)
             .unwrap_err()

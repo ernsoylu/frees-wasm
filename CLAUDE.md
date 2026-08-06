@@ -145,6 +145,22 @@ the two already tabulated. All four are closed by one new artifact kind
 `1.0e-6` median over 229 variables. Corpus 702 → **704**. It cost the bundle
 budget a 273.1 KiB breach, which is **since closed** — see the size pass below.
 
+**The property backend is moving to `coolprop.wasm` (decision
+[D8](docs/decisions/0008-coolprop-wasm.md), 2026-08-07).** A CoolProp
+WebAssembly build is being produced separately and this repo picks it up when
+it lands. **Until then, do not write a humid-air backend, an `air.phtab`, or
+further `FRAUX1` grids** — they would be superseded. D8 records the
+measurement that forced the choice: an ideal-gas humid-air model is 2.7e-3 off
+CoolProp on the `(T,R)` path (the enhancement factor reaches 1.0041), and
+transcribing ASHRAE RP-1485 does not fix it, because CoolProp's `HAPropsSI`
+*is* RP-1485 evaluated against IAPWS-95 and Lemmon — whose ancillary
+saturation equation alone is already 7.1e-5 off. `coolprop.wasm` clears 12 of
+the 26 pending fixtures (humid air 7, Air `(P,h)` 3, `(P,T)` transport 1,
+`Z` 1) and should retire most of `fixtures/tolerances.json` — which must
+happen *in the same change*, since a tolerance whose fixture passes at 1e-9
+makes the parity test fail. The gating constraint is the bundle: 29.7 KiB of
+headroom against the 3072 KiB budget.
+
 **The size pass is done (2026-08-06), and it changed no engine behaviour.** The
 wasm is **3031.0 KiB raw / 1589.9 KiB gzipped, back under the 3072 KiB budget
 with 41 KiB spare**, and the built web app is **20.25 MB → 14.7 MB of `dist`**.
@@ -204,7 +220,7 @@ now lives in `Latex.tsx`.
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
-| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), **D7 (`FRAUX1` auxiliary grids + the bundle-budget breach)** |
+| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach), **D8 (`coolprop.wasm` becomes the accuracy path — read before writing any new property backend)** |
 | [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus, golden fixtures, tolerance policy (incl. `fixtures/tolerances.json`), oracle-established ground truths |
 
 ## Build and test

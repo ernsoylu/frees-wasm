@@ -17,7 +17,7 @@ could grow 32 % with the parity gate green on the first full replay.
 | Gate | Result |
 |---|---|
 | `cargo test --release --workspace` | **3162 passed, 0 failed, 6 ignored** across 26 suites, exit 0. The delta reconciles exactly: 3155 (Phase 11) + 7 fuzz properties = 3162; nothing else moved |
-| `cargo test -p frees-core --test parity` | `golden_corpus_parity` **ok** — all **701** fixtures match the Java oracle, 165 s (531 took 41 s; the growth is real documents, not padding) |
+| `cargo test -p frees-core --test parity` | `golden_corpus_parity` **ok** — all **701** fixtures match the Java oracle, 165 s (531 took 41 s; the growth is real documents, not padding). *Post-phase: 702 since 2026-08-06 — `heisler-transient` promoted by the `StringVariables` port.* |
 | `cargo test -p frees-core --test fuzz_properties` | **7 properties pass** at CI case counts; a `PROPTEST_CASES=4096` soak (≈15 500 generated inputs) also passes |
 | `cargo clippy` (native + wasm32, `--all-targets`) | exit 0 on both — including the new bench/fuzz targets, which are cfg-gated off wasm32 (proptest's `getrandom` refuses that target; found by running the gate, not by reading docs) |
 | `cargo fmt --all --check` | exit 0 |

@@ -429,7 +429,7 @@ document that starts passing because someone fixed the engine is the point.
 > | control-systems `CALL`s not ported | 11 | `control-analysis-report`, `controller-design-lqr-pid`, `cruise-control`, `digital-control-c2d`, `estimator-gramian-balreal`, `inverse-laplace-residue`, `multi-output-destructuring`, `nichols-chart`, `root-locus-analysis`, `routh-stability`, `step-impulse-response` |
 > | property-backend limits (D1) | 6 | `adv_moistair_W_passthrough`, `adv_moistair_dryair_three_way`, `ev-battery-cooling-pid`, `ev-thermal-management`, `hx-correlations-fluid`, `thermo-compliance` |
 > | `SYMBOLIC` / `MODULE` inside `FOR` | 2 | `partial-fractions`, `module_inside_for_loop` |
-> | string variables in a numeric position | 1 | `heisler-transient` |
+> | string variables in a numeric position *(closed 2026-08-06)* | 1 | `heisler-transient` |
 > | `method = ida` — the DAE path is assembled but not routed | 1 | `pressure-cooker` |
 > | table-vs-CoolProp accuracy (worst 2.9e-6; needs a `tolerances.json` entry, deliberately not added) | 1 | `state-tables-multifluid` |
 > | **cost, not correctness** — the live accessor converges to the oracle's `dk` to 4e-9 with a coarse `maxstep`, but does not finish in 7 min at the fixture's own `span/100` step cap. See `docs/status-phase7.md`. | 1 | `dyn_accessor_live` |
@@ -446,7 +446,7 @@ document that starts passing because someone fixed the engine is the point.
 > | Document | Verdict | Evidence |
 > |---|---|---|
 > | `state-tables-multifluid` | **promoted** | Solves; the only gap is table-vs-CoolProp, worst 2.8963e-6 on `hw_1 = Enthalpy(Water, P=10 kPa, T=45 C)`. Phase 7 measured this and declined to add the `tolerances.json` entry; it is added now, because this is precisely the mechanism the file exists for and 17 fixtures already carry the same one. |
-> | `heisler-transient` | **real divergence** | Not `heisler_temp` — `props/heisler.rs` is ported. The missing piece is the Java's `parser/StringVariables.java`, run as the last line of `EquationParser.parseResult` (`EquationParser.java:336`): it *deletes* every `IDENT$ = 'literal'` equation from the numeric system and substitutes the literal at every use. The port's own pipeline docstring (`crates/frees-core/src/engine.rs:1372`) lists that line in the ported order, but no such module exists and nothing calls it, so `geom$ = 'wall'` reaches the blocker as an equation and dies with *"string literal 'wall' cannot be evaluated as a number"*. The golden proves the Java rule: `geom$` is in `display_names` but **not** in `variables`, and `block_count` is 14 for 14 numeric variables. ~130 LOC + one call site. |
+> | `heisler-transient` | **real divergence** *(closed 2026-08-06 — `parser/string_variables.rs`; promoted, corpus 701 → 702)* | Not `heisler_temp` — `props/heisler.rs` is ported. The missing piece is the Java's `parser/StringVariables.java`, run as the last line of `EquationParser.parseResult` (`EquationParser.java:336`): it *deletes* every `IDENT$ = 'literal'` equation from the numeric system and substitutes the literal at every use. The port's own pipeline docstring (`crates/frees-core/src/engine.rs:1372`) lists that line in the ported order, but no such module exists and nothing calls it, so `geom$ = 'wall'` reaches the blocker as an equation and dies with *"string literal 'wall' cannot be evaluated as a number"*. The golden proves the Java rule: `geom$` is in `display_names` but **not** in `variables`, and `block_count` is 14 for 14 numeric variables. ~130 LOC + one call site. |
 > | `ev-battery-cooling-pid` | **real divergence** | Java solves it (`t_bat = 303.000000000087`, a 400-row `ode23s` table over 0..4000 s). Rust fails in under a second: *"Block 2 (2 equations) failed: Block 44 (79 equations) failed: `Dmass(R134a, P=1, Hmass=1)` is outside the generated property table"*. **Not a table-coverage limit** — every state the document really uses is servable (`Enthalpy(R134a, P=1.2 MPa, x=0)` = 265947.1989697985 against the golden's `hliq` 265947.2005481485, rel 5.8e-9; `Density(R134a, P=1.2 MPa, h=hliq)`, `Enthalpy`/`Density(R134a, P=350 kPa, x=1)` and `T_sat` all evaluate). `(P=1, Hmass=1)` is the **default initial guess** of the transient's 79-equation inner block, so the port never gets a finite first residual. See the note below. |
 > | `adv_moistair_dryair_three_way`, `adv_moistair_W_passthrough` | blocked | `Enthalpy(AirH2O, T, P, W)` → `HAPropsSI`, which no shipped backend implements: `props::propfun::RealFluid::ha_props_si` has a *declining* default, and both overrides in the tree (`props/psychro.rs`'s `ToyHumidAir`, `props/propfun.rs`'s recorded-answer stub) live inside `mod tests`. Needs a humid-air model at CoolProp accuracy, not a stand-in. |
 > | `hx-correlations-fluid` | blocked | D1. First line refused: `w_mu = Viscosity(Water, P=101325, T=320)` — *"'viscosity' is not a tabulated output"*. The `(P,h)` split table stores T, Dmass, Smass only. |
@@ -523,7 +523,8 @@ block form the grammar admits now parses into `Document` —
 **2. Library calls not ported (12).** Control-systems `CALL`s (`lqr`, `lqe`,
 `c2d`, `routh`, `residue`, `tf2ss`, `pole`, `nichols`, `rlocus`, `step`,
 `ss2tf`) and string variables (`geom$`). The material database (`E_`, `k_`),
-`MolarMass`, `eos_z` and `AdiabaticFlameTemp` closed in Phase 5.
+`MolarMass`, `eos_z` and `AdiabaticFlameTemp` closed in Phase 5. String
+variables closed 2026-08-06 (`parser/string_variables.rs`).
 
 **3. Pipeline-ordering deviation (1).** `module_inside_for_loop`: Java unrolls
 `FOR` *during* flattening, so `CALL Twice(i : r[i])` inside a two-iteration loop
@@ -633,7 +634,7 @@ dropped for exactly this. In `CALL` argument lists `~` remains a
 | `estimator-gramian-balreal` | **real divergence** — `control::design::balreal` inherits `linalg::svd`'s column-sign convention, so the second balancing basis vector is negated relative to Commons Math. `Ab[1,2]`, `Ab[2,1]`, `Bb[2,1]`, `Cb[1,2]` differ by sign only; the realisation is equivalent (same Hankel singular values, same I/O map) but not element-wise identical. The other six variables match. | yes |
 | `ev-battery-cooling-pid` | **real divergence** — the transient's 79-equation inner block dies on a property call at its *default guess*, `Dmass(R134a, P=1, Hmass=1)`; every state the document really uses is servable | yes |
 | `ev-thermal-management` | a property table for `INCOMP::MEG[0.50]` (D1: this build tabulates Water and R134a) | yes |
-| `heisler-transient` | **real divergence** — the `parser/StringVariables.java` pass (`IDENT$ = 'literal'` leaves the numeric system and is substituted at every use); `heisler_temp` itself is ported | yes |
+| ~~`heisler-transient`~~ | **promoted 2026-08-06** — `parser/string_variables.rs` ports the `StringVariables.resolve` pass at the Java pipeline position (last step of equation assembly, solve and check paths); the definition leaves the numeric system and the literal is substituted at every use, `prop$` fluid encodings included. Corpus 701 → 702. | yes |
 | `hx-correlations-fluid` | `Viscosity` / `Conductivity` as tabulated outputs (D1: the `(P,h)` table stores T, Dmass, Smass) | yes |
 | `module_inside_for_loop` | MODULE flattening must run *after* `FOR` unrolling (cluster 3) | yes |
 | `pressure-cooker` | `method = ida` — the implicit-DAE path is assembled but not routed | yes |

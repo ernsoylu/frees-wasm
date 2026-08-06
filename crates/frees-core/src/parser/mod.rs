@@ -17,6 +17,7 @@ pub mod defs;
 pub mod expand;
 pub mod expr;
 pub mod latex;
+pub mod string_variables;
 pub mod toplevel;
 
 use std::collections::BTreeMap;

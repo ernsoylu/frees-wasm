@@ -504,6 +504,10 @@ pub fn solve_with(
     // `block_equations` all inherit that order.
     let mut equations = std::mem::take(&mut components.equations);
     equations.extend(crate::parser::expand::expand_document(&doc)?);
+    // The last step of `EquationParser.parseResult`: string variables
+    // (`R$ = 'R134a'`) are compile-time constants — substitute their values
+    // and drop the definition equations from the numeric system.
+    let equations = crate::parser::string_variables::resolve(equations, &doc.display_names)?;
     let defs = &doc.defs;
     // The document context every residual evaluation runs under. The two
     // optional channels (`ode`, `parametric`) start empty; the accessor pass
@@ -1204,6 +1208,9 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         doc.statements = flatten_calls_into(statements, &doc.defs, &mut parsed_names)?;
         let mut equations = components.equations;
         equations.extend(crate::parser::expand::expand_document(&doc)?);
+        // String variables leave the numeric system here too, so `check`
+        // reports the same equation/variable balance the solve path sees.
+        let equations = crate::parser::string_variables::resolve(equations, &parsed_names)?;
         // The Integral pass, as in `solve_with` — but `check` builds the
         // *structural view* instead of driving the quadrature: a constant-limit
         // integral contributes a `resultVar = 0` placeholder, a variable-limit

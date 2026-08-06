@@ -358,6 +358,27 @@ export default function App() {
     if (SHARED_BOOT !== null) clearShareHash()
   }, [])
 
+  // A share link opened while the app is *already* running changes only the
+  // fragment. That is a same-document navigation: the browser does not reload,
+  // so no script re-runs and the module-scope read above never sees the
+  // payload — the link silently did nothing. Handle it live instead.
+  //
+  // This always routes through the modal when the document differs, rather
+  // than reusing the boot rule (which compares against the autosave): what is
+  // at risk here is the document on screen, which may be newer than any
+  // autosave and may never have been saved at all.
+  useEffect(() => {
+    const onHashChange = () => {
+      const shared = extractSharedText(globalThis.location.hash)
+      if (shared === null) return
+      clearShareHash()
+      if (shared === textRef.current) return // already the open document
+      setShareOffer(shared)
+    }
+    globalThis.addEventListener('hashchange', onHashChange)
+    return () => globalThis.removeEventListener('hashchange', onHashChange)
+  }, [])
+
   useEffect(() => {
     if (sharedBoot !== null) {
       notifications.show({

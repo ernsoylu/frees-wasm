@@ -96,6 +96,39 @@ export function SaveCheckModal({
   )
 }
 
+/** "Open the shared document?" — asked only when a `#share=` link would
+ *  replace a *different* autosaved workspace. This used to be a bare
+ *  `globalThis.confirm()`, which rendered as a browser-chrome dialog rather
+ *  than the app's own UI, and blocked the boot render while it was open. */
+export function SharedLinkModal({
+  opened,
+  onOpenShared,
+  onCancel,
+}: Readonly<{
+  opened: boolean
+  onOpenShared: () => void
+  onCancel: () => void
+}>) {
+  return (
+    <Modal opened={opened} onClose={onCancel} title="Open shared document" centered>
+      <Stack gap="md">
+        <Text size="sm">
+          This link carries a complete document. Opening it replaces your current autosaved
+          workspace — the same as loading an example. Nothing was sent to a server.
+        </Text>
+        <Group justify="flex-end" gap="xs">
+          <Button variant="default" size="xs" onClick={onCancel}>
+            Keep my workspace
+          </Button>
+          <Button size="xs" color="teal" onClick={onOpenShared} data-autofocus>
+            Open shared document
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
 export function MessageModal({
   opened,
   title,

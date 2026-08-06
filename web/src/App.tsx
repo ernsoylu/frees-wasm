@@ -151,7 +151,7 @@ import { DEFAULT_EXAMPLE_TEXT } from './defaultExample'
 import type { Example } from './examples'
 import type { EquationEditorHandle } from './EquationEditor'
 const EquationEditor = lazy(() => import('./EquationEditor'))
-import { MessageModal, SaveCheckModal, TextPromptModal } from './dialogs'
+import { MessageModal, SaveCheckModal, SharedLinkModal, TextPromptModal } from './dialogs'
 import { Rail, TopBar } from './WorkspaceChrome'
 import type { WorkspaceDockHandle, OpenWindow } from './workspace/WorkspaceDock'
 const WorkspaceDock = lazy(() => import('./workspace/WorkspaceDock').then(m => ({ default: m.WorkspaceDock })))
@@ -251,6 +251,36 @@ function replOverrideEquation(v: VariableResult): string {
   return `${v.name} = ${v.value}${unit}`
 }
 
+/**
+ * The `#share=` payload for this page load, read **once, before React renders**.
+ *
+ * This used to live inside the component behind a `useRef` guard, and that was
+ * a real bug rather than a style problem. Reading the hash and calling
+ * `clearShareHash()` are both side effects, and React is free to throw a render
+ * away and retry it — which the boot path invites, because it is full of lazy
+ * children that suspend. A discarded render loses the ref but *not* the cleared
+ * hash, so the retry found no payload, fell through to `loadProjectLocal()`,
+ * and booted the welcome document. That is exactly the reported symptom: one
+ * confirmation prompt, then the default example. Module scope runs once per
+ * page load and cannot be replayed.
+ *
+ * `conflicts` is true only when opening the link would discard a *different*
+ * autosaved workspace — the one case worth interrupting the user for.
+ *
+ * Only the *read* happens here. `clearShareHash()` deliberately does not:
+ * a `history.replaceState` issued during module evaluation runs before the
+ * navigation has committed, and the browser then re-applies the fragment, so
+ * the hash survived and a refresh re-imported the link — the exact behaviour
+ * `clearShareHash` exists to prevent. It runs from a mount effect instead,
+ * which is after commit and, unlike a render body, never replayed.
+ */
+const SHARED_BOOT: { text: string; conflicts: boolean } | null = (() => {
+  const shared = extractSharedText(globalThis.location.hash)
+  if (shared === null) return null
+  const saved = loadProjectLocal()
+  return { text: shared, conflicts: saved?.text != null && saved.text !== shared }
+})()
+
 export default function App() {
   const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -265,20 +295,15 @@ export default function App() {
   // example — so when an autosaved project exists the user must confirm.
   // The hash is stripped immediately either way: a reload must return to the
   // user's own work, not re-import the link.
-  const sharedBootRef = useRef<string | null | undefined>(undefined)
-  if (sharedBootRef.current === undefined) {
-    const shared = extractSharedText(globalThis.location.hash)
-    if (shared === null) {
-      sharedBootRef.current = null
-    } else {
-      clearShareHash()
-      const saved = loadProjectLocal()
-      const accept = saved?.text == null || saved.text === shared
-        || globalThis.confirm('Open the shared document from this link? It replaces your current autosaved workspace.')
-      sharedBootRef.current = accept ? shared : null
-    }
-  }
-  const sharedBoot = sharedBootRef.current
+  // Nothing to lose (no autosave, or the same document) → the link opens
+  // straight into the editor, as before. Otherwise it waits for
+  // `SharedLinkModal` below, which replaces the old blocking
+  // `globalThis.confirm()` — a browser-chrome dialog that also stalled the
+  // boot render while it was open.
+  const sharedBoot = SHARED_BOOT !== null && !SHARED_BOOT.conflicts ? SHARED_BOOT.text : null
+  const [shareOffer, setShareOffer] = useState<string | null>(
+    SHARED_BOOT !== null && SHARED_BOOT.conflicts ? SHARED_BOOT.text : null,
+  )
 
   const bootRef = useRef<FreesProject | null | undefined>(undefined)
   if (bootRef.current === undefined) bootRef.current = sharedBoot !== null ? null : loadProjectLocal()
@@ -325,6 +350,14 @@ export default function App() {
       () => { globalThis.prompt('Copy the share link:', url) },
     )
   }, [])
+  // Strip the share fragment once the navigation has committed, so a refresh
+  // returns to the user's own autosaved work instead of re-importing the link.
+  // Runs whether or not the document was accepted — declining still means the
+  // link has been dealt with.
+  useEffect(() => {
+    if (SHARED_BOOT !== null) clearShareHash()
+  }, [])
+
   useEffect(() => {
     if (sharedBoot !== null) {
       notifications.show({
@@ -2889,6 +2922,31 @@ export default function App() {
         onClose={() => setLibraryOpen(false)}
         onSaveCurrent={handleSaveToBrowser}
         onOpenProject={handleOpenFromBrowser}
+      />
+
+      <SharedLinkModal
+        opened={shareOffer !== null}
+        onCancel={() => setShareOffer(null)}
+        onOpenShared={() => {
+          const text = shareOffer
+          setShareOffer(null)
+          if (text === null) return
+          // Same path an example takes — the share semantics the boot comment
+          // promises ("replaces the workspace ... the same as loading an
+          // example") are then true by construction rather than by duplication.
+          actuallyLoadExample({
+            id: 'shared-link',
+            title: 'Shared document',
+            description: 'Opened from a share link',
+            category: 'Shared',
+            text,
+          })
+          notifications.show({
+            color: 'teal',
+            title: 'Opened shared document',
+            message: 'Loaded from the link — nothing was stored on a server.',
+          })
+        }}
       />
 
       <MessageModal

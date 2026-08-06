@@ -127,6 +127,13 @@
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
 use crate::diag::{FreesError, Result};
+// Shared with `auxtable`, which decodes the other artifact the same generators
+// write. Aliased to the names this module already used so the call sites — and
+// the reasoning around them — stay put.
+use crate::props::leread::{
+    f64_at as read_f64, f64_block as read_f64_block, u16_at as read_u16, u32_at as read_u32,
+    widened_block,
+};
 use crate::props::phtable::{AxisKind, PhPropertyTable, Value, ValueKind};
 
 /// Saturation-line samples, log-spaced in pressure. The Java's `SAT_POINTS`.
@@ -1330,24 +1337,7 @@ impl Elem {
     /// **not** zero-copy castable: a fetched `Vec<u8>` is 1-byte aligned and
     /// casting it would need `unsafe`, which this port does not use.
     fn block(self, bytes: &[u8], at: &mut usize, n: usize) -> Vec<f64> {
-        let mut out = Vec::with_capacity(n);
-        match self {
-            Elem::F32 => {
-                for _ in 0..n {
-                    let mut buf = [0u8; 4];
-                    buf.copy_from_slice(&bytes[*at..*at + 4]);
-                    out.push(f32::from_le_bytes(buf) as f64);
-                    *at += 4;
-                }
-            }
-            Elem::F64 => {
-                for _ in 0..n {
-                    out.push(read_f64(bytes, *at));
-                    *at += 8;
-                }
-            }
-        }
-        out
+        widened_block(bytes, at, n, self == Elem::F32)
     }
 
     /// One `FRPHTAB1` piece: `p_grid`, `y_grid`, then the T / Dmass / Smass
@@ -1597,33 +1587,6 @@ pub fn squarespace(max: f64, n: usize) -> Result<Vec<f64>> {
         out[i] = max * t * t;
     }
     Ok(out)
-}
-
-fn read_u16(bytes: &[u8], at: usize) -> u16 {
-    let mut buf = [0u8; 2];
-    buf.copy_from_slice(&bytes[at..at + 2]);
-    u16::from_le_bytes(buf)
-}
-
-fn read_u32(bytes: &[u8], at: usize) -> u32 {
-    let mut buf = [0u8; 4];
-    buf.copy_from_slice(&bytes[at..at + 4]);
-    u32::from_le_bytes(buf)
-}
-
-fn read_f64(bytes: &[u8], at: usize) -> f64 {
-    let mut buf = [0u8; 8];
-    buf.copy_from_slice(&bytes[at..at + 8]);
-    f64::from_le_bytes(buf)
-}
-
-fn read_f64_block(bytes: &[u8], at: &mut usize, n: usize) -> Vec<f64> {
-    let mut out = Vec::with_capacity(n);
-    for _ in 0..n {
-        out.push(read_f64(bytes, *at));
-        *at += 8;
-    }
-    out
 }
 
 #[cfg(test)]

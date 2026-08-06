@@ -125,6 +125,16 @@
       "relative": 1e-5,
       "measured": 2.8963e-6,
       "reason": "Two STATE TABLE circuits whose every computed value is one Enthalpy() call on the (P,h) split table. hw_1 = Enthalpy(Water, P=10 kPa, T=45 C) sets the document's error: it is a (P,T) inverse bisection at a compressed-liquid state ~0.8 K below saturation, where h climbs steeply with T along a nearly flat pressure line, so the bisection's residual width shows up as 2.90e-6 in h. The other three are the same mechanism an order of magnitude smaller -- href_2 = Enthalpy(R134a, P=1.2 MPa, T=60 C) at 4.09e-7, hw_2 = Enthalpy(Water, P=8 MPa, T=480 C) at 1.11e-7 -- plus href_1 = Enthalpy(R134a, P=200 kPa, x=1), a (P,x) saturation-line read at 1.98e-8. None of the four is intercepted by the Java's own PhTableRegistry (that path is output T/Dmass/Smass at input (P,Hmass) only), so all four goldens are bit-exact CoolProp and the whole gap is this port's table."
+    },
+    "ev-thermal-management": {
+      "relative": 2e-3,
+      "measured": 8.951e-4,
+      "reason": "The FRAUX1 grids (tools/aux-gen), not the (P,h) tables, set this one. The worst three variables are h_chl_c and the two UAs built from it -- h_chl_c = htc_1phase('EG50', 200 kPa, 290 K, ...), whose only inexact inputs are the glycol's viscosity, conductivity and cp off the INCOMP::MEG grid. Viscosity is that grid's weakest output (1.3e-3 max_rel, 2.2e-4 rms) because ln(mu) turns over hard toward the freeze point. It is then AMPLIFIED, and that is the whole story of this fixture's number: Re at that state is 2987, dead centre of nuSinglePhase's 2300..4000 laminar<->turbulent blend, where Nu sweeps 3.66 -> ~30. A ~5e-4 viscosity error lands on the steepest part of the correlation and comes out near 9e-4 in h. The operating point, not the table, chooses that gain -- the same table gives 1.3e-4 on sysdesign-ex11-liquid-cooling-loop, which sits off the blend. Everything downstream of a property call is at or below 7.3e-4 and the median over all 229 variables is 1.0e-6. The refrigerant side (R1234yf .phtab + its saturation-transport grid) contributes nothing measurable at this level."
+    },
+    "sysdesign-ex11-liquid-cooling-loop": {
+      "relative": 5e-4,
+      "measured": 1.310e-4,
+      "reason": "The same INCOMP::MEG grid as ev-thermal-management, without the blend-band amplification. Every value is carried from one Enthalpy(EG50, P, T) at the source and one Temperature(EG50, P, h) inverse per wall-HX, so the grid's Hmass error (scaled 7.0e-5) propagates roughly unchanged -- the worst variable is rad.out.h, the last enthalpy in the chain, at 1.31e-4."
     }
   }
 }

@@ -18,7 +18,22 @@
 
 set -euo pipefail
 
-FREES_HOME="${FREES_HOME:-/home/eren/dev/frEES}"
+# The reference repo is a SIBLING of this one (CLAUDE.md: "`../frees` is a
+# read-only reference"), so resolve it that way rather than from an absolute
+# path that is only right on one machine. The old hard-coded default outlived
+# the directory it named and made every oracle tool report "reference repo not
+# found" on a checkout where the reference was sitting right next door.
+here_cp="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$here_cp/../.." && pwd)"
+if [[ -z "${FREES_HOME:-}" ]]; then
+  for candidate in "$repo_root/../frees" "$repo_root/../frEES"; do
+    if [[ -d "$candidate" ]]; then
+      FREES_HOME="$(cd "$candidate" && pwd)"
+      break
+    fi
+  done
+fi
+FREES_HOME="${FREES_HOME:-$repo_root/../frees}"
 GRADLE_CACHE="${GRADLE_CACHE:-$HOME/.gradle/caches/modules-2/files-2.1}"
 
 if [[ ! -d "$FREES_HOME" ]]; then

@@ -22,7 +22,7 @@ javac -nowarn -cp "$cp" -d "$build" "$here/GoldenDumper.java"
 # resulting goldens record that failure instead of a value — which silently
 # turns fluid documents into useless fixtures.
 if [[ -z "${COOLPROP_LIBRARY:-}" ]]; then
-  candidate="${FREES_HOME:-/home/eren/dev/frEES}/backend/core/native/libCoolProp.so"
+  candidate="$("$here/../frees-home.sh")/backend/core/native/libCoolProp.so"
   if [[ -f "$candidate" ]]; then
     export COOLPROP_LIBRARY="$candidate"
     echo "CoolProp: $candidate" >&2

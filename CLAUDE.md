@@ -130,8 +130,25 @@ planning further work.
 > fails all 38 files in `jsdom`→`undici` (`webidl.util.markAsUncloneable is not
 > a function`) before running a test. `web/.nvmrc` asks for 22; use it.
 
+**The property coverage gap is narrowed (decision
+[D7](docs/decisions/0007-auxiliary-property-grids.md), 2026-08-06).** The
+long-running "real-fluid coverage the tables do not have" divergence (ledger
+item 9) cost the catalog its flagship Systems example: `ev-thermal-management`
+failed at `Block 3 (89 equations): no property table for fluid
+'INCOMP::MEG[0.50]'`, and behind that lay **three more** missing capabilities —
+`R1234yf`, air transport for `htc_extair`, and saturation-line transport for
+`htc_evap`/`htc_cond`/`dp_2phase`, which was absent for *every* fluid including
+the two already tabulated. All four are closed by one new artifact kind
+(`FRAUX1`) plus an ordinary `table-gen` run. **The example solves** — 169 blocks,
+231 Newton iterations, COP 3.75, with its open-circuit energy balance closing to
+9e-13 W — and grades against the JDK oracle at `8.951e-4` worst variable,
+`1.0e-6` median over 229 variables. Corpus 702 → **704**. The cost is the
+**bundle budget, now breached by 273.1 KiB**; D7's consequences section lays out
+the measured options, none of which fit without moving the budget.
+
 | Document | Contents |
 |---|---|
+| [`docs/decisions/0007-auxiliary-property-grids.md`](docs/decisions/0007-auxiliary-property-grids.md) | **D7 — read before touching the property backend or the bundle.** The `FRAUX1` grids: what the three surfaces are, why saturated transport is 1-D (and therefore cheap), why the incompressible grid is *exact* in pressure, why its concentration axis lands on exact nodes, the measured error per grid, the one operating-point amplification that sets `ev-thermal-management`'s tolerance, and the budget breach with its four measured options |
 | [`docs/status-phase12.md`](docs/status-phase12.md) | **Read first.** Phase 12 — parity at scale, performance, hardening: the corpus at **701** with the 21-fixture triage, the macOS-oracle traps (CoolProp dylib, frozen SUNDIALS), the proptest fuzzing contract, the measured Rust-vs-JVM table with its honest ~1× transient anchor, the named twiggy bundle breakdown, the worker-respawn tests — and a ranked list of what Phase 12 did **not** deliver, starting with the harvester's representable-document boundary |
 | [`docs/status-phase11.md`](docs/status-phase11.md) | Phase 11 — the browser-native product layer: the installable-PWA + full-precache offline story with its browser proof (offline reload, offline solve, offline project library, zero network), the IndexedDB project library and dual-written autosave (decision D4), the static-only deploy, what was **already there** (share links, `.frees` save/open — stated plainly rather than claimed), and a ranked list of what Phase 11 did **not** deliver, starting with the still-unwired remote-fallback adapter |
 | [`docs/status-phase10.md`](docs/status-phase10.md) | Phase 10 — measured data in the tab: what shipped per area, the **fifteen** defects three adversarial sweeps found — listed individually so the count is checkable (seven end the session — five allocation aborts and two unbounded walks — two are silent wrong answers, one wedges the worker on an ordinary formula, and five are numeric-parity divergences against a live JDK oracle) — the browser proof against genuine asammdf bytes with **zero `/api/` requests**, the raw gate numbers, the measured `mf4-rs` bundle delta and the `nom 1.2.4` debt with its exit — and a ranked list of what Phase 10 did **not** deliver, starting with the `mdf-sidecar`'s three compressed formats, which now have no answer at all |
@@ -145,7 +162,7 @@ planning further work.
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
-| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP) |
+| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), **D7 (`FRAUX1` auxiliary grids + the bundle-budget breach)** |
 | [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus, golden fixtures, tolerance policy (incl. `fixtures/tolerances.json`), oracle-established ground truths |
 
 ## Build and test
@@ -153,7 +170,7 @@ planning further work.
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 701 documents)
+                                       # (--release: the replay solves 704 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo test -p frees-core --test fuzz_properties        # property-based fuzzing
                                        # (PROPTEST_CASES=4096 for a longer soak)
@@ -172,7 +189,18 @@ cargo fmt --all --check                                 # CI gate
 wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
 tools/golden-dumper/run.sh             # regenerate golden fixtures from the Java oracle
 tools/table-gen/run.sh                 # regenerate fixtures/proptables from native CoolProp
+tools/aux-gen/run.sh                   # regenerate fixtures/auxtables (FRAUX1 grids, D7)
+tools/aux-gen/run.sh --sweep           # its error-vs-resolution ladder; writes nothing
 ```
+
+> **The oracle tools find `../frees` themselves.** `tools/frees-home.sh`
+> resolves the reference repo as a sibling of this one (both the `frees` and
+> `frEES` spellings), so `classpath.sh` and every `run.sh` work without
+> `FREES_HOME`. They used to hard-code `/home/eren/dev/frEES`, which outlived
+> the directory it named and made all three tools report "reference repo not
+> found" on a checkout where the reference was sitting right next door.
+> Building the oracle jar once is still required:
+> `(cd ../frees/backend && ./gradlew :core:jar)`.
 
 > **The oracle has CoolProp.** `tools/golden-dumper/run.sh` exports
 > `COOLPROP_LIBRARY` itself (the 12.4 MB `libCoolProp.so` vendored in
@@ -193,15 +221,36 @@ tools/table-gen/run.sh                 # regenerate fixtures/proptables from nat
 - `crates/frees-cli` — headless solve/check for the parity harness
 - `tools/golden-dumper` — Java program run against the frEES core jar to emit `fixtures/golden/`
 - `tools/table-gen` — Java program run against native CoolProp to emit `fixtures/proptables/*.phtab`
+- `tools/aux-gen` — sibling of the above, emitting `fixtures/auxtables/*.fraux` (D7): the incompressible glycols, air transport, and saturation-line transport
+- `tools/shared/GenSupport.java` — the byte sink, SHA-256, JSON writer and CoolProp-version binding both generators need; compiled into each tool's own `build/` by its `run.sh` (there is no jar). A divergence here would mean two artifacts disagreeing about their own checksums, so it lives in one file
+- `tools/frees-home.sh` — resolves the reference repo as a sibling; the one place that path is decided
 - `fixtures/` — parity corpus + golden results; grow it per `fixtures/README.md`
 
 The property backend is **linked into the binary**: `crates/frees-core/src/props/data/*.phtab`
-are copies of `fixtures/proptables/*.phtab`, `include_bytes!`d by
-`props/tables.rs` and installed on the first `solve`/`check`. Regenerating the
-tables means copying them across as well as into `fixtures/`. They are 526 KB of
-the wasm bundle's 2184.5 KiB — see
-[`docs/status-phase6.md`](docs/status-phase6.md#bundle-size-against-the-newly-raised-budget)
-before adding a third fluid.
+are copies of `fixtures/proptables/*.phtab`, and `data/*.fraux` of
+`fixtures/auxtables/*.fraux`, all `include_bytes!`d by `props/tables.rs` and
+installed on the first `solve`/`check`. Regenerating them means copying them
+across as well as into `fixtures/`.
+
+There are **two** artifact kinds, and the difference is load-bearing:
+
+* `FRPHTAB1` (`.phtab`, `tools/table-gen`) — a phase-split `(P,h)` table for a
+  fluid **with a saturation dome**, storing `T`, `Dmass`, `Smass`. Water, R134a,
+  R1234yf.
+* `FRAUX1` (`.fraux`, `tools/aux-gen`, decision
+  [D7](docs/decisions/0007-auxiliary-property-grids.md)) — a rectangular grid of
+  named outputs over two axes, for the three surfaces that geometry cannot
+  carry: the **incompressible glycols** (`INCOMP::MEG`/`MPG`, which have no dome
+  at all), **air transport** at `(P,T)`, and **transport on the saturation
+  line** (`viscosity`/`conductivity`/`Cpmass` at `Q=0`/`Q=1` only — which is the
+  only place `htc_evap`/`htc_cond`/`dp_2phase` ever ask, and the reason that
+  costs ~14 KB per fluid instead of ~256 KB).
+
+Together they are 771 KB of the wasm bundle's **3345.1 KiB — which is 273.1 KiB
+OVER the 3072 KiB budget.** That breach is D7's, it is deliberate, and it is
+documented with its options in that decision rather than hidden; read it before
+adding a fourth fluid. Note that compression is not an escape: these are f32
+grids of smooth functions and gzip only reaches 0.87–0.94 on them.
 
 The **component library is also linked in**, the same way and for the same
 reason: `crates/frees-core/src/components/library-data/*.frees` is 122 KB of DSL

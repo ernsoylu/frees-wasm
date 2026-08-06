@@ -899,6 +899,7 @@ fn to_input(indicator: &str, value: f64, output: &str) -> Result<Input> {
 // The tabulated backend (decision D1)
 // ---------------------------------------------------------------------------
 
+use crate::props::auxtable::{AuxKind, AuxTable};
 use crate::props::satsplit::{Output as SplitOutput, SaturationSplitTable};
 
 /// A [`RealFluid`] served by per-fluid `(P, h)` split tables.
@@ -915,24 +916,65 @@ use crate::props::satsplit::{Output as SplitOutput, SaturationSplitTable};
 /// declined **by name**, never approximated.
 pub struct TableBackend {
     tables: Vec<SaturationSplitTable>,
+    aux: Vec<AuxTable>,
 }
 
 impl TableBackend {
     /// A backend over already-decoded split tables, keyed by each table's own
     /// `fluid()` name (the canonical CoolProp spelling).
     pub fn new(tables: Vec<SaturationSplitTable>) -> TableBackend {
-        TableBackend { tables }
+        TableBackend {
+            tables,
+            aux: Vec::new(),
+        }
     }
 
-    /// The canonical fluid names this backend can serve.
+    /// A backend over split tables **and** the `FRAUX1` grids that cover what
+    /// the split geometry cannot: the incompressible glycols, single-phase air
+    /// transport, and transport on the saturation line.
+    pub fn with_aux(tables: Vec<SaturationSplitTable>, aux: Vec<AuxTable>) -> TableBackend {
+        TableBackend { tables, aux }
+    }
+
+    /// The canonical fluid names this backend can serve a full `(P,h)` flash
+    /// for — the split-table fluids, and not the aux grids, which serve
+    /// individual properties rather than states.
     pub fn fluids(&self) -> Vec<&str> {
         self.tables.iter().map(|t| t.fluid()).collect()
+    }
+
+    /// Every fluid this backend can answer *something* for, split tables and
+    /// aux grids together. This is what a fluid picker should offer.
+    pub fn all_served(&self) -> Vec<String> {
+        let mut out: Vec<String> = self.fluids().iter().map(|s| (*s).to_string()).collect();
+        for a in &self.aux {
+            let name = a.name().to_string();
+            if !out.iter().any(|s| s.eq_ignore_ascii_case(&name)) {
+                out.push(name);
+            }
+        }
+        out
     }
 
     fn table(&self, fluid: &str) -> Option<&SaturationSplitTable> {
         self.tables
             .iter()
             .find(|t| t.fluid().eq_ignore_ascii_case(fluid))
+    }
+
+    /// The incompressible grid and mass fraction behind an `INCOMP::MEG[0.50]`.
+    fn incomp(&self, fluid: &str) -> Option<(&AuxTable, f64)> {
+        let (family, x) = incomp_parts(fluid)?;
+        let t = self.aux.iter().find(|a| {
+            a.kind() == AuxKind::Incompressible && a.name().eq_ignore_ascii_case(family)
+        })?;
+        Some((t, x))
+    }
+
+    fn aux_of(&self, fluid: &str, kind: AuxKind) -> Option<&AuxTable> {
+        self.aux
+            .iter()
+            .find(|a| a.kind() == kind && a.name().eq_ignore_ascii_case(fluid))
     }
 
     /// `h` such that `output(P, h) = target`, by bisection between the table's
@@ -1024,6 +1066,292 @@ impl TableBackend {
     }
 }
 
+/// Splits `INCOMP::MEG[0.50]` into its family and mass fraction.
+///
+/// This is the exact spelling [`resolve_fluid`] produces and the only one that
+/// reaches a backend, so the parse is deliberately strict — anything else is
+/// not an incompressible and must fall through to the ordinary lookup.
+fn incomp_parts(fluid: &str) -> Option<(&str, f64)> {
+    let rest = fluid.strip_suffix(']')?;
+    let (family, frac) = rest.rsplit_once('[')?;
+    if !family.starts_with("INCOMP::") {
+        return None;
+    }
+    let x: f64 = frac.parse().ok()?;
+    (x.is_finite() && (0.0..=1.0).contains(&x)).then_some((family, x))
+}
+
+impl TableBackend {
+    /// Serves one property of an incompressible mixture.
+    ///
+    /// # Why this is exact in pressure
+    ///
+    /// CoolProp's incompressible model makes `Dmass`, `Cpmass`, `viscosity` and
+    /// `conductivity` **exactly** pressure-independent, and `Hmass`/`Smass`
+    /// **exactly linear** in pressure — verified at generation time at every
+    /// node, with the run failing rather than writing a table that quietly is
+    /// not the library. So a `(x, tau)` grid plus the stored pressure slopes
+    /// reproduces CoolProp with no error beyond the grid interpolation.
+    #[allow(clippy::too_many_arguments)]
+    fn incomp_props(
+        &self,
+        table: &AuxTable,
+        x: f64,
+        output: &str,
+        p: f64,
+        other_key: &str,
+        other: f64,
+        fluid: &str,
+    ) -> Result<f64> {
+        let Some((t_lo, t_hi)) = table.band_at(x) else {
+            return Err(FreesError::property(format!(
+                "{output}({fluid}, …) is outside the generated table for {}: \
+                 a mass fraction of {x} is not tabulated ({:.0} % to {:.0} % is).",
+                table.name(),
+                table.axis1_span().0 * 100.0,
+                table.axis1_span().1 * 100.0
+            )));
+        };
+        let span = t_hi - t_lo;
+
+        // Resolve the state to a normalized temperature first, then read the
+        // output off it — the same shape the split-table path uses with `h`.
+        let tau = match other_key {
+            "T" => (other - t_lo) / span,
+            "Hmass" | "Smass" => {
+                let k = if other_key == "Hmass" {
+                    "Hmass"
+                } else {
+                    "Smass"
+                };
+                let Some(tau) = self.incomp_invert(table, x, p, k, other) else {
+                    return Err(FreesError::property(format!(
+                        "{output}({fluid}, P={p}, {other_key}={other}) is outside the generated \
+                         table for {}: no temperature in {t_lo:.2} K to {t_hi:.2} K has that \
+                         {other_key}.",
+                        table.name()
+                    )));
+                };
+                tau
+            }
+            _ => {
+                return Err(FreesError::property(format!(
+                    "{output}({fluid}, P={p}, {other_key}={other}) is not tabulated: an \
+                     incompressible mixture is a function of temperature, so the second input \
+                     must be T, Hmass or Smass."
+                )));
+            }
+        };
+        if !(0.0..=1.0).contains(&tau) {
+            return Err(FreesError::property(format!(
+                "{output}({fluid}, P={p}, {other_key}={other}) is outside the generated table \
+                 for {}: its tabulated band is {t_lo:.2} K to {t_hi:.2} K.",
+                table.name()
+            )));
+        }
+
+        match output {
+            "T" => Ok(t_lo + tau * span),
+            "P" => Ok(p),
+            "Dmass" | "Cpmass" | "viscosity" | "conductivity" => {
+                self.incomp_read(table, x, tau, output, fluid, p)
+            }
+            "Hmass" | "Smass" => self.incomp_with_pressure(table, x, tau, output, fluid, p),
+            "Umass" => {
+                let h = self.incomp_with_pressure(table, x, tau, "Hmass", fluid, p)?;
+                let d = self.incomp_read(table, x, tau, "Dmass", fluid, p)?;
+                Ok(h - p / d)
+            }
+            _ => Err(FreesError::property(format!(
+                "'{output}' is not a tabulated output for '{fluid}'. The incompressible grid \
+                 stores Dmass, Cpmass, viscosity, conductivity, Hmass and Smass and derives T, \
+                 P and Umass; a mixture with no vapour phase has no Q, and quantities like \
+                 speed_of_sound or Z are not defined for CoolProp's incompressible model."
+            ))),
+        }
+    }
+
+    /// A pressure-independent output straight off the grid.
+    fn incomp_read(
+        &self,
+        table: &AuxTable,
+        x: f64,
+        tau: f64,
+        output: &str,
+        fluid: &str,
+        p: f64,
+    ) -> Result<f64> {
+        let k = table
+            .output(output)
+            .ok_or_else(|| uncovered(output, fluid, p, "tau", tau))?;
+        table
+            .value(k, x, tau)
+            .ok_or_else(|| uncovered(output, fluid, p, "tau", tau))
+    }
+
+    /// `Hmass`/`Smass`, reconstructed from the reference-pressure column and the
+    /// stored (constant) pressure slope.
+    fn incomp_with_pressure(
+        &self,
+        table: &AuxTable,
+        x: f64,
+        tau: f64,
+        output: &str,
+        fluid: &str,
+        p: f64,
+    ) -> Result<f64> {
+        let base = self.incomp_read(table, x, tau, output, fluid, p)?;
+        let slope_name = if output == "Hmass" {
+            "dHmass_dP"
+        } else {
+            "dSmass_dP"
+        };
+        let slope = self.incomp_read(table, x, tau, slope_name, fluid, p)?;
+        Ok(base + slope * (p - table.ref_pressure()))
+    }
+
+    /// The `tau` whose `Hmass`/`Smass` at this pressure is `target`.
+    ///
+    /// Both rise monotonically with temperature (`cp > 0`), so bisection is well
+    /// posed across the whole band. There is no two-phase plateau here — an
+    /// incompressible mixture has no dome — which is exactly why this is
+    /// simpler than the split table's inverse.
+    fn incomp_invert(
+        &self,
+        table: &AuxTable,
+        x: f64,
+        p: f64,
+        output: &str,
+        target: f64,
+    ) -> Option<f64> {
+        if !target.is_finite() {
+            return None;
+        }
+        let at = |tau: f64| -> Option<f64> {
+            let k = table.output(output)?;
+            let slope = table.output(if output == "Hmass" {
+                "dHmass_dP"
+            } else {
+                "dSmass_dP"
+            })?;
+            Some(table.value(k, x, tau)? + table.value(slope, x, tau)? * (p - table.ref_pressure()))
+        };
+        let (lo_v, hi_v) = (at(0.0)?, at(1.0)?);
+        if !(lo_v..=hi_v).contains(&target) {
+            return None;
+        }
+        let (mut lo, mut hi) = (0.0f64, 1.0f64);
+        for _ in 0..80 {
+            let mid = 0.5 * (lo + hi);
+            match at(mid) {
+                Some(v) if v <= target => lo = mid,
+                Some(_) => hi = mid,
+                None => return None,
+            }
+            if hi - lo <= 1e-13 {
+                break;
+            }
+        }
+        Some(0.5 * (lo + hi))
+    }
+
+    /// Transport (`viscosity`, `conductivity`, `Cpmass`) that the `(P,h)` split
+    /// table does not store, from whichever aux grid covers this fluid.
+    ///
+    /// Two shapes, and between them they are every transport lookup the
+    /// correlation toolkit makes:
+    ///
+    /// * `(P, Q)` with `Q` exactly 0 or 1 — `htc_evap`, `htc_cond`,
+    ///   `htc_liquid_only` and `dp_2phase` ask *only* on the dome, never off it.
+    /// * `(P, T)` single-phase — `htc_1phase` and `htc_extair`.
+    fn aux_transport(
+        &self,
+        output: &str,
+        name1: &str,
+        value1: f64,
+        name2: &str,
+        value2: f64,
+        fluid: &str,
+    ) -> Option<Result<f64>> {
+        if !matches!(output, "viscosity" | "conductivity" | "Cpmass") {
+            return None;
+        }
+        if let Some((p, q)) = pair(name1, value1, name2, value2, "P", "Q") {
+            let table = self.aux_of(fluid, AuxKind::SaturationLine)?;
+            // Only the two dome edges are tabulated. A wet state's transport is
+            // not one number — it depends on the flow regime, which is what the
+            // correlations exist to model — so this is refused on its own terms
+            // rather than falling through to "not a tabulated output", which
+            // would name the wrong cause.
+            if q != 0.0 && q != 1.0 {
+                return Some(Err(FreesError::property(format!(
+                    "{output}({fluid}, P={p}, Q={q}) is not tabulated: transport is carried on \
+                     the saturation line at Q=0 and Q=1 only. Inside the dome it is not a single \
+                     property — it depends on the flow regime, which is what htc_evap / htc_cond \
+                     / dp_2phase compute from the two edge values."
+                ))));
+            }
+            let k = table.output(output)?;
+            if !p.is_finite() || p <= 0.0 {
+                return Some(Err(uncovered(output, fluid, p, "Q", q)));
+            }
+            return Some(
+                table
+                    .value(k, libm::log(p), q)
+                    .ok_or_else(|| uncovered(output, fluid, p, "Q", q)),
+            );
+        }
+        if let Some((p, t)) = pair(name1, value1, name2, value2, "P", "T") {
+            let table = self.aux_of(fluid, AuxKind::PressureTemperature)?;
+            let k = table.output(output)?;
+            if !p.is_finite() || p <= 0.0 {
+                return Some(Err(uncovered(output, fluid, p, "T", t)));
+            }
+            return Some(
+                table
+                    .value(k, libm::log(p), t)
+                    .ok_or_else(|| uncovered(output, fluid, p, "T", t)),
+            );
+        }
+        None
+    }
+
+    /// `Dmass` for a fluid that has only a `(P,T)` aux grid — air, which no
+    /// split table covers.
+    fn aux_pt_density(
+        &self,
+        output: &str,
+        name1: &str,
+        value1: f64,
+        name2: &str,
+        value2: f64,
+        fluid: &str,
+    ) -> Option<Result<f64>> {
+        if output != "Dmass" {
+            return None;
+        }
+        // Only for a fluid with no split table of its own. A `(P,T)` aux grid
+        // is a coarse 24x64 convenience for the transport a correlation needs;
+        // a split table is the accurate state surface. If a fluid ever has
+        // both, the split table must win, and it must win here rather than by
+        // ordering accident at the call site.
+        if self.table(fluid).is_some() {
+            return None;
+        }
+        let (p, t) = pair(name1, value1, name2, value2, "P", "T")?;
+        let table = self.aux_of(fluid, AuxKind::PressureTemperature)?;
+        let k = table.output("Dmass")?;
+        if !p.is_finite() || p <= 0.0 {
+            return Some(Err(uncovered(output, fluid, p, "T", t)));
+        }
+        Some(
+            table
+                .value(k, libm::log(p), t)
+                .ok_or_else(|| uncovered(output, fluid, p, "T", t)),
+        )
+    }
+}
+
 /// Matches an unordered input pair against `(want1, want2)`, returning the two
 /// values in the wanted order.
 fn pair(
@@ -1053,22 +1381,10 @@ impl RealFluid for TableBackend {
         value2: f64,
         fluid: &str,
     ) -> Result<f64> {
-        let Some(table) = self.table(fluid) else {
-            let known = self.fluids();
-            return Err(FreesError::property(format!(
-                "no property table for fluid '{fluid}'. This build tabulates: {}. \
-                 Generate more with tools/table-gen.",
-                if known.is_empty() {
-                    "(none)".to_string()
-                } else {
-                    known.join(", ")
-                }
-            )));
-        };
-        // A non-finite input is refused here rather than carried: the Newton
-        // solver probes with whatever the previous iterate produced, and a NaN
-        // that reaches the interpolant comes back as a NaN *answer* — a wrong
-        // number wearing the shape of a right one. Regression:
+        // A non-finite input is refused before any dispatch: the Newton solver
+        // probes with whatever the previous iterate produced, and a NaN that
+        // reaches an interpolant comes back as a NaN *answer* — a wrong number
+        // wearing the shape of a right one. Regression:
         // `tests/props_robustness.rs::the_installed_backend_answers_or_errors_for_every_key_combination`.
         if !value1.is_finite() || !value2.is_finite() {
             return Err(FreesError::property(format!(
@@ -1076,6 +1392,82 @@ impl RealFluid for TableBackend {
                  a property indicator is not a finite number."
             )));
         }
+
+        // An incompressible mixture is served entirely by its own grid — it has
+        // no dome, so none of the split-table machinery below applies to it.
+        if let Some((aux, x)) = self.incomp(fluid) {
+            let (p, other_key, other) = if name1 == "P" {
+                (value1, name2, value2)
+            } else if name2 == "P" {
+                (value2, name1, value1)
+            } else {
+                return Err(FreesError::property(format!(
+                    "{output}({fluid}, {name1}={value1}, {name2}={value2}) is not tabulated: \
+                     the incompressible grid needs pressure as one of the two inputs."
+                )));
+            };
+            return self.incomp_props(aux, x, output, p, other_key, other, fluid);
+        }
+
+        // Transport the split table does not store, and `Dmass` for a fluid
+        // that has no split table at all (air). Both are checked before the
+        // split-table lookup so a tabulated fluid can still get its viscosity.
+        if let Some(v) = self.aux_transport(output, name1, value1, name2, value2, fluid) {
+            return v;
+        }
+        if let Some(v) = self.aux_pt_density(output, name1, value1, name2, value2, fluid) {
+            return v;
+        }
+
+        let Some(table) = self.table(fluid) else {
+            // A fluid can be aux-served without having a split table — air is.
+            // Saying "no property table for Air" and then listing Air among the
+            // served fluids would be both true and useless, so the two cases
+            // get different diagnostics.
+            if let Some(aux) = self.aux_of(fluid, AuxKind::PressureTemperature) {
+                let outputs: Vec<&str> = ["viscosity", "conductivity", "Cpmass", "Dmass"]
+                    .into_iter()
+                    .filter(|o| aux.output(o).is_some())
+                    .collect();
+                return Err(FreesError::property(format!(
+                    "{output}({fluid}, {name1}={value1}, {name2}={value2}) is not available: \
+                     this build carries a (P,T) transport grid for '{fluid}' — {} — but no \
+                     (P,h) state table, so enthalpy, entropy and saturation states have no \
+                     source. Generate one with tools/table-gen.",
+                    outputs.join(", ")
+                )));
+            }
+            // States and transport-only are listed separately: a build that
+            // says it "tabulates Air" and then declines `Enthalpy(Air, …)` has
+            // told the reader nothing useful.
+            let states = self.fluids();
+            let transport_only: Vec<&str> = self
+                .aux
+                .iter()
+                .map(AuxTable::name)
+                .filter(|n| self.table(n).is_none())
+                .collect();
+            let state_list = if states.is_empty() {
+                "(none)".to_string()
+            } else {
+                states.join(", ")
+            };
+            let mut msg = format!(
+                "no property table for fluid '{fluid}'. \
+                 This build tabulates full states for: {state_list}"
+            );
+            if !transport_only.is_empty() {
+                msg.push_str(&format!(
+                    ", and transport/incompressible properties only for: {}",
+                    transport_only.join(", ")
+                ));
+            }
+            msg.push_str(
+                ". Generate more with tools/table-gen (states) or tools/aux-gen (transport, \
+                 incompressibles).",
+            );
+            return Err(FreesError::property(msg));
+        };
         // Everything this backend can do needs a pressure; orient the pair.
         let (p, other_key, other) = if name1 == "P" {
             (value1, name2, value2)
@@ -1202,8 +1594,18 @@ impl RealFluid for TableBackend {
         }
     }
 
+    /// The split-table fluids **only**, deliberately not [`all_served`].
+    ///
+    /// This feeds `plot_fluids_available`, which feeds the property-diagram
+    /// fluid picker, and a diagram needs full states — a dome, an entropy axis,
+    /// an enthalpy axis. Air has a `(P,T)` transport grid and no state table, so
+    /// offering it here would put a fluid in the picker whose every plot point
+    /// fails. The doc comment on the trait method already stated the rule ("a
+    /// fluid picker that offered thirty-six would be lying about thirty-four of
+    /// them"); returning everything the backend can answer *something* for
+    /// broke it, and `frees-wasm`'s dome test caught it.
     fn served_fluids(&self) -> Option<Vec<String>> {
-        Some(self.fluids().iter().map(|s| s.to_string()).collect())
+        Some(self.fluids().iter().map(|s| (*s).to_string()).collect())
     }
 
     fn describe(&self) -> String {
@@ -1305,6 +1707,92 @@ pub(crate) fn test_with_builtin_tables<T>(body: impl FnOnce() -> T) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The `INCOMP::MEG[0.50]` spelling is the only one that reaches a backend,
+    /// and the split has to be exact — a family that fell through would send a
+    /// glycol to the `(P,h)` path, which has no geometry for it.
+    #[test]
+    fn incomp_parts_splits_only_the_spelling_resolve_fluid_produces() {
+        assert_eq!(
+            incomp_parts("INCOMP::MEG[0.50]"),
+            Some(("INCOMP::MEG", 0.50))
+        );
+        assert_eq!(
+            incomp_parts("INCOMP::MPG[0.05]"),
+            Some(("INCOMP::MPG", 0.05))
+        );
+        for not_one in [
+            "Water",
+            "R134a",
+            "MEG[0.50]",
+            "INCOMP::MEG",
+            "INCOMP::MEG[]",
+            "INCOMP::MEG[abc]",
+            "INCOMP::MEG[0.50",
+            "INCOMP::MEG[1.50]",
+            "INCOMP::MEG[-0.1]",
+            "INCOMP::MEG[NaN]",
+        ] {
+            assert_eq!(incomp_parts(not_one), None, "{not_one}");
+        }
+    }
+
+    /// The aux grids answer the calls the `(P,h)` table declines, and decline
+    /// the ones nothing can answer. Values are CoolProp 8.0.0 ground truth.
+    #[test]
+    fn the_aux_grids_serve_what_the_split_table_cannot() {
+        let _guard = test_swap_guard();
+        let previous = backend();
+        crate::props::tables::install_builtin().expect("install");
+
+        // Glycol: no dome, so the split geometry never applies to it.
+        let h = evaluate("prop$enthalpy$eg50$p$t", &[200_000.0, 305.0]).unwrap();
+        assert!((h - 39_687.033).abs() / 39_687.033 < 1e-3, "h = {h}");
+        let mu = evaluate("prop$viscosity$eg50$p$t", &[200_000.0, 305.0]).unwrap();
+        assert!(
+            (mu - 0.002_592_678_9).abs() / 0.002_592_678_9 < 5e-3,
+            "mu = {mu}"
+        );
+        // Round-trips through the (P,h) inverse the wall-HX components use.
+        let t = evaluate("prop$temperature$eg50$p$h", &[200_000.0, h]).unwrap();
+        assert!((t - 305.0).abs() < 1e-6, "T = {t}");
+
+        // Transport on the dome — the whole reason htc_evap was blocked.
+        let mu = evaluate("prop$viscosity$r134a$p$x", &[350_000.0, 0.0]).unwrap();
+        assert!(mu > 0.0 && mu < 1e-2, "mu_f(R134a) = {mu}");
+        // Air transport, for htc_extair.
+        let k = evaluate("prop$conductivity$air$p$t", &[101_325.0, 313.0]).unwrap();
+        assert!((k - 0.027).abs() < 0.003, "k_air = {k}");
+
+        // Inside the dome transport is not one number, and says so by name
+        // rather than through the split table's "not a tabulated output".
+        let err = evaluate("prop$viscosity$r134a$p$x", &[350_000.0, 0.5])
+            .unwrap_err()
+            .to_string_message();
+        assert!(err.contains("saturation line"), "{err}");
+
+        // Air has a transport grid but no state table, and the diagnostic must
+        // not claim air is untabulated while listing it among the served.
+        let err = evaluate("prop$enthalpy$air$p$t", &[101_325.0, 300.0])
+            .unwrap_err()
+            .to_string_message();
+        assert!(err.contains("no (P,h) state table"), "{err}");
+
+        // A concentration CoolProp does not model is declined, not extrapolated.
+        let err = evaluate("prop$enthalpy$eg90$p$t", &[200_000.0, 305.0])
+            .unwrap_err()
+            .to_string_message();
+        assert!(!err.is_empty(), "{err}");
+
+        match previous {
+            Some(p) => {
+                install(p);
+            }
+            None => {
+                uninstall();
+            }
+        }
+    }
 
     /// A backend that replays recorded answers, so the dispatch can be tested
     /// without a property library.

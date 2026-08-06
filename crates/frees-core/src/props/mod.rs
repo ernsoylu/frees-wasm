@@ -17,6 +17,7 @@
 //!   error bounded and documented rather than hidden.
 
 pub mod atmosphere;
+pub mod auxtable;
 pub mod combustion;
 pub mod compressible;
 pub mod convective;
@@ -29,6 +30,7 @@ pub mod heisler;
 pub mod hx;
 pub mod hxcorr;
 pub mod idealgas;
+pub mod leread;
 pub mod nasa;
 pub mod periodic;
 pub mod phtable;

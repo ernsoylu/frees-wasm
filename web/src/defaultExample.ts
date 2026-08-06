@@ -43,9 +43,11 @@ x / y = 1.23456
 `
 
 // The pre-WASM boot document: the full EV thermal-management COMPONENT model.
-// The browser engine refuses COMPONENT/connect until Phase 6 lands; kept as a
-// named export so it can return as the default (and stay reachable from the
-// example catalog) when it does.
+// It now solves in the browser — Phase 6 landed the COMPONENT/connect expander
+// and the FRAUX1 auxiliary property grids closed the four property gaps it
+// needed (INCOMP::MEG, R1234yf, air transport, saturation-line transport). Kept
+// as a named export because it is the Systems catalog entry; it is not the boot
+// document because a 169-block solve is not what a cold start should open with.
 export const EV_THERMAL_EXAMPLE_TEXT = `// EV Thermal Management System  (coupled, geometry-driven HX sizing)
 { A complete EV thermal-management system as one acausal component model, with
   every heat exchanger sized from CORRELATION + GEOMETRY rather than a hand-set UA.

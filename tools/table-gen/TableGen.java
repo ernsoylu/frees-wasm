@@ -132,7 +132,7 @@ public final class TableGen {
                     + "(run.sh does this for you).");
             System.exit(1);
         }
-        String cpVersion = coolPropVersion();
+        String cpVersion = GenSupport.coolPropVersion();
         System.out.println("CoolProp " + cpVersion);
 
         Files.createDirectories(outDir);
@@ -168,7 +168,7 @@ public final class TableGen {
         }
 
         Files.writeString(outDir.resolve("MANIFEST.json"),
-                json(Map.of(
+                GenSupport.json(Map.of(
                         "format", "FRPHTAB1",
                         "format_version", FORMAT_VERSION,
                         "generated_by", "tools/table-gen",
@@ -181,7 +181,7 @@ public final class TableGen {
 
         if (verify) {
             Files.writeString(outDir.resolve("ERROR-REPORT.json"),
-                    json(Map.of(
+                    GenSupport.json(Map.of(
                             "coolprop_version", cpVersion,
                             "samples", samples,
                             "seed", seed,
@@ -244,32 +244,12 @@ public final class TableGen {
             }
         }
         Files.writeString(outDir.resolve("SWEEP.json"),
-                json(Map.of("coolprop_version", cpVersion, "samples", samples, "seed", seed, "rows", rows)),
+                GenSupport.json(Map.of("coolprop_version", cpVersion, "samples", samples, "seed", seed, "rows", rows)),
                 StandardCharsets.UTF_8);
         System.out.println("wrote " + outDir.resolve("SWEEP.json"));
     }
 
     // ------------------------------------------------------- CoolProp version
-
-    /**
-     * {@code get_global_param_string("version")}. The engine's
-     * {@link CoolProp} façade needs this call for its error string but does not
-     * expose it, and its {@code Lib} interface is private — so this tool
-     * declares the one binding it needs. JNA is already a core dependency; no
-     * new jar enters the classpath.
-     */
-    private static String coolPropVersion() {
-        interface Lib extends com.sun.jna.Library {
-            int get_global_param_string(String param, byte[] output, int n);
-        }
-        String path = System.getenv("COOLPROP_LIBRARY");
-        Lib lib = com.sun.jna.Native.load(
-                path != null && !path.isBlank() ? path : "CoolProp", Lib.class);
-        byte[] buffer = new byte[256];
-        lib.get_global_param_string("version", buffer, buffer.length);
-        String version = com.sun.jna.Native.toString(buffer);
-        return version.isBlank() ? "unknown" : version;
-    }
 
     // ----------------------------------------------------------- split table
 
@@ -984,7 +964,7 @@ public final class TableGen {
         int headerBytes = 144 + fluidBytes.length + versionBytes.length;
         headerBytes = (headerBytes + 7) & ~7;
 
-        Buf b = new Buf();
+        GenSupport.Buf b = new GenSupport.Buf();
         b.bytes(MAGIC);
         b.u16(FORMAT_VERSION);
         b.u8(f32 ? 1 : 0);
@@ -1044,7 +1024,7 @@ public final class TableGen {
         m.put("fluid", s.fluid);
         m.put("file", fileName);
         m.put("bytes", blob.length);
-        m.put("sha256", sha256(blob));
+        m.put("sha256", GenSupport.sha256(blob));
         m.put("element_type", f32 ? "f32" : "f64");
         m.put("coolprop_version", cpVersion);
         m.put("n_sat", s.nSat);
@@ -1075,56 +1055,6 @@ public final class TableGen {
     }
 
     /** Little-endian byte sink. */
-    private static final class Buf {
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream(1 << 20);
-
-        void u8(int v) {
-            out.write(v & 0xFF);
-        }
-
-        void u16(int v) {
-            u8(v);
-            u8(v >>> 8);
-        }
-
-        void u32(int v) {
-            u16(v);
-            u16(v >>> 16);
-        }
-
-        void f64(double v) {
-            long bits = Double.doubleToLongBits(v);
-            u32((int) bits);
-            u32((int) (bits >>> 32));
-        }
-
-        void f32(double v) {
-            u32(Float.floatToIntBits((float) v));
-        }
-
-        void array(double[] a, boolean asF32) {
-            for (double v : a) {
-                if (asF32) {
-                    f32(v);
-                } else {
-                    f64(v);
-                }
-            }
-        }
-
-        void bytes(byte[] a) {
-            out.write(a, 0, a.length);
-        }
-
-        int size() {
-            return out.size();
-        }
-
-        byte[] toByteArray() {
-            return out.toByteArray();
-        }
-    }
-
     // ------------------------------------------------------------- utilities
 
     /** Transcribed from {@code PhPropertyTable.fillNonFinite}; returns how many nodes were repaired. */
@@ -1185,89 +1115,4 @@ public final class TableGen {
         return out;
     }
 
-    private static String sha256(byte[] data) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
-            StringBuilder sb = new StringBuilder(64);
-            for (byte v : digest) {
-                sb.append(String.format("%02x", v));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    // --------------------------------------------------------- tiny JSON out
-
-    /** Hand-rolled JSON, same reason as {@code GoldenDumper}: no Jackson on this classpath. */
-    @SuppressWarnings("unchecked")
-    static String json(Object value) {
-        StringBuilder sb = new StringBuilder();
-        write(sb, value, 0);
-        sb.append('\n');
-        return sb.toString();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void write(StringBuilder sb, Object value, int indent) {
-        String pad = "  ".repeat(indent + 1);
-        String padEnd = "  ".repeat(indent);
-        switch (value) {
-            case null -> sb.append("null");
-            case Map<?, ?> map -> {
-                if (map.isEmpty()) {
-                    sb.append("{}");
-                    return;
-                }
-                sb.append("{\n");
-                int i = 0;
-                for (Map.Entry<?, ?> e : map.entrySet()) {
-                    sb.append(pad).append(quote(String.valueOf(e.getKey()))).append(": ");
-                    write(sb, e.getValue(), indent + 1);
-                    sb.append(++i < map.size() ? ",\n" : "\n");
-                }
-                sb.append(padEnd).append('}');
-            }
-            case List<?> list -> {
-                if (list.isEmpty()) {
-                    sb.append("[]");
-                    return;
-                }
-                sb.append("[\n");
-                for (int i = 0; i < list.size(); i++) {
-                    sb.append(pad);
-                    write(sb, list.get(i), indent + 1);
-                    sb.append(i + 1 < list.size() ? ",\n" : "\n");
-                }
-                sb.append(padEnd).append(']');
-            }
-            case Double d -> sb.append(d.isNaN() || d.isInfinite() ? quote(d.toString()) : d.toString());
-            case Number n -> sb.append(n);
-            case Boolean b -> sb.append(b);
-            default -> sb.append(quote(String.valueOf(value)));
-        }
-    }
-
-    private static String quote(String s) {
-        StringBuilder out = new StringBuilder(s.length() + 16).append('"');
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        out.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        out.append(c);
-                    }
-                }
-            }
-        }
-        return out.append('"').toString();
-    }
 }

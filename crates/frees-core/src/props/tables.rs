@@ -45,6 +45,7 @@
 use std::sync::Arc;
 
 use crate::diag::Result;
+use crate::props::auxtable::AuxTable;
 use crate::props::propfun::{self, TableBackend};
 use crate::props::satsplit::SaturationSplitTable;
 
@@ -52,10 +53,38 @@ use crate::props::satsplit::SaturationSplitTable;
 pub const WATER_PHTAB: &[u8] = include_bytes!("data/water.phtab");
 /// R134a, `FRPHTAB1`, generated from CoolProp 8.0.0.
 pub const R134A_PHTAB: &[u8] = include_bytes!("data/r134a.phtab");
+/// R1234yf, `FRPHTAB1`, generated from CoolProp 8.0.0.
+pub const R1234YF_PHTAB: &[u8] = include_bytes!("data/r1234yf.phtab");
 
-/// Every table linked into this build, in the order they are installed.
-pub const BUILTIN_TABLES: [(&str, &[u8]); 2] =
-    [("water.phtab", WATER_PHTAB), ("r134a.phtab", R134A_PHTAB)];
+/// Aqueous mono-ethylene glycol, `FRAUX1` (`tools/aux-gen`).
+pub const MEG_FRAUX: &[u8] = include_bytes!("data/meg.fraux");
+/// Aqueous mono-propylene glycol, `FRAUX1`.
+pub const MPG_FRAUX: &[u8] = include_bytes!("data/mpg.fraux");
+/// Air single-phase transport over `(P,T)`, `FRAUX1`.
+pub const AIR_FRAUX: &[u8] = include_bytes!("data/air.fraux");
+/// Water transport on the saturation line, `FRAUX1`.
+pub const WATER_SAT_FRAUX: &[u8] = include_bytes!("data/water-sat.fraux");
+/// R134a transport on the saturation line, `FRAUX1`.
+pub const R134A_SAT_FRAUX: &[u8] = include_bytes!("data/r134a-sat.fraux");
+/// R1234yf transport on the saturation line, `FRAUX1`.
+pub const R1234YF_SAT_FRAUX: &[u8] = include_bytes!("data/r1234yf-sat.fraux");
+
+/// Every split table linked into this build, in the order they are installed.
+pub const BUILTIN_TABLES: [(&str, &[u8]); 3] = [
+    ("water.phtab", WATER_PHTAB),
+    ("r134a.phtab", R134A_PHTAB),
+    ("r1234yf.phtab", R1234YF_PHTAB),
+];
+
+/// Every `FRAUX1` grid linked into this build.
+pub const BUILTIN_AUX: [(&str, &[u8]); 6] = [
+    ("meg.fraux", MEG_FRAUX),
+    ("mpg.fraux", MPG_FRAUX),
+    ("air.fraux", AIR_FRAUX),
+    ("water-sat.fraux", WATER_SAT_FRAUX),
+    ("r134a-sat.fraux", R134A_SAT_FRAUX),
+    ("r1234yf-sat.fraux", R1234YF_SAT_FRAUX),
+];
 
 /// Decodes the linked tables.
 ///
@@ -69,6 +98,14 @@ pub fn builtin_tables() -> Result<Vec<SaturationSplitTable>> {
         .collect()
 }
 
+/// Decodes the linked auxiliary grids, on the same terms.
+pub fn builtin_aux() -> Result<Vec<AuxTable>> {
+    BUILTIN_AUX
+        .iter()
+        .map(|(_, bytes)| AuxTable::decode(bytes))
+        .collect()
+}
+
 /// Installs the linked tables as the engine's real-fluid backend, replacing
 /// whatever was installed before, and returns the fluids now served.
 ///
@@ -76,8 +113,9 @@ pub fn builtin_tables() -> Result<Vec<SaturationSplitTable>> {
 /// [`install_builtin_once`].
 pub fn install_builtin() -> Result<Vec<String>> {
     let tables = builtin_tables()?;
-    let backend = TableBackend::new(tables);
-    let fluids = backend.fluids().iter().map(|s| s.to_string()).collect();
+    let aux = builtin_aux()?;
+    let backend = TableBackend::with_aux(tables, aux);
+    let fluids = backend.all_served();
     propfun::install(Arc::new(backend));
     Ok(fluids)
 }
@@ -94,8 +132,8 @@ pub fn install_from_bytes(bytes: &[u8]) -> Result<Vec<String>> {
     let mut tables = builtin_tables()?;
     tables.retain(|t| !t.fluid().eq_ignore_ascii_case(incoming.fluid()));
     tables.push(incoming);
-    let backend = TableBackend::new(tables);
-    let fluids = backend.fluids().iter().map(|s| s.to_string()).collect();
+    let backend = TableBackend::with_aux(tables, builtin_aux()?);
+    let fluids = backend.all_served();
     propfun::install(Arc::new(backend));
     Ok(fluids)
 }
@@ -132,9 +170,9 @@ mod tests {
     #[test]
     fn the_linked_tables_decode_at_the_geometry_d1_chose() {
         let tables = builtin_tables().expect("linked tables must decode");
-        assert_eq!(tables.len(), 2);
+        assert_eq!(tables.len(), 3);
         let names: Vec<&str> = tables.iter().map(|t| t.fluid()).collect();
-        assert_eq!(names, ["Water", "R134a"]);
+        assert_eq!(names, ["Water", "R134a", "R1234yf"]);
         for t in &tables {
             assert_eq!(t.liquid_coord(), LiquidCoord::Normalized, "{}", t.fluid());
             assert!(t.has_liquid(), "{}", t.fluid());
@@ -180,12 +218,30 @@ mod tests {
         let _guard = propfun::test_swap_guard();
         let previous = propfun::backend();
         let fluids = install_builtin().expect("install");
-        assert_eq!(fluids, ["Water", "R134a"]);
+        assert_eq!(
+            fluids,
+            [
+                "Water",
+                "R134a",
+                "R1234yf",
+                "INCOMP::MEG",
+                "INCOMP::MPG",
+                "Air"
+            ]
+        );
         // Enthalpy(Water, P=101325, x=0) — the `rankine-cycle` state 1 shape.
         let h = propfun::evaluate("prop$enthalpy$water$p$x", &[101_325.0, 0.0]).unwrap();
         assert!(
             (h - 419_099.340_939_9).abs() / 419_099.34 < 1e-4,
             "h_f(1 atm) = {h}"
+        );
+        // Enthalpy(EG50, P=200000, T=305) — the `ev-thermal-management` coolant
+        // shape, which had no answer at all before the aux grids. Oracle:
+        // CoolProp 8.0.0 `INCOMP::MEG[0.50]` = 39687.033 J/kg.
+        let h = propfun::evaluate("prop$enthalpy$eg50$p$t", &[200_000.0, 305.0]).unwrap();
+        assert!(
+            (h - 39_687.033).abs() / 39_687.033 < 1e-3,
+            "h(EG50, 2 bar, 305 K) = {h}"
         );
         match previous {
             Some(p) => {
@@ -204,9 +260,17 @@ mod tests {
         let previous = propfun::backend();
         // Re-installing water's own bytes must replace it, not duplicate it.
         let fluids = install_from_bytes(WATER_PHTAB).expect("install");
-        assert_eq!(fluids.len(), 2, "{fluids:?}");
-        assert!(fluids.iter().any(|f| f == "Water"), "{fluids:?}");
-        assert!(fluids.iter().any(|f| f == "R134a"), "{fluids:?}");
+        // Three split tables plus the three aux-served names, and water exactly
+        // once — re-installing its own bytes must replace it, not duplicate it.
+        assert_eq!(fluids.len(), 6, "{fluids:?}");
+        assert_eq!(
+            fluids.iter().filter(|f| *f == "Water").count(),
+            1,
+            "{fluids:?}"
+        );
+        for want in ["Water", "R134a", "R1234yf", "INCOMP::MEG", "Air"] {
+            assert!(fluids.iter().any(|f| f == want), "{want} in {fluids:?}");
+        }
         match previous {
             Some(p) => {
                 propfun::install(p);

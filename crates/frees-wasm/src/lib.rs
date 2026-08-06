@@ -1958,7 +1958,10 @@ P2 = 101325 [Pa]
         let listed = parsed(&fluids());
         let names: Vec<String> =
             serde_json::from_value(listed["fluids"].clone()).expect("fluids array");
-        assert_eq!(names, ["R134a", "Water"], "{listed}");
+        // Exactly the fluids with a full `(P,h)` state table. Air is served for
+        // transport (D7's `(P,T)` grid) but has no dome and no entropy axis, so
+        // it must NOT appear here — every point of its diagram would fail.
+        assert_eq!(names, ["R1234yf", "R134a", "Water"], "{listed}");
         assert_eq!(listed["available"], Value::Bool(true));
     }
 

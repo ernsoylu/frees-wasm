@@ -89,22 +89,38 @@ equivalent of. Their full write-up is
 
 9. **Real-fluid properties come from precomputed tables, not CoolProp.** The
    engine answers `Enthalpy`/`Entropy`/`Density`/`Volume`/`Temperature`/`Q` and
-   the four critical/triple constants for **water and R134a only**, from the
+   the four critical/triple constants for **water, R134a and R1234yf**, from the
    `FRPHTAB1` artifacts `tools/table-gen` generates offline (decision D1). The
    measured error against CoolProp 8.0.0 is `1e-7…2e-4` relative; on the
-   promoted fluid documents it is `6.4e-07…7.2e-05`. Transport properties,
-   `Cpmass`/`Cvmass`, `Z`, speed of sound, Prandtl, surface tension, humid air,
-   supercritical states, mixtures, incompressibles and all 34 other CoolProp
-   fluids are **refused by name**, never approximated. **Open and structural** —
-   closing it means shipping `coolprop.wasm` (D1 option A, still available).
-10. **Five parity fixtures compare at a declared tolerance, not `1e-9`.** A
+   promoted fluid documents it is `6.4e-07…7.2e-05`. **Narrowed 2026-08-06 by
+   [D7](decisions/0007-auxiliary-property-grids.md)**, which added a second
+   artifact kind (`FRAUX1`, `tools/aux-gen`) covering three surfaces the `(P,h)`
+   split geometry cannot carry: the **incompressible glycols**
+   (`INCOMP::MEG[x]` / `INCOMP::MPG[x]`, exact in pressure, error `1.6e-5…1.3e-3`),
+   **air transport** at `(P,T)`, and **transport on the saturation line**
+   (`viscosity`/`conductivity`/`Cpmass` at `Q=0`/`Q=1`) for all three tabulated
+   fluids — which is the only place the two-phase correlations ever ask for it.
+   Still refused by name, never approximated: humid air (`HAPropsSI`),
+   **single-phase** transport off the dome, `Cvmass`, `Z`, speed of sound,
+   Prandtl, surface tension, supercritical states, non-glycol mixtures, and the
+   remaining CoolProp fluids — including air *states* (it has a transport grid,
+   not a `(P,h)` table, and now says exactly that). **Open and structural** —
+   closing it fully still means shipping `coolprop.wasm` (D1 option A, still
+   available). D7 also put the wasm bundle **273 KiB over its 3072 KiB budget**;
+   read D7's consequences section before adding another fluid.
+10. **Twenty parity fixtures compare at a declared tolerance, not `1e-9`.** A
     direct consequence of 9: no table-backed engine can match full-accuracy
     CoolProp goldens at `1e-9`. `fixtures/tolerances.json` relaxes the *numeric*
-    tolerance for `rankine-cycle`, `rankine-cycle-2`, `refrigeration-vcr`,
-    `props_realfluid_water_states` and `props_realfluid_r134a_states`, each with
-    its measured error and mechanism; `display_names`, `block_count` and error
-    classification stay exact for all 268. Guarded: a stale or unnecessary entry
-    fails the gate. **Open**; closed by the same move as 9.
+    tolerance for each, with its measured error and mechanism recorded;
+    `display_names`, `block_count` and error classification stay exact for all
+    of them. Guarded: a stale or unnecessary entry fails the gate. The two
+    loosest are D7's — `ev-thermal-management` at `2e-3` (measured `8.951e-4`)
+    and `sysdesign-ex11-liquid-cooling-loop` at `5e-4` (measured `1.310e-4`).
+    The first is worth understanding before it is used as a precedent: its
+    number is **not** the glycol grid's error but that error landing on
+    `nuSinglePhase`'s 2300..4000 laminar↔turbulent blend at `Re = 2987`, where
+    Nu sweeps 3.66 → ~30. The same grid grades the second fixture an order of
+    magnitude tighter. **Open**; closed by the same move as 9.
 11. **`plot_fluids()` is narrowed to what the backend can serve.** The Java
     returns all 36 canonical CoolProp names because CoolProp serves all 36;
     `GET /api/plot/fluids` here returns the intersection with

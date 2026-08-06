@@ -24,8 +24,8 @@
       "coolprop_calls": 66305,
       "bounds": {
         "p_min": 2206.3999999997754,
-        "p_max": 1.6547999999998316E7,
-        "p_serve_max": 1.57205999999984E7,
+        "p_max": 16547999.999998316,
+        "p_serve_max": 15720599.9999984,
         "p_liquid_min": 2206.4003386458517,
         "dh_vapor_max": 741444.3255648692,
         "dh_liquid_max": 0.9,
@@ -33,7 +33,7 @@
         "t_low": 274.16,
         "t_sat_min": 292.2091064453125,
         "t_sat_max": 623.2415771484375,
-        "p_crit": 2.2063999999997754E7,
+        "p_crit": 22063999.999997754,
         "t_crit": 647.0959999999873,
         "p_triple": 611.6548008968684,
         "t_triple": 273.16
@@ -74,6 +74,43 @@
         "t_crit": 374.2119665849513,
         "p_triple": 389.56378856198955,
         "t_triple": 169.85
+      },
+      "cross_check_vs_reference_max_rel": 0.0
+    },
+    {
+      "fluid": "R1234yf",
+      "file": "r1234yf.phtab",
+      "bytes": 242080,
+      "sha256": "13a809f204ea923064119b39ea989dbe89d6419e9904a60edadbde40e44d54d6",
+      "element_type": "f64",
+      "coolprop_version": "8.0.0",
+      "n_sat": 256,
+      "n_p": 96,
+      "n_dh": 48,
+      "outputs": [
+        "T",
+        "Dmass",
+        "Smass"
+      ],
+      "liquid_coord": "normalized",
+      "liquid_piece": true,
+      "backfilled_nodes": 0,
+      "coolprop_calls": 29697,
+      "bounds": {
+        "p_min": 338.437369556611,
+        "p_max": 2538280.271674582,
+        "p_serve_max": 2411366.2580908528,
+        "p_liquid_min": 338.43736955661103,
+        "dh_vapor_max": 91808.23021339797,
+        "dh_liquid_max": 0.9,
+        "h_top": 501677.1239770564,
+        "t_low": 122.6,
+        "t_sat_min": 163.3037256925335,
+        "t_sat_max": 353.51362605717907,
+        "p_crit": 3384373.6955661094,
+        "t_crit": 367.84999999994756,
+        "p_triple": 0.4127,
+        "t_triple": 121.6
       },
       "cross_check_vs_reference_max_rel": 0.0
     }

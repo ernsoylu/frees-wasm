@@ -1,0 +1,158 @@
+{
+  "generated_by": "tools/aux-gen",
+  "coolprop_version": "8.0.0",
+  "format": "FRAUX1",
+  "format_version": 1,
+  "element_type": "f32",
+  "tables": [
+    {
+      "name": "INCOMP::MEG",
+      "file": "meg.fraux",
+      "kind": "incompressible",
+      "bytes": 94820,
+      "sha256": "fc6c0fd61a26a830a4faa928b86d09336a6d52124daa1efec69946c99bd97bed",
+      "n1": 61,
+      "n2": 48,
+      "axis1": "mass_fraction",
+      "axis2": "tau",
+      "outputs": [
+        "Dmass",
+        "Cpmass",
+        "viscosity",
+        "conductivity",
+        "Hmass",
+        "Smass",
+        "dHmass_dP",
+        "dSmass_dP"
+      ],
+      "ragged": true,
+      "bounds": {
+        "axis1_min": 0.0,
+        "axis1_max": 0.6,
+        "axis2_lo_min": 222.10066281509398,
+        "axis2_hi_max": 373.0495557117462
+      }
+    },
+    {
+      "name": "INCOMP::MPG",
+      "file": "mpg.fraux",
+      "kind": "incompressible",
+      "bytes": 94820,
+      "sha256": "3206dc186ef742cc11a828735b5d0526acf846ff3203c8bb99c91a7c76697ef8",
+      "n1": 61,
+      "n2": 48,
+      "axis1": "mass_fraction",
+      "axis2": "tau",
+      "outputs": [
+        "Dmass",
+        "Cpmass",
+        "viscosity",
+        "conductivity",
+        "Hmass",
+        "Smass",
+        "dHmass_dP",
+        "dSmass_dP"
+      ],
+      "ragged": true,
+      "bounds": {
+        "axis1_min": 0.0,
+        "axis1_max": 0.6,
+        "axis2_lo_min": 223.29773148679735,
+        "axis2_hi_max": 373.0496476764679
+      }
+    },
+    {
+      "name": "Air",
+      "file": "air.fraux",
+      "kind": "pressure_temperature",
+      "bytes": 25072,
+      "sha256": "9620867e65ce8c29148cc8a7f7c2dcbdd1c8da10debaaa7221bb3be6e85752ff",
+      "n1": 24,
+      "n2": 64,
+      "axis1": "log_P",
+      "axis2": "T",
+      "outputs": [
+        "viscosity",
+        "conductivity",
+        "Cpmass",
+        "Dmass"
+      ],
+      "ragged": false,
+      "bounds": {
+        "axis1_min": 9.210340371976184,
+        "axis1_max": 13.815510557964274,
+        "axis2_min": 200.0,
+        "axis2_max": 600.0
+      }
+    },
+    {
+      "name": "Water",
+      "file": "water-sat.fraux",
+      "kind": "saturation_line",
+      "bytes": 14480,
+      "sha256": "77fca8fdb50257be29babae4521ff186ba02c56c0e259c99b4105dce088c73bb",
+      "n1": 512,
+      "n2": 2,
+      "axis1": "log_P",
+      "axis2": "Q",
+      "outputs": [
+        "viscosity",
+        "conductivity",
+        "Cpmass"
+      ],
+      "ragged": false,
+      "bounds": {
+        "axis1_min": 6.41626806755404,
+        "axis1_max": 16.62177580656334,
+        "axis2_min": 0.0,
+        "axis2_max": 1.0
+      }
+    },
+    {
+      "name": "R134a",
+      "file": "r134a-sat.fraux",
+      "kind": "saturation_line",
+      "bytes": 14480,
+      "sha256": "23fe80bc6d20667074ed9227aef3ccc1f97ffacd147344b585a46b839124c8af",
+      "n1": 512,
+      "n2": 2,
+      "axis1": "log_P",
+      "axis2": "Q",
+      "outputs": [
+        "viscosity",
+        "conductivity",
+        "Cpmass"
+      ],
+      "ragged": false,
+      "bounds": {
+        "axis1_min": 5.965127617279612,
+        "axis1_max": 14.928833210184347,
+        "axis2_min": 0.0,
+        "axis2_max": 1.0
+      }
+    },
+    {
+      "name": "R1234yf",
+      "file": "r1234yf-sat.fraux",
+      "kind": "saturation_line",
+      "bytes": 14488,
+      "sha256": "5d1f169a34c3cedce00103452fcbb3b87f205231c59d0689b207a26c37d90963",
+      "n1": 512,
+      "n2": 2,
+      "axis1": "log_P",
+      "axis2": "Q",
+      "outputs": [
+        "viscosity",
+        "conductivity",
+        "Cpmass"
+      ],
+      "ragged": false,
+      "bounds": {
+        "axis1_min": -0.8849343472232676,
+        "axis1_max": 14.746997351291341,
+        "axis2_min": 0.0,
+        "axis2_max": 1.0
+      }
+    }
+  ]
+}

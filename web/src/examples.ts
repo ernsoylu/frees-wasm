@@ -28,10 +28,12 @@ export const EXAMPLES: Example[] = [
     // NOTE (wasm port): this catalog entry keeps the real EV component model
     // (preserved in defaultExample.ts as EV_THERMAL_EXAMPLE_TEXT), NOT the
     // browser-native boot document that replaced it as DEFAULT_EXAMPLE_TEXT.
-    // Opening it currently reports the explicit "COMPONENT blocks are not
-    // supported by the wasm engine yet" error — honest, and it returns to
-    // solving when Phase 6 lands the component expander.
-    description: 'Coupled refrigerant + coolant loops with wide branches and a discretized radiator; every HX UA and the evaporator dP are computed from correlations + geometry and injected. Reports the steady cycle performance — cooling duties, compressor power and COP. Solve (F2). (Requires the component layer — not yet ported to the in-browser engine.)',
+    // It solves in the browser: Phase 6 landed the component expander, and the
+    // FRAUX1 auxiliary property grids (tools/aux-gen) closed the last four
+    // property gaps it needed — INCOMP::MEG for the EG50 coolant, R1234yf for
+    // the refrigerant, air transport for htc_extair, and saturation-line
+    // transport for htc_evap / htc_cond / dp_2phase.
+    description: 'Coupled refrigerant + coolant loops with wide branches and a discretized radiator; every HX UA and the evaporator dP are computed from correlations + geometry and injected. Reports the steady cycle performance — cooling duties, compressor power and COP. Solve (F2).',
     category: 'Systems',
     featured: true,
     text: EV_THERMAL_EXAMPLE_TEXT,

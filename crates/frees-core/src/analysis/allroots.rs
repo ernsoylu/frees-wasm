@@ -780,7 +780,7 @@ mod tests {
         let equations = crate::parser::expand::expand_document(&doc).expect("expands");
         let knowns: HashSet<String> = HashSet::new();
         let report = block_system(&equations, &knowns).expect("blocks");
-        let mut guesses: Scope = Scope::new();
+        let mut guesses: Scope = Scope::default();
         for name in crate::solver::blocker::unknowns(&equations, &knowns) {
             guesses.insert(name, 1.0);
         }
@@ -799,7 +799,7 @@ mod tests {
 
     #[test]
     fn brent_root_finds_a_simple_bracketed_root() {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         // x² − 2 on [0, 2] → sqrt(2)
         let mut f = |x: f64, _: &mut Scope| x * x - 2.0;
         let root = brent_root(&mut f, &mut scope, 0.0, 2.0, 200).unwrap();
@@ -811,7 +811,7 @@ mod tests {
 
     #[test]
     fn brent_root_returns_an_endpoint_that_is_already_a_root() {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         let mut f = |x: f64, _: &mut Scope| x;
         // The midpoint of [-1, 1] is exactly the root.
         assert_eq!(brent_root(&mut f, &mut scope, -1.0, 1.0, 200), Some(0.0));
@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn brent_root_answers_none_without_a_bracket() {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         let mut f = |x: f64, _: &mut Scope| x * x + 1.0;
         assert_eq!(brent_root(&mut f, &mut scope, -1.0, 1.0, 200), None);
         // A degenerate interval is refused, not silently accepted.
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn brent_root_respects_its_evaluation_budget() {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         let mut f = |x: f64, _: &mut Scope| x * x - 2.0;
         // Two evaluations are not enough to converge on [0, 2].
         assert_eq!(brent_root(&mut f, &mut scope, 0.0, 2.0, 2), None);
@@ -862,10 +862,10 @@ mod tests {
 
     #[test]
     fn same_on_compares_only_the_listed_variables() {
-        let mut a = Scope::new();
+        let mut a = Scope::default();
         a.insert("x".into(), 1.0);
         a.insert("y".into(), 9.0);
-        let mut b = Scope::new();
+        let mut b = Scope::default();
         b.insert("x".into(), 1.000_000_1);
         b.insert("y".into(), -50.0);
         assert!(same_on(&a, &b, &["x".to_string()]));
@@ -879,7 +879,7 @@ mod tests {
             variables: vec!["b".into(), "a".into()],
         };
         let mk = |a: f64, b: f64| {
-            let mut s = Scope::new();
+            let mut s = Scope::default();
             s.insert("a".into(), a);
             s.insert("b".into(), b);
             s
@@ -940,7 +940,7 @@ mod tests {
         let (equations, _, defs, _) = prepared("x^3 - 6*x^2 + 11*x - 6 = 0");
         let specs = BTreeMap::from([("x".to_string(), spec(0.0, 5.0))]);
         let solver = AllRootsSolver::new(SolverSettings::default(), &specs, &defs, &equations);
-        let mut work = Scope::new();
+        let mut work = Scope::default();
         // A root good to 1e-14 is still rejected, because the residual is not
         // bit-zero.
         assert!(!solver.is_valid_root(&equations[0], "x", 2.0 + 1e-14, &mut work));

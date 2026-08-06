@@ -20,7 +20,6 @@
 
 use frees_core::ast::{BinOp, Expr};
 use frees_core::differentiator::differentiate;
-use std::collections::HashMap;
 
 // ── AST builder helpers (mirroring the Java test's) ─────────────────────────
 
@@ -52,7 +51,9 @@ fn call(f: &str, args: Vec<Expr>) -> Expr {
     Expr::call(f, args)
 }
 
-type Scope = HashMap<String, f64>;
+// The engine's own alias — it carries a non-default hasher (eval.rs), so a
+// local `HashMap<String, f64>` no longer satisfies `eval`.
+use frees_core::eval::Scope;
 
 fn scope(pairs: &[(&str, f64)]) -> Scope {
     pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect()

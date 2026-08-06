@@ -388,7 +388,7 @@ pub fn evaluate(
     // 5. Evaluate at every raster point, over one reused slot buffer and one
     //    reused scratch scope.
     let mut slot_values = vec![0.0; columns.len() + 1];
-    let mut scratch: Scope = Scope::with_capacity(bindings.len());
+    let mut scratch: Scope = Scope::with_capacity_and_hasher(bindings.len(), Default::default());
     let mut out = Vec::with_capacity(raster.len());
     for (i, &t) in raster.iter().enumerate() {
         slot_values[0] = t;

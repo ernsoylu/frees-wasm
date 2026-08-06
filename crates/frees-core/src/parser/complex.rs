@@ -1287,7 +1287,9 @@ mod tests {
     /// `crate::eval::eval` is the engine's pure AST interpreter over parsed
     /// `Expr` trees (no code execution of any kind).
     fn check_function_parts(function: &str, expected_re: f64, expected_im: f64) {
-        let scope: crate::eval::Scope = [("z_r".to_string(), 1.3), ("z_i".to_string(), 0.7)].into();
+        let scope: crate::eval::Scope = [("z_r".to_string(), 1.3), ("z_i".to_string(), 0.7)]
+            .into_iter()
+            .collect();
         let call = Expr::call(function, vec![Expr::var("z")]);
         let re = crate::eval::eval(&real_part(&call).unwrap(), &scope).unwrap();
         let im = crate::eval::eval(&imag_part(&call).unwrap(), &scope).unwrap();

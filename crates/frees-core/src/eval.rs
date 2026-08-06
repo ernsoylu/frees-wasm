@@ -72,10 +72,91 @@
 use crate::ast::{BinOp, CmpOp, Expr, LogicOp};
 use crate::diag::{FreesError, Result};
 use std::collections::HashMap;
+use std::hash::BuildHasherDefault;
 use std::sync::OnceLock;
 
 /// Variable bindings visible to an evaluation.
-pub type Scope = HashMap<String, f64>;
+///
+/// Deliberately **not** the default `RandomState` hasher. Every variable read
+/// in every residual, in every Newton iteration, in every block, at every
+/// integrator stage goes through this map, and a callgrind profile of a
+/// transient solve put **22% of all instructions in SipHash** against 4.6% in
+/// the actual numerics. `FxHasher` below is the same hash rustc uses for its
+/// own identifier-keyed maps: far cheaper on short ASCII keys, which is all a
+/// variable name ever is.
+///
+/// Two properties make the swap safe here rather than merely fast:
+///
+/// * *HashDoS resistance is irrelevant.* The keys are variable names from the
+///   document being solved, the engine runs client-side in the user's own tab,
+///   and a `DYNAMIC` with an absurd span is a far easier self-inflicted DoS
+///   than engineered hash collisions.
+/// * *Iteration order was never load-bearing.* `RandomState` reseeds per
+///   process, so `Scope` order already differed on every run; anything relying
+///   on it would have been flaky against the parity corpus long ago. Every
+///   iteration site in the engine collects into a `HashSet` or walks an
+///   ordered `BTreeMap`.
+///
+/// A fixed seed also makes iteration order stable run-to-run, which is
+/// strictly better for debugging than what `RandomState` gave.
+pub type Scope = HashMap<String, f64, BuildHasherDefault<FxHasher>>;
+
+/// `rustc-hash`'s FxHash, inlined rather than taken as a dependency: it is
+/// twenty lines, and the wasm budget has ~30 KiB of headroom that a new crate
+/// would spend for identical code.
+#[derive(Default, Clone, Copy)]
+pub struct FxHasher {
+    hash: u64,
+}
+
+impl FxHasher {
+    const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;
+
+    #[inline]
+    fn add(&mut self, word: u64) {
+        self.hash = (self.hash.rotate_left(5) ^ word).wrapping_mul(Self::SEED);
+    }
+}
+
+impl std::hash::Hasher for FxHasher {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        let mut rest = bytes;
+        while rest.len() >= 8 {
+            let (word, tail) = rest.split_at(8);
+            self.add(u64::from_ne_bytes(word.try_into().unwrap()));
+            rest = tail;
+        }
+        if rest.len() >= 4 {
+            let (word, tail) = rest.split_at(4);
+            self.add(u64::from(u32::from_ne_bytes(word.try_into().unwrap())));
+            rest = tail;
+        }
+        if rest.len() >= 2 {
+            let (word, tail) = rest.split_at(2);
+            self.add(u64::from(u16::from_ne_bytes(word.try_into().unwrap())));
+            rest = tail;
+        }
+        if let Some(&byte) = rest.first() {
+            self.add(u64::from(byte));
+        }
+    }
+
+    #[inline]
+    fn write_u8(&mut self, i: u8) {
+        self.add(u64::from(i));
+    }
+
+    #[inline]
+    fn write_usize(&mut self, i: usize) {
+        self.add(i as u64);
+    }
+
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -4947,12 +5028,12 @@ mod tests {
 
     /// Evaluate against an empty scope, panicking on error.
     fn ev(e: &Expr) -> f64 {
-        eval(e, &Scope::new()).unwrap_or_else(|err| panic!("eval failed: {err}"))
+        eval(e, &Scope::default()).unwrap_or_else(|err| panic!("eval failed: {err}"))
     }
 
     /// Evaluate expecting an error; returns the rendered message.
     fn err(e: &Expr) -> String {
-        match eval(e, &Scope::new()) {
+        match eval(e, &Scope::default()) {
             Ok(v) => panic!("expected an error, got {v}"),
             Err(e) => e.to_string(),
         }
@@ -4966,7 +5047,7 @@ mod tests {
     fn call(name: &str, args: &[f64]) -> Result<f64> {
         eval(
             &Expr::call(name, args.iter().copied().map(n).collect()),
-            &Scope::new(),
+            &Scope::default(),
         )
     }
 
@@ -5121,7 +5202,7 @@ mod tests {
         let message = err(&Expr::bin(BinOp::Div, n(1.0), n(0.0)));
         assert!(message.contains("division by zero"), "{message}");
         assert!(matches!(
-            eval(&Expr::bin(BinOp::Div, n(1.0), n(0.0)), &Scope::new()),
+            eval(&Expr::bin(BinOp::Div, n(1.0), n(0.0)), &Scope::default()),
             Err(FreesError::Evaluation { .. })
         ));
     }
@@ -5939,7 +6020,7 @@ mod tests {
     /// document with no `DYNAMIC` block.
     #[test]
     fn the_accessors_are_registered_and_default_to_the_null_context_answer() {
-        let scope = Scope::new();
+        let scope = Scope::default();
         for name in [
             "odevalue",
             "finalvalue",
@@ -5993,7 +6074,7 @@ mod tests {
     /// backward-compatible pair — and refuses anything else by name.
     #[test]
     fn an_accessor_column_must_be_a_string_or_a_bare_name() {
-        let scope = Scope::new();
+        let scope = Scope::default();
         assert_eq!(
             eval(&Expr::call("finalvalue", vec![Expr::var("temp")]), &scope).unwrap(),
             0.0
@@ -6282,7 +6363,7 @@ mod tests {
             },
         ];
         for case in cases {
-            match eval(&case, &Scope::new()) {
+            match eval(&case, &Scope::default()) {
                 Err(FreesError::Evaluation { .. }) => {}
                 other => panic!("expected an Evaluation error for {case:?}, got {other:?}"),
             }
@@ -6419,7 +6500,7 @@ mod tests {
 
     #[test]
     fn eval_in_is_usable_directly_with_a_custom_environment() {
-        let s = Scope::new();
+        let s = Scope::default();
         let root = Env::Root(&s);
         let bound = Env::Bind {
             name: "x",
@@ -6530,18 +6611,20 @@ mod tests {
     fn a_user_table_evaluates_by_name() {
         let defs = defs_with_table(linear_table("curve"));
         let e = Expr::call("curve", vec![n(0.5)]);
-        assert_eq!(eval_ctx(&e, &Scope::new(), &defs).unwrap(), 5.0);
+        assert_eq!(eval_ctx(&e, &Scope::default(), &defs).unwrap(), 5.0);
         // Family form with the second argument.
         let defs = defs_with_table(family_table("fam"));
         let e = Expr::call("fam", vec![n(1.0), n(2.0)]);
-        assert_eq!(eval_ctx(&e, &Scope::new(), &defs).unwrap(), 20.0);
+        assert_eq!(eval_ctx(&e, &Scope::default(), &defs).unwrap(), 20.0);
     }
 
     #[test]
     fn a_user_table_rejects_wrong_arity_with_the_java_message() {
         let defs = defs_with_table(linear_table("curve"));
         let e = Expr::call("curve", vec![n(1.0), n(2.0), n(3.0)]);
-        let msg = eval_ctx(&e, &Scope::new(), &defs).unwrap_err().to_string();
+        let msg = eval_ctx(&e, &Scope::default(), &defs)
+            .unwrap_err()
+            .to_string();
         assert!(msg.contains("expects curve(x) or curve(x, param)"), "{msg}");
     }
 
@@ -6551,9 +6634,9 @@ mod tests {
         // wins over the trigonometric intrinsic.
         let defs = defs_with_table(linear_table("sin"));
         let e = Expr::call("sin", vec![n(1.0)]);
-        assert_eq!(eval_ctx(&e, &Scope::new(), &defs).unwrap(), 10.0);
+        assert_eq!(eval_ctx(&e, &Scope::default(), &defs).unwrap(), 10.0);
         // Without the context the intrinsic still answers.
-        close(eval(&e, &Scope::new()).unwrap(), libm::sin(1.0));
+        close(eval(&e, &Scope::default()).unwrap(), libm::sin(1.0));
     }
 
     #[test]
@@ -6577,7 +6660,7 @@ mod tests {
             ..Definitions::default()
         };
         let e = Expr::call("double", vec![n(7.0)]);
-        match eval_ctx(&e, &Scope::new(), &defs) {
+        match eval_ctx(&e, &Scope::default(), &defs) {
             Ok(v) => assert_eq!(v, 14.0),
             Err(err) => {
                 let msg = err.to_string();
@@ -6593,7 +6676,7 @@ mod tests {
     fn plain_eval_with_empty_context_matches_eval() {
         let e = Expr::call("sqrt", vec![n(9.0)]);
         assert_eq!(
-            eval_with(&e, &Scope::new(), EvalContext::default()).unwrap(),
+            eval_with(&e, &Scope::default(), EvalContext::default()).unwrap(),
             3.0
         );
     }
@@ -6605,7 +6688,7 @@ mod tests {
     #[test]
     fn table_functions_resolve_the_named_table() {
         let defs = defs_with_table(linear_table("t"));
-        let s = Scope::new();
+        let s = Scope::default();
         let call_str = |f: &str, args: Vec<Expr>| {
             let mut all = vec![Expr::Str("t".into())];
             all.extend(args);
@@ -6665,9 +6748,9 @@ mod tests {
         };
         let defs = defs_with_table(table);
         let e = Expr::call("interpolate1", vec![Expr::Str("p".into()), n(0.5)]);
-        close(eval_ctx(&e, &Scope::new(), &defs).unwrap(), 0.3125);
+        close(eval_ctx(&e, &Scope::default(), &defs).unwrap(), 0.3125);
         let d = Expr::call("dtable1", vec![Expr::Str("p".into()), n(1.0)]);
-        close(eval_ctx(&d, &Scope::new(), &defs).unwrap(), 2.0);
+        close(eval_ctx(&d, &Scope::default(), &defs).unwrap(), 2.0);
     }
 
     #[test]
@@ -6677,7 +6760,7 @@ mod tests {
             "interpolate2d",
             vec![Expr::Str("fam".into()), n(1.0), n(2.0)],
         );
-        assert_eq!(eval_ctx(&e, &Scope::new(), &defs).unwrap(), 20.0);
+        assert_eq!(eval_ctx(&e, &Scope::default(), &defs).unwrap(), 20.0);
     }
 
     #[test]
@@ -6726,7 +6809,7 @@ mod tests {
                 n(3.0),
             ],
         );
-        match eval(&e, &Scope::new()) {
+        match eval(&e, &Scope::default()) {
             Ok(v) => assert!((v - 9.0).abs() < 1e-6, "got {v}"),
             Err(e) => {
                 let msg = e.to_string();
@@ -6951,7 +7034,7 @@ mod tests {
     fn ev_in_doc(source: &str, e: &Expr) -> Result<f64> {
         let doc = crate::parser::parse_document(source)
             .unwrap_or_else(|err| panic!("parse failed: {err}"));
-        eval_with(e, &Scope::new(), EvalContext::with_defs(&doc.defs))
+        eval_with(e, &Scope::default(), EvalContext::with_defs(&doc.defs))
     }
 
     const SWAP_DOC: &str = "PROCEDURE p(a : b, c)\n  b := a * 2\n  c := a + 1\nEND\n";
@@ -7248,7 +7331,7 @@ mod tests {
         let bc = |digits: Expr, from: f64, to: f64| {
             eval(
                 &Expr::call("baseconvert", vec![digits, n(from), n(to)]),
-                &Scope::new(),
+                &Scope::default(),
             )
         };
         assert_eq!(bc(Expr::Str("FF".into()), 16.0, 10.0).unwrap(), 255.0);
@@ -7289,7 +7372,7 @@ mod tests {
 
     #[test]
     fn uncertaintyof_reads_the_injected_scope_entry() {
-        let mut s = Scope::new();
+        let mut s = Scope::default();
         s.insert("uncertaintyof$x".into(), 0.25);
         let e = Expr::call("uncertaintyof", vec![Expr::Str("X".into())]);
         assert_eq!(eval(&e, &s).unwrap(), 0.25);
@@ -7334,7 +7417,7 @@ mod tests {
     fn heisler(name: &str, geometry: &str, rest: &[f64]) -> Result<f64> {
         let mut args = vec![Expr::Str(geometry.into())];
         args.extend(rest.iter().copied().map(n));
-        eval(&Expr::call(name, args), &Scope::new())
+        eval(&Expr::call(name, args), &Scope::default())
     }
 
     #[test]
@@ -7498,7 +7581,7 @@ mod tests {
     fn hx(name: &str, arrangement: &str, rest: &[f64]) -> Result<f64> {
         let mut args = vec![Expr::Str(arrangement.into())];
         args.extend(rest.iter().copied().map(n));
-        eval(&Expr::call(name, args), &Scope::new())
+        eval(&Expr::call(name, args), &Scope::default())
     }
 
     #[test]
@@ -7696,7 +7779,7 @@ mod tests {
                     "mach_a_astar",
                     vec![n(ratio), n(1.4), Expr::Str(regime.into())],
                 ),
-                &Scope::new(),
+                &Scope::default(),
             )
         };
         let ratio = c("a_astar", &[2.0, 1.4]);
@@ -7722,7 +7805,7 @@ mod tests {
                     "beta_oblique",
                     vec![n(2.0), n(theta), n(1.4), Expr::Str(branch.into())],
                 ),
-                &Scope::new(),
+                &Scope::default(),
             )
         };
         let weak = call_beta("weak").unwrap();

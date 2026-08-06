@@ -1341,7 +1341,7 @@ fn coefficients(arg: &Expr, which: &str) -> Result<Vec<f64>> {
             other => elements.push(other),
         }
     }
-    let scope = Scope::new();
+    let scope = Scope::default();
     elements
         .into_iter()
         .map(|e| {

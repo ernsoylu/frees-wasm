@@ -38,8 +38,6 @@
 // review, so the range-loop lints are turned off for this module only.
 #![allow(clippy::needless_range_loop)]
 
-use std::collections::HashMap;
-
 use crate::ast::{Equation, Expr};
 use crate::diag::{FreesError, Result};
 use crate::eval::{eval, Scope};
@@ -254,7 +252,8 @@ fn evaluate(
     param_names: &[String],
     param_values: &[f64],
 ) -> f64 {
-    let mut scope: Scope = HashMap::with_capacity(param_names.len() + 1);
+    let mut scope: Scope =
+        Scope::with_capacity_and_hasher(param_names.len() + 1, Default::default());
     scope.insert(x_var.to_string(), x_value);
     for (name, value) in param_names.iter().zip(param_values) {
         scope.insert(name.clone(), *value);

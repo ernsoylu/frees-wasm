@@ -1662,7 +1662,7 @@ mod tests {
     }
 
     fn cooling_values() -> Scope {
-        let mut v = Scope::new();
+        let mut v = Scope::default();
         v.insert("k".into(), 0.05);
         v.insert("tinf".into(), 20.0);
         v
@@ -1857,7 +1857,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("a".into(), 2.0);
         let defs = Definitions::default();
         let mut s = solver(&system, &values, &defs);
@@ -1905,7 +1905,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("tin".into(), 10.0);
         let defs = Definitions::default();
         let err = solver(&system, &values, &defs)
@@ -1952,7 +1952,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("tq".into(), 1.0);
         let defs = Definitions::default();
         let mut s = solver(&system, &values, &defs);
@@ -1998,7 +1998,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("n".into(), 3.0);
         let defs = Definitions::default();
         let mut s = solver(&system, &values, &defs);
@@ -2049,7 +2049,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let values = Scope::new();
+        let values = Scope::default();
         let defs = Definitions::default();
         let mut s = solver(&system, &values, &defs);
         s.classify().unwrap();
@@ -2178,7 +2178,7 @@ mod tests {
             }],
             source_text: String::new(),
         };
-        let values = Scope::new();
+        let values = Scope::default();
         let defs = Definitions::default();
         let table = solver(&system, &values, &defs)
             .solve_with(reference_integrator)
@@ -2403,7 +2403,7 @@ mod tests {
             )],
             source_text: String::new(),
         };
-        let values = Scope::new();
+        let values = Scope::default();
         let defs = Definitions::default();
         let t = solver(&system, &values, &defs).solve().unwrap();
         assert!(!t.stopped);
@@ -2457,7 +2457,7 @@ mod tests {
             }],
             source_text: String::new(),
         };
-        let values = Scope::new();
+        let values = Scope::default();
         let defs = Definitions::default();
         let t = solver(&system, &values, &defs).solve().unwrap();
         assert!(!t.stopped);
@@ -2538,7 +2538,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("n".into(), 3.0);
         values.insert("alpha".into(), 0.01);
         values.insert("hot".into(), 100.0);
@@ -2600,7 +2600,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let values = Scope::new();
+        let values = Scope::default();
         let defs = Definitions::default();
         let t = solver(&system, &values, &defs).solve().unwrap();
         assert_eq!(t.columns, vec!["t", "y"]);
@@ -2671,7 +2671,7 @@ mod tests {
             }),
         );
         let residual = |k: f64| -> f64 {
-            let mut v = Scope::new();
+            let mut v = Scope::default();
             v.insert("k".into(), k);
             v.insert("tinf".into(), 20.0);
             ctx.resolve("finalvalue", "temp", None, &v).unwrap() - 30.0
@@ -2909,7 +2909,7 @@ mod tests {
             events: Vec::new(),
             source_text: String::new(),
         };
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("k".into(), 2.0);
         values.insert("c".into(), 4.0);
         values.insert("tinf".into(), 20.0);

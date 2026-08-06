@@ -844,7 +844,7 @@ mod tests {
 
     #[test]
     fn no_context_resolves_to_zero_rather_than_failing() {
-        let values = Scope::new();
+        let values = Scope::default();
         assert_eq!(
             resolve(None, "MaxValue", "anything", None, &values).unwrap(),
             0.0
@@ -878,7 +878,7 @@ mod tests {
             }),
         );
 
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("rate".into(), 10.0);
         assert_eq!(
             ctx.resolve("MaxValue", "temp", None, &values).unwrap(),
@@ -914,7 +914,7 @@ mod tests {
                 Ok(cooling_table())
             }),
         );
-        let mut values = Scope::new();
+        let mut values = Scope::default();
         values.insert("rate".into(), 1.0);
         assert_eq!(
             ctx.resolve("MaxValue", "temp", None, &values).unwrap(),
@@ -943,7 +943,7 @@ mod tests {
                 ))
             }),
         );
-        let values = Scope::new();
+        let values = Scope::default();
         assert_eq!(
             ctx.resolve("MaxValue", "m.port.t", None, &values).unwrap(),
             5.0
@@ -964,7 +964,7 @@ mod tests {
             Box::new(|_ds: &DynamicSystem, _v: &Scope| Ok(cooling_table())),
         );
         let err = ctx
-            .resolve("MaxValue", "nope", None, &Scope::new())
+            .resolve("MaxValue", "nope", None, &Scope::default())
             .unwrap_err()
             .to_string_message();
         assert!(
@@ -986,12 +986,12 @@ mod tests {
         );
         // Simulate the engine handing the context down into the inner solve.
         let outer = ctx
-            .resolve("MaxValue", "temp", None, &Scope::new())
+            .resolve("MaxValue", "temp", None, &Scope::default())
             .unwrap();
         assert_eq!(outer, 95.0);
         ctx.integrating.set(true);
         nested.set(
-            ctx.resolve("MaxValue", "temp", None, &Scope::new())
+            ctx.resolve("MaxValue", "temp", None, &Scope::default())
                 .unwrap(),
         );
         ctx.integrating.set(false);
@@ -1010,7 +1010,7 @@ mod tests {
                 Err(FreesError::solver("boom"))
             }),
         );
-        let values = Scope::new();
+        let values = Scope::default();
         assert!(ctx.resolve("MaxValue", "temp", None, &values).is_err());
         assert!(ctx.resolve("MaxValue", "temp", None, &values).is_err());
         assert_eq!(calls.get(), 2);

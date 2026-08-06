@@ -337,12 +337,12 @@ fn to_integral_equation(
 /// `None` — it contains unknowns and is resolved by the equation system.
 /// Java catches the evaluator's `IllegalStateException` for exactly this.
 fn try_constant(e: &Expr, defs: &Definitions) -> Option<f64> {
-    eval_with(e, &Scope::new(), EvalContext::with_defs(defs)).ok()
+    eval_with(e, &Scope::default(), EvalContext::with_defs(defs)).ok()
 }
 
 /// `IntegralSolver.constantArg`: an argument that *must* be closed.
 fn constant_arg(e: &Expr, what: &str, eq: &Equation, defs: &Definitions) -> Result<f64> {
-    eval_with(e, &Scope::new(), EvalContext::with_defs(defs)).map_err(|_| {
+    eval_with(e, &Scope::default(), EvalContext::with_defs(defs)).map_err(|_| {
         FreesError::solver(format!(
             "The {what} of Integral must be a numeric constant: {}",
             eq.source_text
@@ -1483,12 +1483,12 @@ mod tests {
 
     fn quad(source: &str, var: &str, a: f64, b: f64) -> f64 {
         let expr = parse_expression(source);
-        integral(&expr, var, a, b, None, &Scope::new()).expect("integrates")
+        integral(&expr, var, a, b, None, &Scope::default()).expect("integrates")
     }
 
     fn gauss(source: &str, var: &str, a: f64, b: f64, points: Option<usize>) -> f64 {
         let expr = parse_expression(source);
-        gauss_integral(&expr, var, a, b, points, &Scope::new()).expect("integrates")
+        gauss_integral(&expr, var, a, b, points, &Scope::default()).expect("integrates")
     }
 
     #[test]
@@ -1517,7 +1517,7 @@ mod tests {
 
     #[test]
     fn the_integration_variable_does_not_leak_into_the_callers_scope() {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         scope.insert("t".into(), 42.0);
         let expr = parse_expression("t^2");
         assert!((integral(&expr, "t", 0.0, 1.0, None, &scope).unwrap() - 1.0 / 3.0).abs() < 1e-12);
@@ -1526,7 +1526,7 @@ mod tests {
 
     #[test]
     fn the_integrand_sees_the_callers_other_variables() {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         scope.insert("k".into(), 3.0);
         let expr = parse_expression("k * t");
         let value = integral(&expr, "t", 0.0, 2.0, None, &scope).unwrap();
@@ -1550,7 +1550,7 @@ mod tests {
     #[test]
     fn gauss_legendre_rejects_reversed_limits_like_apache() {
         let expr = parse_expression("t^2");
-        let err = gauss_integral(&expr, "t", 1.0, 0.0, None, &Scope::new()).unwrap_err();
+        let err = gauss_integral(&expr, "t", 1.0, 0.0, None, &Scope::default()).unwrap_err();
         assert!(
             err.to_string_message()
                 .contains("endpoints do not specify an interval"),

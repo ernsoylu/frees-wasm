@@ -873,7 +873,7 @@ mod tests {
     }
 
     fn empty_scope() -> Scope {
-        Scope::new()
+        Scope::default()
     }
 
     // ── call_function: the ProceduralFeaturesTest oracle cases ──────────────

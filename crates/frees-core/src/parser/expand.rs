@@ -141,7 +141,7 @@ pub fn expand_document(doc: &Document) -> Result<Vec<Equation>> {
         out: Vec::new(),
         sinks: next_sink_index(&doc.statements),
     };
-    flattener.flatten(&doc.statements, &Scope::new())?;
+    flattener.flatten(&doc.statements, &Scope::default())?;
     Ok(flattener.out)
 }
 
@@ -205,7 +205,7 @@ struct VectorInfo {
 /// (`crate::eval` is the engine's numeric AST evaluator — safe by
 /// construction, no code execution.)
 fn extract_constants(statements: &[Statement]) -> Scope {
-    let mut constants = Scope::new();
+    let mut constants = Scope::default();
     let mut progress = true;
     while progress {
         progress = false;
@@ -4143,7 +4143,7 @@ mod tests {
     /// Evaluate a kernel expansion: seed the literal element equations, then
     /// resolve every `out = kernel(known…)` equation in one pass (which is all
     /// these flatteners emit).
-    fn kernel_values(eqs: &[Equation]) -> HashMap<String, f64> {
+    fn kernel_values(eqs: &[Equation]) -> Scope {
         let mut scope: Scope = literal_values(eqs).into_iter().collect();
         for eq in eqs {
             if let (Expr::Var(name), Expr::Call { .. }) = (&eq.lhs, &eq.rhs) {

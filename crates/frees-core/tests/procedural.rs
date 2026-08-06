@@ -19,7 +19,7 @@ fn function_value(source: &str, name: &str, args: &[f64]) -> f64 {
         .defs
         .function(name)
         .unwrap_or_else(|| panic!("no FUNCTION {name}"));
-    call_function(def, args, &doc.defs, &Scope::new())
+    call_function(def, args, &doc.defs, &Scope::default())
         .unwrap_or_else(|e| panic!("call failed: {e}"))
 }
 
@@ -123,7 +123,7 @@ CALL Swap(3, 7 : x, y)
     let flat = flatten_calls(doc.statements, &doc.defs).unwrap();
     // The CALL flattens to x = proc$swap$0(3, 7), y = proc$swap$1(3, 7).
     assert_eq!(flat.len(), 2);
-    let scope = Scope::new();
+    let scope = Scope::default();
     let (mut x, mut y) = (f64::NAN, f64::NAN);
     for statement in &flat {
         let Statement::Eq(eq) = statement else {
@@ -163,7 +163,7 @@ fn procedure_with_conditional() {
 END
 ";
     let doc = parse_document(source).unwrap();
-    let scope = Scope::new();
+    let scope = Scope::default();
     let small = call_proc_output("proc$minmax$0", &[8.0, 3.0], &doc.defs, &scope).unwrap();
     let large = call_proc_output("proc$minmax$1", &[8.0, 3.0], &doc.defs, &scope).unwrap();
     assert_close(small, 3.0);
@@ -189,7 +189,7 @@ END
     );
     let flat = flatten_calls(doc.statements, &doc.defs).unwrap();
     assert_eq!(flat.len(), 2);
-    let scope = Scope::new();
+    let scope = Scope::default();
     let whole = call_proc_output("proc$divmod$0", &[17.0, 5.0], &doc.defs, &scope).unwrap();
     let rem = call_proc_output("proc$divmod$1", &[17.0, 5.0], &doc.defs, &scope).unwrap();
     assert_close(whole, 3.0);
@@ -209,7 +209,7 @@ fn multi_output_function_with_conditional() {
 END
 ";
     let doc = parse_document(source).unwrap();
-    let scope = Scope::new();
+    let scope = Scope::default();
     let small = call_proc_output("proc$order$0", &[8.0, 3.0], &doc.defs, &scope).unwrap();
     let large = call_proc_output("proc$order$1", &[8.0, 3.0], &doc.defs, &scope).unwrap();
     assert_close(small, 3.0);
@@ -236,7 +236,7 @@ CALL Doubler(10 : b)
     // ns$x = in, ns$y = 2 * ns$x, out = ns$y is sequential.
     // (`frees_core::eval::eval` is the crate's numeric AST interpreter —
     // f64 arithmetic over a scope map, no code execution.)
-    let mut values = Scope::new();
+    let mut values = Scope::default();
     for statement in &flat {
         let Statement::Eq(eq) = statement else {
             panic!("{statement:?}")
@@ -281,7 +281,7 @@ CALL Linear(2, 1 : result)
         ]
     );
     // Order-independent check: evaluate with the namespaced fixture values.
-    let mut values = Scope::new();
+    let mut values = Scope::default();
     values.insert("linear$1$m".into(), 2.0);
     values.insert("linear$1$b".into(), 1.0);
     values.insert("linear$1$x_int".into(), 3.0);
@@ -308,7 +308,7 @@ CALL Shift(4 : out)
 ";
     let doc = parse_document(source).unwrap();
     let flat = flatten_calls(doc.statements, &doc.defs).unwrap();
-    let mut values = Scope::new();
+    let mut values = Scope::default();
     for statement in &flat {
         let Statement::Eq(eq) = statement else {
             panic!("{statement:?}")

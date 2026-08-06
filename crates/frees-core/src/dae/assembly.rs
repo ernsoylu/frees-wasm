@@ -678,7 +678,7 @@ mod tests {
 
     #[test]
     fn time_alias_is_pinned_when_the_document_does_not_define_it() {
-        let v = dae_values(&Scope::new(), "tau", &[], &[], 7.0, &[], &[]);
+        let v = dae_values(&Scope::default(), "tau", &[], &[], 7.0, &[], &[]);
         assert_eq!(v["tau"], 7.0);
         assert_eq!(v["time"], 7.0);
     }

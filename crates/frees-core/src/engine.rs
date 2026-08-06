@@ -607,7 +607,7 @@ pub fn solve_with(
     if equations.is_empty() && !doc.dynamics.is_empty() {
         let ode_tables = solve_dynamic_systems(
             &doc,
-            &Scope::new(),
+            &Scope::default(),
             settings,
             &BTreeMap::new(),
             base_ctx,
@@ -685,7 +685,8 @@ pub fn solve_with(
     // the built-in constants, and each block overwrites its own unknowns as it
     // is solved. That *is* the "feed solved values forward" mechanism — a later
     // block reading `p` sees the value the earlier block determined.
-    let mut values: Scope = HashMap::with_capacity(specs.len() + constants.len());
+    let mut values: Scope =
+        Scope::with_capacity_and_hasher(specs.len() + constants.len(), Default::default());
     values.extend(constants.iter().map(|(k, v)| (k.clone(), *v)));
     for (name, spec) in &specs {
         values.insert(name.clone(), spec.initial());
@@ -3390,7 +3391,7 @@ fn solve_equation_list(
     seed_property_argument_guesses(equations, &mut seeded);
     let specs = &seeded;
 
-    let mut values: Scope = HashMap::new();
+    let mut values: Scope = Scope::default();
     values.extend(constants);
     for name in unknowns(equations, &knowns) {
         let guess = warm_start

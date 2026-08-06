@@ -578,7 +578,7 @@ fn tf_coefficients(arg: &Expr, which: &str) -> Result<Vec<f64>, String> {
     // Rust evaluator with an empty scope is the same contract. (This is the
     // engine's pure numeric AST interpreter — it computes an `f64` from a
     // parsed expression and executes no code.)
-    let empty = Scope::new();
+    let empty = Scope::default();
     let mut coeffs = Vec::with_capacity(elements.len());
     for elem in elements {
         match crate::eval::eval(elem, &empty) {

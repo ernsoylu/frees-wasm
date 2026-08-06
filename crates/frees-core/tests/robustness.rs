@@ -28,8 +28,6 @@
 //! constructs, non-ASCII input, enormous and subnormal numbers, degenerate
 //! systems, and division by zero.
 
-use std::collections::HashMap;
-
 use frees_core::diag::Severity;
 use frees_core::parser::expr::MAX_EXPR_DEPTH;
 use frees_core::units::registry::UnitRegistry;
@@ -741,7 +739,7 @@ fn no_document_in_the_hostile_corpus_panics() {
 fn evaluating_an_expression_the_parser_produced_never_panics() {
     // Anything `parse_document` accepts is shallow enough for the recursive
     // evaluator, whatever its arithmetic does.
-    let scope = HashMap::new();
+    let scope = frees_core::eval::Scope::default();
     for src in [
         "x = 1 / 0",
         "x = 1e999 - 1e999",

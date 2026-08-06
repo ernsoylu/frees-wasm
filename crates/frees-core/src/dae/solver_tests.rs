@@ -902,7 +902,7 @@ fn for_assembly_wires_tolerances_id_roots_and_the_sparse_threshold() {
     use crate::dae::assembly::{assemble, AssemblySpec, EventSpec};
     use crate::eval::{EvalContext, Scope};
 
-    let mut analytic = Scope::new();
+    let mut analytic = Scope::default();
     analytic.insert("k".into(), 0.05);
     analytic.insert("tinf".into(), 20.0);
     let spec = AssemblySpec {
@@ -992,7 +992,7 @@ fn for_assembly_selects_the_sparse_path_without_changing_the_answer() {
         ));
     }
 
-    let mut analytic = Scope::new();
+    let mut analytic = Scope::default();
     analytic.insert("cap".into(), 500.0);
     analytic.insert("cond".into(), 12.0);
     let initials: Vec<f64> = (0..NODES)

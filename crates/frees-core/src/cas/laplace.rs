@@ -2094,7 +2094,7 @@ mod tests {
     }
 
     fn at(e: &Expr, bindings: &[(&str, f64)]) -> f64 {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         for (name, value) in bindings {
             scope.insert((*name).to_string(), *value);
         }

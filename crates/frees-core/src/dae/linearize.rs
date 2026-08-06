@@ -301,7 +301,7 @@ pub fn emit_matrix(
 /// Port of `EquationSystemSolver.extractScalarConstants`. An imaginary literal
 /// is skipped: a complex constant is not an operating point.
 pub fn extract_scalar_constants(equations: &[Equation]) -> Scope {
-    let mut c = Scope::new();
+    let mut c = Scope::default();
     for e in equations {
         if let (
             Expr::Var(n),
@@ -482,7 +482,7 @@ mod tests {
         // out right for a plant whose input has no analytic value.
         let states = vec!["x".to_string()];
         let x0 = vec![0.0];
-        let analytic = Scope::new();
+        let analytic = Scope::default();
         let op = OperatingPoint {
             block_name: "b",
             time_var: "time",
@@ -509,7 +509,7 @@ mod tests {
         // contributes a zero row rather than failing.
         let states = vec!["x".to_string(), "z".to_string()];
         let x0 = vec![1.0, 2.0];
-        let analytic = Scope::new();
+        let analytic = Scope::default();
         let op = OperatingPoint {
             block_name: "b",
             time_var: "time",
@@ -536,7 +536,7 @@ mod tests {
     fn an_output_that_is_not_a_network_variable_is_named_in_the_error() {
         let states = vec!["x".to_string()];
         let x0 = vec![1.0];
-        let analytic = Scope::new();
+        let analytic = Scope::default();
         let op = OperatingPoint {
             block_name: "warmup",
             time_var: "time",
@@ -561,7 +561,7 @@ mod tests {
     fn a_failing_inner_solve_propagates() {
         let states = vec!["x".to_string()];
         let x0 = vec![1.0];
-        let analytic = Scope::new();
+        let analytic = Scope::default();
         let op = OperatingPoint {
             block_name: "b",
             time_var: "time",
@@ -578,7 +578,7 @@ mod tests {
     fn a_mismatched_operating_point_is_refused() {
         let states = vec!["x".to_string(), "z".to_string()];
         let x0 = vec![1.0];
-        let analytic = Scope::new();
+        let analytic = Scope::default();
         let op = OperatingPoint {
             block_name: "warmup",
             time_var: "time",
@@ -587,7 +587,7 @@ mod tests {
             x0: &x0,
             analytic_values: &analytic,
         };
-        let err = linearize(&op, &[], &[], |_| Ok(Scope::new()))
+        let err = linearize(&op, &[], &[], |_| Ok(Scope::default()))
             .unwrap_err()
             .to_string();
         assert!(err.contains("1 state values for 2 states"), "{err}");

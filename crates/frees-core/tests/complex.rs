@@ -10,7 +10,8 @@
 //! component starts at the base guess (default 1.0), an `_i` component
 //! defaults to **0.0**, and an explicit spec for the suffixed name wins.
 
-use std::collections::{HashMap, HashSet};
+use frees_core::eval::Scope;
+use std::collections::HashSet;
 
 use frees_core::ast::Equation;
 use frees_core::diag::Result;
@@ -29,7 +30,7 @@ const DEFAULT_GUESS: f64 = 1.0;
 /// `overrides` play the role of the Variable Information window (explicit
 /// guesses for expanded names); in-text `GUESS` directives are honoured the
 /// way `withTextGuesses` merges them — text wins over the override.
-fn solve_complex(source: &str, overrides: &[(&str, f64)]) -> HashMap<String, f64> {
+fn solve_complex(source: &str, overrides: &[(&str, f64)]) -> Scope {
     let doc = parse_document(source).expect("parse");
     let equations: Vec<Equation> = doc.equations().into_iter().cloned().collect();
     let expanded = expand_complex(equations, true).expect("expand");
@@ -37,7 +38,7 @@ fn solve_complex(source: &str, overrides: &[(&str, f64)]) -> HashMap<String, f64
 
     // Seed: _r components at DEFAULT_GUESS, _i components at 0.0 (the Java
     // complexComponentSpec rule), then overrides, then in-text GUESS.
-    let mut values: HashMap<String, f64> = HashMap::new();
+    let mut values = Scope::default();
     for eq in &expanded {
         for v in eq.variables() {
             let seed = if v.ends_with("_i") {
@@ -82,7 +83,7 @@ fn solve_complex(source: &str, overrides: &[(&str, f64)]) -> HashMap<String, f64
     values
 }
 
-fn assert_close(values: &HashMap<String, f64>, name: &str, expected: f64, tol: f64) {
+fn assert_close(values: &Scope, name: &str, expected: f64, tol: f64) {
     let got = values
         .get(name)
         .unwrap_or_else(|| panic!("{name} missing from {values:?}"));

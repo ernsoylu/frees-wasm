@@ -195,7 +195,7 @@ mod tests {
     }
 
     fn value_of(eq: &Equation) -> f64 {
-        eval(&eq.rhs, &Scope::new()).expect("rhs evaluates")
+        eval(&eq.rhs, &Scope::default()).expect("rhs evaluates")
     }
 
     /// `stringVariableResolvesAndLeavesNumericSystem`

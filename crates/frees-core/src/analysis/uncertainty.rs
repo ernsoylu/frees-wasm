@@ -1052,7 +1052,7 @@ mod tests {
 
     #[test]
     fn injected_keys_use_the_java_prefix_and_lowercase() {
-        let mut scope = Scope::new();
+        let mut scope = Scope::default();
         inject_uncertainty_values(&mut scope, &BTreeMap::from([("Temp".to_string(), 0.5)]));
         assert_eq!(scope.get("uncertaintyof$temp"), Some(&0.5));
     }
@@ -1063,7 +1063,7 @@ mod tests {
         let mut specs = BTreeMap::new();
         apply_uncertainty_specs(
             &exprs,
-            &Scope::new(),
+            &Scope::default(),
             &mut specs,
             EvalContext::with_defs(&Definitions::default()),
         );
@@ -1074,7 +1074,7 @@ mod tests {
     fn a_variable_in_no_equation_keeps_a_zero_jacobian_column() {
         // `x` is constrained by the one equation; `z` appears nowhere.
         let equations = vec![Equation::new(Expr::var("x"), Expr::num(2.0), "x = 2")];
-        let values = Scope::from([("x".to_string(), 2.0)]);
+        let values: Scope = [("x".to_string(), 2.0)].into_iter().collect();
         let jac = numerical_jacobian(
             &equations,
             &values,

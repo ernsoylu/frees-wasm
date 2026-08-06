@@ -679,7 +679,19 @@ pub fn solve_with(
     // layer said (it was seeded before expansion so a steady-storage rewrite is
     // reported even when a later stage fails).
     collect_unit_warnings(&equations, &mut diagnostics);
-    let specs = variable_specs(&equations, &knowns, &doc, overrides, &mut diagnostics)?;
+    let mut specs = variable_specs(&equations, &knowns, &doc, overrides, &mut diagnostics)?;
+
+    // Phase-A guess seeding, at the Java position. This *also* lives in
+    // `solve_equation_list`, but the main document solve does not go through
+    // it — it drives `run_blocks` directly — so putting it there alone left
+    // every steady-state document unseeded, and only the ODE per-step and
+    // Integral inner solves benefited. `ev-battery-cooling-pid` therefore
+    // started working (its failure was in the transient's inner solve) while
+    // `sysdesign-ex16-moving-boundary-evaporator` still died on
+    // `T(R134a, P=1, …)` in an ordinary block. Both call sites are needed:
+    // Java's single `solveEquationListPermissive` is two paths here.
+    seed_property_argument_guesses(&equations, &mut specs, Missing::Skip);
+    let specs = specs;
 
     // One scope for the whole document: it starts as the initial guesses plus
     // the built-in constants, and each block overwrites its own unknowns as it
@@ -2244,23 +2256,49 @@ fn arg_indicator<'a>(tokens: &[&'a str], n: usize, k: usize) -> Option<&'a str> 
 /// at 1 J/kg and every port pressure at 1 Pa; `ev-battery-cooling-pid` is the
 /// document that showed it, dying on `T(R134a, P=350000, Hmass=1)` in the
 /// evaporator's 14-equation block before Newton could take a single step.
-fn seed_property_argument_guesses(equations: &[Equation], specs: &mut BTreeMap<String, VarSpec>) {
+/// Whether a seeder may *add* a spec for a variable that has none.
+///
+/// The two call sites need different answers, and the difference is not
+/// cosmetic — getting it wrong silently un-fixes a document at one site or
+/// corrupts a result at the other:
+///
+/// * [`solve_with`] seeds the document-level map, which is built over
+///   `unknowns()` and already holds every unknown. A name missing there is a
+///   *known*, and `specs.keys()` is what reports `unknown_count` — so adding
+///   would invent a variable. [`Missing::Skip`].
+/// * [`solve_equation_list`] seeds a throwaway clone for one subsystem, whose
+///   variables are not all in the document-level map it started from (a
+///   transient's per-step algebraic system is the case that matters). Adding
+///   is what makes the seed reach them at all, and the map dies with the call.
+///   [`Missing::Create`], which is also what the Java does with its
+///   `expandedSpecs` over every name.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Missing {
+    Skip,
+    Create,
+}
+
+fn seed_property_argument_guesses(
+    equations: &[Equation],
+    specs: &mut BTreeMap<String, VarSpec>,
+    missing: Missing,
+) {
     // The fluid-aware refrigerant pressure seed runs **first**, so the generic
     // 1-bar nominal below cannot overwrite it.
     for equation in equations {
-        seed_refrigerant_pressure(&equation.lhs, specs);
-        seed_refrigerant_pressure(&equation.rhs, specs);
+        seed_refrigerant_pressure(&equation.lhs, specs, missing);
+        seed_refrigerant_pressure(&equation.rhs, specs, missing);
     }
     for equation in equations {
-        seed_prop_args_in(&equation.lhs, specs);
-        seed_prop_args_in(&equation.rhs, specs);
+        seed_prop_args_in(&equation.lhs, specs, missing);
+        seed_prop_args_in(&equation.rhs, specs, missing);
     }
-    seed_stream_member_guesses(equations, specs);
+    seed_stream_member_guesses(equations, specs, missing);
     // Last: the reference-dependent enthalpies, which need the pressures the
     // passes above have just seeded.
     for equation in equations {
-        seed_consistent_enthalpy(&equation.lhs, specs);
-        seed_consistent_enthalpy(&equation.rhs, specs);
+        seed_consistent_enthalpy(&equation.lhs, specs, missing);
+        seed_consistent_enthalpy(&equation.rhs, specs, missing);
     }
 }
 
@@ -2282,7 +2320,7 @@ fn needs_seed(var: &str, specs: &BTreeMap<String, VarSpec>) -> bool {
 /// sub-critical operating nominal (~0.35·Pcrit) instead of the generic 1 bar,
 /// so a floating-pressure refrigerant cycle cold-starts in-band. Port of
 /// `seedRefrigerantPressure`.
-fn seed_refrigerant_pressure(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
+fn seed_refrigerant_pressure(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>, missing: Missing) {
     match expr {
         Expr::Call { function, args } => {
             if let Some(tokens) = prop_tokens(function) {
@@ -2309,21 +2347,23 @@ fn seed_refrigerant_pressure(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>)
                             let p_lo = 1.0e4;
                             let p_hi = p_nom / 0.35 * 1.5;
                             for name in pending {
-                                apply_nominal_guess_with_bounds(&name, p_nom, p_lo, p_hi, specs);
+                                apply_nominal_guess_with_bounds(
+                                    &name, p_nom, p_lo, p_hi, specs, missing,
+                                );
                             }
                         }
                     }
                 }
             }
             for arg in args {
-                seed_refrigerant_pressure(arg, specs);
+                seed_refrigerant_pressure(arg, specs, missing);
             }
         }
         Expr::BinOp { left, right, .. } => {
-            seed_refrigerant_pressure(left, specs);
-            seed_refrigerant_pressure(right, specs);
+            seed_refrigerant_pressure(left, specs, missing);
+            seed_refrigerant_pressure(right, specs, missing);
         }
-        Expr::Neg(inner) => seed_refrigerant_pressure(inner, specs),
+        Expr::Neg(inner) => seed_refrigerant_pressure(inner, specs, missing),
         // Leaf or non-arithmetic node: nothing to seed. The Java walker descends
         // exactly these three node kinds and no others; widening it here would
         // seed variables the oracle leaves alone.
@@ -2333,7 +2373,7 @@ fn seed_refrigerant_pressure(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>)
 
 /// Seed each property-call argument from [`prop_arg_nominal`]. Port of
 /// `seedPropArgsIn`.
-fn seed_prop_args_in(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
+fn seed_prop_args_in(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>, missing: Missing) {
     match expr {
         Expr::Call { function, args } => {
             if let Some(tokens) = prop_tokens(function) {
@@ -2342,20 +2382,25 @@ fn seed_prop_args_in(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
                         (arg_indicator(&tokens, args.len(), k), arg)
                     {
                         if let Some(nominal) = prop_arg_nominal(indicator) {
-                            apply_nominal_guess(&name.to_ascii_lowercase(), nominal, specs);
+                            apply_nominal_guess(
+                                &name.to_ascii_lowercase(),
+                                nominal,
+                                specs,
+                                missing,
+                            );
                         }
                     }
                 }
             }
             for arg in args {
-                seed_prop_args_in(arg, specs);
+                seed_prop_args_in(arg, specs, missing);
             }
         }
         Expr::BinOp { left, right, .. } => {
-            seed_prop_args_in(left, specs);
-            seed_prop_args_in(right, specs);
+            seed_prop_args_in(left, specs, missing);
+            seed_prop_args_in(right, specs, missing);
         }
-        Expr::Neg(inner) => seed_prop_args_in(inner, specs),
+        Expr::Neg(inner) => seed_prop_args_in(inner, specs, missing),
         _ => {}
     }
 }
@@ -2367,7 +2412,7 @@ fn seed_prop_args_in(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
 /// `seedConsistentEnthalpy`: the principled fix for the closed-loop cold-start
 /// NaN, since an enthalpy stuck at 1 J/kg is below every fluid's table range
 /// and a flat 1e5 nominal is meaningless against a fluid-dependent reference.
-fn seed_consistent_enthalpy(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
+fn seed_consistent_enthalpy(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>, missing: Missing) {
     match expr {
         Expr::Call { function, args } => {
             if let Some(tokens) = prop_tokens(function) {
@@ -2394,20 +2439,20 @@ fn seed_consistent_enthalpy(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) 
                     if tokens.len() >= 3 && needs_seed(&h_var, specs) {
                         let h = crate::props::propfun::nominal_enthalpy(tokens[2], p_seed);
                         if h.is_finite() {
-                            apply_nominal_guess(&h_var, h, specs);
+                            apply_nominal_guess(&h_var, h, specs, missing);
                         }
                     }
                 }
             }
             for arg in args {
-                seed_consistent_enthalpy(arg, specs);
+                seed_consistent_enthalpy(arg, specs, missing);
             }
         }
         Expr::BinOp { left, right, .. } => {
-            seed_consistent_enthalpy(left, specs);
-            seed_consistent_enthalpy(right, specs);
+            seed_consistent_enthalpy(left, specs, missing);
+            seed_consistent_enthalpy(right, specs, missing);
         }
-        Expr::Neg(inner) => seed_consistent_enthalpy(inner, specs),
+        Expr::Neg(inner) => seed_consistent_enthalpy(inner, specs, missing),
         _ => {}
     }
 }
@@ -2417,7 +2462,11 @@ fn seed_consistent_enthalpy(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) 
 /// a coupled fluid-resistance network does not start with a negative ΔP. Port
 /// of `seedStreamMemberGuesses`. Derivative names are skipped — `der$x$p` is a
 /// rate, not a pressure.
-fn seed_stream_member_guesses(equations: &[Equation], specs: &mut BTreeMap<String, VarSpec>) {
+fn seed_stream_member_guesses(
+    equations: &[Equation],
+    specs: &mut BTreeMap<String, VarSpec>,
+    missing: Missing,
+) {
     for equation in equations {
         for name in equation.variables() {
             if name.starts_with("der$") {
@@ -2427,7 +2476,7 @@ fn seed_stream_member_guesses(equations: &[Equation], specs: &mut BTreeMap<Strin
                 continue;
             };
             if let Some(nominal) = member_nominal(&name[dollar + 1..]) {
-                apply_nominal_guess(&name, nominal, specs);
+                apply_nominal_guess(&name, nominal, specs, missing);
             }
         }
     }
@@ -2435,11 +2484,16 @@ fn seed_stream_member_guesses(equations: &[Equation], specs: &mut BTreeMap<Strin
 
 /// Install `nominal` as `var`'s guess unless the user already set one. Port of
 /// `applyNominalGuess`.
-fn apply_nominal_guess(var: &str, nominal: f64, specs: &mut BTreeMap<String, VarSpec>) {
-    match specs.get_mut(var) {
-        // No spec yet (the common case — most unknowns carry no user info):
-        // create one so the nominal becomes the variable's initial guess.
-        None => {
+fn apply_nominal_guess(
+    var: &str,
+    nominal: f64,
+    specs: &mut BTreeMap<String, VarSpec>,
+    missing: Missing,
+) {
+    // Java's `applyNominalGuess` always creates when the spec is absent; see
+    // [`Missing`] for why the port has to decide that per call site.
+    let Some(spec) = specs.get_mut(var) else {
+        if missing == Missing::Create {
             specs.insert(
                 var.to_string(),
                 VarSpec {
@@ -2448,13 +2502,12 @@ fn apply_nominal_guess(var: &str, nominal: f64, specs: &mut BTreeMap<String, Var
                 },
             );
         }
-        Some(spec) => {
-            if spec.guess != DEFAULT_GUESS {
-                return; // a user/GUI guess is already set — it always wins
-            }
-            spec.guess = nominal.clamp(spec.lower, spec.upper);
-        }
+        return;
+    };
+    if spec.guess != DEFAULT_GUESS {
+        return; // a user/GUI guess is already set — it always wins
     }
+    spec.guess = nominal.clamp(spec.lower, spec.upper);
 }
 
 /// [`apply_nominal_guess`] plus physical bounds where the user left them open,
@@ -2466,9 +2519,10 @@ fn apply_nominal_guess_with_bounds(
     lo: f64,
     hi: f64,
     specs: &mut BTreeMap<String, VarSpec>,
+    missing: Missing,
 ) {
-    match specs.get_mut(var) {
-        None => {
+    let Some(spec) = specs.get_mut(var) else {
+        if missing == Missing::Create {
             specs.insert(
                 var.to_string(),
                 VarSpec {
@@ -2478,25 +2532,24 @@ fn apply_nominal_guess_with_bounds(
                 },
             );
         }
-        Some(spec) => {
-            if spec.guess != DEFAULT_GUESS {
-                return; // user/GUI guess wins — and keeps its bounds too
-            }
-            let use_lo = if spec.lower.is_infinite() {
-                lo
-            } else {
-                spec.lower
-            };
-            let use_hi = if spec.upper.is_infinite() {
-                hi
-            } else {
-                spec.upper
-            };
-            spec.lower = use_lo;
-            spec.upper = use_hi;
-            spec.guess = nominal.clamp(use_lo, use_hi);
-        }
+        return;
+    };
+    if spec.guess != DEFAULT_GUESS {
+        return; // user/GUI guess wins — and keeps its bounds too
     }
+    let use_lo = if spec.lower.is_infinite() {
+        lo
+    } else {
+        spec.lower
+    };
+    let use_hi = if spec.upper.is_infinite() {
+        hi
+    } else {
+        spec.upper
+    };
+    spec.lower = use_lo;
+    spec.upper = use_hi;
+    spec.guess = nominal.clamp(use_lo, use_hi);
 }
 
 // ---------------------------------------------------------------------------
@@ -3388,7 +3441,7 @@ fn solve_equation_list(
     // (the Java `applyNominalGuess` does), and `specs.keys()` upstream defines
     // the result rows — a guess must never invent a variable.
     let mut seeded = specs.clone();
-    seed_property_argument_guesses(equations, &mut seeded);
+    seed_property_argument_guesses(equations, &mut seeded, Missing::Create);
     let specs = &seeded;
 
     let mut values: Scope = Scope::default();

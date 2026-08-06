@@ -212,7 +212,7 @@ now lives in `Latex.tsx`.
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 704 documents)
+                                       # (--release: the replay solves 707 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo test -p frees-core --test fuzz_properties        # property-based fuzzing
                                        # (PROPTEST_CASES=4096 for a longer soak)

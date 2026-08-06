@@ -37,104 +37,119 @@
   ],
   "fixtures": {
     "rankine-cycle": {
-      "relative": 1e-5,
-      "measured": 6.406e-7,
+      "relative": 1e-05,
+      "measured": 6.406e-07,
       "reason": "Every state comes from the (P,h) split table: Enthalpy(Water,P,x), Enthalpy/Entropy(Water,P,T) by inverse bisection on the tabulated surface, Enthalpy(Water,P,s) likewise. D1 measured this document's thirteen states at <= 6.6e-5 against CoolProp 8.0.0."
     },
     "rankine-cycle-2": {
-      "relative": 1e-5,
-      "measured": 6.423e-7,
+      "relative": 1e-05,
+      "measured": 6.423e-07,
       "reason": "Same mechanism as rankine-cycle: an all-table steam cycle with (P,x), (P,T) and (P,s) inputs."
     },
     "refrigeration-vcr": {
-      "relative": 1e-5,
-      "measured": 1.528e-6,
+      "relative": 1e-05,
+      "measured": 1.528e-06,
       "reason": "R134a vapour-compression cycle. Adds P_sat(R134a, T=..) -- the (T,x) saturation-line query form -- to the (P,x)/(P,s)/(P,h) set. D1 measured (T,x) at 2.5e-6 for R134a."
     },
     "props_realfluid_water_states": {
-      "relative": 2e-4,
-      "measured": 7.195e-5,
+      "relative": 0.0002,
+      "measured": 7.195e-05,
       "reason": "Water through every input pair the backend serves. The worst variable is d1_rank = Density(Water, P=10 kPa, h=h_f) -- saturated-liquid density on the v_f line at f32, which the D1 error report names as this build's worst document state (6.585e-5 against CoolProp). 15 of the 44 variables here are (P,h)->T/Dmass/Smass and their goldens are the Java's own 256-grid table, not CoolProp; on 10 of those 15 this port is closer to CoolProp than the golden. Verified three-way against direct CoolProp 8.0.0."
     },
     "components_family_fluid": {
-      "relative": 1e-5,
-      "measured": 1.3898e-6,
+      "relative": 1e-05,
+      "measured": 1.3898e-06,
       "reason": "COMPONENT network on the thermofluid bond. Every stream enthalpy comes from one Enthalpy(Water, P, T) call inside the library's Source body and is then carried unchanged along the network, so the single (P,T) inverse bisection on the tabulated surface sets the error for the whole document."
     },
     "components_family_liquid": {
-      "relative": 1e-5,
-      "measured": 1.2225e-6,
+      "relative": 1e-05,
+      "measured": 1.2225e-06,
       "reason": "Same mechanism as components_family_fluid on the liquid bond: LiquidSource's Enthalpy(Water, P, T) is the only property call, and its (P,T) bisection error propagates to every downstream stream enthalpy."
     },
     "components_family_twophase": {
-      "relative": 1e-4,
-      "measured": 1.9844e-5,
+      "relative": 0.0001,
+      "measured": 1.9844e-05,
       "reason": "R134a two-phase sensor. Density/Enthalpy at (P,x) on the saturation line plus Temperature(P,h) and T_sat(P) in the superheated region; the worst variable is SH = T - Tsat, a difference of two tabulated temperatures whose absolute errors do not cancel, which amplifies a 1e-7 property error into 2e-5 relative on a 31 K superheat."
     },
     "components_family_ac": {
-      "relative": 1e-5,
-      "measured": 3.2721e-6,
+      "relative": 1e-05,
+      "measured": 3.2721e-06,
       "reason": "EXV/EXVCmd size their pressure drop from Density(R134a, P, h) at a subcooled state; the (P,h) table's density error enters the orifice equation under a square root, so it shows up doubled in the outlet pressure."
     },
     "components_bsweep_valve_characteristics": {
-      "relative": 1e-5,
-      "measured": 1.5837e-6,
+      "relative": 1e-05,
+      "measured": 1.5837e-06,
       "reason": "Valve model$ sweep on a Water loop. The only property call is the source's Enthalpy(Water, P, T); its (P,T) inverse-bisection error is carried into every stream enthalpy the valves pass through unchanged."
     },
     "components_wave2_capillary_tube": {
-      "relative": 2e-4,
-      "measured": 2.9262e-5,
+      "relative": 0.0002,
+      "measured": 2.9262e-05,
       "reason": "CapillaryTube with a cavitating pressure drop. dp_eff = P_in - max(P_out, P_f) subtracts the tabulated flash pressure from a boundary pressure, so a 1e-6 relative error on P_f (a (P,h)->T inversion followed by a saturation lookup) becomes 3e-5 relative on the much smaller difference."
     },
     "components_wave2_short_tube_choke": {
-      "relative": 2e-4,
-      "measured": 2.9262e-5,
+      "relative": 0.0002,
+      "measured": 2.9262e-05,
       "reason": "Same cancellation as components_wave2_capillary_tube: the short-tube choke's dp_eff is a difference of a boundary pressure and a tabulated flash pressure, and the subtraction amplifies the table error."
     },
     "components_wave2_ejector_oilsep": {
-      "relative": 1e-5,
-      "measured": 5.1245e-8,
+      "relative": 1e-05,
+      "measured": 5.1245e-08,
       "reason": "Ejector + oil separator on R134a. Saturated-liquid enthalpy Enthalpy(R134a, P, x=0) off the (P,x) saturation line is the only tabulated quantity and it sets the whole document's error."
     },
     "components_wave2_flash_tank": {
-      "relative": 1e-5,
-      "measured": 5.3369e-8,
+      "relative": 1e-05,
+      "measured": 5.3369e-08,
       "reason": "Flash tank splitting a two-phase stream into its saturated liquid and vapour branches: both branch enthalpies are (P,x) saturation-line lookups from the tabulated surface."
     },
     "components_wave2_liquid_tms": {
-      "relative": 1e-5,
-      "measured": 1.8382e-6,
+      "relative": 1e-05,
+      "measured": 1.8382e-06,
       "reason": "Two-loop liquid thermal-management network. Each LiquidSource contributes one Enthalpy(Water, P, T) inverse bisection, and both errors ride through the check valves and mixers unchanged."
     },
     "components_wave8_hydro_turbine": {
-      "relative": 1e-5,
-      "measured": 1.5697e-6,
+      "relative": 1e-05,
+      "measured": 1.5697e-06,
       "reason": "Hydro turbine on a Water head. The inlet enthalpy is an Enthalpy(Water, P, T) bisection on the tabulated surface; the turbine's outlet enthalpy is that value minus an exactly-computed specific work, so the source error passes straight through."
     },
     "props_realfluid_r134a_states": {
-      "relative": 1e-5,
-      "measured": 1.879e-6,
+      "relative": 1e-05,
+      "measured": 1.879e-06,
       "reason": "R134a through the same input-pair matrix plus a superheat sweep toward the served ceiling (dh_vapor_max = 132.7 kJ/kg). Worst variable is d_pt = Density(R134a, P=1.2 MPa, T=333.15) -- a (P,T) inverse bisection on the tabulated surface, which has no Java counterpart. 24 of 42 variables are intercepted by the Java's runtime table; on 10 of those this port is closer to direct CoolProp than the golden."
     },
     "adv_cyclepath_rankine_order": {
-      "relative": 1e-5,
-      "measured": 3.971e-6,
+      "relative": 1e-05,
+      "measured": 3.971e-06,
       "reason": "The component-layer Rankine loop: Pump/Boiler/Turbine/Condenser instances whose bodies call Volume(Water,P,h), Entropy(Water,P,h) and Enthalpy(Water,P,s). Same (P,h) split-table mechanism as rankine-cycle -- the turbine work tu.W amplifies the isentropic-outlet enthalpy error to 4.0e-6. The component expansion itself is exact; only the property values differ."
     },
     "state-tables-multifluid": {
-      "relative": 1e-5,
-      "measured": 2.8963e-6,
+      "relative": 1e-05,
+      "measured": 2.8963e-06,
       "reason": "Two STATE TABLE circuits whose every computed value is one Enthalpy() call on the (P,h) split table. hw_1 = Enthalpy(Water, P=10 kPa, T=45 C) sets the document's error: it is a (P,T) inverse bisection at a compressed-liquid state ~0.8 K below saturation, where h climbs steeply with T along a nearly flat pressure line, so the bisection's residual width shows up as 2.90e-6 in h. The other three are the same mechanism an order of magnitude smaller -- href_2 = Enthalpy(R134a, P=1.2 MPa, T=60 C) at 4.09e-7, hw_2 = Enthalpy(Water, P=8 MPa, T=480 C) at 1.11e-7 -- plus href_1 = Enthalpy(R134a, P=200 kPa, x=1), a (P,x) saturation-line read at 1.98e-8. None of the four is intercepted by the Java's own PhTableRegistry (that path is output T/Dmass/Smass at input (P,Hmass) only), so all four goldens are bit-exact CoolProp and the whole gap is this port's table."
     },
     "ev-thermal-management": {
-      "relative": 2e-3,
-      "measured": 8.951e-4,
+      "relative": 0.002,
+      "measured": 0.0008951,
       "reason": "The FRAUX1 grids (tools/aux-gen), not the (P,h) tables, set this one. The worst three variables are h_chl_c and the two UAs built from it -- h_chl_c = htc_1phase('EG50', 200 kPa, 290 K, ...), whose only inexact inputs are the glycol's viscosity, conductivity and cp off the INCOMP::MEG grid. Viscosity is that grid's weakest output (1.3e-3 max_rel, 2.2e-4 rms) because ln(mu) turns over hard toward the freeze point. It is then AMPLIFIED, and that is the whole story of this fixture's number: Re at that state is 2987, dead centre of nuSinglePhase's 2300..4000 laminar<->turbulent blend, where Nu sweeps 3.66 -> ~30. A ~5e-4 viscosity error lands on the steepest part of the correlation and comes out near 9e-4 in h. The operating point, not the table, chooses that gain -- the same table gives 1.3e-4 on sysdesign-ex11-liquid-cooling-loop, which sits off the blend. Everything downstream of a property call is at or below 7.3e-4 and the median over all 229 variables is 1.0e-6. The refrigerant side (R1234yf .phtab + its saturation-transport grid) contributes nothing measurable at this level."
     },
     "sysdesign-ex11-liquid-cooling-loop": {
-      "relative": 5e-4,
-      "measured": 1.310e-4,
+      "relative": 0.0005,
+      "measured": 0.000131,
       "reason": "The same INCOMP::MEG grid as ev-thermal-management, without the blend-band amplification. Every value is carried from one Enthalpy(EG50, P, T) at the source and one Temperature(EG50, P, h) inverse per wall-HX, so the grid's Hmass error (scaled 7.0e-5) propagates roughly unchanged -- the worst variable is rad.out.h, the last enthalpy in the chain, at 1.31e-4."
+    },
+    "sysdesign-ex17-ac-expansion-valve": {
+      "relative": 2e-07,
+      "measured": 7.8874e-08,
+      "reason": "R134a saturation states through the (P,x) input pair, which PropertyFunctions.java does NOT intercept \u2014 the golden is bit-exact CoolProp, so the gap is this build's .phtab interpolation error alone (D1's 1e-7..1e-4 band). Worst variable hi.out.h, an Enthalpy(R134a, P=900 kPa, x=0) saturated-liquid state."
+    },
+    "sysdesign-ex20-zeotropic-blend": {
+      "relative": 1e-07,
+      "measured": 2.8901e-08,
+      "reason": "Same mechanism as sysdesign-ex17: R134a saturation states via (P,x), golden bit-exact CoolProp, gap is the .phtab interpolation error. Worst variable s1.bubble, a bubble-point temperature."
+    },
+    "sysdesign-ex16-moving-boundary-evaporator": {
+      "relative": 1e-05,
+      "measured": 3.2347e-06,
+      "reason": "Larger than its (P,x)-only siblings because this document inverts Temperature(R134a, P, h) \u2014 the one query shape PropertyFunctions.java routes through its own run-time 256/96/48 SaturationSplitTable. The gap is therefore |512-grid - 256-grid|, two interpolation errors summed, exactly the case this file's header describes. Worst variable ev.q_sh, a superheat-zone heat rate downstream of that inversion."
     }
   }
 }

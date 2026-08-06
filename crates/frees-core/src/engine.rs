@@ -605,8 +605,14 @@ pub fn solve_with(
     // `buildResult(equations, List.of(), List.of(Map.of()), 0, …)` is an empty
     // solution carrying only the tables.
     if equations.is_empty() && !doc.dynamics.is_empty() {
-        let ode_tables =
-            solve_dynamic_systems(&doc, &Scope::new(), settings, &BTreeMap::new(), base_ctx)?;
+        let ode_tables = solve_dynamic_systems(
+            &doc,
+            &Scope::new(),
+            settings,
+            &BTreeMap::new(),
+            base_ctx,
+            None,
+        )?;
         return Ok(Solution {
             values: BTreeMap::new(),
             display_names: complete_display_names(&doc.display_names, &equations),
@@ -819,11 +825,18 @@ pub fn solve_with(
     // analytic solve and passes the result into `buildResult`. Each block gets
     // the solved scalars as its parameters and initial conditions.
     //
-    // Note this drops the accessor bridge first (`ctx` is not passed): the Java
-    // reaches here with the thread-local still installed, but every block is
-    // re-integrated from scratch against the final values, so a cached table
-    // from a Newton iterate must not be reused.
-    let ode_tables = solve_dynamic_systems(&doc, &values, settings, &specs, base_ctx)?;
+    // The accessor bridge stays out of `ctx` here (`base_ctx` is passed): this
+    // pass must not resolve *new* accessors, and the Java reaches the same
+    // point with its thread-local still installed.
+    //
+    // The bridge's cache is still consulted, though, through `reuse`. The rule
+    // is unchanged — a table from an arbitrary Newton iterate must never be
+    // reused — but `cached_table` only answers when the block's input signature
+    // at these final values matches the one it integrated at, which makes the
+    // reused table equal to the one this pass would compute. That collapses the
+    // two integrations an accessor-bearing document used to pay for into one.
+    let ode_tables =
+        solve_dynamic_systems(&doc, &values, settings, &specs, base_ctx, bridge.as_ref())?;
 
     Ok(Solution {
         values: solved,
@@ -889,13 +902,25 @@ fn solve_dynamic_systems(
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
     ctx: EvalContext<'_>,
+    reuse: Option<&crate::ode::accessors::DynamicAccessorContext<'_>>,
 ) -> Result<Vec<crate::ode::problem::OdeTableResult>> {
     if doc.dynamics.is_empty() {
         return Ok(Vec::new());
     }
     let inner = relaxed_ode_settings(settings, 1e-7);
     let mut tables = Vec::with_capacity(doc.dynamics.len());
-    for system in &doc.dynamics {
+    for (index, system) in doc.dynamics.iter().enumerate() {
+        // A live accessor has already integrated this system at every Newton
+        // iterate it was asked about, the last of which is the converged point
+        // this pass is about to integrate at again. When the input signature
+        // still matches, that table *is* this table — see
+        // `DynamicAccessorContext::cached_table` for why the match is
+        // sufficient. Without this, every accessor-bearing document integrates
+        // its transient exactly twice.
+        if let Some(table) = reuse.and_then(|bridge| bridge.cached_table(index, base_values)) {
+            tables.push(table);
+            continue;
+        }
         let algebraic = pinned_solver(&inner, specs, ctx);
         tables.push(
             crate::ode::dynamic::DynamicSolver::new(system, base_values, &doc.defs, algebraic)
@@ -2128,6 +2153,336 @@ fn apply_guess(spec: &mut VarSpec, guess: &GuessDirective) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase-A guess seeding — port of `seedPropertyArgumentGuesses`
+// ---------------------------------------------------------------------------
+
+/// Domain-aware nominal guesses for property-call arguments, keyed by the
+/// encoded input indicator (`prop$enthalpy$water$p$h` → the args carry
+/// indicators `p`, `h`). Port of `PROP_ARG_NOMINAL`.
+///
+/// A property argument left at [`DEFAULT_GUESS`] means **1 Pa / 1 J/kg / 1 K**,
+/// which is below every fluid's valid range, so the very first residual is
+/// `NaN` and the solve never starts.
+fn prop_arg_nominal(indicator: &str) -> Option<f64> {
+    Some(match indicator {
+        "p" => 1.0e5,     // pressure ~1 bar
+        "t" => 300.0,     // temperature ~ambient
+        "h" => 1.0e5,     // enthalpy — inside the liquid range of most fluids
+        "s" => 1.0e3,     // entropy
+        "u" => 1.0e5,     // internal energy
+        "d" => 1.0,       // density
+        "x" | "q" => 0.5, // quality (two-phase; `x` in frees, `Q` in CoolProp)
+        "v" => 1.0e-3,    // specific volume
+        _ => return None,
+    })
+}
+
+/// Physical nominal for a component/stream member, keyed by the token after the
+/// last `$`. Port of `MEMBER_NOMINAL`: only the members where the default guess
+/// is clearly unphysical (a 1 Pa pressure sends a `√(ΔP)` resistance imaginary;
+/// a 1 K temperature breaks property calls). Ambiguous members are deliberately
+/// omitted — `v` is voltage as often as specific volume — as is enthalpy, whose
+/// reference point is fluid-dependent and which
+/// [`seed_consistent_enthalpy`] handles properly instead.
+fn member_nominal(member: &str) -> Option<f64> {
+    match member {
+        "p" => Some(1.0e5),
+        "t" => Some(300.0),
+        _ => None,
+    }
+}
+
+/// The `$`-split tokens of an encoded property call, or `None` for any other
+/// function. The encoding is `prop$<output>$<fluid>$<ind…>`.
+fn prop_tokens(function: &str) -> Option<Vec<&str>> {
+    function
+        .starts_with(crate::props::propfun::PREFIX)
+        .then(|| function.split('$').collect())
+}
+
+/// The input indicator belonging to argument `k` of an `n`-argument encoded
+/// call: the encoding ends with exactly one name token per argument, so the
+/// indicators are the *last* `n` tokens (Java: `ti = tok.length - n + k`, with
+/// a negative `ti` skipped).
+fn arg_indicator<'a>(tokens: &[&'a str], n: usize, k: usize) -> Option<&'a str> {
+    let ti = tokens.len() as isize - n as isize + k as isize;
+    usize::try_from(ti)
+        .ok()
+        .and_then(|ti| tokens.get(ti))
+        .copied()
+}
+
+/// Seed an initial guess for every unknown that appears as a bare argument of a
+/// property call and still sits at [`DEFAULT_GUESS`]. Port of
+/// `EquationSystemSolver.seedPropertyArgumentGuesses` (the Java "Phase A"
+/// consistent-state init), called from the same position — once per equation
+/// list about to be solved, before any value map is built from the specs.
+///
+/// This puts an implicit-property base point inside the table's valid box so
+/// the first residual evaluates, which is what the monotonic inversions
+/// (`Temperature(P,h)`, `Density(T,P)`, …) need in order to converge at all.
+/// **User and GUI guesses always win** — only an untouched default is replaced.
+///
+/// Without it, a closed refrigerant loop cold-starts with every port enthalpy
+/// at 1 J/kg and every port pressure at 1 Pa; `ev-battery-cooling-pid` is the
+/// document that showed it, dying on `T(R134a, P=350000, Hmass=1)` in the
+/// evaporator's 14-equation block before Newton could take a single step.
+fn seed_property_argument_guesses(equations: &[Equation], specs: &mut BTreeMap<String, VarSpec>) {
+    // The fluid-aware refrigerant pressure seed runs **first**, so the generic
+    // 1-bar nominal below cannot overwrite it.
+    for equation in equations {
+        seed_refrigerant_pressure(&equation.lhs, specs);
+        seed_refrigerant_pressure(&equation.rhs, specs);
+    }
+    for equation in equations {
+        seed_prop_args_in(&equation.lhs, specs);
+        seed_prop_args_in(&equation.rhs, specs);
+    }
+    seed_stream_member_guesses(equations, specs);
+    // Last: the reference-dependent enthalpies, which need the pressures the
+    // passes above have just seeded.
+    for equation in equations {
+        seed_consistent_enthalpy(&equation.lhs, specs);
+        seed_consistent_enthalpy(&equation.rhs, specs);
+    }
+}
+
+/// Would [`apply_nominal_guess`] actually change this variable?
+///
+/// Both fluid-aware seeders reach a *property lookup* to compute their nominal,
+/// and both then hand it to a function that discards it when the variable
+/// already carries a user guess. Asking first is behaviour-identical and keeps
+/// the seeding pass off the hot path: it runs once per equation list, and
+/// inside a `DYNAMIC` that is once per integrator stage, where the answer is
+/// the same every time.
+fn needs_seed(var: &str, specs: &BTreeMap<String, VarSpec>) -> bool {
+    specs
+        .get(var)
+        .is_none_or(|spec| spec.guess == DEFAULT_GUESS)
+}
+
+/// Seed the pressure argument of a condensable-refrigerant property call to a
+/// sub-critical operating nominal (~0.35·Pcrit) instead of the generic 1 bar,
+/// so a floating-pressure refrigerant cycle cold-starts in-band. Port of
+/// `seedRefrigerantPressure`.
+fn seed_refrigerant_pressure(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
+    match expr {
+        Expr::Call { function, args } => {
+            if let Some(tokens) = prop_tokens(function) {
+                if tokens.len() >= 3 {
+                    // Collect the pressure arguments that would actually take a
+                    // seed *before* paying for the Pcrit lookup.
+                    let pending: Vec<String> = args
+                        .iter()
+                        .enumerate()
+                        .filter_map(
+                            |(k, arg)| match (arg_indicator(&tokens, args.len(), k), arg) {
+                                (Some("p"), Expr::Var(name)) => Some(name.to_ascii_lowercase()),
+                                _ => None,
+                            },
+                        )
+                        .filter(|name| needs_seed(name, specs))
+                        .collect();
+                    if !pending.is_empty() {
+                        let p_nom = crate::props::propfun::nominal_pressure(tokens[2]);
+                        if p_nom.is_finite() {
+                            // p_nom = 0.35·Pcrit ⇒ physical bounds [10 kPa, ~1.5·Pcrit],
+                            // which keep the floating pressure positive and in-table so
+                            // Newton's line-search clamp cannot step it to NaN.
+                            let p_lo = 1.0e4;
+                            let p_hi = p_nom / 0.35 * 1.5;
+                            for name in pending {
+                                apply_nominal_guess_with_bounds(&name, p_nom, p_lo, p_hi, specs);
+                            }
+                        }
+                    }
+                }
+            }
+            for arg in args {
+                seed_refrigerant_pressure(arg, specs);
+            }
+        }
+        Expr::BinOp { left, right, .. } => {
+            seed_refrigerant_pressure(left, specs);
+            seed_refrigerant_pressure(right, specs);
+        }
+        Expr::Neg(inner) => seed_refrigerant_pressure(inner, specs),
+        // Leaf or non-arithmetic node: nothing to seed. The Java walker descends
+        // exactly these three node kinds and no others; widening it here would
+        // seed variables the oracle leaves alone.
+        _ => {}
+    }
+}
+
+/// Seed each property-call argument from [`prop_arg_nominal`]. Port of
+/// `seedPropArgsIn`.
+fn seed_prop_args_in(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
+    match expr {
+        Expr::Call { function, args } => {
+            if let Some(tokens) = prop_tokens(function) {
+                for (k, arg) in args.iter().enumerate() {
+                    if let (Some(indicator), Expr::Var(name)) =
+                        (arg_indicator(&tokens, args.len(), k), arg)
+                    {
+                        if let Some(nominal) = prop_arg_nominal(indicator) {
+                            apply_nominal_guess(&name.to_ascii_lowercase(), nominal, specs);
+                        }
+                    }
+                }
+            }
+            for arg in args {
+                seed_prop_args_in(arg, specs);
+            }
+        }
+        Expr::BinOp { left, right, .. } => {
+            seed_prop_args_in(left, specs);
+            seed_prop_args_in(right, specs);
+        }
+        Expr::Neg(inner) => seed_prop_args_in(inner, specs),
+        _ => {}
+    }
+}
+
+/// Seed the enthalpy argument of every property call — if still at the default
+/// guess — to a thermodynamically consistent `Enthalpy(fluid, P, x=0.5)` (or
+/// `T ≈ 300 K` for an incompressible), using the call's *own* pressure
+/// argument, which the earlier passes have already seeded. Port of
+/// `seedConsistentEnthalpy`: the principled fix for the closed-loop cold-start
+/// NaN, since an enthalpy stuck at 1 J/kg is below every fluid's table range
+/// and a flat 1e5 nominal is meaningless against a fluid-dependent reference.
+fn seed_consistent_enthalpy(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>) {
+    match expr {
+        Expr::Call { function, args } => {
+            if let Some(tokens) = prop_tokens(function) {
+                let mut h_var: Option<String> = None;
+                let mut p_seed = 1.0e5;
+                for (k, arg) in args.iter().enumerate() {
+                    let Some(indicator) = arg_indicator(&tokens, args.len(), k) else {
+                        continue;
+                    };
+                    match (indicator, arg) {
+                        ("h", Expr::Var(name)) => h_var = Some(name.to_ascii_lowercase()),
+                        ("p", Expr::Var(name)) => {
+                            if let Some(spec) = specs.get(&name.to_ascii_lowercase()) {
+                                p_seed = spec.guess;
+                            }
+                        }
+                        ("p", Expr::Num { value, .. }) => p_seed = *value,
+                        _ => {}
+                    }
+                }
+                if let Some(h_var) = h_var {
+                    // `nominal_enthalpy` is a real property-table lookup, so ask
+                    // whether it can change anything before paying for it.
+                    if tokens.len() >= 3 && needs_seed(&h_var, specs) {
+                        let h = crate::props::propfun::nominal_enthalpy(tokens[2], p_seed);
+                        if h.is_finite() {
+                            apply_nominal_guess(&h_var, h, specs);
+                        }
+                    }
+                }
+            }
+            for arg in args {
+                seed_consistent_enthalpy(arg, specs);
+            }
+        }
+        Expr::BinOp { left, right, .. } => {
+            seed_consistent_enthalpy(left, specs);
+            seed_consistent_enthalpy(right, specs);
+        }
+        Expr::Neg(inner) => seed_consistent_enthalpy(inner, specs),
+        _ => {}
+    }
+}
+
+/// Seed physical initial guesses for component/stream member unknowns: a flat
+/// name like `s$p` or `vlv$in$p` still at the default gets a domain nominal, so
+/// a coupled fluid-resistance network does not start with a negative ΔP. Port
+/// of `seedStreamMemberGuesses`. Derivative names are skipped — `der$x$p` is a
+/// rate, not a pressure.
+fn seed_stream_member_guesses(equations: &[Equation], specs: &mut BTreeMap<String, VarSpec>) {
+    for equation in equations {
+        for name in equation.variables() {
+            if name.starts_with("der$") {
+                continue;
+            }
+            let Some(dollar) = name.rfind('$') else {
+                continue;
+            };
+            if let Some(nominal) = member_nominal(&name[dollar + 1..]) {
+                apply_nominal_guess(&name, nominal, specs);
+            }
+        }
+    }
+}
+
+/// Install `nominal` as `var`'s guess unless the user already set one. Port of
+/// `applyNominalGuess`.
+fn apply_nominal_guess(var: &str, nominal: f64, specs: &mut BTreeMap<String, VarSpec>) {
+    match specs.get_mut(var) {
+        // No spec yet (the common case — most unknowns carry no user info):
+        // create one so the nominal becomes the variable's initial guess.
+        None => {
+            specs.insert(
+                var.to_string(),
+                VarSpec {
+                    guess: nominal,
+                    ..VarSpec::default()
+                },
+            );
+        }
+        Some(spec) => {
+            if spec.guess != DEFAULT_GUESS {
+                return; // a user/GUI guess is already set — it always wins
+            }
+            spec.guess = nominal.clamp(spec.lower, spec.upper);
+        }
+    }
+}
+
+/// [`apply_nominal_guess`] plus physical bounds where the user left them open,
+/// so Newton's line-search clamp keeps the variable in a valid region. Port of
+/// `applyNominalGuessWithBounds`. User guesses and user-set bounds always win.
+fn apply_nominal_guess_with_bounds(
+    var: &str,
+    nominal: f64,
+    lo: f64,
+    hi: f64,
+    specs: &mut BTreeMap<String, VarSpec>,
+) {
+    match specs.get_mut(var) {
+        None => {
+            specs.insert(
+                var.to_string(),
+                VarSpec {
+                    guess: nominal,
+                    lower: lo,
+                    upper: hi,
+                },
+            );
+        }
+        Some(spec) => {
+            if spec.guess != DEFAULT_GUESS {
+                return; // user/GUI guess wins — and keeps its bounds too
+            }
+            let use_lo = if spec.lower.is_infinite() {
+                lo
+            } else {
+                spec.lower
+            };
+            let use_hi = if spec.upper.is_infinite() {
+                hi
+            } else {
+                spec.upper
+            };
+            spec.lower = use_lo;
+            spec.upper = use_hi;
+            spec.guess = nominal.clamp(use_lo, use_hi);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The per-block solve, its analytic Jacobian, and the Java retry ladder
 // ---------------------------------------------------------------------------
 
@@ -2145,6 +2500,12 @@ struct BlockProblem<'a> {
     /// differentiate — the Java `analyticalJacobian` returning null, which
     /// pins the block to finite differences.
     derivs: Option<Vec<Vec<Option<Expr>>>>,
+    /// The last property/evaluation refusal seen while evaluating residuals,
+    /// so a NaN stall still names its physical cause (the Java
+    /// `NewtonSolver.lastPropertyError` → `propertyErrorSuffix`). Owned by
+    /// [`solve_block`], which reads it back after Newton has consumed the
+    /// problem.
+    last_property_error: &'a mut Option<String>,
 }
 
 impl NewtonProblem for BlockProblem<'_> {
@@ -2152,16 +2513,34 @@ impl NewtonProblem for BlockProblem<'_> {
         for (name, value) in self.names.iter().zip(x) {
             self.scope.insert(name.clone(), *value);
         }
-        match residuals_into(self.equations, self.scope, self.ctx, out) {
-            Ok(()) => Ok(()),
-            // An invalid region, not a broken document: hand Newton the
-            // non-finite residual its line search knows how to reject.
-            Err(FreesError::Evaluation { .. }) | Err(FreesError::Property { .. }) => {
-                out.fill(f64::NAN);
-                Ok(())
-            }
-            Err(other) => Err(other),
-        }
+        residuals_lenient(
+            self.equations,
+            self.scope,
+            self.ctx,
+            out,
+            self.last_property_error,
+        )
+    }
+
+    /// `varToEquations`: equation `i` depends on variable `j` exactly when it
+    /// mentions it, which is the same structural test
+    /// [`analytic_derivatives`] uses to decide a structural zero.
+    fn row_dependencies(&self) -> Option<Vec<Vec<usize>>> {
+        let mentioned: Vec<BTreeSet<String>> =
+            self.equations.iter().map(|e| e.variables()).collect();
+        Some(
+            self.names
+                .iter()
+                .map(|name| {
+                    mentioned
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, vars)| vars.contains(name))
+                        .map(|(i, _)| i)
+                        .collect()
+                })
+                .collect(),
+        )
     }
 
     /// Evaluate the pre-differentiated entries at `x` — the evaluation half of
@@ -2253,9 +2632,25 @@ fn solve_block(
 
     // Evaluate once at the initial point so a genuinely broken expression is
     // reported as itself instead of as "did not converge". See the module docs.
+    //
+    // A *property* refusal is the one exception, and excluding it is what the
+    // oracle does: Java has no fatal probe at all — `NewtonSolver` line 83
+    // enters the loop through the same NaN-tolerant `residuals()` as every
+    // later iteration. The default guess is 1 Pa / 1 J/kg / 1 K, which lies
+    // outside every real fluid's table, so a refusal there says nothing about
+    // whether the block is solvable; only entering Newton lets the line search
+    // and the LM rescue walk out. The message is kept and re-attached below,
+    // so a block that genuinely cannot be served (an untabulated output, an
+    // unknown fluid) still reports its cause rather than "did not converge".
     let mut probe = vec![0.0; n];
-    residuals_into(&block_equations, values, ctx, &mut probe)
-        .map_err(|err| annotate(err, index, &block_equations))?;
+    let mut last_property_error: Option<String> = None;
+    match residuals_into(&block_equations, values, ctx, &mut probe) {
+        Ok(()) => {}
+        Err(err @ FreesError::Property { .. }) => {
+            last_property_error = Some(err.to_string_message());
+        }
+        Err(other) => return Err(annotate(other, index, &block_equations)),
+    }
 
     let mut x: Vec<f64> = block
         .variables
@@ -2284,6 +2679,7 @@ fn solve_block(
             scope: &mut *values,
             ctx,
             derivs: analytic_derivatives(&block_equations, names),
+            last_property_error: &mut last_property_error,
         };
         newton_solve_problem(problem, &mut x, settings, Some(&bounds))
     };
@@ -2294,7 +2690,15 @@ fn solve_block(
         values.insert(name.clone(), *value);
     }
 
-    let report = outcome.map_err(|err| annotate(err, index, &block_equations))?;
+    let report = outcome.map_err(|err| {
+        // The Java `propertyErrorSuffix`: a stall whose residuals were `NaN`
+        // is unreadable without the property refusal that made them `NaN`.
+        let err = match &last_property_error {
+            Some(message) => FreesError::solver(format!("{} {message}", err.to_string_message())),
+            None => err,
+        };
+        annotate(err, index, &block_equations)
+    })?;
     Ok(report.iterations)
 }
 
@@ -2309,6 +2713,50 @@ fn residuals_into(
 ) -> Result<()> {
     for (slot, equation) in out.iter_mut().zip(equations) {
         *slot = eval_with(&equation.lhs, scope, ctx)? - eval_with(&equation.rhs, scope, ctx)?;
+    }
+    Ok(())
+}
+
+/// [`residuals_into`], but an invalid *state point* poisons only **its own**
+/// slot with `NaN` instead of the whole vector — the Java
+/// `NewtonSolver.residuals`, whose `catch (PropertyEvaluationException)` sits
+/// inside the per-equation loop and writes `result[i] = NaN`.
+///
+/// The distinction is load-bearing at scale. One out-of-table property call in
+/// a 79-equation block used to blank all 79 residuals, and the LM rescue's
+/// row-skipping (`newton::damped_rescue`) then had no finite row left to build
+/// `JᵀJ` from, so the block stalled where Java walks out of the bad region on
+/// the other 78. `ev-battery-cooling-pid` is the document where that shows.
+///
+/// `Evaluation` failures are folded in for the reason the module docs give:
+/// [`crate::eval`] raises domain errors (`ln` of a non-positive, `sqrt` of a
+/// negative) that the Java `Evaluator` answers with `NaN` outright, so
+/// declining them here would be stricter than the oracle inside the very loop
+/// that is supposed to probe invalid regions.
+///
+/// The last such message is recorded in `last_error` — the Java
+/// `lastPropertyError` field, which exists so a stall report can still name
+/// the physical cause behind a vector of `NaN`s.
+fn residuals_lenient(
+    equations: &[&Equation],
+    scope: &Scope,
+    ctx: EvalContext<'_>,
+    out: &mut [f64],
+    last_error: &mut Option<String>,
+) -> Result<()> {
+    for (slot, equation) in out.iter_mut().zip(equations) {
+        let residual = eval_with(&equation.lhs, scope, ctx)
+            .and_then(|lhs| Ok(lhs - eval_with(&equation.rhs, scope, ctx)?));
+        match residual {
+            Ok(value) => *slot = value,
+            // An invalid region, not a broken document: hand Newton the
+            // non-finite residual its line search knows how to reject.
+            Err(err @ (FreesError::Evaluation { .. } | FreesError::Property { .. })) => {
+                *slot = f64::NAN;
+                *last_error = Some(err.to_string_message());
+            }
+            Err(other) => return Err(other),
+        }
     }
     Ok(())
 }
@@ -2916,6 +3364,15 @@ fn solve_equation_list(
 ) -> Result<InnerSolve> {
     let (constants, knowns) = builtin_constants(equations);
     let report = block_system(equations, &knowns)?;
+
+    // Java `solveEquationListPermissive`, in order: expand the specs for this
+    // equation list, then seed property-call arguments, then build the value
+    // map from them. The seeded copy is local because it may *create* specs
+    // (the Java `applyNominalGuess` does), and `specs.keys()` upstream defines
+    // the result rows — a guess must never invent a variable.
+    let mut seeded = specs.clone();
+    seed_property_argument_guesses(equations, &mut seeded);
+    let specs = &seeded;
 
     let mut values: Scope = HashMap::new();
     values.extend(constants);

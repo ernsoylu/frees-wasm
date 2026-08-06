@@ -154,6 +154,24 @@ pub trait NewtonProblem {
     fn analytic_jacobian(&mut self, _x: &[f64]) -> Option<Vec<Vec<f64>>> {
         None
     }
+
+    /// For each unknown `j`, the equations that actually mention it — the Java
+    /// `IterationContext.varToEquations`, built once per block.
+    ///
+    /// The finite-difference Jacobian uses this to touch only the rows a column
+    /// can possibly be non-zero in. That is not an optimisation: a residual
+    /// that is `NaN` for an unrelated reason (a property call at an invalid
+    /// state point) would otherwise make *every* probe direction of *every*
+    /// column read as "invalid region", abandon them all, and flatten the whole
+    /// Jacobian to zero — at which point there is no descent direction left and
+    /// the block stalls at iteration 0 instead of walking out of the bad
+    /// region on the rows that are perfectly healthy.
+    ///
+    /// `None` means no structure is available and every row is used, which is
+    /// the safe conservative answer for hand-built closures.
+    fn row_dependencies(&self) -> Option<Vec<Vec<usize>>> {
+        None
+    }
 }
 
 impl<F> NewtonProblem for F
@@ -672,6 +690,7 @@ where
     let mut jacobian = vec![vec![0.0f64; n]; n];
     let mut probe = x.to_vec();
     let mut out = vec![f64::NAN; n];
+    let dependents = problem.row_dependencies();
     for j in 0..n {
         jacobian_column(
             problem,
@@ -683,6 +702,7 @@ where
             j,
             settings,
             (lo[j], hi[j]),
+            dependents.as_ref().map(|rows| rows[j].as_slice()),
         )?;
     }
     Ok(jacobian)
@@ -711,11 +731,29 @@ fn jacobian_column<P>(
     j: usize,
     settings: &SolverSettings,
     (lo, hi): (f64, f64),
+    dependents: Option<&[usize]>,
 ) -> Result<()>
 where
     P: NewtonProblem + ?Sized,
 {
     let n = x.len();
+
+    // The rows this column can be non-zero in — the Java `deps` list. Rows
+    // outside it are structural zeros, and reading them would let one invalid
+    // residual elsewhere in the block condemn this column. See
+    // [`NewtonProblem::row_dependencies`].
+    let all_rows: Vec<usize>;
+    let rows: &[usize] = match dependents {
+        Some(rows) => rows,
+        None => {
+            all_rows = (0..n).collect();
+            &all_rows
+        }
+    };
+    if rows.is_empty() {
+        return Ok(()); // the variable appears in no equation: its column is 0
+    }
+
     let anchor = x[j];
     let magnitude = settings.jacobian_epsilon * anchor.abs().max(1.0);
 
@@ -750,7 +788,7 @@ where
             let mut finite = true;
             let mut any_change = false;
             let mut cancellation = false;
-            for i in 0..n {
+            for &i in rows {
                 let perturbed = out[i];
                 if !perturbed.is_finite() {
                     finite = false;
@@ -770,7 +808,7 @@ where
             }
 
             // Commit this finite estimate; a later, cleaner attempt overwrites it.
-            for i in 0..n {
+            for &i in rows {
                 jacobian[i][j] = (out[i] - base[i]) / actual_step;
             }
             if any_change && !cancellation {
@@ -781,9 +819,9 @@ where
     }
 
     // No informative derivative in either direction. Guarantee a finite column.
-    for row in jacobian.iter_mut().take(n) {
-        if !row[j].is_finite() {
-            row[j] = 0.0;
+    for &i in rows {
+        if !jacobian[i][j].is_finite() {
+            jacobian[i][j] = 0.0;
         }
     }
     Ok(())

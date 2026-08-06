@@ -427,6 +427,28 @@ impl<'a> DynamicAccessorContext<'a> {
             .collect()
     }
 
+    /// The table cached for `block`, but **only** if the block's inputs at
+    /// `values` still match the signature it was integrated at.
+    ///
+    /// This is what lets the final publication pass reuse the integration the
+    /// live-accessor solve already ran at the converged point rather than
+    /// repeating it — on a document with a `FinalValue` accessor that is
+    /// literally half the total solve time. Reuse is sound under exactly the
+    /// guarantee [`resolve`](Self::resolve) already relies on to share one
+    /// integration between several accessors at a single Newton iterate: the
+    /// signature covers every input the integration reads, so a match means the
+    /// re-integration would reproduce this table. Both paths also integrate
+    /// with the identical `relaxed_ode_settings(settings, 1e-7)`.
+    ///
+    /// A signature carrying a `NaN` never matches itself, so this declines
+    /// rather than guessing — a miss costs an integration, never a wrong table.
+    pub fn cached_table(&self, block: usize, values: &Scope) -> Option<OdeTableResult> {
+        let signature = self.signature_of(block, values);
+        let cache = self.cache.borrow();
+        let entry = cache.get(&block)?;
+        (entry.signature == signature).then(|| entry.table.clone())
+    }
+
     /// The set of input variables of the block owning `column`; empty if no
     /// block owns it. Port of `DynamicAccessorContext.inputVarsForColumn`, using
     /// the shapes this context already analysed.

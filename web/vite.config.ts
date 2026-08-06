@@ -117,6 +117,78 @@ function stripUniverHyphenationPlugin() {
   }
 }
 
+// Two more of `@univerjs/engine-render`'s dependencies are reachable only
+// through code paths this app cannot enter, for the same structural reason the
+// hyphenation dictionaries above are. Both are stubbed at resolve time.
+//
+//   franc-min (84 kB) — natural-language detection. Its ONLY call site is
+//   `LanguageDetector.detect()`, whose result is looked up in
+//   `LANG_MAP_TO_HYPHEN_LANG` — i.e. it exists to pick which hyphenation
+//   pattern set to load, the path already established as unreachable (the
+//   sheets preset never sets `autoHyphenation`). The stub returns `"und"`,
+//   which that map sends to `"unknown"`; `Hyphen.loadPattern("unknown")` then
+//   takes the same already-handled "no such dictionary" branch the dictionary
+//   stub relies on. So this degrades to a no-op, not an error.
+//
+//   opentype.js (237 kB) — font-file parsing for glyph shaping. Its only call
+//   site is `shapeChunk`, reached from `textShape`, which opens with
+//   `if (!fontLibrary.isReady) return []`. `isReady` is set only by
+//   `FontLibrary._loadFontsToBook()`, which bails unless BOTH
+//   `checkLocalFontsPermission()` resolves true AND `"queryLocalFonts" in
+//   window`. That is the Local Font Access API: Chromium-only, and gated on a
+//   permission this app never requests (Univer only *queries* the permission,
+//   it never prompts). The second call site is guarded by the same flag.
+//
+// Unlike franc, a stubbed `parse` has no correct no-op — returning a fake font
+// would produce silently wrong glyph metrics. It throws instead, so if the
+// unreachable path is ever entered the failure names itself and points here.
+//
+// cjk-regex / unicode-regex (340 kB together) were assessed at the same time
+// and deliberately LEFT IN. They look like the same kind of docs-layout dead
+// weight but are not: `cjk.letters()/all()/punctuations()` are evaluated at
+// module top level into `hasCJKText`/`hasCJK`/`hasCJKPunctuation`, which have
+// 16 call sites across live line-breaking code. Stubbing them would silently
+// break CJK text layout in cells rather than save bytes.
+const FRANC_STUB_ID = '\0univer-franc-stub'
+const OPENTYPE_STUB_ID = '\0univer-opentype-stub'
+
+function stripUniverDocsTextDepsPlugin() {
+  const stubs: Record<string, string> = {
+    'franc-min': FRANC_STUB_ID,
+    'opentype.js': OPENTYPE_STUB_ID,
+  }
+  return {
+    name: 'strip-univer-docs-text-deps',
+    // `pre`, for the same reason stripUniverHyphenationPlugin needs it: without
+    // it vite:resolve has already resolved the specifier and the redirect never
+    // fires — silently, with a green build.
+    enforce: 'pre' as const,
+    resolveId(source: string, importer: string | undefined) {
+      if (importer === undefined || !importer.includes('@univerjs/engine-render')) return null
+      return stubs[source] ?? null
+    },
+    load(id: string) {
+      if (id === FRANC_STUB_ID) {
+        // "und" is franc's own undetermined-language code, already in Univer's
+        // LANG_MAP_TO_HYPHEN_LANG (→ "unknown").
+        return 'export function franc() { return "und" }\n'
+      }
+      if (id === OPENTYPE_STUB_ID) {
+        return (
+          'export function parse() {\n' +
+          '  throw new Error(\n' +
+          '    "opentype.js is stubbed out of this build (see stripUniverDocsTextDepsPlugin " +\n' +
+          '    "in vite.config.ts). It is reachable only via fontLibrary.isReady, which needs " +\n' +
+          '    "the Local Font Access API and a permission frees never requests."\n' +
+          '  )\n' +
+          '}\n'
+        )
+      }
+      return null
+    },
+  }
+}
+
 // Phase 11: installable PWA + full offline session. The service worker
 // precaches every built asset — including the ~3 MB wasm engine and the large
 // lazy chunks (Plotly, the spreadsheet stack) — because "offline" for an
@@ -172,6 +244,7 @@ export default defineConfig({
     buildInfoPlugin(),
     stripLegacyKatexFontsPlugin(),
     stripUniverHyphenationPlugin(),
+    stripUniverDocsTextDepsPlugin(),
     pwaPlugin(),
     visualizer({ open: false, filename: 'stats.html' }),
   ],

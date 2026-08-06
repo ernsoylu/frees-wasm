@@ -22,7 +22,6 @@ import {
   IconChecks,
   IconCode,
   IconDeviceFloppy,
-  IconBrush,
   IconFilePlus,
   IconFolderOpen,
   IconHelp,
@@ -86,8 +85,6 @@ import {
 } from './tables'
 const StatesTab = lazy(() => import('./StatesTab'))
 import type { DigitizedExport } from './DigitizerTab'
-import { loadWhiteboards, newWhiteboard, saveWhiteboards } from './whiteboard/whiteboardStorage'
-import { WhiteboardSpec } from './whiteboard/types'
 import { loadSpreadsheets, newSpreadsheet, saveSpreadsheets } from './spreadsheet/spreadsheetStorage'
 import { emptySpreadsheetData, type SpreadsheetSpec } from './spreadsheet/types'
 import {
@@ -109,9 +106,6 @@ import type { SchematicOffsets } from './schematic/layout'
 const DigitizerTab = lazy(() =>
   import('./DigitizerTab').then((m) => ({ default: m.DigitizerTab })),
 )
-// The Excalidraw whiteboard editor is large and self-contained; code-split it
-// so the Excalidraw bundle is only fetched when a whiteboard window opens.
-const WhiteboardTab = lazy(() => import('./whiteboard/WhiteboardTab'))
 const SpreadsheetTab = lazy(() => import('./spreadsheet/SpreadsheetTab'))
 // The Univer Tables workbook (function/lookup tables as bound sheets) shares
 // the Univer chunk with SpreadsheetTab; lazy so tables-only sessions without
@@ -516,12 +510,6 @@ export default function App() {
   // Seed for a new X-Y plot opened from a table's column selection (x + y vars),
   // applied as the modal's initial XY config.
   const [plotSeed, setPlotSeed] = useState<{ xVar: string; yVars: string[] } | null>(null)
-  // Excalidraw whiteboards: managed as App-owned state so they round-trip
-  // with the .frees project. The localStorage cache is a fallback when no
-  // unified project exists.
-  const [whiteboards, setWhiteboards] = useState<WhiteboardSpec[]>(() =>
-    boot?.whiteboards ?? loadWhiteboards(),
-  )
   const [spreadsheets, setSpreadsheets] = useState<SpreadsheetSpec[]>(() =>
     boot?.spreadsheets ?? loadSpreadsheets(),
   )
@@ -564,13 +552,6 @@ export default function App() {
     saveTables(tables)
   }, [tables])
 
-  // Whiteboards can carry large embedded image data, so debounce the scratch-
-  // cache write (the unified project autosave at 800ms is the other path).
-  useEffect(() => {
-    const id = setTimeout(() => saveWhiteboards(whiteboards), 800)
-    return () => clearTimeout(id)
-  }, [whiteboards])
-
   useEffect(() => {
     const id = setTimeout(() => saveSpreadsheets(spreadsheets), 800)
     return () => clearTimeout(id)
@@ -591,7 +572,6 @@ export default function App() {
       stateUnitIds,
       tables,
       plots,
-      whiteboards,
       spreadsheets,
       analyzers,
       sliders: pinnedSliders,
@@ -600,14 +580,14 @@ export default function App() {
     // `text` stays a dependency so the autosave effect keyed on this callback
     // still refreshes when the (deferred) editor document state lands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [text, varDrafts, stopCriteria, unitSystem, fillMissing, stateUnitIds, tables, plots, whiteboards, spreadsheets, analyzers, pinnedSliders, schematicOffsets],
+    [text, varDrafts, stopCriteria, unitSystem, fillMissing, stateUnitIds, tables, plots, spreadsheets, analyzers, pinnedSliders, schematicOffsets],
   )
 
   // Debounced autosave of the entire workspace to a single localStorage key,
   // superseding the scattered per-feature keys as the source of truth on reload.
   // The same document also lands in the IndexedDB mirror (D4): localStorage is
   // what boot reads synchronously, but its ~5 MB quota means this write can
-  // silently stop succeeding once whiteboard images or spreadsheets grow — the
+  // silently stop succeeding once spreadsheets grow — the
   // mirror is the durable copy that keeps updating past that point.
   useEffect(() => {
     const id = setTimeout(() => {
@@ -705,7 +685,7 @@ export default function App() {
     }
     isDirtyRef.current = true
 
-  }, [text, tables, plots, whiteboards, spreadsheets, analyzers, varDrafts, schematicOffsets])
+  }, [text, tables, plots, spreadsheets, analyzers, varDrafts, schematicOffsets])
 
   // Apply an opened/loaded project to every workspace slice. Child-owned slices
   // are written back to their caches and the relevant tabs are remounted (epoch
@@ -721,7 +701,6 @@ export default function App() {
     setStateUnitIds(p.stateUnitIds ?? {})
     setTables(p.tables)
     setPlots(p.plots ?? [])
-    setWhiteboards(p.whiteboards ?? [])
     setSpreadsheets(p.spreadsheets ?? [])
     // Template mode (§2.5b): analyzer layouts load with refs only — the
     // measurement data itself is gone, so each window shows a "Locate file…"
@@ -755,12 +734,7 @@ export default function App() {
     setWorkspaceEpoch((e) => e + 1)
     requestAnimationFrame(() => {
       dockRef.current?.restore(p.dockLayout)
-      // Surface the first whiteboard too, if any.
-      const firstWhiteboard = p.whiteboards?.[0]
-      if (firstWhiteboard) {
-        dockRef.current?.openInstance(`whiteboard:${firstWhiteboard.id}`, 'whiteboard', firstWhiteboard.name)
-      }
-      // And the first analyzer, so its "Locate file…" banner is discoverable.
+      // Surface the first analyzer, so its "Locate file…" banner is discoverable.
       const firstAnalyzer = p.analyzers?.[0]
       if (firstAnalyzer) {
         dockRef.current?.openInstance(`analyzer:${firstAnalyzer.id}`, 'analyzer', firstAnalyzer.name)
@@ -930,7 +904,6 @@ export default function App() {
       stateUnitIds: {},
       tables: [],
       plots: [],
-      whiteboards: [],
       spreadsheets: [],
       analyzers: [],
       digitizer: null,
@@ -941,7 +914,6 @@ export default function App() {
     setStateUnitIds({})
     setTables([])
     setPlots([])
-    setWhiteboards([])
     setSpreadsheets([])
     setAnalyzers([])
     setSchematicOffsets({})
@@ -1093,7 +1065,6 @@ export default function App() {
       stateUnitIds: {},
       tables: [],
       plots: [],
-      whiteboards: [],
       spreadsheets: [],
       analyzers: [],
       digitizer: null,
@@ -1104,7 +1075,6 @@ export default function App() {
     setStateUnitIds({})
     setTables([])
     setPlots([])
-    setWhiteboards([])
     setSpreadsheets([])
     setAnalyzers([])
     setSchematicOffsets({})
@@ -1710,7 +1680,6 @@ export default function App() {
       // Hosted tables (function + GUI parametric) live as sheets in the
       // single Tables workbook window; no per-table windows (decision 2).
       ...tables.filter((t) => !isHostedTable(t)).map((t) => `table:${t.id}`),
-      ...whiteboards.map((w) => `whiteboard:${w.id}`),
       ...spreadsheets.map((s) => `spreadsheet:${s.id}`),
       ...analyzers.map((a) => `analyzer:${a.id}`),
       ...(result?.stateTableDefs ?? checkResult?.stateTableDefs ?? []).map((s) => `state:${s.name}`),
@@ -1718,7 +1687,7 @@ export default function App() {
     for (const w of openWindows) {
       if (!valid.has(w.id)) dockRef.current?.close(w.id)
     }
-  }, [mergedPlots, tables, whiteboards, spreadsheets, analyzers, openWindows, result?.stateTableDefs, checkResult?.stateTableDefs])
+  }, [mergedPlots, tables, spreadsheets, analyzers, openWindows, result?.stateTableDefs, checkResult?.stateTableDefs])
 
   // Keep dock tab titles in sync with instance names (so renames in the
   // Inspector show on the tabs). Deferred out of the commit cycle so dockview's
@@ -1730,12 +1699,11 @@ export default function App() {
         if (isHostedTable(t)) continue // hosted in the Tables workbook
         dockRef.current?.setTitle(`table:${t.id}`, t.name)
       }
-      for (const w of whiteboards) dockRef.current?.setTitle(`whiteboard:${w.id}`, w.name)
       for (const s of spreadsheets) dockRef.current?.setTitle(`spreadsheet:${s.id}`, s.name)
       for (const a of analyzers) dockRef.current?.setTitle(`analyzer:${a.id}`, a.name)
     })
     return () => cancelAnimationFrame(raf)
-  }, [mergedPlots, tables, whiteboards, spreadsheets, analyzers])
+  }, [mergedPlots, tables, spreadsheets, analyzers])
 
   // Analyzers with an OPEN dock window are protected from the ChannelStore's
   // over-ceiling LRU eviction (§2.5a) — tell the store which ones those are.
@@ -1791,16 +1759,6 @@ export default function App() {
     setTables((prev) => [...prev, t])
     setActiveTableId(t.id)
     requestAnimationFrame(() => openTableWindow(t))
-  }
-  const createWhiteboard = () => {
-    const wb = newWhiteboard(whiteboards.length)
-    setWhiteboards((prev) => [...prev, wb])
-    requestAnimationFrame(() => dockRef.current?.openInstance(`whiteboard:${wb.id}`, 'whiteboard', wb.name))
-  }
-  const openLatestOrNewWhiteboard = () => {
-    const wb = whiteboards[whiteboards.length - 1]
-    if (wb) dockRef.current?.openInstance(`whiteboard:${wb.id}`, 'whiteboard', wb.name)
-    else createWhiteboard()
   }
   const createSpreadsheet = () => {
     const ss = newSpreadsheet(spreadsheets.length)
@@ -2005,7 +1963,6 @@ export default function App() {
         } },
         { id: 'view-digitizer', label: 'Graph Digitizer', leftSection: <IconChartGridDots size={18} />, onClick: () => dockRef.current?.open('digitizer') },
         { id: 'view-schematic', label: 'Schematic', description: 'Auto-rendered component network', leftSection: <IconSitemap size={18} />, onClick: () => dockRef.current?.open('schematic') },
-        { id: 'view-whiteboard', label: 'Whiteboard', description: 'Open the latest whiteboard (or create one)', leftSection: <IconBrush size={18} />, onClick: openLatestOrNewWhiteboard },
         { id: 'view-spreadsheet', label: 'Spreadsheet', description: 'Open the latest spreadsheet (or create one)', leftSection: <IconGrid4x4 size={18} />, onClick: openLatestOrNewSpreadsheet },
         { id: 'view-analyzer', label: 'Data Analyzer', description: 'Open the latest analyzer (or create one)', leftSection: <IconWaveSine size={18} />, onClick: openLatestOrNewAnalyzer },
         { id: 'view-inspector', label: 'Inspector', leftSection: <IconSettings size={18} />, onClick: () => dockRef.current?.open('inspector') },
@@ -2018,7 +1975,6 @@ export default function App() {
         { id: 'new-xy-plot', label: 'Add graph (X-Y)', leftSection: <IconChartLine size={18} />, onClick: () => setNewPlotKind('xy') },
         { id: 'new-property-plot', label: 'Add property graph', leftSection: <IconTemperature size={18} />, onClick: () => setNewPlotKind('property') },
         { id: 'new-psychro-plot', label: 'Add psychrometric graph', leftSection: <IconTemperature size={18} />, onClick: () => setNewPlotKind('psychro') },
-        { id: 'new-whiteboard', label: 'Add whiteboard', description: 'New Excalidraw freehand sketch canvas', leftSection: <IconBrush size={18} />, onClick: createWhiteboard },
         { id: 'new-spreadsheet', label: 'Add spreadsheet', description: 'New spreadsheet workbook', leftSection: <IconGrid4x4 size={18} />, onClick: createSpreadsheet },
         { id: 'new-analyzer', label: 'Add data analyzer', description: 'Import and explore measurement data (CSV/TSV)', leftSection: <IconWaveSine size={18} />, onClick: createAnalyzer },
         { id: 'new-state-table', label: 'Add fluid state table', description: 'Insert a STATE TABLE block (fluid-aware circuit) at the caret', leftSection: <IconTemperature size={18} />, onClick: () => insertFunction('STATE TABLE Circuit1(P1, T1, h2)\n  FLUID = Water\nEND\n') },
@@ -2317,34 +2273,6 @@ export default function App() {
         )
       }
 
-      // Whiteboard (Excalidraw): rename + delete; drawing tools live in the
-      // Excalidraw canvas itself.
-      if (fw?.kind === 'whiteboard') {
-        const wb = whiteboards.find((x) => `whiteboard:${x.id}` === fw.id)
-        return (
-          <div style={bodyStyle}>
-            <Stack gap="xs">
-              <Text size="sm" fw={600} c="teal.4">Whiteboard</Text>
-              <TextInput
-                size="xs"
-                label="Whiteboard name"
-                value={wb?.name ?? ''}
-                onChange={(e) => {
-                  const value = e.currentTarget.value
-                  if (wb) setWhiteboards((prev) => renameById(prev, wb.id, value))
-                }}
-              />
-              <Text size="xs" c="dimmed">Freehand sketch canvas (Excalidraw). Export to PNG/SVG from the toolbar above the canvas.</Text>
-              {wb && (
-                <Button size="xs" variant="light" color="red" onClick={() => setWhiteboards((prev) => prev.filter((x) => x.id !== wb.id))}>
-                  Delete whiteboard
-                </Button>
-              )}
-            </Stack>
-          </div>
-        )
-      }
-
       // Spreadsheet: rename + delete
       if (fw?.kind === 'spreadsheet') {
         const ss = spreadsheets.find((x) => `spreadsheet:${x.id}` === fw.id)
@@ -2436,7 +2364,7 @@ export default function App() {
 
       return (
         <div style={bodyStyle}>
-          <Text size="xs" c="dimmed">Focus a window (Table, Plot, Whiteboard, Editor) to inspect it here.</Text>
+          <Text size="xs" c="dimmed">Focus a window (Table, Plot, Editor) to inspect it here.</Text>
         </div>
       )
     })(),
@@ -2534,28 +2462,8 @@ export default function App() {
     inspector: 'Inspector',
   }
 
-  // Per-instance Whiteboard windows: each Excalidraw whiteboard opens as its
-  // own dock window ("whiteboard:<id>"). The
-  // scene is persisted through App-owned state → .frees file.
-  for (const w of whiteboards) {
-    const winId = `whiteboard:${w.id}`
-    panelTitles[winId] = w.name
-    panelContent[winId] = (
-      <div style={{ height: '100%', minHeight: 0 }}>
-        <Suspense fallback={lazyTabFallback}>
-          <WhiteboardTab
-            key={`whiteboard-${w.id}-${workspaceEpoch}`}
-            singleWhiteboardId={w.id}
-            whiteboards={whiteboards}
-            onWhiteboardsChange={setWhiteboards}
-          />
-        </Suspense>
-      </div>
-    )
-  }
-
-  // Per-instance Data Analyzer windows ("analyzer:<id>"), mirroring the
-  // whiteboard pattern. Bulk samples live in the ChannelStore, never here.
+  // Per-instance Data Analyzer windows ("analyzer:<id>"). Bulk samples live
+  // in the ChannelStore, never here.
   for (const a of analyzers) {
     const winId = `analyzer:${a.id}`
     panelTitles[winId] = a.name
@@ -2792,14 +2700,6 @@ export default function App() {
         onSelect={(kind) => dockRef.current?.open(kind)}
         onClose={(kind) => dockRef.current?.close(kind)}
         onApplyLayout={(p) => dockRef.current?.applyPerspective(p)}
-        whiteboards={whiteboards.map((w) => ({ id: w.id, name: w.name, deletable: true }))}
-        whiteboardCount={whiteboards.length}
-        onOpenWhiteboard={(id) => {
-          const wb = whiteboards.find((x) => x.id === id)
-          if (wb) dockRef.current?.openInstance(`whiteboard:${id}`, 'whiteboard', wb.name)
-        }}
-        onNewWhiteboard={createWhiteboard}
-        onDeleteWhiteboard={(id) => setWhiteboards((prev) => prev.filter((w) => w.id !== id))}
         spreadsheets={spreadsheets.map((ss) => ({ id: ss.id, name: ss.name, deletable: true }))}
         spreadsheetCount={spreadsheets.length}
         onOpenSpreadsheet={(id) => {

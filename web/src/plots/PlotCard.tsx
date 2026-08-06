@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Group, Loader, Menu, Text } from '@mantine/core'
-import type { PlotlyFigure } from 'plotly.js-dist-min'
+import type { PlotlyFigure } from 'plotly.js/lib/core'
 import {
   DiagramResponse,
   PsychartResponse,

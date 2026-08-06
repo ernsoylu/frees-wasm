@@ -1,8 +1,8 @@
 /**
- * Minimal typings for the full Plotly bundle (supporting 2D & 3D charts).
- * The dist packages ship without their own type definitions.
+ * Minimal typings for the custom Plotly partial bundle (plots/plotlyBundle.ts).
+ * plotly.js ships no type definitions for its lib/ entry points.
  */
-declare module 'plotly.js-dist-min' {
+declare module 'plotly.js/lib/core' {
   export interface PlotlyLineStyle {
     color?: string
     width?: number
@@ -116,6 +116,25 @@ declare module 'plotly.js-dist-min' {
       figure: PlotlyFigure | HTMLElement,
       options: PlotlyImageOptions,
     ) => Promise<string>
+    /** Register trace-type modules into the core bundle. */
+    register: (modules: unknown[]) => void
   }
   export default Plotly
+}
+
+declare module 'plotly.js/lib/bar' {
+  const traceModule: unknown
+  export default traceModule
+}
+declare module 'plotly.js/lib/pie' {
+  const traceModule: unknown
+  export default traceModule
+}
+declare module 'plotly.js/lib/histogram' {
+  const traceModule: unknown
+  export default traceModule
+}
+declare module 'plotly.js/lib/mesh3d' {
+  const traceModule: unknown
+  export default traceModule
 }

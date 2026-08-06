@@ -81,7 +81,7 @@ export interface AnalyzerFileRef {
   offset?: number
 }
 
-/** One persisted Data Analyzer document (mirrors WhiteboardSpec/DiagramSpec). */
+/** One persisted Data Analyzer document. */
 export interface AnalyzerSpec {
   id: string
   name: string

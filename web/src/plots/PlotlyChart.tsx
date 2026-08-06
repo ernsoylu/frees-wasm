@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { PlotlyFigure } from 'plotly.js-dist-min'
+import type { PlotlyFigure } from 'plotly.js/lib/core'
 
 /**
  * Renders a pre-built Plotly figure. Plotly is loaded on demand so the
@@ -14,7 +14,7 @@ export default function PlotlyChart({
   useEffect(() => {
     let cancelled = false
     async function render() {
-      const { default: Plotly } = await import('plotly.js-dist-min')
+      const { default: Plotly } = await import('./plotlyBundle')
       const el = containerRef.current
       if (cancelled || el === null) return
       await Plotly.react(el, figure.data, figure.layout, {
@@ -35,9 +35,9 @@ export default function PlotlyChart({
   useEffect(() => {
     const el = containerRef.current
     if (el === null) return
-    let plotly: typeof import('plotly.js-dist-min').default | null = null
+    let plotly: typeof import('./plotlyBundle').default | null = null
     let frame = 0
-    void import('plotly.js-dist-min').then(({ default: P }) => {
+    void import('./plotlyBundle').then(({ default: P }) => {
       plotly = P
     })
     const observer = new ResizeObserver(() => {
@@ -57,7 +57,7 @@ export default function PlotlyChart({
     const el = containerRef.current
     return () => {
       if (el) {
-        void import('plotly.js-dist-min').then(({ default: Plotly }) =>
+        void import('./plotlyBundle').then(({ default: Plotly }) =>
           Plotly.purge(el),
         )
       }

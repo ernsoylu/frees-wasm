@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from 'react'
 import { Group, NumberInput, Select, Text, useComputedColorScheme } from '@mantine/core'
-import type { PlotlyFigure } from 'plotly.js-dist-min'
+import type { PlotlyFigure } from 'plotly.js/lib/core'
 import PlotlyChart from '../../plots/PlotlyChart'
 import type { AbCursors } from '../UPlotChart'
 import { offsetRawRange } from '../offsets'

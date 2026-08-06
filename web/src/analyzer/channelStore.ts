@@ -12,7 +12,7 @@
 //  - entries are refcounted by the AnalyzerSpecs that reference them (a Set of
 //    analyzer ids — two windows on the same file share one entry);
 //  - release binds to analyzer *deletion*, not window close: App calls
-//    release() from onDeleteAnalyzer, mirroring onDeleteWhiteboard, so a
+//    release() from onDeleteAnalyzer, so a
 //    closed-but-not-deleted analyzer keeps its data and reopen is instant;
 //  - warn at ~50M cells; past the ceiling, LRU-evict measurements not
 //    referenced by any *open* analyzer window. Evicted entries keep their

@@ -4,7 +4,7 @@
 // value readout (§2.5e), Table / Statistics / Event List / Scatter / Histogram
 // instruments, calculated signals (Phase 4), per-file time offsets (Phase 5a),
 // CSV export, and template-mode file relocation (§2.5b). Mirrors the
-// whiteboard pattern: App owns the AnalyzerSpec[] slice; bulk samples live in
+// same pattern as spreadsheets: App owns the AnalyzerSpec[] slice; bulk samples live in
 // the module-level ChannelStore.
 
 import {

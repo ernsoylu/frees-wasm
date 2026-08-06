@@ -17,7 +17,6 @@ import {
 } from '@mantine/core'
 import {
   IconAdjustments,
-  IconBrush,
   IconChartGridDots,
   IconSitemap,
   IconChartLine,
@@ -83,7 +82,6 @@ const VIEWS = [
     tip: 'Schematic — auto-rendered component network',
     icon: IconSitemap,
   },
-  { value: 'whiteboard', label: 'Whiteboard', tip: 'Whiteboard — Excalidraw freehand sketch canvas', icon: IconBrush },
   { value: 'spreadsheet', label: 'Spreadsheet', tip: 'Spreadsheet — formula-capable workbook', icon: IconGrid4x4 },
   { value: 'analyzer', label: 'Analyzer', tip: 'Data Analyzer — explore imported measurement data', icon: IconWaveSine },
   { value: 'terminal', label: 'Terminal', tip: 'Terminal — REPL evaluated against the workspace', icon: IconTerminal2 },
@@ -109,13 +107,6 @@ interface RailProps {
   onClose?: (view: string) => void
   /** Rebuild the dock as a named layout preset (shows the Layout menu). */
   onApplyLayout?: (perspective: LayoutPerspective) => void
-  /** Excalidraw whiteboards available to open as individual windows. */
-  whiteboards?: { id: string; name: string; deletable?: boolean }[]
-  /** Number of whiteboard windows currently open (badge on the Whiteboard icon). */
-  whiteboardCount?: number
-  onOpenWhiteboard?: (id: string) => void
-  onNewWhiteboard?: () => void
-  onDeleteWhiteboard?: (id: string) => void
   /** Spreadsheets available to open as individual windows. */
   spreadsheets?: { id: string; name: string; deletable?: boolean }[]
   /** Number of spreadsheet windows currently open. */
@@ -385,11 +376,6 @@ export function Rail({
   onSelect,
   onClose,
   onApplyLayout,
-  whiteboards,
-  whiteboardCount = 0,
-  onOpenWhiteboard,
-  onNewWhiteboard,
-  onDeleteWhiteboard,
   spreadsheets,
   spreadsheetCount = 0,
   onOpenSpreadsheet,
@@ -458,23 +444,7 @@ export function Rail({
           onClick={toggle}
         />
         {VIEWS.map((view) =>
-          view.value === 'whiteboard' && whiteboards ? (
-            <InstanceLauncher
-              key={view.value}
-              expanded={expanded}
-              active={active === 'whiteboard'}
-              count={whiteboardCount}
-              idPrefix="whiteboard:"
-              label="Whiteboard"
-              newActions={[{ label: 'New whiteboard', onClick: () => onNewWhiteboard?.() }]}
-              emptyLabel="No whiteboards yet"
-              icon={<IconBrush size={iconSize} stroke={1.6} />}
-              items={whiteboards}
-              openIds={openIdSet}
-              onOpen={onOpenWhiteboard}
-              onDelete={onDeleteWhiteboard}
-            />
-          ) : view.value === 'spreadsheet' && spreadsheets ? (
+          view.value === 'spreadsheet' && spreadsheets ? (
             <InstanceLauncher
               key={view.value}
               expanded={expanded}

@@ -35,7 +35,6 @@ const SLICES: ProjectSlices = {
   stateUnitIds: {},
   tables: [],
   plots: [],
-  whiteboards: [],
   spreadsheets: [],
   analyzers: [],
   sliders: [],

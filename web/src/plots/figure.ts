@@ -3,7 +3,7 @@ import type {
   PlotlyFigure,
   PlotlyLayout,
   PlotlyTrace,
-} from 'plotly.js-dist-min'
+} from 'plotly.js/lib/core'
 import { DiagramCurve, DiagramResponse, PsychartResponse } from '../api'
 import { PlotFormat, PropertyConfig, PsychroConfig, XYConfig } from './types'
 import { StateTable, statesForAxes } from './stateTable'

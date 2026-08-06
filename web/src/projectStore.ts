@@ -3,7 +3,7 @@
 // IndexedDB holds two things localStorage cannot: a *library* of named
 // projects (localStorage has one slot) and a *durable* autosave mirror
 // (localStorage's ~5 MB quota makes the existing autosave silently stop
-// updating once whiteboard images or spreadsheets grow past it). The
+// updating once spreadsheets grow past it). The
 // localStorage autosave in project.ts is untouched — it remains what App.tsx
 // boots from synchronously; everything here is post-boot and async.
 //

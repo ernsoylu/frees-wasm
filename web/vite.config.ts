@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -19,6 +20,43 @@ function buildInfoPlugin() {
       )
     },
   }
+}
+
+// KaTeX's CSS lists every font as woff2 → woff → ttf; browsers that support
+// woff2 (all of them, since ~2016) never request the fallbacks, so the woff
+// and ttf copies are ~900 KB of dead weight in dist. Drop them at emit time —
+// the CSS keeps its (now dangling) fallback URLs, which no supported browser
+// resolves.
+function stripLegacyKatexFontsPlugin() {
+  return {
+    name: 'strip-legacy-katex-fonts',
+    generateBundle(_opts: unknown, bundle: Record<string, unknown>) {
+      for (const name of Object.keys(bundle)) {
+        if (/KaTeX_[^/]*\.(ttf|woff)$/.test(name)) delete bundle[name]
+      }
+    },
+  }
+}
+
+// Univer's render engine lazy-loads hyphenation dictionaries (a docs-engine
+// text-layout feature) as one chunk per language — ~80 chunks, ~3 MB. The
+// spreadsheet never enables hyphenation, so no session ever fetches them;
+// precaching them would make every install download dead data. Derive the
+// exact chunk-name globs from the package's own dist filenames (Vite names
+// each emitted chunk "<original stem>-<hash>.js") so the ignore list tracks
+// Univer upgrades instead of hardcoding locale names.
+function univerHyphenationGlobIgnores(): string[] {
+  const patternNames = new Set(
+    readdirSync(
+      'node_modules/@univerjs/engine-render/lib/types/components/docs/layout/hyphenation/patterns',
+    ).map((f) => f.replace(/\.d\.ts$/, '')),
+  )
+  return readdirSync('node_modules/@univerjs/engine-render/lib/es')
+    .filter((f) => {
+      const m = f.match(/^(.*)-[A-Za-z0-9_-]{8}\.js$/)
+      return m !== null && patternNames.has(m[1])
+    })
+    .map((f) => `**/${f.replace(/\.js$/, '')}-*.js`)
 }
 
 // Phase 11: installable PWA + full offline session. The service worker
@@ -51,9 +89,15 @@ function pwaPlugin() {
       ],
     },
     workbox: {
-      globPatterns: ['**/*.{js,css,html,wasm,svg,png,woff,woff2,json}'],
-      // Plotly (~4.8 MB) and the spreadsheet stack are above workbox's 2 MiB
-      // default; the point of this phase is that they work offline too.
+      // woff2 only: KaTeX's woff/ttf fallbacks are stripped from the bundle
+      // (stripLegacyKatexFontsPlugin) and no other dependency ships pre-woff2
+      // fonts worth caching.
+      globPatterns: ['**/*.{js,css,html,wasm,svg,png,woff2,json}'],
+      // Unreachable-by-design chunks stay out of the precache; everything the
+      // app can actually load is still cached up front, so offline is intact.
+      globIgnores: univerHyphenationGlobIgnores(),
+      // The Univer spreadsheet chunk (~5.5 MB) and Plotly are above workbox's
+      // 2 MiB default; the point of this phase is that they work offline too.
       maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       navigateFallback: 'index.html',
       // /api/ is the (optional, unwired) remote-fallback adapter's namespace —
@@ -65,7 +109,7 @@ function pwaPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), buildInfoPlugin(), pwaPlugin(), visualizer({ open: false, filename: 'stats.html' })],
+  plugins: [react(), buildInfoPlugin(), stripLegacyKatexFontsPlugin(), pwaPlugin(), visualizer({ open: false, filename: 'stats.html' })],
   define: {
     // The app version from package.json, baked in at build time so the REPL
     // banner and About dialog show "v0.1.0" without a runtime lookup. Paired

@@ -153,7 +153,7 @@ export default function SpreadsheetTab({ singleSpreadsheetId, spreadsheets, onSp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Track the Mantine color scheme (same pattern as the whiteboard).
+  // Track the Mantine color scheme.
   useEffect(() => {
     if (ready) apiRef.current?.toggleDarkMode(scheme === 'dark')
   }, [scheme, ready])

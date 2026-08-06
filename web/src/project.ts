@@ -12,7 +12,6 @@ import type { StopCriteria, UnitSystem } from './api'
 import type { VariableDraft } from './VariableInfoModal'
 import type { TableSpec } from './tables'
 import type { PlotSpec } from './plots/types'
-import type { WhiteboardSpec } from './whiteboard/types'
 import type { SpreadsheetSpec } from './spreadsheet/types'
 import type { PinnedSlider } from './sliders'
 import type { AnalyzerSpec } from './analyzer/types'
@@ -44,7 +43,6 @@ export interface ProjectSlices {
   stateUnitIds: Record<string, string>
   tables: TableSpec[]
   plots: PlotSpec[]
-  whiteboards: WhiteboardSpec[]
   spreadsheets: SpreadsheetSpec[]
   analyzers: AnalyzerSpec[]
   /** Parameters pinned to the workspace slider strip. */
@@ -182,7 +180,6 @@ function sanitizeProject(project: FreesProject): FreesProject | null {
     stateUnitIds: plainJson(project.stateUnitIds) ?? {},
     tables: Array.isArray(project.tables) ? plainJson(project.tables) : [],
     plots: Array.isArray(project.plots) ? plainJson(project.plots) : [],
-    whiteboards: Array.isArray(project.whiteboards) ? plainJson(project.whiteboards) : [],
     spreadsheets: Array.isArray(project.spreadsheets) ? plainJson(project.spreadsheets) : [],
     analyzers: Array.isArray(project.analyzers) ? plainJson(project.analyzers) : [],
     sliders: Array.isArray(project.sliders) ? plainJson(project.sliders) : [],
@@ -239,7 +236,6 @@ function migrate(p: FreesProject): FreesProject {
     stateUnitIds: p.stateUnitIds ?? {},
     tables: p.tables ?? [],
     plots: p.plots ?? [],
-    whiteboards: p.whiteboards ?? [],
     spreadsheets: p.spreadsheets ?? [],
     analyzers: p.analyzers ?? [],
     sliders: p.sliders ?? [],

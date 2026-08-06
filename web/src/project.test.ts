@@ -40,7 +40,6 @@ const slices: ProjectSlices = {
   stateUnitIds: {},
   tables: [],
   plots: [],
-  whiteboards: [],
   spreadsheets: [],
   analyzers: [analyzer],
 }

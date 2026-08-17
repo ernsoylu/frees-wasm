@@ -145,11 +145,24 @@ the two already tabulated. All four are closed by one new artifact kind
 `1.0e-6` median over 229 variables. Corpus 702 → **704**. It cost the bundle
 budget a 273.1 KiB breach, which is **since closed** — see the size pass below.
 
-**The property backend is moving to `coolprop.wasm` (decision
+**The accuracy path has LANDED — as rustprop, not `coolprop.wasm` (decision
+[D9](docs/decisions/0009-rustprop-backend.md), 2026-08-17).** The wasm bundle now
+ships **rustprop**, the pure-Rust CoolProp 8.0.0 port, as its only in-bundle
+property backend, and the linked `.phtab`/`.fraux` artifacts leave with the new
+`linked-tables` Cargo feature: **2700.3 KiB raw / 1109.5 KiB gzipped**, down from
+3042.3 / 1597.7 — bit-exact *and* 31 % smaller on the wire. 12 of the 23 entries
+in `fixtures/tolerances.json` are retired (the rustprop configuration is graded by
+`fixtures/tolerances-rustprop.json` instead — one file per backend, chosen by the
+same `rustprop-backend` cfg that chooses the backend), `HAPropsSI` answers, and
+`Air` left the property-diagram picker with the `air.fraux` grid it was the only
+backing for. **Still do not write a humid-air backend, an `air.phtab`, or further
+`FRAUX1` grids** — rustprop supersedes all three. Read D9 before touching
+`props/tables.rs`, `props/rustprop_backend.rs` or either tolerance file.
+
+**D8, which D9 implements (decision
 [D8](docs/decisions/0008-coolprop-wasm.md), 2026-08-07).** A CoolProp
-WebAssembly build is being produced separately and this repo picks it up when
-it lands. **Until then, do not write a humid-air backend, an `air.phtab`, or
-further `FRAUX1` grids** — they would be superseded. D8 records the
+WebAssembly build was being produced separately; rustprop reached usable first
+and is what the repo picked up. D8 records the
 measurement that forced the choice: an ideal-gas humid-air model is 2.7e-3 off
 CoolProp on the `(T,R)` path (the enhancement factor reaches 1.0041), and
 transcribing ASHRAE RP-1485 does not fix it, because CoolProp's `HAPropsSI`
@@ -159,7 +172,8 @@ the 26 pending fixtures (humid air 7, Air `(P,h)` 3, `(P,T)` transport 1,
 `Z` 1) and should retire most of `fixtures/tolerances.json` — which must
 happen *in the same change*, since a tolerance whose fixture passes at 1e-9
 makes the parity test fail. The gating constraint is the bundle: 29.7 KiB of
-headroom against the 3072 KiB budget.
+headroom against the 3072 KiB budget. Both predictions held; D9 has the
+measured outcome of each.
 
 **The size pass is done (2026-08-06), and it changed no engine behaviour.** The
 wasm is **3031.0 KiB raw / 1589.9 KiB gzipped, back under the 3072 KiB budget
@@ -220,8 +234,8 @@ now lives in `Latex.tsx`.
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
-| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach), **D8 (`coolprop.wasm` becomes the accuracy path — read before writing any new property backend)** |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus, golden fixtures, tolerance policy (incl. `fixtures/tolerances.json`), oracle-established ground truths |
+| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach), D8 (`coolprop.wasm` becomes the accuracy path), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)** |
+| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus, golden fixtures, tolerance policy (`fixtures/tolerances.json` for the table backend, `fixtures/tolerances-rustprop.json` for the accuracy path), oracle-established ground truths |
 
 ## Build and test
 

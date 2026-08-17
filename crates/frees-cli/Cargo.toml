@@ -9,3 +9,11 @@ description = "Headless frees engine: solve documents and replay the parity corp
 [dependencies]
 frees-core = { workspace = true }
 serde_json = { workspace = true }
+
+[features]
+# The switch D9 flips for the browser, reachable natively: with this on the CLI
+# answers property calls through rustprop instead of the linked (P,h) tables,
+# which is how the accuracy path gets exercised outside wasm
+# (`frees-cli --features rustprop-backend solve doc.frees`). Off by default so a
+# checkout without the sibling rustprop tree still builds the CLI.
+rustprop-backend = ["frees-core/rustprop-backend"]

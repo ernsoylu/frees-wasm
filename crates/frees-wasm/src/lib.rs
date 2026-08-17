@@ -45,12 +45,17 @@ mod repl;
 pub use measurement::measurement_calc;
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
-/// Rust backtrace instead of `unreachable executed`, and decode the linked
-/// property tables so the very first `fluids()` call already sees them.
+/// Rust backtrace instead of `unreachable executed`, and install the property
+/// backend so the very first `fluids()` call already sees it.
 ///
-/// `frees_core` also installs them lazily from `solve`/`check`, so the module is
-/// correct without this; doing it at start-up moves the one-off ~2 ms decode off
-/// the first solve and out of the fluid-list round trip.
+/// Which backend that is is decision D9
+/// (`docs/decisions/0009-rustprop-backend.md`): **rustprop**, and in this bundle
+/// only rustprop — the crate turns `frees-core`'s `linked-tables` feature off,
+/// so the `(P,h)` artifacts are not in the module at all.
+///
+/// `frees_core` also installs it lazily from `solve`/`check`, so the module is
+/// correct without this; doing it at start-up keeps the one-off cost off the
+/// first solve and out of the fluid-list round trip.
 #[wasm_bindgen(start)]
 pub fn start() {
     #[cfg(feature = "console_error_panic_hook")]
@@ -1030,9 +1035,16 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 ///
 /// **One deliberate narrowing**: the list is `plot_fluids_available()`, not
 /// `plot_fluids()`. The Java's list is every fluid CoolProp knows, because
-/// CoolProp serves every one of them; this build's tabulated backend serves two,
-/// and a picker offering thirty-six would fail on thirty-four. A backend that
-/// serves everything gets the Java list back verbatim.
+/// CoolProp serves every one of them; a build whose backend serves a subset would
+/// have a picker failing on the rest. A backend that serves everything gets the
+/// Java list back verbatim.
+///
+/// Since D9 the subset is rustprop's `served_fluids` — Water, R134a, R1234yf and
+/// the two glycol families — so `Air` left the picker with the `air.fraux`
+/// transport grid it was the only backing for. See
+/// `props/rustprop_backend.rs::served_fluids` for why (pseudo-pure Air has no
+/// full-state service yet), and note that `backend` below now reports rustprop
+/// rather than the table list.
 #[wasm_bindgen]
 pub fn fluids() -> String {
     frees_core::props::tables::install_builtin_once();

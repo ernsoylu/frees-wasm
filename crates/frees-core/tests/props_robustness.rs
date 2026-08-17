@@ -329,6 +329,11 @@ fn real_fluid_calls_at_every_corner_of_the_phase_envelope_are_answered_or_refuse
 /// and `h_g` has the same `T`. `Enthalpy(Water, P, T=T_sat(P))` therefore has a
 /// whole interval of answers, and any single number the engine returned would be
 /// a fabrication.
+///
+/// Both shipped backends refuse it, and they refuse it for the same reason in
+/// different words: the `(P,h)` table has no cell for a `(P,T)` pair on the
+/// saturation line, and rustprop reproduces upstream CoolProp's own guard, which
+/// rejects a `(P,T)` flash whose pressure sits within 1e-4 % of `p_sat(T)`.
 #[test]
 fn an_inverse_lookup_on_a_two_phase_plateau_is_refused_rather_than_guessed() {
     // T_sat(101325 Pa) = 373.1243 K, dead centre of the plateau.
@@ -337,7 +342,8 @@ fn an_inverse_lookup_on_a_two_phase_plateau_is_refused_rather_than_guessed() {
         Err(e) => {
             let msg = e.to_string_message();
             assert!(
-                msg.contains("Water") && msg.contains("outside the generated property table"),
+                (msg.contains("Water") && msg.contains("outside the generated property table"))
+                    || msg.contains("Saturation pressure"),
                 "{msg}"
             );
         }
@@ -899,10 +905,16 @@ fn table_lookups_exactly_on_and_just_outside_every_grid_edge_are_bounded() {
 
 // ── humid air and psychrometrics ────────────────────────────────────────────
 
-/// Humid-air calls have no backend in this build and must say so, for every
-/// state including the impossible ones.
+/// Humid-air calls must survive every state including the impossible ones, and
+/// then either answer or say why they cannot — which of the two depends on the
+/// backend, and D9 changed the answer.
+///
+/// The `(P,h)` tables implement no `HAPropsSI` at all, so every call is declined
+/// by name (`RealFluid::ha_props_si`'s declining default). rustprop implements
+/// RP-1485, so the same call answers — which was the largest single gap D8
+/// counted (7 of its 26 pending fixtures).
 #[test]
-fn humid_air_calls_are_declined_by_name_at_every_state() {
+fn humid_air_calls_are_answered_or_declined_by_name_at_every_state() {
     let mut corpus = Vec::new();
     for (t, p, r) in [
         (300.0, 101325.0, 0.5),
@@ -922,13 +934,21 @@ fn humid_air_calls_are_declined_by_name_at_every_state() {
     }
     all_survive(&corpus);
 
-    let err = solve("x = HumRat(AirH2O, T=300, P=101325, R=0.5)", &settings())
-        .unwrap_err()
-        .to_string_message();
-    assert!(
-        err.contains("HAPropsSI") || err.contains("humid-air"),
-        "{err}"
-    );
+    let out = solve("x = HumRat(AirH2O, T=300, P=101325, R=0.5)", &settings());
+    #[cfg(feature = "rustprop-backend")]
+    {
+        // Humidity ratio of saturated-at-50 % air at 300 K, 1 atm: ~0.0111 kg/kg.
+        let x = out.expect("rustprop implements HAPropsSI").values["x"];
+        assert!((0.010..0.012).contains(&x), "HumRat = {x}");
+    }
+    #[cfg(not(feature = "rustprop-backend"))]
+    {
+        let err = out.unwrap_err().to_string_message();
+        assert!(
+            err.contains("HAPropsSI") || err.contains("humid-air"),
+            "{err}"
+        );
+    }
 }
 
 // ── the backend seam itself ─────────────────────────────────────────────────

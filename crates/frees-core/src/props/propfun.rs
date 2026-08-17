@@ -1704,6 +1704,31 @@ pub(crate) fn test_with_builtin_tables<T>(body: impl FnOnce() -> T) -> T {
     out
 }
 
+/// Runs `body` with **rustprop** installed, restoring whatever was there
+/// before — the D9 counterpart of [`test_with_builtin_tables`].
+///
+/// Both exist for the same reason: a test that cares which backend answered
+/// must say so. Since D9 the two disagree about what is *serveable* (rustprop
+/// answers transport at `(P,T)`, a `(P,h)` table does not), so leaving the
+/// question to whatever the global slot happens to hold makes the assertion
+/// depend on test order.
+#[cfg(all(test, feature = "rustprop-backend"))]
+pub(crate) fn test_with_rustprop<T>(body: impl FnOnce() -> T) -> T {
+    let _guard = test_swap_guard();
+    let previous = backend();
+    install(Arc::new(crate::props::rustprop_backend::RustpropBackend));
+    let out = body();
+    match previous {
+        Some(p) => {
+            install(p);
+        }
+        None => {
+            uninstall();
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

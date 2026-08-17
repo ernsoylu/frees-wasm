@@ -48,6 +48,18 @@ env:
   # opened-file registry), and the workspace's only future-incompat warning
   # (meval -> nom 1.2.4) left with it. 92.2% of the ceiling, 240 KiB headroom.
   # The two structural debts above remain the real levers.
+  #
+  # 2026-08-17, decision D9 (docs/decisions/0009-rustprop-backend.md): DEBT (1)
+  # IS PAID. 2700.3 KiB raw / 1109.5 KiB gzipped — 87.9% of the ceiling and
+  # 371.7 KiB of headroom, from 3042.3 / 1597.7 at 99.0% and 29.7 KiB. The wasm
+  # ships rustprop as its only in-bundle property backend and the linked
+  # .phtab/.fraux artifacts leave with the `linked-tables` feature, so the engine
+  # got MORE accurate (bit-exact CoolProp 8.0.0, 12 of the 23 parity tolerance
+  # entries retired) while getting 31% smaller on the wire. Measured per corner:
+  # the artifacts cost 683.9 KiB raw and the same gzipped — they are already
+  # deflated, so the browser's gzip finds nothing — against rustprop's 342.0 KiB
+  # raw / 196.7 KiB gzipped. Debt (2), the lazy chunk, is untouched and is now
+  # the only structural lever left; at 87.9% nothing needs it.
   WASM_BUDGET_KB: 3072
 
 jobs:

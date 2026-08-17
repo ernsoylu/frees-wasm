@@ -10,7 +10,17 @@ description = "wasm-bindgen boundary and Web Worker protocol for the frees engin
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-frees-core = { workspace = true }
+# Decision D9 (`docs/decisions/0009-rustprop-backend.md`): the browser bundle
+# ships rustprop as its ONLY in-bundle property backend, so this is the one
+# crate in the workspace that turns frees-core's default features off. That
+# drops `linked-tables` — the ~678 KiB of packed (P,h)/FRAUX1 artifacts — out
+# of the wasm data section; the readers and the `install_from_bytes` fetch seam
+# stay compiled, only the bytes go. Spelled as a path rather than
+# `workspace = true` because `default-features` cannot be overridden on an
+# inherited dependency.
+frees-core = { path = "../frees-core", default-features = false, features = [
+    "rustprop-backend",
+] }
 wasm-bindgen = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }

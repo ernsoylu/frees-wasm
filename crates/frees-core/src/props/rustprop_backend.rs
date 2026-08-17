@@ -29,6 +29,58 @@ fn property_err(e: rustprop::Error) -> FreesError {
     FreesError::property(e.message())
 }
 
+/// Refuses a state whose numbers are not numbers, before rustprop sees it.
+///
+/// A `NaN` or infinite input is not a thermodynamic state, so nothing downstream
+/// can do anything useful with it — but "useful" is not the reason this guard
+/// exists. rustprop is a faithful port of a C++ library that reaches for
+/// `assert` where upstream does, and a bracketing assertion is exactly what a
+/// `NaN` defeats: `PropsSI("Dmass", "Smass", NaN, "Hmass", 101325, "Water")`
+/// trips `assert!(fa * fb <= 0.0)` in the Chebyshev root finder. In the shipped
+/// wasm that is not a recoverable error — `panic = "abort"`, so the engine
+/// worker dies and `engineClient` has to respawn it — and the inputs to a
+/// property call are *document* values, which a diverging solve or a
+/// `props_si_or_nan` sweep produces as `NaN` routinely.
+///
+/// So the boundary is here, where the values are still data.
+fn finite_inputs(named: &[(&str, f64)], call: impl FnOnce() -> String) -> Result<()> {
+    for (name, value) in named {
+        if !value.is_finite() {
+            return Err(FreesError::property(format!(
+                "{}: the input {name}={value} is not a finite value, so this is not a \
+                 state the property backend can be asked about.",
+                call()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Turns a non-finite answer into a refusal that names the call.
+///
+/// [`RealFluid`]'s contract is stricter than "returns a number": an
+/// implementation must **decline** rather than serve something the caller cannot
+/// use, because "a backend that answers outside its valid range is worse than no
+/// backend". A `NaN` is the worst case of that — it reaches the Newton residual
+/// as data, and a NaN residual converges nothing while looking like progress.
+///
+/// Upstream leaves a few degenerate states returning `NaN` instead of throwing,
+/// and rustprop reproduces that faithfully; `props_robustness`'s exhaustive key
+/// sweep is what finds them (`PropsSI("Hmass", "T", 0, "Smass", 101325,
+/// "Water")` is one). Converting here costs nothing on the sweep paths —
+/// `props_si_or_nan` turns the `Err` straight back into `NaN` — and on the solve
+/// path it replaces a silent poison value with a named property error.
+fn finite(value: f64, what: impl FnOnce() -> String) -> Result<f64> {
+    if value.is_finite() {
+        return Ok(value);
+    }
+    Err(FreesError::property(format!(
+        "{} is {value}, not a finite value. The property backend has no answer at \
+         this state, and a non-finite one would propagate into the solve as data.",
+        what()
+    )))
+}
+
 impl RealFluid for RustpropBackend {
     fn props_si(
         &self,
@@ -39,14 +91,19 @@ impl RealFluid for RustpropBackend {
         value2: f64,
         fluid: &str,
     ) -> Result<f64> {
-        rustprop::props_si(output, name1, value1, name2, value2, fluid).map_err(property_err)
+        let call = || format!("{output}({fluid}, {name1}={value1}, {name2}={value2})");
+        finite_inputs(&[(name1, value1), (name2, value2)], call)?;
+        let value = rustprop::props_si(output, name1, value1, name2, value2, fluid)
+            .map_err(property_err)?;
+        finite(value, call)
     }
 
     fn props1_si(&self, fluid: &str, param: &str) -> Result<f64> {
         // rustprop's trivial route: a trivial output never needs a state
         // update, so the empty input names are deliberately never parsed —
         // this is exactly upstream's `Props1SI` shape.
-        rustprop::props_si(param, "", 0.0, "", 0.0, fluid).map_err(property_err)
+        let value = rustprop::props_si(param, "", 0.0, "", 0.0, fluid).map_err(property_err)?;
+        finite(value, || format!("{param} of {fluid}"))
     }
 
     fn ha_props_si(
@@ -59,8 +116,12 @@ impl RealFluid for RustpropBackend {
         name3: &str,
         value3: f64,
     ) -> Result<f64> {
-        rustprop::ha_props_si(output, name1, value1, name2, value2, name3, value3)
-            .map_err(property_err)
+        let call =
+            || format!("{output}(AirH2O, {name1}={value1}, {name2}={value2}, {name3}={value3})");
+        finite_inputs(&[(name1, value1), (name2, value2), (name3, value3)], call)?;
+        let value = rustprop::ha_props_si(output, name1, value1, name2, value2, name3, value3)
+            .map_err(property_err)?;
+        finite(value, call)
     }
 
     /// The fluids this build's `rustprop-data` features can serve **full
@@ -171,6 +232,51 @@ mod tests {
         // rustprop reports the numerical critical point for superancillary
         // fluids, so compare loosely against IAPWS-95's 647.096 K.
         assert!((t - 647.096).abs() < 0.1, "Tcrit(Water) = {t}");
+    }
+
+    /// The `finite` guard, on the state `props_robustness`'s key sweep found:
+    /// upstream serves `NaN` there rather than throwing, and a `NaN` reaching
+    /// the engine is worse than a refusal.
+    #[test]
+    fn a_non_finite_answer_becomes_a_refusal() {
+        assert!(
+            rustprop::props_si("Hmass", "T", 0.0, "Smass", 101_325.0, "Water")
+                .is_ok_and(|v| v.is_nan()),
+            "this test is pinned to upstream's NaN; if rustprop now throws here, \
+             the guard is still right but this assertion needs re-pinning"
+        );
+        let err = B
+            .props_si("Hmass", "T", 0.0, "Smass", 101_325.0, "Water")
+            .unwrap_err();
+        assert!(matches!(err, FreesError::Property { .. }));
+        let msg = err.to_string_message();
+        assert!(
+            msg.contains("Water") && msg.contains("not a finite value"),
+            "{msg}"
+        );
+    }
+
+    /// The `finite_inputs` guard. This one is not a nicety: without it the call
+    /// below trips a bracketing `assert!` inside rustprop's Chebyshev root
+    /// finder, and the shipped wasm is `panic = "abort"` — so a `NaN` that a
+    /// diverging solve produced would take the engine worker down rather than
+    /// return an error. `props_robustness`'s key sweep is what found it.
+    #[test]
+    fn a_non_finite_input_is_refused_before_it_reaches_rustprop() {
+        for (k1, v1, k2, v2) in [
+            ("Smass", f64::NAN, "Hmass", 101_325.0),
+            ("T", f64::INFINITY, "P", 101_325.0),
+            ("P", 101_325.0, "T", f64::NEG_INFINITY),
+        ] {
+            let err = B.props_si("Dmass", k1, v1, k2, v2, "Water").unwrap_err();
+            assert!(matches!(err, FreesError::Property { .. }));
+            let msg = err.to_string_message();
+            assert!(msg.contains("not a finite value"), "{msg}");
+        }
+        let err = B
+            .ha_props_si("H", "T", 298.15, "P", 101_325.0, "R", f64::NAN)
+            .unwrap_err();
+        assert!(err.to_string_message().contains("not a finite value"));
     }
 
     #[test]

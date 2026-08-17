@@ -31,6 +31,18 @@
 //! `FRPHTAB1` slice, so a fetched table can be added at runtime without
 //! recompiling. What is linked is a floor, not a ceiling.
 //!
+//! # …and in the browser build the floor is now zero (D9)
+//!
+//! Decision D9 (`docs/decisions/0009-rustprop-backend.md`) makes **rustprop**
+//! the wasm build's property source, so the browser no longer consults these
+//! tables at all — and the `linked-tables` Cargo feature takes the ~678 KiB of
+//! packed artifacts out of that bundle. `linked-tables` is on by default, so a
+//! native build, `frees-cli` and every `--no-default-features`-free test still
+//! link them exactly as before; `frees-wasm` is the one crate that switches
+//! them off. Only the *bytes* are conditional: [`unpack`], the two decoders and
+//! [`install_from_bytes`] compile either way, because a fetched table is what
+//! is left of D1 once the linked floor is gone.
+//!
 //! # What is here
 //!
 //! Two fluids, water and R134a, at the grid D1 measured (`n_sat = 512`,
@@ -65,6 +77,20 @@ use crate::props::satsplit::SaturationSplitTable;
 ///
 /// Container: `b"FRZ1"`, `u32` little-endian unpacked length, raw deflate
 /// stream.
+///
+/// # Feature-gated out of the wasm bundle (D9)
+///
+/// The `include_bytes!` calls below are the whole reason `linked-tables` is a
+/// Cargo feature. They are ~678 KiB of wasm data section, and
+/// `docs/decisions/0009-rustprop-backend.md` took them out of the browser
+/// build: with rustprop linked, the tables are not the property source there,
+/// so linking them would be paying for a backend nothing consults. Everything
+/// that *reads* an artifact — [`unpack`], `SaturationSplitTable`, `AuxTable`,
+/// [`install_from_bytes`] — stays compiled either way, because the fetched
+/// path is what remains of D1 when the bytes stop being linked. `build.rs`
+/// skips the deflate entirely when the feature is off, so a stray
+/// `include_bytes!` is a hard build error rather than a silent regression.
+#[cfg(feature = "linked-tables")]
 mod packed {
     macro_rules! packed {
         ($konst:ident, $file:literal) => {
@@ -119,38 +145,47 @@ fn unpack(packed: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Water, `FRPHTAB1`, generated from CoolProp 8.0.0.
+#[cfg(feature = "linked-tables")]
 pub fn water_phtab() -> Result<Vec<u8>> {
     unpack(packed::WATER_PHTAB)
 }
 /// R134a, `FRPHTAB1`, generated from CoolProp 8.0.0.
+#[cfg(feature = "linked-tables")]
 pub fn r134a_phtab() -> Result<Vec<u8>> {
     unpack(packed::R134A_PHTAB)
 }
 /// R1234yf, `FRPHTAB1`, generated from CoolProp 8.0.0.
+#[cfg(feature = "linked-tables")]
 pub fn r1234yf_phtab() -> Result<Vec<u8>> {
     unpack(packed::R1234YF_PHTAB)
 }
 /// Aqueous mono-ethylene glycol, `FRAUX1` (`tools/aux-gen`).
+#[cfg(feature = "linked-tables")]
 pub fn meg_fraux() -> Result<Vec<u8>> {
     unpack(packed::MEG_FRAUX)
 }
 /// Aqueous mono-propylene glycol, `FRAUX1`.
+#[cfg(feature = "linked-tables")]
 pub fn mpg_fraux() -> Result<Vec<u8>> {
     unpack(packed::MPG_FRAUX)
 }
 /// Air single-phase transport over `(P,T)`, `FRAUX1`.
+#[cfg(feature = "linked-tables")]
 pub fn air_fraux() -> Result<Vec<u8>> {
     unpack(packed::AIR_FRAUX)
 }
 /// Water transport on the saturation line, `FRAUX1`.
+#[cfg(feature = "linked-tables")]
 pub fn water_sat_fraux() -> Result<Vec<u8>> {
     unpack(packed::WATER_SAT_FRAUX)
 }
 /// R134a transport on the saturation line, `FRAUX1`.
+#[cfg(feature = "linked-tables")]
 pub fn r134a_sat_fraux() -> Result<Vec<u8>> {
     unpack(packed::R134A_SAT_FRAUX)
 }
 /// R1234yf transport on the saturation line, `FRAUX1`.
+#[cfg(feature = "linked-tables")]
 pub fn r1234yf_sat_fraux() -> Result<Vec<u8>> {
     unpack(packed::R1234YF_SAT_FRAUX)
 }
@@ -161,15 +196,22 @@ pub fn r1234yf_sat_fraux() -> Result<Vec<u8>> {
 /// (or use [`builtin_tables`], which does) before handing them to
 /// `decode_generated`. [`install_from_bytes`] is the opposite case and takes
 /// artifact bytes directly, because its input comes from outside this build.
-pub const BUILTIN_TABLES: [(&str, &[u8]); 3] = [
+/// Without `linked-tables` the set is **empty**, not absent: every reader below
+/// stays compiled and simply has nothing to read, which is what makes
+/// [`install_from_bytes`] the only source in that build.
+#[cfg(feature = "linked-tables")]
+pub const BUILTIN_TABLES: &[(&str, &[u8])] = &[
     ("water.phtab", packed::WATER_PHTAB),
     ("r134a.phtab", packed::R134A_PHTAB),
     ("r1234yf.phtab", packed::R1234YF_PHTAB),
 ];
+#[cfg(not(feature = "linked-tables"))]
+pub const BUILTIN_TABLES: &[(&str, &[u8])] = &[];
 
 /// Every `FRAUX1` grid linked into this build, packed on the same terms as
 /// [`BUILTIN_TABLES`].
-pub const BUILTIN_AUX: [(&str, &[u8]); 6] = [
+#[cfg(feature = "linked-tables")]
+pub const BUILTIN_AUX: &[(&str, &[u8])] = &[
     ("meg.fraux", packed::MEG_FRAUX),
     ("mpg.fraux", packed::MPG_FRAUX),
     ("air.fraux", packed::AIR_FRAUX),
@@ -177,6 +219,8 @@ pub const BUILTIN_AUX: [(&str, &[u8]); 6] = [
     ("r134a-sat.fraux", packed::R134A_SAT_FRAUX),
     ("r1234yf-sat.fraux", packed::R1234YF_SAT_FRAUX),
 ];
+#[cfg(not(feature = "linked-tables"))]
+pub const BUILTIN_AUX: &[(&str, &[u8])] = &[];
 
 /// Decodes the linked tables.
 ///
@@ -224,6 +268,15 @@ pub fn install_builtin() -> Result<Vec<String>> {
 /// fluid this build does not link can hand the slice straight here. It is also
 /// how a future `coolprop.wasm` path would be layered in, by installing a
 /// backend that consults the tables first.
+///
+/// D9 leaves this compiled in the wasm build — it is the offline/speed fallback
+/// there — but with `linked-tables` off the "tables already served" it builds on
+/// are **none**, so one call installs a `TableBackend` serving exactly the one
+/// fluid whose artifact was fetched, in place of rustprop. Two consequences a
+/// host taking that path has to know, both recorded in D9 rather than papered
+/// over here: a second call replaces the first fluid rather than adding to it,
+/// and the `FRAUX1` transport grids have no runtime install path at all
+/// (`FRPHTAB1` is the only format this reads). Nothing calls it today.
 pub fn install_from_bytes(bytes: &[u8]) -> Result<Vec<String>> {
     let incoming = SaturationSplitTable::decode_generated(bytes)?;
     let mut tables = builtin_tables()?;
@@ -235,27 +288,42 @@ pub fn install_from_bytes(bytes: &[u8]) -> Result<Vec<String>> {
     Ok(fluids)
 }
 
-/// Installs the linked tables the first time it is called, and does nothing
-/// afterwards.
+/// Installs this build's property backend the first time it is called, and does
+/// nothing afterwards.
 ///
 /// Every public entry point of the crate calls this, so a caller never has to
 /// remember to. It is deliberately **not** idempotent-by-reinstall: a test that
 /// swaps in a recorded backend, or a host that installed a richer one, must not
 /// have it yanked back out from under them by the next `solve`.
 ///
-/// A decode failure is swallowed here — the entry points cannot return a
-/// property error before they have parsed anything, and every real-fluid call
-/// then fails with the honest "no backend installed" diagnostic. The failure is
-/// visible through [`install_builtin`], which the unit tests call directly.
+/// # Which backend
+///
+/// Decision D9 (`docs/decisions/0009-rustprop-backend.md`): when the
+/// `rustprop-backend` feature is on, **rustprop is the backend** — the linked
+/// tables are not consulted at all, and the wasm build does not even link them
+/// (see the `packed` module). With the feature off this is exactly what it always
+/// was, [`install_builtin`], so the table path is preserved rather than
+/// removed.
+///
+/// A decode failure on the table path is swallowed here — the entry points
+/// cannot return a property error before they have parsed anything, and every
+/// real-fluid call then fails with the honest "no backend installed"
+/// diagnostic. The failure is visible through [`install_builtin`], which the
+/// unit tests call directly.
 pub fn install_builtin_once() {
     use std::sync::Once;
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
+        #[cfg(feature = "rustprop-backend")]
+        propfun::install(Arc::new(crate::props::rustprop_backend::RustpropBackend));
+        #[cfg(not(feature = "rustprop-backend"))]
         let _ = install_builtin();
     });
 }
 
-#[cfg(test)]
+/// Every test here grades a *linked* artifact, so the module goes with the
+/// bytes: `--no-default-features` has nothing for them to assert about.
+#[cfg(all(test, feature = "linked-tables"))]
 mod tests {
     use super::*;
     use crate::props::satsplit::{LiquidCoord, Region};

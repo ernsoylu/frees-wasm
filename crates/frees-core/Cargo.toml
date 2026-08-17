@@ -19,6 +19,23 @@ serde = { workspace = true, optional = true }
 # ~19 KB inflate core, against ~329 KB saved off the data section.
 miniz_oxide = { workspace = true }
 
+# The accuracy path (decision D8): rustprop, the pure-Rust CoolProp 8 port, as
+# a direct cargo dependency. Its engines and per-fluid data are opt-in Cargo
+# features, so this build links exactly the fluids frees serves — nothing
+# monolithic. rustprop's shipped crates carry zero external dependencies, which
+# is what keeps frees-core clear of wasm-bindgen (the CLAUDE.md hard rule).
+rustprop = { path = "../../../rustprop/crates/rustprop", features = [
+    "heos",
+    "humid-air",
+    "incompressible",
+], optional = true }
+rustprop-data = { path = "../../../rustprop/crates/rustprop-data", features = [
+    "water",
+    "r134a",
+    "r1234yf",
+    "air",
+], optional = true }
+
 # The same crate on the other side of the pipe: build.rs does the deflating.
 # Build dependencies are host-only and never reach the wasm module.
 [build-dependencies]
@@ -27,6 +44,7 @@ miniz_oxide = { workspace = true }
 [features]
 default = []
 serde = ["dep:serde"]
+rustprop-backend = ["dep:rustprop", "dep:rustprop-data"]
 
 [dev-dependencies]
 serde_json = { workspace = true }

@@ -1,0 +1,137 @@
+{
+  "_README": [
+    "Per-fixture numeric tolerances for tests/parity.rs WHEN THE PROPERTY BACKEND",
+    "IS RUSTPROP -- decision D9, docs/decisions/0009-rustprop-backend.md. The",
+    "sibling file tolerances.json grades the (P,h) TableBackend; the harness reads",
+    "exactly one of the two, selected by the same `rustprop-backend` cfg that",
+    "decides which backend install_builtin_once installs. Every fixture not named",
+    "here is compared at the default 1e-9 relative / 1e-12 absolute.",
+    "",
+    "WHY THIS FILE IS SHORTER THAN ITS SIBLING. tolerances.json carries 23 entries",
+    "because D1's precomputed tables sit 1e-7..1e-4 from CoolProp. rustprop IS",
+    "CoolProp 8.0.0 (a bitwise port), so that error is gone and TWELVE of those 23",
+    "entries died -- measured, on the run that produced this file:",
+    "",
+    "  sysdesign-ex11-liquid-cooling-loop         0e0      (was 1.3e-4)",
+    "  components_wave2_flash_tank                4.1e-16  (was 5.3e-8)",
+    "  sysdesign-ex17-ac-expansion-valve          1.2e-16  (was 7.9e-8)",
+    "  sysdesign-ex20-zeotropic-blend             1.3e-15  (was 2.9e-8)",
+    "  components_wave2_ejector_oilsep            2.7e-15  (was 5.1e-8)",
+    "  components_family_fluid                    4.7e-14  (was 1.4e-6)",
+    "  rankine-cycle / rankine-cycle-2            7.7e-14  (was 6.4e-7)",
+    "  components_family_liquid                   7.9e-14  (was 1.2e-6)",
+    "  components_wave8_hydro_turbine             3.9e-13  (was 1.6e-6)",
+    "  components_bsweep_valve_characteristics    4.2e-13  (was 1.6e-6)",
+    "  state-tables-multifluid                    4.4e-11  (was 2.9e-6)",
+    "",
+    "A THIRTEENTH ENTRY DIED AT WAVE-2 INTEGRATION (2026-08-18), and with it the",
+    "whole `solver_floor` section:",
+    "",
+    "  sysdesign-ex16-moving-boundary-evaporator   4.2e-12  (was 3.7e-9)",
+    "",
+    "This file was written against a rustprop whose single-phase (P,X) flash still",
+    "used a 30-bit bisection STAND-IN for upstream's solver, which left ~8e-10 of",
+    "granularity in every iterative Temperature(P,h). That was mechanism (c) below",
+    "and the sole reason the `solver_floor` relaxation existed. Wave-2 R8 replaced",
+    "the stand-in with upstream's own Boost TOMS748 plus the warm-density carry,",
+    "and the noise floor went with it (rustprop's own witness: median displacement",
+    "from the CoolProp wheel over 1 433 (P, caloric) goldens moved 1.77e-10 ->",
+    "2.04e-16). ex16's Newton block now reaches the 1e-12 engine default unaided",
+    "and the fixture grades at 4.2077133038024e-12, under the 1e-9 default -- so",
+    "both its entries were deleted, as this file's own rules require. Mechanism (c)",
+    "no longer has an instance.",
+    "",
+    "D8 predicted this and named the trap: 'an entry whose fixture passes at the",
+    "default 1e-9 makes the parity test FAIL, so adopting [the accuracy path]",
+    "requires deleting the dead entries in the same change'. Deleting them from",
+    "tolerances.json would have broken the table configuration, which is still a",
+    "supported build; a second file is how both stay honest.",
+    "",
+    "WHAT IS LEFT, AND WHY IT IS NOT THIS PORT. Two live mechanisms only:",
+    "",
+    "  (a) THE GOLDEN IS WRONG, and knowably so. props/PropertyFunctions.java",
+    "      routes output T, Dmass or Smass at the input pair (P, Hmass) through",
+    "      its OWN PhTableRegistry -- a SaturationSplitTable built at run time on",
+    "      a 256/96/48 grid and gated at 1e-4 relative. Those goldens are not",
+    "      CoolProp values; measured against direct CoolProp 8.0.0 the Java table",
+    "      is off by up to 7.9e-5 (Water Dmass) and 7.6e-5 (R134a Dmass). Every",
+    "      (P,T), (P,s), (P,x) and (T,x) call falls through to the native library",
+    "      and IS bit-exact, which is exactly why those fixtures are in the dead",
+    "      list above. So a gap here is the JAVA's interpolation error, and this",
+    "      port is the nearer of the two to the physics. The clearest case is",
+    "      components_wave2_liquid_tms, where the document imposes T = 400 K at a",
+    "      source, converts to h and inverts: rustprop returns 399.99999991 and",
+    "      the Java 400.00067812.",
+    "  (b) FLOAT-LEVEL DIFFERENCE AMPLIFIED BY CANCELLATION. rustprop reproduces",
+    "      CoolProp to ~1e-10 or better at these states, and a document that",
+    "      subtracts two nearly-equal property values turns that into something",
+    "      visible (refrigeration-vcr's COP is the only survivor of this kind).",
+    "  (c) THE STOP CRITERION -- RETIRED 2026-08-18, no instance remains. It",
+    "      existed only for the bisection stand-in's ~8e-10 granularity; see the",
+    "      thirteenth-entry note above. `solver_floor` is kept as an empty section",
+    "      because the harness reads it and because the mechanism is real: any",
+    "      future inverse property call inside a Newton block can reintroduce it.",
+    "",
+    "Rules for adding an entry (unchanged from tolerances.json):",
+    "  * `relative` must be the *measured* error with a little headroom, never a",
+    "    round number chosen to make a test pass. Record what was measured in",
+    "    `measured`.",
+    "  * `reason` must say which mechanism produces the error, so a future",
+    "    session can tell a golden-side artifact from a regression.",
+    "  * An entry whose fixture passes at the default 1e-9 makes the parity test",
+    "    FAIL. Dead tolerances do not accumulate here."
+  ],
+  "fixtures": {
+    "adv_cyclepath_rankine_order": {
+      "relative": 1e-05,
+      "measured": 4.70767e-06,
+      "reason": "Mechanism (a). The component-layer Rankine loop calls Entropy(Water, P, h) inside Turbine's body, which is one of the three query shapes PropertyFunctions.java answers from its own 256-grid table, so the golden entropy is not a CoolProp value. Enthalpy(Water, P, s) then carries that error into the isentropic outlet enthalpy and tu.w -- the turbine work, a difference of two enthalpies -- amplifies it to 4.7e-6."
+    },
+    "components_family_ac": {
+      "relative": 2e-06,
+      "measured": 7.63713e-07,
+      "reason": "Mechanism (a). EXV/EXVCmd size their pressure drop from Density(R134a, P, h) at a subcooled state -- Dmass at (P,Hmass), intercepted by the Java's own table, whose worst measured Dmass error is 7.6e-5. The worst variable rho_xc is that density directly; the orifice equation takes it under a square root, so the outlet pressure shows half of it."
+    },
+    "components_family_twophase": {
+      "relative": 3e-05,
+      "measured": 1.61691e-05,
+      "reason": "Mechanism (a), amplified by subtraction. The sensor's Temperature(R134a, P, h) in the superheated region is intercepted by the Java's 256-grid table; sen.sh = T - Tsat then subtracts a bit-exact saturation temperature from a tabulated one, so the Java's absolute T error lands undiluted on a 31 K superheat."
+    },
+    "components_wave2_capillary_tube": {
+      "relative": 5e-05,
+      "measured": 2.88061e-05,
+      "reason": "Mechanism (a), amplified by subtraction. dp_eff = P_in - max(P_out, P_f), and P_f comes from a Temperature(R134a, P, h) inversion -- the Java's own table -- followed by a saturation-pressure lookup. Subtracting that from a 5 bar boundary pressure turns the Java's ~1e-6 relative flash-pressure error into 2.9e-5 on the much smaller difference."
+    },
+    "components_wave2_short_tube_choke": {
+      "relative": 5e-05,
+      "measured": 2.88061e-05,
+      "reason": "Mechanism (a), identical to components_wave2_capillary_tube down to the value: the short-tube choke's dp_eff is the same difference of a boundary pressure and a table-inverted flash pressure, and the two documents share the operating point."
+    },
+    "components_wave2_liquid_tms": {
+      "relative": 3e-06,
+      "measured": 1.69552e-06,
+      "reason": "Mechanism (a), and the cleanest demonstration of it in the corpus. Each LiquidSource imposes T and converts to h with Enthalpy(Water, P, T) -- bit-exact on both sides -- and each wall-HX inverts it with Temperature(Water, P, h), which the Java answers from its own 256-grid table. The worst variable tho.t_in is that inverse at a source whose stated temperature is exactly 400 K: this port returns 399.9999999147833, the Java 400.0006781248481. The gap is the Java's 6.8e-4 K inversion error, not a divergence."
+    },
+    "ev-thermal-management": {
+      "relative": 1e-05,
+      "measured": 5.03578e-06,
+      "reason": "Mechanism (a) -- and 178x better than the same fixture on the table backend (8.95e-4), because the FRAUX1 glycol grid that dominated it is gone: rustprop answers INCOMP::MEG exactly, so the Re = 2987 laminar/turbulent blend has nothing left to amplify. What remains is the refrigerant side, where the compressor's Entropy/Temperature(R1234yf, P, h) calls are intercepted by the Java's own table; the worst variable cmp.w is a difference of two enthalpies across that state."
+    },
+    "props_realfluid_r134a_states": {
+      "relative": 3e-06,
+      "measured": 1.75204e-06,
+      "reason": "Mechanism (a), directly: 24 of the 42 variables here are (P,h) -> T/Dmass/Smass, whose goldens are the Java's 256-grid table rather than CoolProp. The worst is t_h2s = Temperature(R134a, P=1.0166 MPa, h=426479.69) -- a superheated-vapour inversion where the Java grid is coarsest in h."
+    },
+    "props_realfluid_water_states": {
+      "relative": 1e-05,
+      "measured": 6.70189e-06,
+      "reason": "Mechanism (a), directly: 15 of the 44 variables are (P,h) -> T/Dmass/Smass against the Java's own table. The worst is s1_rank = Entropy(Water, P=10 kPa, h=191805.94) -- saturated-liquid entropy near the triple point, where water's entropy reference passes through zero and a small absolute error is a large relative one. Note this fixture's table-backend entry was 2e-4, an order and a half looser."
+    },
+    "refrigeration-vcr": {
+      "relative": 1e-08,
+      "measured": 2.96951e-09,
+      "reason": "Mechanism (b), and the only survivor of its kind. Every property call in this R134a cycle is a shape the Java answers from native CoolProp, so the goldens are bit-exact and rustprop reproduces them to ~1e-10. The one variable that shows anything is cop = q_evap / w_comp, a ratio of two enthalpy differences: both numerator and denominator lose most of their significant digits to cancellation, so ~1e-10 on the enthalpies is 3e-9 on the COP."
+    }
+  },
+  "solver_floor": {}
+}

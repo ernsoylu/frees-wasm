@@ -66,6 +66,15 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", data_dir.display());
 
+    // Decision D9: the browser build's property source is rustprop, so it does
+    // not link these artifacts (`linked-tables` off) — packing them would be a
+    // second of deflate per build for bytes nothing includes. Leaving OUT_DIR
+    // empty is also the guard: a `include_bytes!` that escaped its `cfg` fails
+    // the build loudly instead of quietly putting 678 KiB back in the bundle.
+    if env::var_os("CARGO_FEATURE_LINKED_TABLES").is_none() {
+        return;
+    }
+
     let mut entries: Vec<_> = fs::read_dir(data_dir)
         .expect("src/props/data must exist")
         .map(|e| e.expect("readable dir entry").path())

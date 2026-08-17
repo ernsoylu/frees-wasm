@@ -42,8 +42,20 @@ rustprop-data = { path = "../../../rustprop/crates/rustprop-data", features = [
 miniz_oxide = { workspace = true }
 
 [features]
-default = []
+# `linked-tables` is on by default, so a native build, `frees-cli` and the whole
+# test suite keep the D1 artifacts and behave exactly as they always did.
+# `frees-wasm` is the one crate that sets `default-features = false` — see D9.
+default = ["linked-tables"]
 serde = ["dep:serde"]
+
+# The ~678 KiB of packed (P,h)/FRAUX1 grids under `src/props/data`, as linked
+# bytes (`props/tables.rs::packed`, `build.rs`). OFF leaves the readers and the
+# `install_from_bytes` fetch seam compiled and removes only the *bytes* —
+# decision D9, `docs/decisions/0009-rustprop-backend.md`.
+linked-tables = []
+
+# Install rustprop as the process's RealFluid backend (D9). OFF is byte-for-byte
+# the pre-D9 engine: `install_builtin_once` installs the (P,h) TableBackend.
 rustprop-backend = ["dep:rustprop", "dep:rustprop-data"]
 
 [dev-dependencies]

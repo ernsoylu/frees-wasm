@@ -137,6 +137,37 @@ Each entry must record the *measured* error and a `reason` naming the mechanism
 that produces it. The parity test prints which fixtures used a declared
 tolerance on every run.
 
+#### One file per backend (D9)
+
+Since [D9](../docs/decisions/0009-rustprop-backend.md) there are **two** of these
+files and the harness reads exactly one, selected by the same `rustprop-backend`
+cfg that selects the property backend:
+
+| file | grades | entries |
+|---|---|---:|
+| `tolerances.json` | the D1 `(P,h)` `TableBackend` | 23 |
+| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 11 |
+
+They cannot be merged, because the "dead tolerance" guard above is what makes
+them backend-specific: twelve of the 23 entries exist only because of the tables'
+own interpolation error, and under rustprop — which *is* CoolProp 8.0.0 — those
+fixtures match at `1e-13…1e-16` and their entries would fail. The eleven
+survivors have a different cause, spelled out per entry in that file's header:
+mostly the **golden** side, where `PropertyFunctions.java` answers
+`(P, Hmass) → T/Dmass/Smass` from its own run-time 256/96/48 table rather than
+from the native library.
+
+`tolerances-rustprop.json` also carries a second section, `solver_floor`, which
+relaxes the Newton **stop criterion** for one named fixture rather than the
+comparison tolerance. It exists for one mechanism: rustprop answers an inverse
+property call with an iterative flash, so a residual like
+`T_out = Temperature(fluid, P, h)` advances in jumps of ~4e-7 K rather than along
+a slope, and a line search cannot descend a staircase. It carries the same two
+guards as a numeric tolerance — a fixture that converges at the default, or an
+entry with no fixture, fails the gate — and the *values* are still compared
+normally, so relaxing it asserts strictly more than pinning the fixture as a
+known divergence would.
+
 The same applies to D7's `FRAUX1` grids, which have their own error class
 (`tools/aux-gen/README.md`). Two entries come from them, and the looser one is
 worth reading before it is copied as precedent: `ev-thermal-management` sits at

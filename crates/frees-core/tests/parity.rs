@@ -77,8 +77,26 @@ fn golden_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/golden")
 }
 
+/// Which tolerance file grades this build — one per property backend.
+///
+/// Decision D9 pins the gate to **one** backend, but "one" cannot mean "one
+/// file": the entries in `fixtures/tolerances.json` exist because of the (P,h)
+/// tables' own interpolation error, and under rustprop most of them are dead
+/// (the file's own rule then makes them failures) while the survivors have a
+/// completely different cause — the *golden* side, where the Java answered
+/// `(P,Hmass) → T/Dmass/Smass` from its own run-time 256/96/48 table. So each
+/// backend is graded by the file that describes it, selected by the same `cfg`
+/// that decides which backend `install_builtin_once` installs. There is no
+/// configuration in which both files are read, and none in which neither is.
+#[cfg(feature = "rustprop-backend")]
+const TOLERANCE_FILE: &str = "tolerances-rustprop.json";
+#[cfg(not(feature = "rustprop-backend"))]
+const TOLERANCE_FILE: &str = "tolerances.json";
+
 fn tolerance_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/tolerances.json")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures")
+        .join(TOLERANCE_FILE)
 }
 
 /// Declared relative tolerance per fixture stem, from `fixtures/tolerances.json`.
@@ -112,6 +130,65 @@ fn declared_tolerances() -> BTreeMap<String, f64> {
                 rel > REL_TOL && rel < 1e-2,
                 "{}: fixture `{name}` declares {rel:e}, which is either tighter than \
                  the default or loose enough to hide a real divergence",
+                path.display()
+            );
+            (name.clone(), rel)
+        })
+        .collect()
+}
+
+/// Declared Newton **stop criterion** per fixture stem, from the same file's
+/// optional `solver_floor` object.
+///
+/// This is a different knob from `fixtures`, and it exists for a mechanism only
+/// the accuracy path has. A `(P,h)` table is a bilinear surface, so a residual
+/// like `T_out = Temperature(fluid, P, h)` is smooth in `h` and Newton drives it
+/// to the `1e-12` default. rustprop answers the same call with an *iterative*
+/// flash, whose output has a floor: it is the exact value to within its own
+/// convergence, and stepping `h` by less than that moves `T` by a jump instead of
+/// a slope. A block that carries such a residual therefore cannot be driven
+/// below that floor by any line search — the engine reports "no full, halved or
+/// damped step reduces the residual", which is the truth.
+///
+/// Relaxing the stop criterion for the named fixture is the honest response:
+/// the *values* are still compared against the Java oracle at the ordinary
+/// tolerance, so the assertion is intact — only the point at which the solver
+/// stops chasing arithmetic noise moves. The guards mirror `fixtures`': an entry
+/// whose fixture converges at the default is dead and fails, and an entry with
+/// no fixture fails.
+fn declared_solver_floors() -> BTreeMap<String, f64> {
+    let path = tolerance_path();
+    let raw = match fs::read_to_string(&path) {
+        Ok(raw) => raw,
+        Err(_) => return BTreeMap::new(),
+    };
+    let doc: serde_json::Value = serde_json::from_str(&raw)
+        .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()));
+    let Some(entries) = doc["solver_floor"].as_object() else {
+        // Absent is legitimate: it means every fixture solves at the default.
+        return BTreeMap::new();
+    };
+    entries
+        .iter()
+        .map(|(name, entry)| {
+            let rel = entry["rel_tolerance"].as_f64().unwrap_or_else(|| {
+                panic!(
+                    "{}: solver_floor `{name}` needs a numeric `rel_tolerance`",
+                    path.display()
+                )
+            });
+            assert!(
+                entry["reason"].as_str().is_some_and(|r| r.len() > 40),
+                "{}: solver_floor `{name}` needs a `reason` naming the residual whose \
+                 property call has the floor, not a placeholder",
+                path.display()
+            );
+            let default = SolverSettings::default().rel_tolerance;
+            assert!(
+                rel > default && rel < 1e-6,
+                "{}: solver_floor `{name}` declares {rel:e}; the engine default is \
+                 {default:e} and anything at or above 1e-6 stops the solver before the \
+                 physics, not before the noise",
                 path.display()
             );
             (name.clone(), rel)
@@ -349,7 +426,9 @@ fn compare_ode_tables(
 fn replay(
     path: &Path,
     tolerances: &BTreeMap<String, f64>,
+    floors: &BTreeMap<String, f64>,
     used: &mut BTreeSet<String>,
+    used_floors: &mut BTreeSet<String>,
     failures: &mut Vec<Failure>,
 ) {
     let name = path
@@ -365,6 +444,32 @@ fn replay(
     let expect = &fixture["expect"];
     let expected_error = &expect["error"];
 
+    // A declared stop-criterion floor is a claim that the default cannot be
+    // reached, so it is verified before it is used — exactly as a declared
+    // numeric tolerance is. A fixture that solves at the default has a dead
+    // entry; one the relaxation does not rescue has the wrong entry.
+    let settings = match floors.get(&name) {
+        None => SolverSettings::default(),
+        Some(&rel_tolerance) => {
+            if solve(source, &SolverSettings::default()).is_ok() {
+                failures.push(Failure {
+                    fixture: name.clone(),
+                    detail: format!(
+                        "{TOLERANCE_FILE} relaxes this fixture's stop criterion to \
+                         {rel_tolerance:e}, but it solves at the engine default. Delete the \
+                         solver_floor entry rather than leaving a dead relaxation in the file."
+                    ),
+                });
+            } else {
+                used_floors.insert(name.clone());
+            }
+            SolverSettings {
+                rel_tolerance,
+                ..SolverSettings::default()
+            }
+        }
+    };
+
     let mut fail = |detail: String| {
         failures.push(Failure {
             fixture: name.clone(),
@@ -372,7 +477,7 @@ fn replay(
         });
     };
 
-    match solve(source, &SolverSettings::default()) {
+    match solve(source, &settings) {
         Ok(solution) => {
             if !expected_error.is_null() {
                 fail(format!(
@@ -421,7 +526,7 @@ fn replay(
             if tolerances.contains_key(&name) {
                 if worst <= REL_TOL {
                     fail(format!(
-                        "fixtures/tolerances.json relaxes this fixture to {rel_tol:e}, but it \
+                        "fixtures/{TOLERANCE_FILE} relaxes this fixture to {rel_tol:e}, but it \
                          matches the oracle to {worst:e} — at or under the {REL_TOL:e} default. \
                          Delete the entry rather than leaving a dead tolerance in the file."
                     ));
@@ -505,24 +610,38 @@ fn golden_corpus_parity() {
     );
 
     let tolerances = declared_tolerances();
+    let floors = declared_solver_floors();
     let mut used = BTreeSet::new();
+    let mut used_floors = BTreeSet::new();
     let mut failures = Vec::new();
     for path in &paths {
-        replay(path, &tolerances, &mut used, &mut failures);
+        replay(
+            path,
+            &tolerances,
+            &floors,
+            &mut used,
+            &mut used_floors,
+            &mut failures,
+        );
     }
 
-    // A tolerance for a fixture that is not in the corpus is a stale entry, and
-    // the "dead tolerance" guard above cannot see it — nothing replays it.
-    for name in tolerances.keys() {
+    // A declaration for a fixture that is not in the corpus is a stale entry, and
+    // the "dead entry" guards above cannot see it — nothing replays it.
+    for (section, name) in tolerances
+        .keys()
+        .map(|n| ("fixtures", n))
+        .chain(floors.keys().map(|n| ("solver_floor", n)))
+    {
         if !paths
             .iter()
             .any(|p| p.file_stem().and_then(|s| s.to_str()) == Some(name.as_str()))
         {
             failures.push(Failure {
                 fixture: name.clone(),
-                detail: "declared in fixtures/tolerances.json but has no fixture in \
-                         fixtures/golden/"
-                    .to_string(),
+                detail: format!(
+                    "declared in fixtures/{TOLERANCE_FILE} ({section}) but has no fixture in \
+                     fixtures/golden/"
+                ),
             });
         }
     }
@@ -544,9 +663,14 @@ fn golden_corpus_parity() {
     }
 
     println!(
-        "parity: {} fixtures match the Java oracle ({} at a declared table tolerance: {})",
+        "parity: {} fixtures match the Java oracle through {} \
+         ({} at a declared tolerance from fixtures/{TOLERANCE_FILE}: {}) \
+         ({} at a declared stop-criterion floor: {})",
         paths.len(),
+        frees_core::props::propfun::backend_description(),
         used.len(),
-        used.iter().cloned().collect::<Vec<_>>().join(", ")
+        used.iter().cloned().collect::<Vec<_>>().join(", "),
+        used_floors.len(),
+        used_floors.iter().cloned().collect::<Vec<_>>().join(", ")
     );
 }

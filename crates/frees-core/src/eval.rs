@@ -6286,28 +6286,54 @@ mod tests {
     #[test]
     fn coolprop_backed_correlations_dispatch_and_name_what_they_cannot_reach() {
         // Aluminium-tube water loop: the correlation resolves the fluid alias,
-        // then asks for viscosity — which nothing can serve here.
-        let message = err(&Expr::call(
-            "htc_1phase",
-            vec![
-                Expr::Str("Water".into()),
-                n(1e5),
-                n(320.0),
-                n(0.1),
-                n(0.01),
-                n(1e-4),
-            ],
-        ));
+        // then asks for viscosity at (P,T).
+        let htc = || {
+            Expr::call(
+                "htc_1phase",
+                vec![
+                    Expr::Str("Water".into()),
+                    n(1e5),
+                    n(320.0),
+                    n(0.1),
+                    n(0.01),
+                    n(1e-4),
+                ],
+            )
+        };
+
+        // A (P,h) split table stores no transport, so it must decline — and name
+        // the fluid while doing it. Pinned to that backend rather than left to
+        // the global slot: D9 put one in there that *can* serve this call, so the
+        // ambient installation no longer decides the same way, and which test
+        // ran first is not a premise an assertion may rest on.
+        let message = crate::props::propfun::test_with_builtin_tables(|| {
+            match eval(&htc(), &Scope::default()) {
+                Ok(v) => panic!("expected the table backend to decline, got {v}"),
+                Err(e) => e.to_string(),
+            }
+        });
         assert!(message.contains("Water"), "{message}");
         assert!(
-            // no backend at all / a backend that declines the input pair / a
-            // (P,h) table asked for a transport property it does not store.
-            message.contains("none is installed")
-                || message.contains("not tabulated")
-                || message.contains("needs a full property backend"),
+            // a backend that declines the input pair / a (P,h) table asked for a
+            // transport property it does not store.
+            message.contains("not tabulated") || message.contains("needs a full property backend"),
             "{message}"
         );
         assert!(!message.contains("not yet supported"), "{message}");
+
+        // The other half of D9: the accuracy path is precisely what stops this
+        // correlation being unreachable, so under rustprop the same call has to
+        // answer with a physical film coefficient.
+        #[cfg(feature = "rustprop-backend")]
+        {
+            let h = crate::props::propfun::test_with_rustprop(|| {
+                eval(&htc(), &Scope::default()).expect("rustprop serves Water transport at (P,T)")
+            });
+            assert!(
+                h.is_finite() && h > 1e2 && h < 1e5,
+                "htc_1phase(Water, 1 bar, 320 K, 0.1 m/s, D = 10 mm) = {h}"
+            );
+        }
 
         // Ideal-gas mixture properties need no backend and must answer.
         let mw = ev(&Expr::call(

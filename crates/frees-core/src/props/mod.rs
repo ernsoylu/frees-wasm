@@ -39,6 +39,8 @@ pub mod propfun;
 pub mod psychro;
 #[cfg(feature = "rustprop-backend")]
 pub mod rustprop_backend;
+#[cfg(feature = "rustprop-backend")]
+pub mod rustprop_warm;
 pub mod satsplit;
 pub mod solids;
 pub mod tables;

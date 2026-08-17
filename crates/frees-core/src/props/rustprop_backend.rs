@@ -16,6 +16,7 @@
 
 use crate::diag::{FreesError, Result};
 use crate::props::propfun::RealFluid;
+use crate::props::rustprop_warm;
 
 /// A [`RealFluid`] answered by the rustprop engines linked into this build:
 /// HEOS (Water, R134a, R1234yf, Air per the `rustprop-data` features in
@@ -39,6 +40,17 @@ impl RealFluid for RustpropBackend {
         value2: f64,
         fluid: &str,
     ) -> Result<f64> {
+        // The warm-state adapter: a `(P,Hmass)`/`(P,Smass)` query a hair from
+        // the last one this fluid answered is served by a two-or-three-step
+        // Newton over rustprop's guessed-density solve instead of a fresh
+        // bisecting flash. It declines — returning `None` — for every input
+        // pair, output and fluid it does not own, for every dome-region
+        // state, and whenever its locality or stability gate is not
+        // satisfied, and then this call proceeds exactly as it did before the
+        // adapter existed. See `props::rustprop_warm`.
+        if let Some(v) = rustprop_warm::try_props_si(output, name1, value1, name2, value2, fluid) {
+            return Ok(v);
+        }
         rustprop::props_si(output, name1, value1, name2, value2, fluid).map_err(property_err)
     }
 
@@ -70,16 +82,28 @@ impl RealFluid for RustpropBackend {
     /// serveable identity — the same spelling [`super::propfun::TableBackend`]
     /// keys its incompressible aux grids by.
     ///
-    /// `Air` is deliberately absent: rustprop serves the pseudo-pure Air only
-    /// at (P,T)/(Q,T)/(P,Q) until the remaining pseudo-pure flash pairs are
-    /// ported, and this list feeds the property-diagram picker, which needs
-    /// full states (the trait doc's rule). Air transport and `Z` at (T,P)
-    /// still answer through [`Self::props_si`] when asked.
+    /// `Air` is here **because of the warm adapter**, and only because of it.
+    /// rustprop serves the pseudo-pure Air at (P,T)/(Q,T)/(P,Q) alone — its
+    /// `(P,Hmass)`/`(P,Smass)` pairs are a loud `NotImplemented` pending the
+    /// pseudo-pure legacy solvers — and those two pairs are exactly what
+    /// [`crate::props::rustprop_warm`] now answers, by Newton over `(T,p)`
+    /// density solves, above the critical temperature where the root is
+    /// unique. That is the full state service this list is about: `(P,T)`,
+    /// `(P,Hmass)`, `(P,Smass)`, transport and `Z`. What it is still not is a
+    /// dome: Air's is at 60-132 K, which no frees document visits, and a
+    /// quality line drawn there would decline point by point.
     fn served_fluids(&self) -> Option<Vec<String>> {
         Some(
-            ["Water", "R134a", "R1234yf", "INCOMP::MEG", "INCOMP::MPG"]
-                .map(String::from)
-                .to_vec(),
+            [
+                "Water",
+                "R134a",
+                "R1234yf",
+                "Air",
+                "INCOMP::MEG",
+                "INCOMP::MPG",
+            ]
+            .map(String::from)
+            .to_vec(),
         )
     }
 

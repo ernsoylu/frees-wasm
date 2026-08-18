@@ -155,7 +155,10 @@ in `fixtures/tolerances.json` are retired (the rustprop configuration is graded 
 `fixtures/tolerances-rustprop.json` instead — one file per backend, chosen by the
 same `rustprop-backend` cfg that chooses the backend), `HAPropsSI` answers, and
 `Air` left the property-diagram picker with the `air.fraux` grid it was the only
-backing for. **Still do not write a humid-air backend, an `air.phtab`, or further
+backing for — *and came back at Wave-2/Wave-3, once rustprop's own pseudo-pure
+`HSU_P`/`(D,P)` flashes landed: `Air` is on `served_fluids` and in the picker,
+and the D6 amendment to D9 records why.* **Still do not write a humid-air
+backend, an `air.phtab`, or further
 `FRAUX1` grids** — rustprop supersedes all three. Read D9 before touching
 `props/tables.rs`, `props/rustprop_backend.rs` or either tolerance file.
 
@@ -179,12 +182,23 @@ measured outcome of each.
 > twelve — the 7 humid-air documents, `hx-correlations-fluid` and
 > `thermo-compliance` — are **promoted**, each at the corpus default `1e-9` with
 > no tolerance entry (worst 1.31e-11, five of the nine inside the `1e-12`
-> absolute band). **Corpus 707 → 716, pending 26 → 17.** The remaining three,
-> the `Air` state-table group (`sysdesign-ex06-pneumatic`, `-2`,
-> `sysdesign-ex07-pneumatic-servo`), were measured and clear too (1.43e-14, 0,
-> 0) but are still staged — promoting them takes pending 17 → 14 and makes the
-> count twelve for twelve. Every remaining hold is a non-property blocker; see
-> `fixtures/README.md`'s "Re-check 2026-08-18, Wave-3 F6".
+> absolute band). **Corpus 707 → 716, pending 26 → 17.** Every remaining hold is
+> a non-property blocker; see `fixtures/README.md`'s "Re-check 2026-08-18,
+> Wave-3 F6".
+>
+> **Twelve for twelve (Wave-3 F8, 2026-08-18).** The last three — the `Air`
+> state-table group `sysdesign-ex06-pneumatic`, `-2` and
+> `sysdesign-ex07-pneumatic-servo` — are promoted too, at the same default
+> `1e-9` with no tolerance entry: worst graded 0, 2.50e-14 and 0, and dropping
+> the harness's `1e-12` absolute band the worst raw relative deviation is
+> 4.63e-11 on one trajectory column of the fill transient.
+> **Corpus 716 → 719, pending 17 → 14.** `Air` is served for real —
+> `Temperature(Air, P, h)` lands 13 ulp from the oracle's 300 K — and nothing in this repo
+> narrows it out any more except `TableBackend::served_fluids`, which is the
+> other backend and is right to. `fixtures/tolerances-rustprop.json` is still
+> the same ten entries. rustprop *does* have a genuine low-quality `(P,h)`
+> refusal window inside Air's dome at 79–101 K; no fixture goes near it, and
+> `fixtures/README.md`'s "Re-check 2026-08-18, Wave-3 F8" has the measurement.
 
 **The size pass is done (2026-08-06), and it changed no engine behaviour.** The
 wasm is **3031.0 KiB raw / 1589.9 KiB gzipped, back under the 3072 KiB budget
@@ -253,7 +267,7 @@ now lives in `Latex.tsx`.
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 716 documents)
+                                       # (--release: the replay solves 719 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo test -p frees-core --test fuzz_properties        # property-based fuzzing
                                        # (PROPTEST_CASES=4096 for a longer soak)

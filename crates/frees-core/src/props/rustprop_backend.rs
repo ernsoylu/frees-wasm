@@ -170,6 +170,23 @@ impl RealFluid for RustpropBackend {
     /// `(P,Smass)`, transport and `Z` are all served, and rustprop draws Air's
     /// pseudo-pure dome too (both branches across 65-130 K, glide intact),
     /// which is what the diagram picker in `frees-wasm` needs.
+    ///
+    /// Since **Wave-3 F8** the claim this entry makes about `Air` is checked by
+    /// the parity gate and not only by unit tests: `sysdesign-ex06-pneumatic`,
+    /// `-2` and `sysdesign-ex07-pneumatic-servo` are in `fixtures/corpus/` and
+    /// drive `Temperature(Air, P, h)` at 1-7 bar, landing 13 ulp from the Java
+    /// oracle's 300 K (2.46e-15 relative). Note that this list itself gates only
+    /// the diagram picker — `props_si` never consults it — so those fixtures
+    /// verify the *premise*, not the list.
+    ///
+    /// One caveat that is *not* on this list's conscience: inside Air's dome,
+    /// rustprop's `(P,h)` flash refuses a low-quality sliver on the bubble side
+    /// (measured at 1 bar: `q` from ~1e-4 to ~0.01 raises "unable to bracket
+    /// the (p,X) solution … the derivative path is not ported"). That is a
+    /// rustprop gap, recorded in the second Wave-3 amendment to
+    /// `docs/decisions/0009-rustprop-backend.md`. It does not make `Air`
+    /// unserved — a fluid whose every state failed would not belong here, and
+    /// this is a sliver at 79 K.
     fn served_fluids(&self) -> Option<Vec<String>> {
         Some(
             [

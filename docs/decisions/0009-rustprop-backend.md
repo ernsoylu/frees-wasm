@@ -580,7 +580,7 @@ The one group F6 did not promote — the `Air` **state**-table three,
 at 1.43e-14, 0 and 0. D8's prediction was *twelve of the 26*; the measurement
 says twelve of twelve. They are staged rather than promoted only because F6's
 scope was the nine, and promoting them is a file move plus a table edit
-(pending 17 → 14).
+(pending 17 → 14). **Done by Wave-3 F8 — see the second amendment below.**
 
 ### What this does *not* close
 
@@ -596,3 +596,68 @@ The `HAPropsSI` deviation D9 already records stands — rustprop returns humid-a
 errors as a `Result` where upstream returns `+inf` with a global error string.
 Nothing in these nine documents reaches an error state, so the promotion neither
 tests nor closes it.
+
+---
+
+## Amendment — Wave-3 F8: `Air` closed, twelve for twelve
+
+*2026-08-18.* The three documents the F6 amendment left staged —
+`sysdesign-ex06-pneumatic`, `sysdesign-ex06-pneumatic-2` and
+`sysdesign-ex07-pneumatic-servo` — are promoted. Corpus **716 → 719**, pending
+**17 → 14**, `fixtures/tolerances-rustprop.json` untouched at ten entries. D8's
+count is now exact: twelve of the then-26 pending fixtures cleared by putting a
+real CoolProp behind `prop$`.
+
+Replayed the same way (`tests/parity.rs`'s comparison logic, pointed at
+`corpus-pending/golden`, tolerance path aimed at a nonexistent file):
+
+| Document | Graded worst | Raw worst relative |
+|---|---:|---:|
+| `sysdesign-ex06-pneumatic` | 0 | 2.46e-15 (`ori.t_in`) |
+| `sysdesign-ex07-pneumatic-servo` | 0 | 2.46e-15 (`sv.t_in`) |
+| `sysdesign-ex06-pneumatic-2` | 2.50e-14 | 4.63e-11 (`ode` `vol$in$mdot`) |
+
+The second column is new relative to F6: `parity.rs`'s `rel_diff` returns 0
+inside a `1e-12` *absolute* band, and the raw column drops that band. On the two
+steady documents the graded 0 is
+`Temperature(Air, P, h) = 300.00000000000097` against the Java oracle's
+`300.0000000000002` — 13 ulp on 300 K.
+
+`sysdesign-ex06-pneumatic-2`'s graded figure also corrects F6's. F6 reported
+1.43e-14, measured over `variables`; that document has exactly **one** variable
+(`Pf`) and puts its whole trajectory in a 100x20 `ode_tables` entry the figure
+never touched. Swept over the trajectory too, the graded worst is 2.50e-14 and
+the raw worst 4.63e-11, on different cells: `cap$port$p` at 652 kPa (absolute
+gap 1.6e-8 Pa, outside the band) and `vol$in$mdot` at 6.09e-5 kg/s (absolute gap
+2.8e-19 kg/s, well inside it). `parity.rs` compares those cells either way, so
+F6's verdict stood; only its number was short.
+
+### Nothing here still narrows `Air` out
+
+This record's original `Air` bullet, and the D6 amendment that reversed it, are
+the whole story: `RealFluid::served_fluids` carries `Air`, and the
+property-diagram picker is `plot_fluids_available`, which is **derived** from
+`served_fluids` rather than being a second list — so widening one widened both.
+`crates/frees-wasm/src/lib.rs` asserts the published picker is exactly
+`["Air", "R1234yf", "R134a", "Water"]`. The only surviving narrowing is
+`TableBackend::served_fluids` (`props/propfun.rs`), which is the *other*
+backend: its `(P,h)` build has D7's `(P,T)` transport grid for air and no state
+table, so a picker entry there really would fail at every plot point. Correct as
+written; left alone.
+
+### One open rustprop-side question, out of scope here
+
+Sweeping `h = h_L + q·(h_V − h_L)` through Air's dome directly against
+`rustprop::props_si` finds a low-quality refusal window on the bubble side: at
+1 bar (79 K) `Temperature(Air, P, Hmass)` answers at `q = 0` and `1e-6`, refuses
+at `1e-4`, `1e-3` and `0.01`, and answers again from `0.05` up; at 7 bar (101 K)
+only `1e-3` and `0.01` refuse. The message is rustprop's own — *"unable to
+bracket the (p,X) solution in [59.77, 78.80] … the derivative path is not
+ported"* — and it names itself an **unported path**, i.e. a rustprop-side gap,
+not upstream behaviour being reproduced. (Not verified against upstream from
+here; the wording is rustprop's own, at `flash_px.rs`'s
+`px_solve_single_phase`.) It is not this repo's to fix and no fixture reaches
+it: all three pneumatic documents ask at
+`h = 424 950 J/kg` and 1–7 bar, i.e. `T = 298.7…300.0 K` and `Q = -1`,
+single-phase gas some 167 K above Air's critical temperature. Recorded so the
+next session does not re-derive it.

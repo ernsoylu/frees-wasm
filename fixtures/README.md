@@ -127,11 +127,19 @@ accuracy path); this is the first.
 It relaxes the *numeric* tolerance for a named fixture and nothing else —
 `display_names`, `block_count` and the error classification are still exact for
 every fixture in the corpus, and every fixture not named there is still held to
-`1e-9`. Two guards stop it becoming a place to hide failures:
+`1e-9`. Three guards stop it becoming a place to hide failures:
 
 * a fixture named there but absent from `fixtures/golden/` **fails the gate**;
 * a fixture named there that **passes at the default** fails too, so a tolerance
-  that is no longer needed cannot sit in the file pretending it is.
+  that is no longer needed cannot sit in the file pretending it is;
+* if the file catalogues its `mechanisms` — `tolerances-rustprop.json` does,
+  since Wave-3 F5 — every entry must name a slug the catalogue defines **and
+  every catalogued slug must be named by an entry**. The second direction is the
+  one that earns its keep: a mechanism whose last instance dies leaves prose
+  behind that still reads like a live description of the build, which is exactly
+  how the retired stop-criterion mechanism survived a whole wave after its only
+  fixture reached the engine default. A dead *explanation* now fails like a dead
+  tolerance.
 
 Each entry must record the *measured* error and a `reason` naming the mechanism
 that produces it. The parity test prints which fixtures used a declared
@@ -146,31 +154,45 @@ cfg that selects the property backend:
 | file | grades | entries |
 |---|---|---:|
 | `tolerances.json` | the D1 `(P,h)` `TableBackend` | 23 |
-| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 11 |
+| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 10 |
 
 They cannot be merged, because the "dead tolerance" guard above is what makes
-them backend-specific: twelve of the 23 entries exist only because of the tables'
-own interpolation error, and under rustprop — which *is* CoolProp 8.0.0 — those
-fixtures match at `1e-13…1e-16` and their entries would fail. The eleven
-survivors have a different cause, spelled out per entry in that file's header:
-mostly the **golden** side, where `PropertyFunctions.java` answers
-`(P, Hmass) → T/Dmass/Smass` from its own run-time 256/96/48 table rather than
-from the native library.
+them backend-specific: thirteen of the 23 entries exist only because of the
+tables' own interpolation error, and under rustprop — which *is* CoolProp 8.0.0
+— those fixtures match at `1e-11…1e-16` and their entries would fail.
+
+The ten survivors have a different cause, and **Wave-3 F5 re-measured every one
+of them and proved that none is port error**. Nine are the *golden* side:
+`PropertyFunctions.java` asks its own `PhTableRegistry` before it asks CoolProp,
+and that registry answers whenever the output is `T`/`Dmass`/`Smass` and the
+input pair is `(P, Hmass)`, from a run-time 256-point saturation curve and a
+96×48 grid gated only at `1e-4`. So those goldens are interpolated values, up to
+`6.7e-6` from what CoolProp 8.0.0 actually returns at the same inputs — while
+rustprop reproduces the wheel there to between 0 (bit-identical, in three of the
+nine) and `2.1e-13`. The tenth, `refrigeration-vcr`, contains no table shape at
+all: its golden *is* a CoolProp value, from a `(P, s)` flash that upstream
+stopped `4.06e-9` (in pressure) short of the state that was asked for. Both
+mechanisms, the evidence for each, and the per-fixture amplification factors are
+in that file's `mechanisms` catalogue.
 
 `tolerances-rustprop.json` also carries a second section, `solver_floor`, which
-relaxes the Newton **stop criterion** for one named fixture rather than the
+relaxes the Newton **stop criterion** for a named fixture rather than the
 comparison tolerance. It exists for one mechanism: rustprop answers an inverse
 property call with an iterative flash, so a residual like
-`T_out = Temperature(fluid, P, h)` advances in jumps of ~4e-7 K rather than along
-a slope, and a line search cannot descend a staircase. It carries the same two
+`T_out = Temperature(fluid, P, h)` can advance in jumps rather than along a
+slope, and a line search cannot descend a staircase. It carries the same two
 guards as a numeric tolerance — a fixture that converges at the default, or an
 entry with no fixture, fails the gate — and the *values* are still compared
 normally, so relaxing it asserts strictly more than pinning the fixture as a
-known divergence would.
+known divergence would. **It is currently empty**: its only instance died at
+Wave-2 integration when upstream's Boost TOMS748 replaced the bisection stand-in
+that produced the staircase.
 
 The same applies to D7's `FRAUX1` grids, which have their own error class
-(`tools/aux-gen/README.md`). Two entries come from them, and the looser one is
-worth reading before it is copied as precedent: `ev-thermal-management` sits at
+(`tools/aux-gen/README.md`). Two entries **in `tolerances.json`** come from them
+— rustprop answers `INCOMP::MEG` exactly, so neither survives into the other
+file — and the looser one is worth reading before it is copied as precedent:
+`ev-thermal-management` sits at
 `2e-3` (measured `8.951e-4`) **not** because the glycol grid is that inaccurate
 — its `Dmass` is `1.6e-5` — but because the document's `htc_1phase` call runs at
 `Re = 2987`, dead centre of `nuSinglePhase`'s 2300..4000 laminar↔turbulent

@@ -58,11 +58,14 @@
 //! properties from precomputed tables whose measured error is `1e-7…1e-4`
 //! (decision D1) while the goldens hold full-accuracy CoolProp values — a gap no
 //! table-backed engine can close, and one that must not be hidden by loosening
-//! the gate for everybody. Two guards keep it honest:
+//! the gate for everybody. Three guards keep it honest:
 //!
 //! * a fixture named there but **absent** from `fixtures/golden/` fails;
 //! * a fixture named there that **passes at the default** fails, so a tolerance
-//!   that is no longer needed cannot sit in the file pretending it is.
+//!   that is no longer needed cannot sit in the file pretending it is;
+//! * if the file catalogues its `mechanisms`, every entry must name one that
+//!   exists and every catalogued mechanism must be named by an entry — see
+//!   [`declared_tolerances`].
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -100,6 +103,26 @@ fn tolerance_path() -> PathBuf {
 }
 
 /// Declared relative tolerance per fixture stem, from `fixtures/tolerances.json`.
+///
+/// # The mechanism catalogue
+///
+/// A tolerance file **may** carry a top-level `mechanisms` object mapping a
+/// slug to its explanation, and when it does, the slug becomes load-bearing:
+/// every fixture entry must name one that exists, and every catalogued
+/// mechanism must be named by at least one entry.
+///
+/// The second half is the one that earns its keep. A mechanism whose last
+/// instance dies leaves prose behind that still reads like a live description
+/// of the build — the retired stop-criterion mechanism sat in
+/// `tolerances-rustprop.json` for a whole wave after its only fixture reached
+/// the engine default — and the file's entire value is that a future session
+/// can trust what it says about *this* backend. So the discipline the
+/// `fixtures` section already has ("a dead tolerance fails") applies one level
+/// up: a dead *explanation* fails too.
+///
+/// A file with no `mechanisms` object is unaffected. That is
+/// `fixtures/tolerances.json`, whose 23 entries describe the table backend and
+/// predate the catalogue.
 fn declared_tolerances() -> BTreeMap<String, f64> {
     let path = tolerance_path();
     let raw = match fs::read_to_string(&path) {
@@ -109,7 +132,12 @@ fn declared_tolerances() -> BTreeMap<String, f64> {
     };
     let doc: serde_json::Value = serde_json::from_str(&raw)
         .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()));
-    doc["fixtures"]
+    let catalogue: BTreeSet<String> = doc["mechanisms"]
+        .as_object()
+        .map(|m| m.keys().cloned().collect())
+        .unwrap_or_default();
+    let mut cited: BTreeSet<String> = BTreeSet::new();
+    let tolerances: BTreeMap<String, f64> = doc["fixtures"]
         .as_object()
         .unwrap_or_else(|| panic!("{} needs a `fixtures` object", path.display()))
         .iter()
@@ -132,9 +160,33 @@ fn declared_tolerances() -> BTreeMap<String, f64> {
                  the default or loose enough to hide a real divergence",
                 path.display()
             );
+            if !catalogue.is_empty() {
+                let mechanism = entry["mechanism"].as_str().unwrap_or_else(|| {
+                    panic!(
+                        "{}: fixture `{name}` needs a `mechanism` naming one of {catalogue:?}",
+                        path.display()
+                    )
+                });
+                assert!(
+                    catalogue.contains(mechanism),
+                    "{}: fixture `{name}` names mechanism `{mechanism}`, which the file's \
+                     `mechanisms` catalogue does not define (it has {catalogue:?})",
+                    path.display()
+                );
+                cited.insert(mechanism.to_string());
+            }
             (name.clone(), rel)
         })
-        .collect()
+        .collect();
+    let orphans: Vec<&String> = catalogue.difference(&cited).collect();
+    assert!(
+        orphans.is_empty(),
+        "{}: `mechanisms` defines {orphans:?}, which no fixture entry names. A mechanism \
+         with no instance is a dead explanation — delete it, exactly as a dead tolerance \
+         would be deleted.",
+        path.display()
+    );
+    tolerances
 }
 
 /// Declared Newton **stop criterion** per fixture stem, from the same file's

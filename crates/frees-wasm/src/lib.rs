@@ -1039,12 +1039,17 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 /// have a picker failing on the rest. A backend that serves everything gets the
 /// Java list back verbatim.
 ///
-/// Since D9 the subset is rustprop's `served_fluids` — Water, R134a, R1234yf and
-/// the two glycol families — so `Air` left the picker with the `air.fraux`
-/// transport grid it was the only backing for. See
-/// `props/rustprop_backend.rs::served_fluids` for why (pseudo-pure Air has no
-/// full-state service yet), and note that `backend` below now reports rustprop
+/// Since D9 the subset is rustprop's `served_fluids` — Water, R134a, R1234yf,
+/// `Air` and the two glycol families — and `backend` below reports rustprop
 /// rather than the table list.
+///
+/// `Air` is on that list again as of Wave-2 (2026-08-18). D9 had dropped it
+/// with the `air.fraux` transport grid it was the only backing for, because
+/// rustprop then served the pseudo-pure Air at `(P,T)`/`(Q,T)`/`(P,Q)` alone
+/// and a diagram needs full states. rustprop's pseudo-pure `HSU_P`/`(D,P)`
+/// flashes closed that, and it draws Air's dome for real — see
+/// `props/rustprop_backend.rs::served_fluids`, and the measurement in
+/// `the_linked_tables_draw_a_water_dome_with_real_numbers_on_it` below.
 #[wasm_bindgen]
 pub fn fluids() -> String {
     frees_core::props::tables::install_builtin_once();

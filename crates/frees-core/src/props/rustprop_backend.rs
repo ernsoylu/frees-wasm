@@ -300,23 +300,65 @@ mod tests {
     /// and this guard is what keeps that gap out of the frees engine. If
     /// rustprop closes it, this assertion fires again and wants a new witness
     /// from the same scan; the guard stays either way.
+    ///
+    /// RE-PINNED AGAIN 2026-08-18, at Wave-3 integration — and this time there
+    /// is no live witness left to pin to, so the guard is exercised directly.
+    /// Wave-3 R11 closed exactly the gap the paragraph above names: it ported
+    /// upstream's two `ValidNumber` gates (`calc_alpha0_deriv_nocache`'s throw
+    /// and the nanobind layer's `_raise_if_invalid`), so rustprop now refuses
+    /// `L(Water, T=1e30, P=101325)` with the wheel's message verbatim. That
+    /// comment said this assertion would fire again and want a new witness
+    /// from the same scan. It fired.
+    ///
+    /// There is no new witness. A 1,088,640-call sweep at this integration —
+    /// 30 outputs x 21 input pairs x 12 values x 12 fluids, spanning HEOS,
+    /// pseudo-pure, SRK, PR, IF97, PC-SAFT and incompressible — returned
+    /// 30,482 `Ok` and **zero** non-finite among them, against the ~1,754 such
+    /// calls the Wave-2 scan found. The class is closed, not just this state.
+    ///
+    /// So the guard is now tested for what it *is*, rather than through a
+    /// backend state that no longer produces one. It is NOT obsolete:
+    /// [`RealFluid`]'s contract is frees-side, `finite` is the only thing
+    /// enforcing it, and a backend regression — or a future backend that is
+    /// not rustprop — must still meet a refusal rather than put a `NaN` into a
+    /// Newton residual. Deleting a guard because its trigger was fixed
+    /// elsewhere is how the trigger comes back unnoticed.
     #[test]
     fn a_non_finite_answer_becomes_a_refusal() {
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let err =
+                finite(bad, || "L(Water, T=1e30, P=101325)".to_string()).expect_err("must refuse");
+            assert!(matches!(err, FreesError::Property { .. }));
+            let msg = err.to_string_message();
+            assert!(
+                msg.contains("Water") && msg.contains("not a finite value"),
+                "{msg}"
+            );
+        }
+        // A finite answer passes through untouched, bitwise.
+        let good = finite(0.609_499_858_485_592_3, || "x".to_string()).unwrap();
+        assert_eq!(good, 0.609_499_858_485_592_3);
+    }
+
+    /// The state the guard above was pinned to until Wave-3, kept as a
+    /// regression witness for the fidelity gain R11 landed: rustprop refuses it
+    /// now, with the CoolProp 8.0.0 wheel's own message, instead of answering
+    /// `NaN`. The sibling below does the same job for the Wave-2 R7 witness.
+    #[test]
+    fn the_alpha0_nan_state_is_now_refused_by_rustprop_itself() {
+        let raw = rustprop::props_si("L", "T", 1e30, "P", 101_325.0, "Water");
+        let msg = raw
+            .expect_err("R11 gated the ideal-gas derivative")
+            .to_string();
         assert!(
-            rustprop::props_si("L", "T", 1e30, "P", 101_325.0, "Water").is_ok_and(|v| v.is_nan()),
-            "this test is pinned to a rustprop state that answers Ok(NaN); if \
-             rustprop now throws here, the guard is still right but this \
-             assertion needs re-pinning (see the doc comment)"
+            msg.contains("calc_alpha0_deriv_nocache returned invalid number"),
+            "expected upstream's verbatim alpha0 text, got: {msg}"
         );
+        // And it still reaches the engine as a property error.
         let err = B
             .props_si("L", "T", 1e30, "P", 101_325.0, "Water")
             .unwrap_err();
         assert!(matches!(err, FreesError::Property { .. }));
-        let msg = err.to_string_message();
-        assert!(
-            msg.contains("Water") && msg.contains("not a finite value"),
-            "{msg}"
-        );
     }
 
     /// The state the guard above used to be pinned to, kept as a regression

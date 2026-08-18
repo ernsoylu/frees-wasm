@@ -267,7 +267,12 @@ See **Pending corpus** below for the staging area and what is still blocked.
 Extend it further from, in rough order of value:
 
 1. `web/src/examples.ts` + `web/src/defaultExample.ts` — **harvested and
-   exhausted**: 47 unique documents, 41 promoted, 6 pending
+   exhausted**: 47 documents (46 `Example.id`s plus `rankine-cycle-2`, the
+   duplicate id), **44 promoted, 3 pending** — `pressure-cooker`,
+   `estimator-gramian-balreal`, `ev-battery-cooling-pid`. *(Re-counted from the
+   files on 2026-08-18. It read "41 promoted, 6 pending": two of those six,
+   `hx-correlations-fluid` and `thermo-compliance`, were promoted by Wave-3 F6
+   below, and the figure had already drifted by one before that.)*
 2. `../frEES/frontend/src/docs/*.md` (documented snippets) — still untouched
 3. the Java test classes — **harvested (Phase 12)**:
    `tools/harvest-java-tests/harvest.py` extracted 212 candidates from 13
@@ -700,17 +705,17 @@ dropped for exactly this. In `CALL` argument lists `~` remains a
 
 | Document | Needs | Java solved it? |
 |---|---|---|
-| `adv_moistair_W_passthrough` | a humid-air backend (`HAPropsSI`); the `RealFluid` default declines and the only override is test-only. **Now waiting on [D8](../docs/decisions/0008-coolprop-wasm.md)** — do not write a stand-in; measured, an ideal-gas model is 2.7e-3 off on the `(T,R)` path and RP-1485 does not close it, because CoolProp's `HAPropsSI` *is* RP-1485 over IAPWS-95 + Lemmon. Ground truth for grading whatever lands is committed at `fixtures/humidair/reference.json` (912 points, CoolProp 8.0.0). | yes |
-| `adv_moistair_dryair_three_way` | same `HAPropsSI` gap; same D8 hold | yes |
+| ~~`adv_moistair_W_passthrough`~~ | **promoted 2026-08-18 (Wave-3 F6)** — the `HAPropsSI` gap this row described is closed by [D9](../docs/decisions/0009-rustprop-backend.md)'s rustprop backend, which serves RP-1485 over IAPWS-95 + Lemmon, i.e. the same equations CoolProp's own `HAPropsSI` uses. Grades at the **default 1e-9 with no tolerance entry**; every graded variable is inside the harness's `1e-12` absolute band of the Java oracle. The `fixtures/humidair/reference.json` ground truth stays where it is — it is what `crates/frees-core/tests/humidair_grading.rs` grades the backend against, independently of the corpus. | yes |
+| ~~`adv_moistair_dryair_three_way`~~ | **promoted 2026-08-18 (Wave-3 F6)** — same `HAPropsSI` gap, same closure; worst 0 (inside the absolute band). | yes |
 | `dyn_accessor_live` | **nothing missing — cost.** Correct with a coarse `maxstep`; no output after 420 s at the fixture's own `span/100` cap | yes |
 | `estimator-gramian-balreal` | **real divergence** — `control::design::balreal` inherits `linalg::svd`'s column-sign convention, so the second balancing basis vector is negated relative to Commons Math. `Ab[1,2]`, `Ab[2,1]`, `Bb[2,1]`, `Cb[1,2]` differ by sign only; the realisation is equivalent (same Hankel singular values, same I/O map) but not element-wise identical. The other six variables match. | yes |
 | `ev-battery-cooling-pid` | **real divergence** — the transient's 79-equation inner block dies on a property call at its *default guess*, `Dmass(R134a, P=1, Hmass=1)`; every state the document really uses is servable | yes |
 | ~~`ev-thermal-management`~~ | **promoted 2026-08-06** — [D7](../docs/decisions/0007-auxiliary-property-grids.md) added the `FRAUX1` auxiliary grids (`tools/aux-gen`) and an `r1234yf.phtab`, closing all four property gaps this document needed at once: `INCOMP::MEG` for the EG50 coolant, `R1234yf` for the refrigerant loop, air transport for `htc_extair`, and saturation-line transport for `htc_evap`/`htc_cond`/`dp_2phase`. Corpus 702 → 703. | yes |
 | ~~`heisler-transient`~~ | **promoted 2026-08-06** — `parser/string_variables.rs` ports the `StringVariables.resolve` pass at the Java pipeline position (last step of equation assembly, solve and check paths); the definition leaves the numeric system and the literal is substituted at every use, `prop$` fluid encodings included. Corpus 701 → 702. | yes |
-| `hx-correlations-fluid` | **single-phase** `Viscosity` / `Conductivity` at `(P,T)`. [D7](../docs/decisions/0007-auxiliary-property-grids.md) added transport for water *on the saturation line* (`Q=0`/`Q=1`), which is all the two-phase correlations ask for, but this document's first line is `Viscosity(Water, P=101325, T=320)` — off the dome. The fix is a fourth use of D7's existing `PRESSURE_TEMPERATURE` kind, ragged in T so the liquid piece does not interpolate across the dome. | yes |
+| ~~`hx-correlations-fluid`~~ | **promoted 2026-08-18 (Wave-3 F6)** — was: **single-phase** `Viscosity` / `Conductivity` at `(P,T)`, off the dome, which [D7](../docs/decisions/0007-auxiliary-property-grids.md)'s saturation-line grids could not serve. The fourth `PRESSURE_TEMPERATURE` grid this row proposed was never built and is no longer needed: rustprop evaluates transport directly at `(P,T)` for `Water`, `Air` and `R134a`. Grades at the default 1e-9, **worst 1.24e-13** over 38 variables. | yes |
 | `module_inside_for_loop` | MODULE flattening must run *after* `FOR` unrolling (cluster 3) | yes |
 | `pressure-cooker` | `method = ida` — the implicit-DAE path is assembled but not routed | yes |
-| `thermo-compliance` | `CompressibilityFactor` as a tabulated output (D1); the rest of the document evaluates | yes |
+| ~~`thermo-compliance`~~ | **promoted 2026-08-18 (Wave-3 F6)** — was: `CompressibilityFactor` as a tabulated output (D1). It never became one; rustprop answers `Z` from the equation of state instead. Grades at the default 1e-9, **worst 1.31e-11** over 13 variables, and it is `Z_real` alone — `v_real` at the identical `(P,T)` R134a state is bit-identical to the oracle. | yes |
 
 **Phase 9 promoted eleven of these** (2026-08-01): `control-analysis-report`,
 `controller-design-lqr-pid`, `cruise-control`, `digital-control-c2d`,
@@ -739,8 +744,8 @@ triage are in `docs/status-phase12.md`. The 21 new pending rows, by blocker:
 | `linalg-full-svd`, `multiout-svd-discard-with-tilde`, `ctldesign-balreal-invariants-integration`, `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2` | the recorded `linalg::svd` **column-sign convention** divergence (same mechanism as `estimator-gramian-balreal` above — sign-only element flips, invariants identical) |
 | ~~`sysdesign-ex16-moving-boundary-evaporator`~~ | **promoted 2026-08-06** — was the default-guess property probe divergence (`T(R134a, P=1, Hmass=…)`). Closed by porting `seedPropertyArgumentGuesses`, then by wiring it to the **main** solve path as well: it had first been added only to `solve_equation_list`, which the port's steady-state solve bypasses, so the transient documents were fixed and this one was not. Grades at 3.235e-6 — larger than its `(P,x)` siblings because it inverts `Temperature(R134a, P, h)`, the one shape the Java also tables. Corpus 704 → 705. |
 | `eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`, `eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`, `eqsys-solves-eigenvalues-of-symmetric-matrix` | **`CALL eigenvalues` / `eigen` is not wired** — the one genuinely new gap this harvest found (ledger item 34) |
-| `hvac-problem2-face-and-bypass`, `hvac-problem3-psychrometric-balancing`, `hvac-problem9-air-supply-wet-bulb`, `sysdesign-ex12-moist-air-ahu`, `sysdesign-ex13-humidifier` | the `HAPropsSI` humid-air gap (as `adv_moistair_*` above); held for [D8](../docs/decisions/0008-coolprop-wasm.md) |
-| `sysdesign-ex06-pneumatic`, `sysdesign-ex06-pneumatic-2`, `sysdesign-ex07-pneumatic-servo` | no **state** table for `Air`. [D7](../docs/decisions/0007-auxiliary-property-grids.md) added a `(P,T)` grid carrying air's `viscosity`/`conductivity`/`Cpmass`/`Dmass` — enough for `htc_extair`, not for these, which want `Enthalpy`. **Do not generate an `air.phtab`**: [D8](../docs/decisions/0008-coolprop-wasm.md) supersedes it. |
+| ~~`hvac-problem2-face-and-bypass`~~, ~~`hvac-problem3-psychrometric-balancing`~~, ~~`hvac-problem9-air-supply-wet-bulb`~~, ~~`sysdesign-ex12-moist-air-ahu`~~, ~~`sysdesign-ex13-humidifier`~~ | **promoted 2026-08-18 (Wave-3 F6)** — the `HAPropsSI` humid-air gap (as `adv_moistair_*` above) is closed by [D9](../docs/decisions/0009-rustprop-backend.md). All five grade at the default 1e-9 with no tolerance entry; worst per document 2.29e-15, 1.25e-15, 0, 0, 0. |
+| `sysdesign-ex06-pneumatic`, `sysdesign-ex06-pneumatic-2`, `sysdesign-ex07-pneumatic-servo` | no **state** table for `Air`. [D7](../docs/decisions/0007-auxiliary-property-grids.md) added a `(P,T)` grid carrying air's `viscosity`/`conductivity`/`Cpmass`/`Dmass` — enough for `htc_extair`, not for these, which want `Enthalpy`. **Do not generate an `air.phtab`**: [D8](../docs/decisions/0008-coolprop-wasm.md) supersedes it, and [D9](../docs/decisions/0009-rustprop-backend.md) delivered it — rustprop serves `Air` `Enthalpy` directly. **Measured 2026-08-18 (Wave-3 F6): all three now clear at the default 1e-9** (worst 1.43e-14, 0, 0). They were outside F6's scope, which was the nine documents the D8 study named as humid-air/`(P,T)`-transport/`Z`, so they stay staged; the next promotion pass takes them and the pending set goes 17 → 14. |
 | ~~`sysdesign-ex11-liquid-cooling-loop`~~ | **promoted 2026-08-06** — the same `INCOMP::MEG` grid ([D7](../docs/decisions/0007-auxiliary-property-grids.md)) that unblocked `ev-thermal-management`. Grades an order of magnitude tighter (1.310e-4) because it sits off the laminar↔turbulent blend band. Corpus 703 → 704. |
 | ~~`sysdesign-ex17-ac-expansion-valve`~~, ~~`sysdesign-ex20-zeotropic-blend`~~ | **promoted 2026-08-06** — D1 table-vs-CoolProp accuracy, measured at 7.8874e-8 and 2.8901e-8 and entered in `tolerances.json` at 2e-7 / 1e-7. Both reach R134a saturation states through `(P,x)`, which `PropertyFunctions.java` does *not* intercept, so the goldens are bit-exact CoolProp and the gap is this build's `.phtab` interpolation alone. Corpus 705 → 707. |
 | `sysdesign-ex01-thermal-network-2` | asymptotic FP noise: `ode:m$port$qdot` decays through zero, so the two engines end up a few ULP apart on a value that is essentially machine zero. **Not** promotable by tolerance: measured under `parity.rs`'s own rule (`\|a−e\| ≤ rel·max(\|a\|,\|e\|)`) the relative deviation is **1.0**, because the denominator collapses with the signal. Only a larger `ABS_TOL` could express it, and that would loosen all 707 fixtures. |
@@ -756,3 +761,58 @@ Two authoring hazards found the hard way, both worth repeating:
 * **`#` marks a built-in constant, not a user name.** `E# = 72000` is an attempt
   to redefine a built-in and makes the document overspecified; the activation
   energy has to be `Ea`.
+
+**Re-check 2026-08-18, Wave-3 F6 — the property-blocked holds, under the
+rustprop backend: 26 staged, 9 promoted, corpus 707 → 716, pending 26 → 17.**
+[D8](../docs/decisions/0008-coolprop-wasm.md) predicted that a real CoolProp
+backend would clear **twelve** of the then-26 pending fixtures — humid air 7,
+`Air` `(P,h)` state 3, `(P,T)` transport 1 (`hx-correlations-fluid`), `Z` 1
+(`thermo-compliance`). [D9](../docs/decisions/0009-rustprop-backend.md) shipped
+that backend. Each of the nine in D8's humid-air / transport / `Z` groups was
+replayed with `tests/parity.rs`'s own comparison logic pointed at
+`corpus-pending/golden` and **no** tolerance file, so the grade is the corpus
+default `1e-9` with no exception available:
+
+| Document | Worst variable deviation | Verdict |
+|---|---:|---|
+| `adv_moistair_W_passthrough` | 0 | promoted |
+| `adv_moistair_dryair_three_way` | 0 | promoted |
+| `hvac-problem9-air-supply-wet-bulb` | 0 | promoted |
+| `sysdesign-ex12-moist-air-ahu` | 0 | promoted |
+| `sysdesign-ex13-humidifier` | 0 | promoted |
+| `hvac-problem3-psychrometric-balancing` | 1.25e-15 | promoted |
+| `hvac-problem2-face-and-bypass` | 2.29e-15 | promoted |
+| `hx-correlations-fluid` | 1.24e-13 | promoted |
+| `thermo-compliance` | 1.31e-11 | promoted |
+
+A **0** here is the harness's own `rel_diff`, which returns zero when the two
+values differ by no more than the `1e-12` absolute band — for a psychrometric
+enthalpy of ~5e4 J/kg that is agreement to the last few bits, not a rounded
+report. The seven humid-air documents are all at or under **2.29e-15**; the two
+loosest are the two that are not humid-air documents at all —
+`thermo-compliance`, whose worst variable is `Z_real` **alone** at 1.31e-11
+(`v_real` at the identical `(P,T)` R134a state is bit-identical, so the residue
+is in how `Z` itself is formed, not in the density), and
+`hx-correlations-fluid`, which drives 38 transport and correlation outputs
+across water, air and both R134a saturation branches. **No entry was added to
+`fixtures/tolerances-rustprop.json`** — nine documents joined the corpus and the
+file still has exactly the ten entries F5 re-baselined.
+
+Two findings beyond the nine:
+
+* **D8's remaining three clear as well.** `sysdesign-ex06-pneumatic`,
+  `sysdesign-ex06-pneumatic-2` and `sysdesign-ex07-pneumatic-servo` — the
+  `Air` **state**-table group — grade at 1.43e-14, 0 and 0 under the same
+  replay. They are left staged only because F6's scope was the nine; promoting
+  them is a file move and a table edit, and takes pending 17 → 14. That would
+  make D8's prediction exact: twelve for twelve.
+* **The other twelve holds are unchanged and none of them is a property
+  blocker.** Re-measured in the same run: the five `linalg::svd` column-sign
+  documents plus `estimator-gramian-balreal` still differ by sign only
+  (relative deviation ~2.0 by construction); the three `eqsys-*` still refuse
+  with "CALL `eigenvalues`/`eigen` is not yet supported"; `module_inside_for_loop`
+  still refuses at parse; `pressure-cooker` still refuses `method = ida`; and
+  `sysdesign-ex01-thermal-network-2` still fails on `ode:m$port$qdot` decaying
+  through zero (worst 9.4e-7 on a cell of magnitude 4.8e-6). `dyn_accessor_live`
+  and `ev-battery-cooling-pid` were not re-timed — both are recorded as cost /
+  decayed-signal holds, not property holds.

@@ -117,6 +117,12 @@ fn all_survive(corpus: &[String]) -> Duration {
         worst < Duration::from_secs(20),
         "slowest document took {worst:?}, which is a hang in all but name: {slowest:?}"
     );
+    // See the sibling helper in `props_robustness.rs`: the margin under the
+    // hang ceiling is worth reading, not just asserting.
+    println!(
+        "all_survive: {} documents, worst {worst:?} on {slowest:?}",
+        corpus.len()
+    );
     worst
 }
 

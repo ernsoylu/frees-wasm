@@ -609,6 +609,27 @@ fn air_p_hmass_matches_the_coolprop_wheel() {
 /// rather than "22x", and the next person to touch `rustprop_warm` should weigh
 /// its gates and its cache against that smaller number — especially if
 /// rustprop's cold path gets faster again.
+///
+/// **Wave-3 F7 measured Air's floor independently and found it unassertable,
+/// which is corroborating evidence for D6 retiring the row rather than a
+/// change this test still carries.** F7 branched from the pre-D6 base, where
+/// Air was still on the list below with a floor written as `1.0` — an
+/// assertion, despite the comment claiming the ratio was only recorded. A 1.0x
+/// floor on a 1.1x measurement is 10% of headroom, and F7's load sweep caught
+/// it: in a `cargo test --release --workspace` run at load average ~16 (two
+/// other build lanes on the same box) Air measured warm 12.8 us against cold
+/// 8.5 us — ratio 0.66 — and the suite went red, while five standalone runs at
+/// load ~10.4 measured warm 11.4-15.2 us against cold 12.3-16.6 us, ratio
+/// 1.08-1.10, and all passed. Nothing had regressed: the band simply had no
+/// headroom. F7's fix was to make the floor `Option<f64>` with Air's `None`.
+/// D6 reached the same conclusion one step further back — Air does not belong
+/// in this adapter at all — so at Wave-3 integration the row is gone and the
+/// `Option` has nothing to express; the plain `f64` floor stays. The
+/// measurement is kept here because it is the sharpest evidence for D6's call.
+/// Water's 3x floor (measured 4.7-5.0x under the same load) is untouched, as
+/// is the 50 us absolute budget, which Water reached 40.3 us of under load
+/// ~10.4 against 11.8-13.5 us on a quiet box — the thinnest margin in the file
+/// and the next thing that will break on a busy runner.
 #[test]
 fn warm_t_of_p_hmass_costs_tens_of_microseconds() {
     let _g = guard();
@@ -660,7 +681,14 @@ fn warm_t_of_p_hmass_costs_tens_of_microseconds() {
         };
 
         let median = median_of(warm);
-        println!("{fluid}: warm T(P,Hmass) median {median:.1} us, cold median {cold:.1} us");
+        // The ratio is printed, not just the two medians (Wave-3 F7): a run that
+        // passes still says how much headroom it had, which is what turned Air's
+        // floor from a guess into a measurement.
+        println!(
+            "{fluid}: warm T(P,Hmass) median {median:.1} us, cold median {cold:.1} us \
+             ({:.2}x, floor {min_speedup}x)",
+            cold / median
+        );
         if !cfg!(debug_assertions) {
             assert!(
                 median <= 50.0,

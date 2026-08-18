@@ -16,6 +16,7 @@
 
 use crate::diag::{FreesError, Result};
 use crate::props::propfun::RealFluid;
+use crate::props::rustprop_warm;
 
 /// A [`RealFluid`] answered by the rustprop engines linked into this build:
 /// HEOS (Water, R134a, R1234yf, Air per the `rustprop-data` features in
@@ -92,7 +93,25 @@ impl RealFluid for RustpropBackend {
         fluid: &str,
     ) -> Result<f64> {
         let call = || format!("{output}({fluid}, {name1}={value1}, {name2}={value2})");
+        // The input guard runs FIRST, before any rustprop code — including the
+        // warm adapter. That ordering is the whole point of it: a `NaN` input
+        // is what trips a bracketing `assert!` inside rustprop, and the shipped
+        // wasm is `panic = "abort"`.
         finite_inputs(&[(name1, value1), (name2, value2)], call)?;
+        // The warm-state adapter: a `(P,Hmass)`/`(P,Smass)` query a hair from
+        // the last one this fluid answered is served by a two-or-three-step
+        // Newton over rustprop's guessed-density solve instead of a fresh
+        // bisecting flash. It declines — returning `None` — for every input
+        // pair, output and fluid it does not own, for every dome-region
+        // state, and whenever its locality or stability gate is not
+        // satisfied, and then this call proceeds exactly as it did before the
+        // adapter existed. See `props::rustprop_warm`.
+        if let Some(v) = rustprop_warm::try_props_si(output, name1, value1, name2, value2, fluid) {
+            // The warm path answers off a converged state, so this should never
+            // fire — but `finite` is an invariant of this backend, not of one
+            // code path, and a guard that only covers the slow route is not one.
+            return finite(v, call);
+        }
         let value = rustprop::props_si(output, name1, value1, name2, value2, fluid)
             .map_err(property_err)?;
         finite(value, call)
@@ -131,16 +150,35 @@ impl RealFluid for RustpropBackend {
     /// serveable identity — the same spelling [`super::propfun::TableBackend`]
     /// keys its incompressible aux grids by.
     ///
-    /// `Air` is deliberately absent: rustprop serves the pseudo-pure Air only
-    /// at (P,T)/(Q,T)/(P,Q) until the remaining pseudo-pure flash pairs are
-    /// ported, and this list feeds the property-diagram picker, which needs
-    /// full states (the trait doc's rule). Air transport and `Z` at (T,P)
-    /// still answer through [`Self::props_si`] when asked.
+    /// `Air` earns its place on this list twice over. It was added because
+    /// [`crate::props::rustprop_warm`] answers `(P,Hmass)`/`(P,Smass)` for it
+    /// by Newton over `(T,p)` density solves, above the critical temperature
+    /// where the root is unique — at a time when rustprop served the
+    /// pseudo-pure fluids at `(P,T)`/`(Q,T)`/`(P,Q)` alone and those two pairs
+    /// were a loud `NotImplemented`.
+    ///
+    /// Since Wave-2 R6/R7 (integrated 2026-08-18) that gap is closed upstream
+    /// of us: rustprop ported the pseudo-pure `HSU_P` and `(D,P)` flashes, so
+    /// it now serves Air on `(P,Hmass)`/`(P,Smass)` directly, at every
+    /// temperature, matching the CoolProp 8.0.0 wheel to ~6e-16. The warm
+    /// adapter is therefore a *speed* path for Air rather than the only path,
+    /// and where it declines — below `T_crit`, where it cannot prove a root
+    /// stable — the call now falls through to a rustprop flash that answers.
+    /// Either way this list is honest: `(P,T)`, `(P,Hmass)`, `(P,Smass)`,
+    /// transport and `Z` are all served. What it still is not is a dome: Air's
+    /// is at 60-132 K, which no frees document visits.
     fn served_fluids(&self) -> Option<Vec<String>> {
         Some(
-            ["Water", "R134a", "R1234yf", "INCOMP::MEG", "INCOMP::MPG"]
-                .map(String::from)
-                .to_vec(),
+            [
+                "Water",
+                "R134a",
+                "R1234yf",
+                "Air",
+                "INCOMP::MEG",
+                "INCOMP::MPG",
+            ]
+            .map(String::from)
+            .to_vec(),
         )
     }
 

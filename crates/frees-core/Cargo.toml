@@ -35,6 +35,13 @@ rustprop-data = { path = "../../../rustprop/crates/rustprop-data", features = [
     "r1234yf",
     "air",
 ], optional = true }
+# rustprop-core carries the shared parameter types. The warm adapter
+# (`props/rustprop_warm.rs`) drives rustprop's LOW-LEVEL `PtFlash` API, and
+# `solver_rho_tp_guessed` takes a `params::Phase` that the `rustprop` facade
+# does not re-export — using the low-level API means naming its types. Already
+# linked transitively by `rustprop`, so this adds nothing to the bundle, and it
+# has zero external dependencies like every other shipped rustprop crate.
+rustprop-core = { path = "../../../rustprop/crates/rustprop-core", optional = true }
 
 # The same crate on the other side of the pipe: build.rs does the deflating.
 # Build dependencies are host-only and never reach the wasm module.
@@ -56,7 +63,7 @@ linked-tables = []
 
 # Install rustprop as the process's RealFluid backend (D9). OFF is byte-for-byte
 # the pre-D9 engine: `install_builtin_once` installs the (P,h) TableBackend.
-rustprop-backend = ["dep:rustprop", "dep:rustprop-data"]
+rustprop-backend = ["dep:rustprop", "dep:rustprop-data", "dep:rustprop-core"]
 
 [dev-dependencies]
 serde_json = { workspace = true }

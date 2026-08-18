@@ -1970,10 +1970,17 @@ P2 = 101325 [Pa]
         let listed = parsed(&fluids());
         let names: Vec<String> =
             serde_json::from_value(listed["fluids"].clone()).expect("fluids array");
-        // Exactly the fluids with a full `(P,h)` state table. Air is served for
-        // transport (D7's `(P,T)` grid) but has no dome and no entropy axis, so
-        // it must NOT appear here — every point of its diagram would fail.
-        assert_eq!(names, ["R1234yf", "R134a", "Water"], "{listed}");
+        // Air JOINED this list at Wave-2 integration (2026-08-18), and the
+        // reason it used to be excluded is worth keeping straight. Under the
+        // pre-D9 `(P,h)` TableBackend, Air was a transport-only fluid (D7's
+        // `(P,T)` grid) with no dome and no entropy axis, so every point of its
+        // diagram would have failed. This crate now installs rustprop
+        // unconditionally (see its `Cargo.toml`), and rustprop draws Air's dome
+        // for real: both saturation branches answer across 65-130 K with the
+        // pseudo-pure glide intact — measured at 80 K, Q=0 gives
+        // s = 26.64 J/kg/K at 114.6 kPa and Q=1 gives 2601.32 J/kg/K at
+        // 82.3 kPa. So the picker offering Air is correct, not a leak.
+        assert_eq!(names, ["Air", "R1234yf", "R134a", "Water"], "{listed}");
         assert_eq!(listed["available"], Value::Bool(true));
     }
 

@@ -201,6 +201,7 @@ dependencies = [
  "petgraph",
  "proptest",
  "rustprop",
+ "rustprop-core",
  "rustprop-data",
  "serde",
  "serde_json",

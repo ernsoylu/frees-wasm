@@ -536,3 +536,63 @@ Java oracle with `PhTableRegistry` disabled. That is a change to
 `../frees/backend/core`, not to this repo, and it would delete nine of the ten
 remaining accuracy exceptions at a stroke. Whether that is worth doing depends
 on whether the Java engine is still a reference this project intends to keep.
+
+## Amendment — Wave-3 F6: the fixtures D8 predicted are promoted
+
+*2026-08-18.* "Consequences and open risks" above says, of the humid-air
+fixtures, that *"promoting those fixtures is measurement work on the pending
+corpus and is deliberately left outside a change whose subject is the switch and
+the bundle."* That measurement is done.
+
+### What was measured
+
+Each pending document in the three groups
+[D8](0008-coolprop-wasm.md) named — humid air (7), `(P,T)` transport off the
+dome (`hx-correlations-fluid`), and `CompressibilityFactor`
+(`thermo-compliance`) — was replayed with `tests/parity.rs`'s own comparison
+logic pointed at `fixtures/corpus-pending/golden` and at **no** tolerance file,
+so the grade is the corpus default `1e-9` and no per-fixture exception exists to
+fall back on. All nine clear:
+
+| Document | Worst variable deviation |
+|---|---:|
+| `adv_moistair_W_passthrough` | 0 |
+| `adv_moistair_dryair_three_way` | 0 |
+| `hvac-problem9-air-supply-wet-bulb` | 0 |
+| `sysdesign-ex12-moist-air-ahu` | 0 |
+| `sysdesign-ex13-humidifier` | 0 |
+| `hvac-problem3-psychrometric-balancing` | 1.25e-15 |
+| `hvac-problem2-face-and-bypass` | 2.29e-15 |
+| `hx-correlations-fluid` | 1.24e-13 |
+| `thermo-compliance` | 1.31e-11 |
+
+A `0` is the harness's `rel_diff` returning zero inside its `1e-12` absolute
+band — on a psychrometric enthalpy of order 5e4 J/kg that is the last few bits,
+not a rounded report. Corpus **707 → 716**, pending **26 → 17**, and
+`fixtures/tolerances-rustprop.json` is untouched: nine documents entered the
+gate and the file still carries exactly the ten entries F5 re-baselined.
+
+### D8's twelfth, eleventh and tenth also clear
+
+The one group F6 did not promote — the `Air` **state**-table three,
+`sysdesign-ex06-pneumatic`, `sysdesign-ex06-pneumatic-2` and
+`sysdesign-ex07-pneumatic-servo` — was replayed under the same rules and grades
+at 1.43e-14, 0 and 0. D8's prediction was *twelve of the 26*; the measurement
+says twelve of twelve. They are staged rather than promoted only because F6's
+scope was the nine, and promoting them is a file move plus a table edit
+(pending 17 → 14).
+
+### What this does *not* close
+
+The remaining twelve holds were re-measured in the same run and **none is a
+property blocker**: five `linalg::svd` column-sign documents plus
+`estimator-gramian-balreal` (sign-only element flips, relative deviation ~2.0 by
+construction), three `eqsys-*` awaiting `CALL eigenvalues`/`eigen`,
+`module_inside_for_loop` (pipeline ordering), `pressure-cooker`
+(`method = ida`), and `sysdesign-ex01-thermal-network-2` (a signal decaying
+through zero, so the relative measure has no denominator).
+
+The `HAPropsSI` deviation D9 already records stands — rustprop returns humid-air
+errors as a `Result` where upstream returns `+inf` with a global error string.
+Nothing in these nine documents reaches an error state, so the promotion neither
+tests nor closes it.

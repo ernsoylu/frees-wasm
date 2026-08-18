@@ -175,6 +175,17 @@ makes the parity test fail. The gating constraint is the bundle: 29.7 KiB of
 headroom against the 3072 KiB budget. Both predictions held; D9 has the
 measured outcome of each.
 
+> **The fixture prediction is settled (Wave-3 F6, 2026-08-18).** Nine of D8's
+> twelve — the 7 humid-air documents, `hx-correlations-fluid` and
+> `thermo-compliance` — are **promoted**, each at the corpus default `1e-9` with
+> no tolerance entry (worst 1.31e-11, five of the nine inside the `1e-12`
+> absolute band). **Corpus 707 → 716, pending 26 → 17.** The remaining three,
+> the `Air` state-table group (`sysdesign-ex06-pneumatic`, `-2`,
+> `sysdesign-ex07-pneumatic-servo`), were measured and clear too (1.43e-14, 0,
+> 0) but are still staged — promoting them takes pending 17 → 14 and makes the
+> count twelve for twelve. Every remaining hold is a non-property blocker; see
+> `fixtures/README.md`'s "Re-check 2026-08-18, Wave-3 F6".
+
 **The size pass is done (2026-08-06), and it changed no engine behaviour.** The
 wasm is **3031.0 KiB raw / 1589.9 KiB gzipped, back under the 3072 KiB budget
 with 41 KiB spare**, and the built web app is **20.25 MB → 14.7 MB of `dist`**.
@@ -242,7 +253,7 @@ now lives in `Latex.tsx`.
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 707 documents)
+                                       # (--release: the replay solves 716 documents)
 cargo test -p frees-core --test parity # golden-corpus parity only
 cargo test -p frees-core --test fuzz_properties        # property-based fuzzing
                                        # (PROPTEST_CASES=4096 for a longer soak)

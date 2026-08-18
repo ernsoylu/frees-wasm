@@ -138,6 +138,15 @@ cleanly: the document imposes 400 K at a source, converts to `h`, and inverts �
 this port returns 399.999_999_91, the Java 400.000_678_12. The eleventh
 (`refrigeration-vcr`, 3e-9) is cancellation in a COP.
 
+> **Amended by Wave-3 F5** (below). Two claims in the paragraph above did not
+> survive re-measurement. There are **ten** survivors, not eleven — the
+> `solver_floor` entry died at Wave-2 integration. And `refrigeration-vcr` is
+> **not** cancellation of otherwise bit-exact goldens: its leaf
+> `Enthalpy(R134a, P, s)` is itself 1.6e-10 from the wheel, because upstream's
+> own flash stopped 4.06e-9 short in pressure. The headline claim — *not one of
+> them is this port's error* — held, and F5 proved it per fixture against the
+> CoolProp 8.0.0 wheel rather than by inference.
+
 D8 predicted the trap and it was real: the file's own rule is that an entry
 passing at the default *fails*, so the dead entries had to go in the same change.
 They could not simply be deleted, because the table configuration is still
@@ -398,3 +407,132 @@ document's Newton loops — and one number justifying it, 5.2x. That number came
 down 4x in one wave because rustprop got faster, and rustprop is still getting
 faster. The next person to weigh this module should weigh the whole of it, not
 another fluid's worth of it.
+
+---
+
+## Amendment — Wave-3 F5: the tolerance list is re-baselined and re-labelled
+
+**Status:** implemented
+**Date:** 2026-08-18
+**Amends** this record's *What it clears* section and
+`fixtures/tolerances-rustprop.json` in full.
+
+Recorded here rather than as a new ADR for the same reason D6 was: it decides
+nothing new. It re-measures a number this decision already asserted, and
+corrects the two places where that assertion had drifted from what the corpus
+actually does.
+
+### The question
+
+D9 adopted rustprop and, in the same change, deleted the twelve tolerance
+entries that the accuracy path made dead. It did **not** re-derive the ones that
+stayed; it inherited their reasons from D1-era analysis and reasoned about them.
+That left an open question worth a task of its own: **of the entries that
+survived a perfect CoolProp, which are real and which were artifacts of the old
+backend's error masking something else?**
+
+The trap was named in advance: not every entry dies with a perfect port, because
+some *goldens are themselves wrong*. Widening a band to accommodate reference
+error and widening one to accommodate port error look identical in the file and
+mean opposite things.
+
+### What was measured
+
+Every one of the 707 fixtures was replayed and its worst variable recorded, then
+each surviving entry was traced to its leaf property call and that call was put
+to a **third oracle** — the CoolProp 8.0.0 wheel in
+`../rustprop/tools/golden-gen/.venv`, queried at the fixture's own inputs. Three
+values per leaf: what the golden says, what rustprop says, what CoolProp says.
+
+The result is unambiguous, and it is stronger than what D9 claimed:
+
+| | entries | leaf: rustprop vs CoolProp 8.0.0 | leaf: golden vs CoolProp 8.0.0 |
+|---|---:|---|---|
+| Java `(P,h)` table | 9 | 0 … 2.1e-13 (bit-identical in three) | 2.3e-7 … 6.7e-6 |
+| upstream flash residual | 1 | 2.9e-15 (self-consistent) | 1.6e-10 |
+
+**No entry in the file is port error.** At every leaf that feeds a surviving
+tolerance, rustprop is nearer to CoolProp than the golden is — by four to nine
+orders of magnitude, and in three cases bit-identical to it.
+
+The sharpest of these is `props_realfluid_r134a_states`, a flat property matrix
+with literal inputs, so **all 42 of its variables** were checked against the
+wheel one for one: its **24 table-shape variables** ((P,h) → T/Dmass/Smass) miss
+the wheel by 7.8e-10…1.8e-6, while **all 18 non-table variables are
+bit-identical to it** — including `Quality` and `IntEnergy` *at the same
+(P, h)*, which `PhTableRegistry.TABLE_OUTPUTS` excludes by name. The dividing
+line in the data is exactly the dividing line in the Java source.
+`props_realfluid_water_states` repeats it over all 49 of its variables with one
+extra wrinkle: 27 of its 28 non-table variables are bit-identical and the 28th
+is `Volume`, which the Java reports as `1/Dmass` off the tabulated density.
+
+### What changed in the file
+
+* **Nothing was deleted.** The dead-tolerance guard flagged no entry: all ten
+  fixtures still exceed the 1e-9 default. (This is the third consecutive change
+  to that file in which the guard, not a human, decided what could go.)
+* **Every `relative` is now `measured × 1.5`, to two significant figures**,
+  replacing hand-picked round numbers. The nine table entries are frozen by
+  construction — a committed golden minus a value rustprop reproduces to
+  2.2e-13 or better is arithmetic on two constants — so a tight band there costs
+  nothing and any movement is a rustprop regression.
+* **`mechanism` is now a machine-checked slug**, `oracle-ph-table` or
+  `upstream-ps-flash-residual`, defined in a new top-level `mechanisms`
+  catalogue, and each `reason` carries the three-way numbers for *its own*
+  fixture rather than pointing at a shared prose paragraph.
+* **The catalogue is guarded in both directions.** An entry naming an undefined
+  slug fails; a defined slug that no entry names *also* fails. That second guard
+  exists because this file had already grown a dead explanation — the retired
+  stop-criterion mechanism, kept as an empty section with a live-sounding
+  description for a whole wave after its last instance converged at the default.
+  All three directions were verified by perturbing the file and watching the
+  gate go red.
+
+### The one entry that is not the Java's table
+
+`refrigeration-vcr` is the only fixture in the corpus with no table shape
+anywhere in it — `P_sat`, `(T,x)`, `(P,x)` and `(P,s)` all fall through to the
+native library — so D9 reasoned that its residual had to be cancellation of
+bit-exact values in the COP. It is not. `p1`, `p2`, `s1` and `t_evap` *are*
+bit-identical, but the leaf `h2s = Enthalpy(R134a, P = p2, s = s1)` is 1.6e-10
+away on its own, before any subtraction.
+
+The cause is upstream. A fresh
+`AbstractState('HEOS','R134a').update(PSmass_INPUTS, p2, s1)` converges to a
+state whose **own pressure is 4.06e-9 relative from the pressure that was
+asked for**, and reports `hmass` evaluated there. Ask the wheel for `hmass` at
+its own converged `(T, rho)` and it answers 426479.692_669_698_04; ask it
+through the flash and it answers 426479.692_738_112. rustprop returns
+426479.692_669_696_8 — the first, to 2.9e-15, on a state that reproduces *both*
+inputs to ~1e-15.
+
+So the golden is reference-side here too, just tainted by CoolProp rather than
+by the Java. But it is the one entry that is **not frozen**, and it points two
+ways at once: a port that is bitwise faithful to upstream would reproduce the
+residual and this fixture would go to zero. Either direction of travel makes the
+entry fail — a regression widens it, a fidelity fix kills it — which is the
+correct behaviour for both, and the reason the entry says in writing not to
+widen it in place.
+
+Probed across four superheated R134a states the same residual is 4.06e-9,
+7.31e-12, 1.16e-16 and 4.37e-16: a stopping criterion, not a systematic offset,
+which is why exactly one fixture in 707 shows it.
+
+### The prediction that did not come true
+
+The investigation flagged `props_realfluid_r134a_states` as the entry most
+likely to **newly fail** under an accurate backend — 24 of its 42 variables are
+table-shape, so a port that stopped hiding behind the old error might overshoot
+the band. It does not fail. It measures 1.752_325e-6 against a 2.7e-6 band, and
+its worst variable `t_h2s` reads 319.438_780_796_629_9 on rustprop against the
+wheel's 319.438_780_796_629_8 — one ulp — while the golden reads
+319.439_340_558_266_05. The fixture's entire error is on the golden side, to
+five significant figures.
+
+### Open
+
+The nine table entries can only be retired by re-dumping their goldens from a
+Java oracle with `PhTableRegistry` disabled. That is a change to
+`../frees/backend/core`, not to this repo, and it would delete nine of the ten
+remaining accuracy exceptions at a stroke. Whether that is worth doing depends
+on whether the Java engine is still a reference this project intends to keep.

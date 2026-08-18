@@ -150,23 +150,26 @@ impl RealFluid for RustpropBackend {
     /// serveable identity — the same spelling [`super::propfun::TableBackend`]
     /// keys its incompressible aux grids by.
     ///
-    /// `Air` earns its place on this list twice over. It was added because
-    /// [`crate::props::rustprop_warm`] answers `(P,Hmass)`/`(P,Smass)` for it
-    /// by Newton over `(T,p)` density solves, above the critical temperature
-    /// where the root is unique — at a time when rustprop served the
-    /// pseudo-pure fluids at `(P,T)`/`(Q,T)`/`(P,Q)` alone and those two pairs
-    /// were a loud `NotImplemented`.
+    /// `Air` is on this list, and since **Wave-3 D6** it is served by rustprop
+    /// alone. Its history is worth one paragraph, because the entry outlived
+    /// the reason it was added.
     ///
-    /// Since Wave-2 R6/R7 (integrated 2026-08-18) that gap is closed upstream
-    /// of us: rustprop ported the pseudo-pure `HSU_P` and `(D,P)` flashes, so
-    /// it now serves Air on `(P,Hmass)`/`(P,Smass)` directly, at every
-    /// temperature, matching the CoolProp 8.0.0 wheel to ~6e-16. The warm
-    /// adapter is therefore a *speed* path for Air rather than the only path,
-    /// and where it declines — below `T_crit`, where it cannot prove a root
-    /// stable — the call now falls through to a rustprop flash that answers.
-    /// Either way this list is honest: `(P,T)`, `(P,Hmass)`, `(P,Smass)`,
-    /// transport and `Z` are all served. What it still is not is a dome: Air's
-    /// is at 60-132 K, which no frees document visits.
+    /// F3 put Air here because [`crate::props::rustprop_warm`] answered
+    /// `(P,Hmass)`/`(P,Smass)` for it by Newton over `(T,p)` density solves —
+    /// at a time when rustprop served the pseudo-pure fluids at
+    /// `(P,T)`/`(Q,T)`/`(P,Q)` alone and those two pairs were a loud
+    /// `NotImplemented`. Wave-2 R6/R7 then ported the pseudo-pure `HSU_P` and
+    /// `(D,P)` flashes, so rustprop serves them itself, at every temperature,
+    /// matching the CoolProp 8.0.0 wheel to ~1e-12 relative (measured over nine
+    /// states in `tests/rustprop_warm.rs::air_p_hmass_matches_the_coolprop_wheel`).
+    /// Measured against that, the adapter bought Air ~1.1x, so D6 retired its
+    /// pseudo-pure path: `rustprop_warm` now declines Air at the door and the
+    /// call delegates.
+    ///
+    /// The list is unchanged by that and still honest — `(P,T)`, `(P,Hmass)`,
+    /// `(P,Smass)`, transport and `Z` are all served, and rustprop draws Air's
+    /// pseudo-pure dome too (both branches across 65-130 K, glide intact),
+    /// which is what the diagram picker in `frees-wasm` needs.
     fn served_fluids(&self) -> Option<Vec<String>> {
         Some(
             [
@@ -228,9 +231,10 @@ mod tests {
         assert!(mu.is_finite() && mu > 0.0, "viscosity = {mu}");
     }
 
-    /// Air is not in [`RealFluid::served_fluids`] (no full-state service), but
-    /// transport and Z at (T,P) answer through `props_si` — and identically to
-    /// rustprop asked directly, because the forward is 1:1.
+    /// Air transport and `Z` at `(T,P)` answer identically to rustprop asked
+    /// directly, because the forward is 1:1. (This used to open by noting that
+    /// Air was *not* in [`RealFluid::served_fluids`]; F3 added it, and D6 left
+    /// it there while retiring the warm path that first put it on the list.)
     #[test]
     fn air_transport_and_z_match_rustprop_directly() {
         for output in ["viscosity", "Z"] {

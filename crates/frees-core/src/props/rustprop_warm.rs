@@ -47,6 +47,25 @@
 //! Anything either gate refuses — and every dome-region input, every
 //! first-touch state, every non-convergence — takes the cold path and is
 //! counted in [`stats`].
+//!
+//! # What this adapter does *not* claim: pseudo-pure fluids
+//!
+//! Only rustprop HEOS **pure** fluids — the ones carrying a superancillary —
+//! are this adapter's traffic. A pseudo-pure fluid (Air, the R-blends) is
+//! declined at the door in [`try_props_si`], before either counter moves, and
+//! its `(P,Hmass)`/`(P,Smass)` call reaches `rustprop::props_si` untouched.
+//!
+//! That was not always so; see D6 in `docs/decisions/0009-rustprop-backend.md`.
+//! Until Wave-2 the adapter served Air itself, because rustprop had no
+//! pseudo-pure `(P,X)` flash at all and the adapter's machinery *is* a sequence
+//! of `(T,p)` solves. Wave-2 R6/R7 ported upstream's pseudo-pure `HSU_P` and
+//! `(D,P)` flashes, and that flash is *cheap* — measured 5.0 us against the
+//! adapter's 4.5 us, a 1.1x "speed-up" for a hand-rolled locality gate on a
+//! fluid whose saturation state the gate cannot even bracket. So the Air path
+//! was retired rather than re-justified. Two consequences are load-bearing
+//! here: the superancillary is now unconditional past the gate (so
+//! [`accept_state`] may call `PtFlash::sat`, which *panics* on a pseudo-pure),
+//! and Air is still served — by rustprop, one delegation away.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -65,8 +84,9 @@ use rustprop_core::params::Phase;
 /// # Calibration
 ///
 /// `tests/rustprop_warm_calibration.rs` sweeps the seed-to-query distance
-/// over the four linked fluids (Water, R134a, R1234yf, Air), seventeen base
-/// states spanning liquid / vapour / compressed-liquid / supercritical, both
+/// over the three fluids this adapter claims (Water, R134a, R1234yf — Air left
+/// with the pseudo-pure path, see the module docs), fourteen base states
+/// spanning liquid / vapour / compressed-liquid / supercritical, both
 /// caloric inputs, and three perturbation directions, **with this gate
 /// switched off** — the stability gate stays on, because it is the one that
 /// makes a wrong root impossible rather than merely unlikely. Its oracle is
@@ -94,9 +114,10 @@ const GATE_LN_P: f64 = 0.10;
 ///
 /// Same sweep, same finding (see [`GATE_LN_P`]): no divergence at any
 /// distance, only refusals. The caloric axis is the harder one for the step
-/// budget — `1e-2` was the widest rung where all 34 swept states converged
-/// inside [`WARM_MAX_STEPS`] (at `2e-2`, 32 of 34 did), so `1e-2` is the
-/// gate.
+/// budget — `1e-2` was the widest rung where all 28 swept states converged
+/// inside [`WARM_MAX_STEPS`] (at `2e-2`, 26 of 28 did), so `1e-2` is the
+/// gate. (Re-measured at Wave-3 D6 on the Air-free base list; the rung the
+/// gate sits on did not move, only the denominator.)
 const GATE_DT_REL: f64 = 0.01;
 
 /// Newton on `T` stops when the step falls below this fraction of `T`. The
@@ -112,12 +133,8 @@ const NEWTON_T_TOL: f64 = 1e-13;
 /// gate's edge to [`NEWTON_T_TOL`]: `1e-2 -> 1e-4 -> 1e-8 -> 1e-16`, and the
 /// step that confirms convergence is evaluated rather than assumed. The sweep
 /// measures the budget directly — at four steps every state inside the gate
-/// converged, at three, six of thirty-four did not.
+/// converged, at three, six of twenty-eight did not.
 const WARM_MAX_STEPS: usize = 4;
-
-/// Newton steps the *unseeded* pseudo-pure solve may take (see
-/// [`cold_serve`]): it starts from an ideal-gas guess, not a neighbour.
-const COLD_MAX_STEPS: usize = 24;
 
 /// How far off the saturation pressure a converged state must sit before the
 /// stability gate will call it single-phase. Inside this band the two
@@ -125,17 +142,6 @@ const COLD_MAX_STEPS: usize = 24;
 /// the cold path — which resolves the dome with the superancillary rather
 /// than with a density solve — is the honest answer.
 const P_SAT_MARGIN: f64 = 1e-3;
-
-/// A pseudo-pure fluid has no superancillary, so there is no saturation
-/// bracket to test a root against; the adapter claims only the region above
-/// the critical temperature, where the `(T,p)` density root is unique. This
-/// is the relative margin above `T_crit`.
-const PSEUDO_T_MARGIN: f64 = 1e-3;
-
-/// Seed temperature for the unseeded pseudo-pure solve. `h(T)` at fixed `p`
-/// is very nearly linear for a gas, so Newton is insensitive to this; 300 K
-/// is the middle of what a frees document asks of air.
-const PSEUDO_T_SEED: f64 = 300.0;
 
 // ---------------------------------------------------------------------------
 // Inputs and outputs this adapter recognises
@@ -424,14 +430,16 @@ fn solve_rho_tp_guessed(flash: &PtFlash, t: f64, p: f64, rho_guess: f64) -> Opti
 // ---------------------------------------------------------------------------
 
 /// Where a [`newton_t`] solve starts and how far it may go.
+///
+/// There is no step clamp: every solve this module runs starts from a *local*
+/// seed inside the locality gate, so a clamp would only ever hide a Newton
+/// that was already going wrong. (The unseeded pseudo-pure solve that needed
+/// one left with the Air path — see the module docs.)
 #[derive(Debug, Clone, Copy)]
 struct Start {
     t: f64,
     rhomolar: f64,
     max_steps: usize,
-    /// When given, clamps each step — the safeguard the unseeded pseudo-pure
-    /// solve needs, and one a local seed never uses.
-    t_band: Option<(f64, f64)>,
 }
 
 /// Newton on `T` at fixed `p`: `x(T, rho(T,p)) = target`, with the exact
@@ -451,7 +459,6 @@ fn newton_t(
         mut t,
         rhomolar: mut rho,
         max_steps,
-        t_band,
     } = start;
     for _ in 0..=max_steps {
         rho = solve_rho_tp_guessed(flash, t, p, rho)?;
@@ -467,10 +474,7 @@ fn newton_t(
         if (dt / t).abs() <= NEWTON_T_TOL {
             return Some((t, rho, cp));
         }
-        let mut t_next = t - dt;
-        if let Some((lo, hi)) = t_band {
-            t_next = t_next.clamp(lo, hi);
-        }
+        let t_next = t - dt;
         if !(t_next.is_finite() && t_next > 0.0) || t_next == t {
             return None;
         }
@@ -496,14 +500,30 @@ fn seed_is_local(seed: &Seed, p: f64, x: f64) -> bool {
     ((x - seed.x) / dxdt).abs() / seed.t <= GATE_DT_REL
 }
 
+/// Is this one of the **pure** fluids the adapter claims?
+///
+/// The superancillary is the discriminator rustprop itself uses: every one of
+/// its 130 pure HEOS fluids carries one, and the six pseudo-pures (Air, the
+/// R-blends) carry none. It is not a taste question — [`accept_state`] reaches
+/// for `PtFlash::sat`, which *panics* without it, so this predicate is what
+/// makes the rest of the module's superancillary use unconditional. Every entry
+/// point calls it before any solve runs.
+fn is_pure(flash: &PtFlash) -> bool {
+    flash.fluid().eos.superancillary.is_some()
+}
+
 /// Is the converged `(T, p, rho)` the **stable** root — the one rustprop's
 /// own phase determination would have picked?
 ///
-/// For a fluid with a superancillary this is decided at the converged
-/// temperature, which is stricter than deciding it at the query pressure:
-/// `rho_l(T)` and `rho_v(T)` bound the metastable/unstable band at `T`, so a
-/// root outside that band on the side that matches `p` vs `p_sat(T)` is the
-/// stable one, full stop.
+/// It is decided at the converged temperature, which is stricter than deciding
+/// it at the query pressure: `rho_l(T)` and `rho_v(T)` bound the
+/// metastable/unstable band at `T`, so a root outside that band on the side
+/// that matches `p` vs `p_sat(T)` is the stable one, full stop.
+///
+/// **The fluid must be [`is_pure`]** — `PtFlash::sat` panics without a
+/// superancillary. Both entry points ([`try_props_si`] and
+/// [`calibration_warm_solve`]) decline a pseudo-pure fluid before any solve
+/// runs, which is what makes that unconditional here.
 fn accept_state(flash: &PtFlash, t: f64, p: f64, rhomolar: f64) -> bool {
     if !(t.is_finite() && t > 0.0 && rhomolar.is_finite() && rhomolar > 0.0) {
         return false;
@@ -517,13 +537,6 @@ fn accept_state(flash: &PtFlash, t: f64, p: f64, rhomolar: f64) -> bool {
         return false;
     }
     let tc = flash.t_critical();
-    if flash.fluid().eos.superancillary.is_none() {
-        // Pseudo-pure (Air, the blends): no superancillary, hence no
-        // saturation densities to bracket a root with. Above the critical
-        // temperature the (T,p) root is unique, and that is the only region
-        // this adapter claims for a pseudo-pure fluid.
-        return t > tc * (1.0 + PSEUDO_T_MARGIN);
-    }
     if t >= tc {
         // Above the critical temperature the isotherm is monotone in density,
         // so the root the guessed solve found is the only one there is.
@@ -587,6 +600,14 @@ pub(crate) fn try_props_si(
             }
         }
     };
+    // A pseudo-pure fluid (Air, the R-blends) is not this adapter's traffic:
+    // rustprop's own pseudo-pure `HSU_P` flash serves the pair directly and
+    // costs about what a warm solve does, and there is no superancillary here
+    // to prove a root stable with. Declined before either counter moves — see
+    // the module docs, and D6 in `docs/decisions/0009-rustprop-backend.md`.
+    if !is_pure(&flash) {
+        return None;
+    }
     let x = x_mass * flash.eos.molar_mass;
 
     if let Some(v) = warm_serve(&flash, key, caloric, p, x, out) {
@@ -619,7 +640,6 @@ fn warm_serve(
             t: seed.t,
             rhomolar: seed.rhomolar,
             max_steps: WARM_MAX_STEPS,
-            t_band: None,
         },
     )?;
     if !accept_state(flash, t, p, rho) {
@@ -639,22 +659,13 @@ fn warm_serve(
 
 /// The cold path — and the only thing that ever *creates* a seed.
 ///
-/// For a fluid with a superancillary this is rustprop's own `HSU_P_flash`,
-/// called directly rather than through `props_si`: same function, same molar
-/// conversion, and the outputs come off the state through the same
-/// expressions `keyed_output` uses, so the answer is the same double
-/// `props_si` would have returned (asserted bitwise in
+/// This is rustprop's own `HSU_P_flash`, called directly rather than through
+/// `props_si`: same function, same molar conversion, and the outputs come off
+/// the state through the same expressions `keyed_output` uses, so the answer is
+/// the same double `props_si` would have returned (asserted bitwise in
 /// `tests/rustprop_warm.rs`). Going through `props_si` instead would mean
-/// flashing twice for every dome-region state, which is exactly the traffic
-/// a refrigeration document generates most of.
-///
-/// A **pseudo-pure** fluid (Air) has no `(P,X)` flash in rustprop at all —
-/// upstream serves pseudo-pures only at `PT`/`QT`/`PQ`, and rustprop says so
-/// loudly. The adapter still answers, because its whole machinery *is* a
-/// sequence of `(T,p)` solves: an unseeded Newton from an ideal-gas guess,
-/// clamped into the supercritical-temperature band the stability gate will
-/// accept. If that does not converge the caller delegates and rustprop's
-/// "not ported yet for pseudo-pure fluids" reaches the user unchanged.
+/// flashing twice for every dome-region state, which is exactly the traffic a
+/// refrigeration document generates most of.
 fn cold_serve(
     flash: &PtFlash,
     key: usize,
@@ -663,37 +674,6 @@ fn cold_serve(
     x: f64,
     out: Out,
 ) -> Option<f64> {
-    if flash.fluid().eos.superancillary.is_none() {
-        let tc = flash.t_critical();
-        let t_seed = PSEUDO_T_SEED.max(tc * (1.0 + PSEUDO_T_MARGIN));
-        let band = (tc * (1.0 + PSEUDO_T_MARGIN), 1.5 * flash.fluid().eos.t_max);
-        let (t, rho, cp) = newton_t(
-            flash,
-            caloric,
-            p,
-            x,
-            Start {
-                t: t_seed,
-                rhomolar: p / (flash.eos.gas_constant * t_seed),
-                max_steps: COLD_MAX_STEPS,
-                t_band: Some(band),
-            },
-        )?;
-        if !accept_state(flash, t, p, rho) {
-            return None;
-        }
-        remember(Seed {
-            fluid: key,
-            caloric,
-            p,
-            x,
-            t,
-            rhomolar: rho,
-            cp,
-        });
-        return Some(out.read(flash, t, p, rho));
-    }
-
     let state = match caloric {
         Caloric::Hmolar => flash.hmolar_p_state(x, p),
         Caloric::Smolar => flash.p_smolar_state(p, x),
@@ -746,12 +726,17 @@ pub fn calibration_warm_solve(
     };
     let data = rustprop::props_api::resolve_fluid(fluid).map_err(|_| "fluid")?;
     let flash = PtFlash::new(data);
+    // The same door [`try_props_si`] shuts: pseudo-pure fluids are not this
+    // adapter's traffic, and [`accept_state`] would panic reaching for a
+    // superancillary that is not there.
+    if !is_pure(&flash) {
+        return Err("pseudo-pure");
+    }
     let x = x_mass * flash.eos.molar_mass;
     let start = Start {
         t: seed_t,
         rhomolar: seed_dmolar,
         max_steps,
-        t_band: None,
     };
     let (t, rho, _cp) = newton_t(&flash, caloric, p, x, start).ok_or("newton")?;
     if !accept_state(&flash, t, p, rho) {

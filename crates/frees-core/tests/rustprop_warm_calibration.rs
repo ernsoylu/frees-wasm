@@ -32,8 +32,14 @@ use frees_core::props::rustprop_warm::{
 };
 
 /// `(fluid, T [K], P [Pa])` — base states spanning liquid, vapour,
-/// compressed-liquid and supercritical regimes for the four fluids this build
-/// links.
+/// compressed-liquid and supercritical regimes for the three fluids the
+/// adapter claims.
+///
+/// **Air's three bases left at Wave-3 D6**, with the adapter's pseudo-pure
+/// path: rustprop's own `HSU_P` flash serves Air at ~1.1x the adapter's cost
+/// since Wave-2 R6/R7, so the adapter declines pseudo-pure fluids outright and
+/// there is no seeded solve here left to calibrate. Sweeping them would now
+/// measure nothing but `calibration_warm_solve`'s `Err("pseudo-pure")`.
 const BASES: &[(&str, f64, f64)] = &[
     ("Water", 300.0, 1.0e5),
     ("Water", 300.0, 1.0e7),
@@ -49,9 +55,6 @@ const BASES: &[(&str, f64, f64)] = &[
     ("R1234yf", 300.0, 2.0e5),
     ("R1234yf", 340.0, 3.0e6),
     ("R1234yf", 400.0, 5.0e6),
-    ("Air", 250.0, 5.0e5),
-    ("Air", 300.0, 1.0e5),
-    ("Air", 500.0, 1.0e6),
 ];
 
 /// Perturbation magnitudes: `|Δln p|` on the pressure axis, `|ΔT|/T` on the

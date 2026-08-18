@@ -252,6 +252,9 @@ between them.
   other artifacts. Air transport and `Z` at `(T,P)` still answer through
   `props_si`; only the picker entry is gone. Restoring it is a rustprop
   pseudo-pure-flash question, not a frees one.
+  **Reversed at Wave-2/Wave-3** — that rustprop question got answered. `Air` is
+  back on `served_fluids` and back in the picker; see the D6 amendment at the
+  end of this record.
 * **Two tolerance files is a real cost.** They can drift. What stops it is that
   each is read in exactly one configuration and both configurations are gated,
   so a stale entry in either fails its own build rather than sitting unnoticed.
@@ -291,3 +294,107 @@ between them.
   would have to survive the synchronous-solve constraint that
   `props/tables.rs` records against D1. If the budget goes red again it is still
   the largest lever available.
+
+---
+
+## Amendment — Wave-3 D6: the warm adapter's `Air` path is retired
+
+**Status:** implemented
+**Date:** 2026-08-18
+**Amends** this record's `Air` bullet under *Consequences and open risks*, and
+the warm-state adapter Wave-2 F3 added on top of it
+(`crates/frees-core/src/props/rustprop_warm.rs`).
+
+Recorded here rather than as `0010-*.md` because it does not decide anything new
+— it withdraws half of an existing mechanism whose other half stays exactly as
+it was — and because "D6" is this wave's owner-call label, which would collide
+with [D6 / `0006-remove-mdf4.md`](0006-remove-mdf4.md) as a file number.
+
+### Decision
+
+`rustprop_warm` no longer claims **pseudo-pure** fluids. It declines them at the
+door of `try_props_si`, before either counter moves, and the call reaches
+`rustprop::props_si` untouched. The **pure-fluid path is unchanged** — same two
+gates, same constants, same cache.
+
+`Air` stays on `RealFluid::served_fluids` and stays in the property-diagram
+picker. It is served, just not by the warm path.
+
+### Why — both of F3's justifications moved, one of them all the way
+
+F3 widened the adapter to `Air` for a reason that no longer exists, and kept
+water for a reason that shrank but survived.
+
+| | when F3 wrote it | now | verdict |
+|---|---|---|---|
+| `Air` `(P,Hmass)`/`(P,Smass)` | rustprop: loud `NotImplemented`. The adapter was the **only** way to answer. | rustprop's own pseudo-pure `HSU_P` flash (Wave-2 R6/R7), 5.0 us cold against the adapter's 4.5 us warm | **~1.1x — retire** |
+| `Water` and the pure fluids | cold 311-353 us, warm 13-15 us | Wave-2 R8's TOMS748 made cold ~5x faster: cold 60.1-67.2 us, warm 11.8-13.5 us | **~5.2x — keep** |
+
+1.1x does not pay for a hand-rolled locality gate. It pays for even less than
+that number suggests, because the gate's *stability* half — the one that makes a
+wrong root impossible rather than merely unlikely — cannot function on a
+pseudo-pure at all: there is no superancillary, hence no `rho_l(T)`/`rho_v(T)`
+to bracket a root with. F3 handled that honestly by claiming only `T > T_crit`
+and declining everything below, which for Air means declining below 132.5 K —
+so the retired path was a 1.1x speed-up on a partial region of one fluid.
+
+### Verified, not assumed: `Air` is still *correct*, not merely still answering
+
+Deleting the code that computed something is the moment to grade its replacement
+against the oracle rather than against itself. Nine `(P, Hmass)` states from
+100 K to 800 K and 1 bar to 100 bar, `T` and `Dmass`, against the pinned CoolProp
+8.0.0 wheel (`rustprop/tools/golden-gen/.venv`):
+
+**worst relative deviation 1.705e-15 on `T`, 1.695e-15 on `Dmass`** — round-off.
+Pinned at 1e-12 in `tests/rustprop_warm.rs::air_p_hmass_matches_the_coolprop_wheel`,
+with the wheel's own `T` as the reference rather than the round number the state
+was built from (upstream's pseudo-pure flash carries ~1e-9 bracket granularity of
+its own — at 150 K it returns 149.999_999_869 — so grading against 150.0 would
+grade the wheel, not the port).
+
+A second test, `air_is_served_by_rustprop_and_never_by_the_adapter`, holds the
+seam in both directions over six states x two caloric pairs x two input orders x
+six outputs: every value is bit-for-bit `rustprop::props_si`'s, the `(P,X)` round
+trip lands back on the `(T,P)` temperature, and both adapter counters stay at
+zero *even after a deliberate attempt to seed the cache from a neighbouring Air
+state* — which is exactly the traffic shape that used to be served warm.
+
+### What was deleted
+
+Not disabled, not left behind a flag: `COLD_MAX_STEPS`, `PSEUDO_T_MARGIN`,
+`PSEUDO_T_SEED`, `Start::t_band` and the step clamp it drove, `accept_state`'s
+pseudo-pure branch, `cold_serve`'s unseeded ideal-gas Newton, Air's four rows in
+the acceptance grid and three in the calibration bases, and the `cold.is_nan()`
+escape in the cost assertion that existed only because Air had no cold path to
+measure. That is **44 lines of executable code out of `rustprop_warm.rs`**
+against 9 added — the `is_pure` predicate and one decline at each of the two
+entry points. The module's own line count barely moves (+74/−89) because most of
+what replaced the deleted code is the record of why it went.
+
+One consequence is load-bearing and is asserted by construction: past the new
+door the superancillary is **unconditional**, so `accept_state` may call
+`PtFlash::sat`, which *panics* without one. Both entry points into the module —
+`try_props_si` and the `calibration_warm_solve` seam — carry the same decline.
+
+### What did not change
+
+* The pure-fluid gates and their constants. `GATE_LN_P = 0.10`,
+  `GATE_DT_REL = 0.01`, `WARM_MAX_STEPS = 4`: re-derived on the Air-free base
+  list and **not one rung moved** (pressure still converges fully out to 0.35;
+  the caloric axis still breaks between 1e-2 and 2e-2; three steps still fails
+  six of the swept states where four fails none). Only the denominators in the
+  doc comments changed, 34 -> 28.
+* The calibration sweep still runs every build, and still measures the same
+  thing: worst accepted deviation 1.141e-13 on `T` and 8.470e-13 on `Dmolar`
+  over 672 accepted solves, and nothing outside the gate lies (worst 3.172e-13).
+* The warm-vs-cold grid: 30 states instead of 38, every quoted number
+  re-measured and unmoved (worst warm 6.063e-14 against cold's 8.441e-10).
+* `Water`'s speed-up floor, still 3x against a measured 5.2x.
+
+### Open
+
+`rustprop_warm` now has exactly one customer class — HEOS pure fluids in a
+document's Newton loops — and one number justifying it, 5.2x. That number came
+down 4x in one wave because rustprop got faster, and rustprop is still getting
+faster. The next person to weigh this module should weigh the whole of it, not
+another fluid's worth of it.

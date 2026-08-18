@@ -486,6 +486,21 @@ fn air_p_hmass_and_p_smass_answer_through_pt_solves() {
 /// rather than "22x", it is ~1.1x for pseudo-pure Air, and the next person to
 /// touch `rustprop_warm` should weigh ~830 lines and two gates against those
 /// smaller numbers — especially if rustprop's cold path gets faster again.
+///
+/// **Wave-3 F7: Air's floor was written as `1.0` and that is an assertion, not
+/// the "not asserted" the paragraph above claims.** A 1.0x floor on a 1.1x
+/// measurement is 10% of headroom, and the load sweep caught it: in a
+/// `cargo test --release --workspace` run under load average ~16 (two other
+/// build lanes on the same box) Air measured warm 12.8 us against cold 8.5 us
+/// — ratio 0.66 — and the suite went red, while five standalone runs of this
+/// same test at load ~10.4 measured warm 11.4-15.2 us against cold 12.3-16.6
+/// us, ratio 1.08-1.10, and all passed. Nothing regressed; the assertion was
+/// simply the one band in this file with no headroom, contradicting its own
+/// comment. The floor is now `Option<f64>` and Air's is `None`, so the ratio
+/// is printed on every run and asserted on none — which is what F4 meant to
+/// ship. Water's 3x floor (measured 4.7-5.0x under the same load) is
+/// untouched, as is the 50 us absolute budget, which Water reached 40.3 us of
+/// under load ~10.4 against 11.8-13.5 us on a quiet box.
 #[test]
 fn warm_t_of_p_hmass_costs_tens_of_microseconds() {
     let _g = guard();
@@ -495,17 +510,20 @@ fn warm_t_of_p_hmass_costs_tens_of_microseconds() {
         samples.sort_by(f64::total_cmp);
         samples[samples.len() / 2]
     };
-    // The last field is the cold/warm speed-up this fluid must still show. It
-    // is per-fluid because the adapter's value turned out to be per-fluid once
-    // Wave-2 R6/R7 gave Air a cold path to measure against at all — see the
-    // doc comment. Water: 5.2x measured, floored at 3x. Air: 1.1x measured
-    // (4.5 us warm against 5.0 us cold), floored at 1.0x, which is to say NOT
-    // ASSERTED — the pseudo-pure HSU_P flash is so much cheaper than a HEOS
-    // one that the adapter buys Air essentially nothing. That is recorded
-    // rather than asserted away, and it is the open question this test hands
-    // forward: Air's place in `served_fluids`/`rustprop_warm` was justified by
-    // rustprop not serving the pair at all, and rustprop now does.
-    for (fluid, t, p, min_speedup) in [("Water", 400.0, 5.0e5, 3.0), ("Air", 300.0, 1.0e5, 1.0)] {
+    // The last field is the cold/warm speed-up this fluid must still show, and
+    // `None` means "report it, do not assert it". It is per-fluid because the
+    // adapter's value turned out to be per-fluid once Wave-2 R6/R7 gave Air a
+    // cold path to measure against at all — see the doc comment. Water: 5.2x
+    // measured, floored at 3x. Air: 1.1x measured (4.5 us warm against 5.0 us
+    // cold) and NOT ASSERTED — the pseudo-pure HSU_P flash is so much cheaper
+    // than a HEOS one that the adapter buys Air essentially nothing. That is
+    // recorded rather than asserted away, and it is the open question this
+    // test hands forward: Air's place in `served_fluids`/`rustprop_warm` was
+    // justified by rustprop not serving the pair at all, and rustprop now does.
+    for (fluid, t, p, min_speedup) in [
+        ("Water", 400.0, 5.0e5, Some(3.0)),
+        ("Air", 300.0, 1.0e5, None),
+    ] {
         let h = pt("Hmass", t, p, fluid);
         // Move the query a little each call so this measures a solve and not a
         // cache read that happens to be exact.
@@ -544,19 +562,29 @@ fn warm_t_of_p_hmass_costs_tens_of_microseconds() {
         };
 
         let median = median_of(warm);
-        println!("{fluid}: warm T(P,Hmass) median {median:.1} us, cold median {cold:.1} us");
+        println!(
+            "{fluid}: warm T(P,Hmass) median {median:.1} us, cold median {cold:.1} us \
+             ({:.2}x, floor {})",
+            cold / median,
+            match min_speedup {
+                Some(f) => format!("{f}x"),
+                None => "not asserted".to_string(),
+            }
+        );
         if !cfg!(debug_assertions) {
             assert!(
                 median <= 50.0,
                 "{fluid}: warm T(P,Hmass) median {median:.1} us exceeds the 50 us budget"
             );
-            assert!(
-                cold.is_nan() || median * min_speedup <= cold,
-                "{fluid}: warm ({median:.1} us) must beat cold ({cold:.1} us) by \
-                 {min_speedup}x or the adapter is not worth its gates (Water was 5x \
-                 until Wave-2 R8 made the cold path ~5x faster; see this test's doc \
-                 comment)"
-            );
+            if let Some(min_speedup) = min_speedup {
+                assert!(
+                    cold.is_nan() || median * min_speedup <= cold,
+                    "{fluid}: warm ({median:.1} us) must beat cold ({cold:.1} us) by \
+                     {min_speedup}x or the adapter is not worth its gates (Water was 5x \
+                     until Wave-2 R8 made the cold path ~5x faster; see this test's doc \
+                     comment)"
+                );
+            }
         }
     }
 }

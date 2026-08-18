@@ -125,6 +125,14 @@ fn all_survive(corpus: &[String]) -> Duration {
         worst < Duration::from_secs(20),
         "slowest document took {worst:?}, which is a hang in all but name: {slowest:?}"
     );
+    // Printed, not just asserted: the 20 s ceiling is a hang detector, and the
+    // number under it is the only way a reader can tell "comfortably fast" from
+    // "one bad document away from the ceiling". Wave-3 F7 measured the whole
+    // file this way after the backend switch — see docs/status-wave3-f7.md.
+    println!(
+        "all_survive: {} documents, worst {worst:?} on {slowest:?}",
+        corpus.len()
+    );
     worst
 }
 
@@ -337,7 +345,22 @@ fn real_fluid_calls_at_every_corner_of_the_phase_envelope_are_answered_or_refuse
 #[test]
 fn an_inverse_lookup_on_a_two_phase_plateau_is_refused_rather_than_guessed() {
     // T_sat(101325 Pa) = 373.1243 K, dead centre of the plateau.
+    let started = Instant::now();
     let out = solve("x = Enthalpy(Water, P=101325, T=373.1243)", &settings());
+    let elapsed = started.elapsed();
+    // Whether this arm refuses or answers, it must do so promptly: the failure
+    // mode a plateau invites is a bracketed inverse that never terminates.
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "plateau query took {elapsed:?}"
+    );
+    println!(
+        "plateau (P,T) on the saturation line answered in {elapsed:?}: {}",
+        match &out {
+            Ok(_) => "Ok",
+            Err(_) => "Err",
+        }
+    );
     match out {
         Err(e) => {
             let msg = e.to_string_message();
@@ -980,10 +1003,13 @@ fn the_installed_backend_answers_or_errors_for_every_key_combination() {
     let inputs = ["P", "T", "Q", "Hmass", "Smass", "Dmass", "", "p"];
     let values = [0.0, -1.0, 1e-300, 101_325.0, 300.0, 0.5, 1e300, f64::NAN];
     let mut worst = Duration::ZERO;
+    let mut slowest = String::new();
+    let mut calls = 0usize;
     for out in outputs {
         for k1 in inputs {
             for k2 in inputs {
                 for v in values {
+                    calls += 1;
                     let started = Instant::now();
                     let got = std::panic::catch_unwind(|| {
                         propfun::props_si(out, k1, v, k2, 101_325.0, "Water").ok()
@@ -997,7 +1023,11 @@ fn the_installed_backend_answers_or_errors_for_every_key_combination() {
                             "props_si({out}, {k1}={v}, {k2}=101325, Water) served {x}"
                         );
                     }
-                    worst = worst.max(started.elapsed());
+                    let elapsed = started.elapsed();
+                    if elapsed > worst {
+                        worst = elapsed;
+                        slowest = format!("props_si({out}, {k1}={v}, {k2}=101325, Water)");
+                    }
                 }
             }
         }
@@ -1006,6 +1036,9 @@ fn the_installed_backend_answers_or_errors_for_every_key_combination() {
         worst < Duration::from_secs(2),
         "slowest single props_si call took {worst:?}"
     );
+    // The budget is per call, so the count and the worst call are what say
+    // whether the sweep is comfortably inside it — see docs/status-wave3-f7.md.
+    println!("hostile props_si sweep: {calls} calls, slowest {worst:?} on {slowest}");
 }
 
 /// A document that calls a property function inside a Newton block — the actual

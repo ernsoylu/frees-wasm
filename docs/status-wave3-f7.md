@@ -26,6 +26,37 @@ as the quiet-box value.
 Toolchain: `cargo 1.97.1`, `--release` (`opt-level = "s"`, fat LTO,
 `codegen-units = 1`). rustprop at `2db1df7` (Wave-2 R8 + its docs commit).
 
+### Re-measured at Wave-3 integration on a quiet box
+
+The instruction above — treat a lone number as an upper bound — was taken up at
+integration. Every headline figure was re-run at **load 1.6–2.2** on the same
+8-core box (F7 measured at 6.6–17.9), against the merged tree: all five frees
+branches in, and rustprop advanced from `2db1df7` to the Wave-3 merge (R11's
+validity gates + R9's sweep). The corpus is **719** documents here, not 707 —
+F6 and F8 promoted twelve.
+
+| figure | F7, under load | integration, quiet | change |
+|---|---|---|---|
+| parity replay, wall | 43.44 s best (load 6.59); 43.4–72.3 s | **37.06 / 36.98 / 38.36 s** (load 2.2 / 1.8 / 1.7) | ~1.2x faster on **12 more** documents |
+| hostile `props_si` sweep, slowest call | 377.66 ms (load 8.07) | **119.67 ms** (load 1.9) | 3.2x smaller; same call; 16.7x inside the 2 s budget |
+| `all_survive`, worst document | 155.09 ms (load 8.07) | **63.49 ms** (load 1.9) | 2.4x smaller; same document; 315x inside the 20 s ceiling |
+| warm `T(P,Hmass)`, Water | 29.6 us warm / 154.5 us cold = **5.22x** (load 13.8) | **12.9 / 67.2 = 5.22x**; 12.9 / 67.1 = 5.21x; 13.1 / 70.2 = 5.35x (load 1.6) | absolutes **2.3x** smaller, **ratio identical** |
+
+That last row is the cleanest statement of this document's own thesis: under a
+2.3x change in absolute cost the ratio moved by 0.00–0.13x. Quote ratios; quote
+absolutes only with their load. It also retires §8's thin-margin warning for
+now — Water's warm median is 12.9 us of the 50 us budget on a quiet box,
+against the 40.3 us it reached at load ~10.4.
+
+**One figure moved the wrong way, and load is not the reason.** The two-phase
+plateau query reads **2.81 ms** in the full suite here and **1.86–1.99 ms** run
+in isolation at load 1.00, against F7's 500.522 us. Isolation makes it
+*slower*, which rules out contention and points at one-time initialisation:
+F7's reading came after other tests had already built the shared fluid registry
+and superancillary tables, and a cold reading pays for them. So this number
+measures test ordering, not throughput. Both readings sit ~700–1000x inside the
+`< 2 s` assertion F7 added, which is the property that actually matters.
+
 ---
 
 ## 0. The gate, raw

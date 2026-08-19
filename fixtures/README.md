@@ -161,6 +161,23 @@ them backend-specific: thirteen of the 23 entries exist only because of the
 tables' own interpolation error, and under rustprop — which *is* CoolProp 8.0.0
 — those fixtures match at `1e-11…1e-16` and their entries would fail.
 
+> **Since Wave-3 F6/F8 the corpus is rustprop-graded by construction, and
+> `tolerances.json` no longer has a configuration that replays it.** Twelve of
+> the 719 documents ask for things the `(P,h)` `TableBackend` cannot serve *at
+> all* — `HAPropsSI` (the seven humid-air documents), `viscosity`
+> (`hx-correlations-fluid`), `Z` (`thermo-compliance`) and `Air` `Enthalpy`
+> (the three pneumatic documents) — so replaying the corpus through the table
+> backend fails on them with "not a tabulated output" / "does not implement
+> HAPropsSI", not with a tolerance miss. That is not a regression and nothing
+> is wrong with those fixtures: **no CI job replays the corpus that way.**
+> Verified at Wave-3 integration rather than assumed — `ci.yml`'s parity job is
+> `cargo test --workspace --test parity`, and resolver-v2 feature unification
+> turns `rustprop-backend` on there because `frees-wasm` requires it, so the run
+> prints "719 fixtures match the Java oracle through rustprop (CoolProp 8.0.0)"
+> and passes. The trap is the single-package form: `cargo test -p frees-core`
+> (or `-p frees-core --test parity`) does **not** enable the feature and will
+> fail on those twelve. Use `--workspace`, or name the feature explicitly.
+
 The ten survivors have a different cause, and **Wave-3 F5 re-measured every one
 of them and proved that none is port error**. Nine are the *golden* side:
 `PropertyFunctions.java` asks its own `PhTableRegistry` before it asks CoolProp,

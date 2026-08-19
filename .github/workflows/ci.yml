@@ -60,6 +60,17 @@ env:
   # deflated, so the browser's gzip finds nothing — against rustprop's 342.0 KiB
   # raw / 196.7 KiB gzipped. Debt (2), the lazy chunk, is untouched and is now
   # the only structural lever left; at 87.9% nothing needs it.
+  #
+  # 2026-08-19, Wave-4 F9 re-measurement: 2721.9 KiB raw / 1118.2 KiB gzipped —
+  # 88.6% of the ceiling, 350.1 KiB of headroom. +21.6 KiB raw / +8.7 KiB
+  # gzipped in two waves (rustprop advanced under the dependency); the D9 row
+  # above was taken mid-wave and is the switch-over number, not a current one.
+  # Re-measured because it is the number every other document quotes. Also
+  # re-checked the finding that makes `linked-tables` a GUARD rather than a
+  # saving: building with `--features frees-core/linked-tables` still comes out
+  # within 2 bytes (2 787 264 vs 2 787 262), because installing rustprop is what
+  # makes the data section unreachable and LTO drops it. Debt (2) still untouched
+  # and still unneeded.
   WASM_BUDGET_KB: 3072
 
 jobs:

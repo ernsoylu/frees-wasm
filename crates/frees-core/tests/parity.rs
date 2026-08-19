@@ -66,6 +66,14 @@
 //! * if the file catalogues its `mechanisms`, every entry must name one that
 //!   exists and every catalogued mechanism must be named by an entry — see
 //!   [`declared_tolerances`].
+//!
+//! # This replay needs the `rustprop-backend` feature
+//!
+//! Since Wave-3 F6/F8 the corpus holds twelve documents the `(P,h)`
+//! `TableBackend` cannot serve **at all**, so it is replayable by exactly one
+//! backend. Rather than fail twelve times with an error that names nothing,
+//! [`golden_corpus_parity`] refuses up front and prints the command that
+//! works — see [`WRONG_BACKEND`].
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -91,6 +99,13 @@ fn golden_dir() -> PathBuf {
 /// backend is graded by the file that describes it, selected by the same `cfg`
 /// that decides which backend `install_builtin_once` installs. There is no
 /// configuration in which both files are read, and none in which neither is.
+///
+/// The table branch is **currently unreachable**, and deliberately kept. Since
+/// Wave-3 F6/F8 this corpus cannot be replayed by the table backend at all
+/// ([`WRONG_BACKEND`]), so nothing reads `tolerances.json` today. That does not
+/// make it wrong — it describes a configuration D9 still supports and that a
+/// smaller corpus would reach again — so the branch stays, next to the reason
+/// it does not fire.
 #[cfg(feature = "rustprop-backend")]
 const TOLERANCE_FILE: &str = "tolerances-rustprop.json";
 #[cfg(not(feature = "rustprop-backend"))]
@@ -101,6 +116,45 @@ fn tolerance_path() -> PathBuf {
         .join("../../fixtures")
         .join(TOLERANCE_FILE)
 }
+
+/// Does this build have the one backend that can serve the whole corpus?
+///
+/// A runtime `const` rather than a `#[cfg]` on the test item, on purpose: a
+/// `cfg`-ed-out replay would leave every helper below it unused, and — worse —
+/// a `required-features` key on the target would make `cargo test -p
+/// frees-core` **skip** the gate silently and report green. A gate that can
+/// vanish without saying so is the failure mode this file's other guards exist
+/// to prevent, so the wrong configuration is loud instead.
+const CORPUS_IS_SERVABLE: bool = cfg!(feature = "rustprop-backend");
+
+/// What to print when it is not. Names both working commands, because the two
+/// invocations that land here are reached from different intents.
+///
+/// The message has to *say* this, because the failure does not look like a
+/// missing backend. A property error inside Newton becomes a `NaN` residual —
+/// faithfully, that is what the Java does (`NewtonSolver.residuals()` treats an
+/// invalid state as a bad region, not a fatal error) — so all twelve documents
+/// come back as `Newton iteration stalled after 0 iteration(s) … (norm NaN)`,
+/// with nothing in the text about `HAPropsSI` or a tabulated output.
+const WRONG_BACKEND: &str = "\
+the parity corpus cannot be replayed by the (P,h) TableBackend, and this build \
+has `rustprop-backend` OFF.
+
+Twelve of the 719 documents ask for HAPropsSI (the seven humid-air documents), \
+single-phase (P,T) transport (hx-correlations-fluid), CompressibilityFactor \
+(thermo-compliance) or Air Enthalpy (the three pneumatic documents). The table \
+backend serves none of those at all, so they do not miss a tolerance — they \
+come back as `Newton iteration stalled after 0 iteration(s) … (norm NaN)`, \
+which names neither the fixture's real problem nor this one.
+
+Run the gate with the backend the corpus was promoted against:
+
+    cargo test --workspace --test parity
+    cargo test -p frees-core --features rustprop-backend --test parity
+
+The first is what CI runs: frees-wasm requires the feature, and resolver-v2 \
+unifies it onto frees-core. See docs/decisions/0009-rustprop-backend.md and \
+fixtures/README.md.";
 
 /// Declared relative tolerance per fixture stem, from `fixtures/tolerances.json`.
 ///
@@ -645,6 +699,10 @@ fn replay(
 
 #[test]
 fn golden_corpus_parity() {
+    if !CORPUS_IS_SERVABLE {
+        panic!("{WRONG_BACKEND}");
+    }
+
     let dir = golden_dir();
     let mut paths: Vec<PathBuf> = fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()))

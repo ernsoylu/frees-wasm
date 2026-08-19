@@ -39,6 +39,18 @@ Four parts, and the fourth is what keeps the first three honest.
    path against `tolerances.json` — which is why that file had to stay correct
    rather than be edited.
 
+   > **The last sentence stopped being true at Wave-3, and Wave-4 F9 made the
+   > tree say so.** Once F6/F8 promoted twelve documents no table backend can
+   > serve, the single-package form did not grade the table path — it failed
+   > on those twelve, and not even legibly (a property error inside Newton
+   > becomes a `NaN` residual, so all twelve reported "Newton iteration
+   > stalled after 0 iteration(s)"). `tests/parity.rs` now refuses that
+   > configuration up front and names the two commands that work. The
+   > `tolerances.json` branch is kept, unreachable, next to the reason:
+   > the file is still correct about the configuration it describes, and a
+   > corpus without those twelve would reach it again. See the Wave-4 F9
+   > amendment at the end of this record.
+
 ## Context — the question D8 refused to guess at
 
 D8 chose the accuracy path and named the constraint that would decide whether it
@@ -58,7 +70,11 @@ since Phase 6 and unpaid through four phases.
 
 ## Measured — `wasm-pack build --release --target web`, the CI command
 
-All four corners, so the two changes can be told apart:
+All four corners, so the two changes can be told apart. **These are the
+switch-over numbers, taken on 2026-08-17**; the tree has moved since and the
+shipped row was re-measured by the Wave-4 F9 amendment at the end of this
+record. The *deltas* between corners are what this section is for, and they
+are what survived re-measurement.
 
 | configuration | raw | gzipped | vs. budget |
 |---|---:|---:|---:|
@@ -106,6 +122,12 @@ one innocuous call re-spends. The feature makes it structural.
 **Twelve of the 23 entries in `fixtures/tolerances.json` are dead.** They existed
 because D1's tables sit 1e-7…1e-4 from CoolProp; rustprop *is* CoolProp 8.0.0, so
 that error is gone. Measured on the switch-over run:
+
+> **Thirteen, as of Wave-2.** `sysdesign-ex16-moving-boundary-evaporator` is the
+> thirteenth: at this change it kept a numeric entry and gained a
+> `solver_floor` one, and both died when rustprop's TOMS748 landed (see the
+> RESOLVED note under Finding 1). `tolerances.json` still has 23 entries;
+> `tolerances-rustprop.json` has 10.
 
 | fixture | table backend | rustprop |
 |---|---:|---:|
@@ -661,3 +683,121 @@ it: all three pneumatic documents ask at
 `h = 424 950 J/kg` and 1–7 bar, i.e. `T = 298.7…300.0 K` and `Q = -1`,
 single-phase gas some 167 K above Air's critical temperature. Recorded so the
 next session does not re-derive it.
+
+---
+
+## Amendment — Wave-4 F9: every number in this record, re-measured
+
+**Status:** implemented
+**Date:** 2026-08-19
+**Amends** the *Measured* table (which was taken mid-wave), part 4 of the
+*Decision* (whose last sentence no longer described the tree), and the entry
+count in *What it clears*.
+
+This decision was written across a moving tree — rustprop advanced twice under
+it and twelve fixtures joined the corpus after it — so its numbers were audited
+one by one against the checkout rather than carried forward. Three moved.
+
+### The bundle, re-measured
+
+`wasm-pack build crates/frees-wasm --release --target web`, then CI's own
+`stat -c%s` and `gzip -c`, on `wave4-f9` with rustprop at `d5a7331`:
+
+| | raw | gzipped | of the 3072 KiB budget | headroom |
+|---|---:|---:|---:|---:|
+| D9, 2026-08-17 | 2700.3 KiB | 1109.5 KiB | 87.9 % | 371.7 KiB |
+| **F9, 2026-08-19** | **2721.9 KiB** | **1118.2 KiB** | **88.6 %** | **350.1 KiB** |
+| drift | +21.6 KiB | +8.7 KiB | +0.7 pt | −21.6 KiB |
+
+21.6 KiB in two waves, against 350.1 KiB of headroom. The conclusions this
+record draws from the four-corner table are unaffected — the bundle is still
+smaller *and* more accurate than the pre-D9 3042.3 / 1597.7 it replaced, by
+320.4 KiB raw and 479.5 KiB gzipped.
+
+**Do not quote the D9 row as current.** It is the switch-over measurement and
+is labelled as such now; this row is the one to re-measure against.
+
+### The "one byte" row still holds — at two bytes
+
+The finding that makes part 2 of this decision a *guard* rather than a saving
+was re-run, because it is the one row whose failure would silently re-spend
+684 KiB. Built the shipped configuration and then the same thing with
+`--features frees-core/linked-tables`:
+
+| | bytes |
+|---|---:|
+| shipped (`linked-tables` off) | 2 787 262 |
+| `linked-tables` **on** | 2 787 264 |
+| difference | **2 bytes** |
+
+Both round to 2721.9 KiB. Turning the artifacts back on still does not bring
+the 684 KiB back, because `install_builtin_once` no longer calls
+`install_builtin` and fat LTO drops an unreachable data section on its own —
+exactly as recorded. One `#[wasm_bindgen]` export wired to `install_from_bytes`
+would still make all of it reachable again, which is what the feature exists to
+turn into a build error rather than a red budget step.
+
+### Part 4: the single-package form does not grade the table path any more
+
+Re-run to see it rather than assume it: `cargo test --release -p frees-core
+--test parity` fails on **12 of 719** documents, and the failure text names
+nothing useful. `adv_moistair_W_passthrough`, the six other humid-air
+documents, `hx-correlations-fluid`, `thermo-compliance` and the three pneumatic
+documents all report
+
+```
+Java solved but Rust failed: solver error: Block 4 (5 equations) failed:
+Newton iteration stalled after 0 iteration(s): no full, halved or damped step
+reduces the residual (norm NaN).
+```
+
+— not "not a tabulated output", and not "does not implement HAPropsSI". The
+port is being faithful when it does that: a property error inside Newton
+becomes a `NaN` residual, because that is what `NewtonSolver.residuals()` does
+in the Java ("an invalid state point is a bad region, not a fatal error"). The
+cost is that the *cause* never reaches the reader.
+
+`tests/parity.rs` now refuses the configuration before it replays anything:
+
+```
+the parity corpus cannot be replayed by the (P,h) TableBackend, and this
+build has `rustprop-backend` OFF.
+[…]
+    cargo test --workspace --test parity
+    cargo test -p frees-core --features rustprop-backend --test parity
+```
+
+It is a runtime check on `cfg!(feature = "rustprop-backend")`, not a
+`#[cfg]` on the test and not `required-features` on the target, and the reason
+is this record's own discipline about dead things failing loudly: both of those
+would make `cargo test -p frees-core` **skip** the gate and report green. This
+file's tolerance guards exist precisely to stop a gate quietly asserting
+nothing, and a gate that can disappear from a run is the same failure one level
+up. Verified in all three directions:
+
+| command | before | after |
+|---|---|---|
+| `cargo test -p frees-core --test parity` | 12 failures, 49 s, cause unnamed | refuses in 0.00 s, names both working commands |
+| `cargo test -p frees-core` | same, buried in the suite | same refusal; with `--no-fail-fast` the other 24 targets run and pass (2,986 tests) |
+| `cargo test -p frees-core --features rustprop-backend --test parity` | — | **719 fixtures match**, 10 at a declared tolerance, 0 at a floor |
+| `cargo test --workspace --test parity` (CI) | 719 match | unchanged — 719 match |
+
+`fixtures/tolerances.json` therefore has no configuration that reads it. That
+does not make it wrong and it was not touched: it describes a supported
+configuration, and the corpus is what has outgrown it. The `TOLERANCE_FILE`
+branch that selects it is kept, unreachable, with the reason written beside it.
+
+### Verified and unmoved
+
+Checked against the tree, found correct, changed nothing:
+
+* `fixtures/golden/` holds **719** fixtures and `corpus-pending/` **14** —
+  the counts F6 and F8 claim.
+* `tolerances-rustprop.json` has exactly **ten** entries and two catalogued
+  mechanisms, and the replay reports all ten as used, `solver_floor` empty.
+* `RealFluid` still has the five methods D8 named, and `RustpropBackend`'s
+  `served_fluids` is `Water, R134a, R1234yf, Air, INCOMP::MEG, INCOMP::MPG`.
+  `crates/frees-wasm/src/lib.rs:1988` still asserts the published picker is
+  `["Air", "R1234yf", "R134a", "Water"]`.
+* `fixtures/humidair/reference.json` is still 912 points over six case groups
+  at CoolProp 8.0.0, and still graded in full.

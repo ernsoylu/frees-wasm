@@ -20,6 +20,15 @@ Current gate numbers live in
 [`docs/status-phase12.md`](docs/status-phase12.md) — do not trust a count copied
 into this paragraph.
 
+> **Properties: Phase 5's "working real-fluid property backend" was D1's
+> precomputed `(P,h)` tables. That is no longer what the engine uses.** Since
+> [D9](docs/decisions/0009-rustprop-backend.md) (2026-08-17) real-fluid and
+> humid-air properties are answered by **rustprop**, a pure-Rust port of
+> CoolProp 8.0.0 linked as a Cargo dependency, and the tables are a native-only
+> fallback that no longer ships in the browser bundle. Read the D9 paragraph
+> below and *The property backend* under **Workspace layout** before writing
+> anything that touches `props/`.
+
 **MDF4 is removed (decision [D6](docs/decisions/0006-remove-mdf4.md), after
 Phase 12).** The `.mf4` reader, `mf4-rs` (and its `meval` → `nom 1.2.4`
 future-incompat debt — the build's only such warning, now zero), the
@@ -146,66 +155,66 @@ the two already tabulated. All four are closed by one new artifact kind
 budget a 273.1 KiB breach, which is **since closed** — see the size pass below.
 
 **The accuracy path has LANDED — as rustprop, not `coolprop.wasm` (decision
-[D9](docs/decisions/0009-rustprop-backend.md), 2026-08-17).** The wasm bundle now
+[D9](docs/decisions/0009-rustprop-backend.md), 2026-08-17).** The wasm bundle
 ships **rustprop**, the pure-Rust CoolProp 8.0.0 port, as its only in-bundle
-property backend, and the linked `.phtab`/`.fraux` artifacts leave with the new
-`linked-tables` Cargo feature: **2700.3 KiB raw / 1109.5 KiB gzipped**, down from
-3042.3 / 1597.7 — bit-exact *and* 31 % smaller on the wire. 12 of the 23 entries
-in `fixtures/tolerances.json` are retired (the rustprop configuration is graded by
-`fixtures/tolerances-rustprop.json` instead — one file per backend, chosen by the
-same `rustprop-backend` cfg that chooses the backend), `HAPropsSI` answers, and
-`Air` left the property-diagram picker with the `air.fraux` grid it was the only
-backing for — *and came back at Wave-2/Wave-3, once rustprop's own pseudo-pure
-`HSU_P`/`(D,P)` flashes landed: `Air` is on `served_fluids` and in the picker,
-and the D6 amendment to D9 records why.* **Still do not write a humid-air
-backend, an `air.phtab`, or further
-`FRAUX1` grids** — rustprop supersedes all three. Read D9 before touching
-`props/tables.rs`, `props/rustprop_backend.rs` or either tolerance file.
+property backend, and the linked `.phtab`/`.fraux` artifacts left with the new
+`linked-tables` Cargo feature. Bit-exact CoolProp *and* smaller on the wire:
+**2721.9 KiB raw / 1118.2 KiB gzipped** re-measured 2026-08-19 on `wave4-f9`
+(88.6 % of the 3072 KiB budget, 350.1 KiB headroom), against 3042.3 / 1597.7
+before the switch. Thirteen of the 23 entries in `fixtures/tolerances.json` are
+retired: the rustprop configuration is graded by
+`fixtures/tolerances-rustprop.json` and its **ten** entries, one file per
+backend, chosen by the same `rustprop-backend` cfg that chooses the backend.
+`HAPropsSI` answers. `Air` left the property-diagram picker with the
+`air.fraux` grid it was the only backing for — *and came back at
+Wave-2/Wave-3, once rustprop's own pseudo-pure `HSU_P`/`(D,P)` flashes landed:
+`Air` is on `served_fluids` and in the picker, and the D6 amendment to D9
+records why.* **Still do not write a humid-air backend, an `air.phtab`, or
+further `FRAUX1` grids** — rustprop supersedes all three. Read D9 before
+touching `props/tables.rs`, `props/rustprop_backend.rs` or either tolerance
+file.
 
-**D8, which D9 implements (decision
-[D8](docs/decisions/0008-coolprop-wasm.md), 2026-08-07).** A CoolProp
-WebAssembly build was being produced separately; rustprop reached usable first
-and is what the repo picked up. D8 records the
-measurement that forced the choice: an ideal-gas humid-air model is 2.7e-3 off
-CoolProp on the `(T,R)` path (the enhancement factor reaches 1.0041), and
-transcribing ASHRAE RP-1485 does not fix it, because CoolProp's `HAPropsSI`
-*is* RP-1485 evaluated against IAPWS-95 and Lemmon — whose ancillary
-saturation equation alone is already 7.1e-5 off. `coolprop.wasm` clears 12 of
-the 26 pending fixtures (humid air 7, Air `(P,h)` 3, `(P,T)` transport 1,
-`Z` 1) and should retire most of `fixtures/tolerances.json` — which must
-happen *in the same change*, since a tolerance whose fixture passes at 1e-9
-makes the parity test fail. The gating constraint is the bundle: 29.7 KiB of
-headroom against the 3072 KiB budget. Both predictions held; D9 has the
-measured outcome of each.
+**D8 is implemented and closed (decision
+[D8](docs/decisions/0008-coolprop-wasm.md), decided 2026-08-07, closed
+2026-08-19).** It asked for CoolProp-grade accuracy as the property path and
+imagined an Emscripten `coolprop.wasm`; rustprop reached usable first and is
+what the repo picked up, so the decision held and the implementation did not.
+D8 records the measurement that forced the choice: an ideal-gas humid-air model
+is 2.7e-3 off CoolProp on the `(T,R)` path (the enhancement factor reaches
+1.0041), and transcribing ASHRAE RP-1485 does not fix it, because CoolProp's
+`HAPropsSI` *is* RP-1485 evaluated against IAPWS-95 and Lemmon — whose
+ancillary saturation equation alone is already 7.1e-5 off.
 
-> **The fixture prediction is settled (Wave-3 F6, 2026-08-18).** Nine of D8's
-> twelve — the 7 humid-air documents, `hx-correlations-fluid` and
-> `thermo-compliance` — are **promoted**, each at the corpus default `1e-9` with
-> no tolerance entry (worst 1.31e-11, five of the nine inside the `1e-12`
-> absolute band). **Corpus 707 → 716, pending 26 → 17.** Every remaining hold is
-> a non-property blocker; see `fixtures/README.md`'s "Re-check 2026-08-18,
-> Wave-3 F6".
+Both of its predictions held, and one of its risks inverted:
+
+> **Twelve of twelve (Wave-3 F6 + F8, 2026-08-18).** D8 predicted a real
+> CoolProp would clear twelve of the then-26 pending fixtures — humid air 7,
+> `Air` `(P,h)` state 3, `(P,T)` transport 1, `Z` 1. All twelve promoted, every
+> one at the corpus default `1e-9` with **no tolerance entry**: worst 1.31e-11
+> across F6's nine, and worst graded 2.50e-14 across F8's three.
+> **Corpus 707 → 719, pending 26 → 14, and none of the fourteen is a property
+> hold.** `fixtures/README.md`'s two "Re-check 2026-08-18" sections have the
+> per-document numbers.
 >
-> **Twelve for twelve (Wave-3 F8, 2026-08-18).** The last three — the `Air`
-> state-table group `sysdesign-ex06-pneumatic`, `-2` and
-> `sysdesign-ex07-pneumatic-servo` — are promoted too, at the same default
-> `1e-9` with no tolerance entry: worst graded 0, 2.50e-14 and 0, and dropping
-> the harness's `1e-12` absolute band the worst raw relative deviation is
-> 4.63e-11 on one trajectory column of the fill transient.
-> **Corpus 716 → 719, pending 17 → 14.** `Air` is served for real —
-> `Temperature(Air, P, h)` lands 13 ulp from the oracle's 300 K — and nothing in this repo
-> narrows it out any more except `TableBackend::served_fluids`, which is the
-> other backend and is right to. `fixtures/tolerances-rustprop.json` is still
-> the same ten entries. rustprop *does* have a genuine low-quality `(P,h)`
-> refusal window inside Air's dome at 79–101 K; no fixture goes near it, and
-> `fixtures/README.md`'s "Re-check 2026-08-18, Wave-3 F8" has the measurement.
+> **The bundle risk inverted.** D8's central open risk was where the bytes for
+> CoolProp's fluid data would come from — it expected the module to grow
+> against 29.7 KiB of headroom. rustprop's data is per-fluid Cargo features, so
+> the module *shrank* by 320.4 KiB raw / 479.5 KiB gzipped and the headroom is
+> now 350.1 KiB.
+>
+> One rustprop-side gap is recorded and unclosed: a genuine low-quality `(P,h)`
+> refusal window inside Air's dome at 79–101 K. No fixture goes near it (the
+> pneumatic three are 167 K above Air's critical point); the measurement is in
+> `fixtures/README.md`'s "Re-check 2026-08-18, Wave-3 F8".
 
-**The size pass is done (2026-08-06), and it changed no engine behaviour.** The
-wasm is **3031.0 KiB raw / 1589.9 KiB gzipped, back under the 3072 KiB budget
-with 41 KiB spare**, and the built web app is **20.25 MB → 14.7 MB of `dist`**.
-All 704 fixtures still match, `cargo clippy` (native + wasm32) and `cargo fmt`
-are clean, and vitest is 40 files / 384 tests green. Four findings, each
-measured:
+**The size pass is done (2026-08-06), and it changed no engine behaviour.** It
+took the wasm to **3031.0 KiB raw / 1589.9 KiB gzipped**, back under the 3072
+KiB budget with 41 KiB spare, and the built web app from 20.25 MB to **14.7 MB
+of `dist`**. *(Those wasm figures are that day's; D9 superseded them a fortnight
+later — see the D9 paragraph above for the current bundle. The `dist` work and
+the four findings below still stand.)* All 704 fixtures matched, `cargo clippy`
+(native + wasm32) and `cargo fmt` were clean, and vitest was 40 files / 384
+tests green. Four findings, each measured:
 
 * **D7's "compression is not a lever" was wrong** — correctly measured, wrongly
   concluded. Plain deflate reaches only 0.89 on the `f32` property grids, but
@@ -260,8 +269,8 @@ now lives in `Latex.tsx`.
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
-| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach), D8 (`coolprop.wasm` becomes the accuracy path), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)** |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus, golden fixtures, tolerance policy (`fixtures/tolerances.json` for the table backend, `fixtures/tolerances-rustprop.json` for the accuracy path), oracle-established ground truths |
+| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach — superseded for the browser by D9), D8 (CoolProp-grade accuracy becomes the property path — **implemented and closed**, by rustprop rather than by the `coolprop.wasm` it imagined), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)** |
+| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (719) and golden fixtures, the pending set (14, none of them a property hold), how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
 
 ## Build and test
 
@@ -269,7 +278,12 @@ now lives in `Latex.tsx`.
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
                                        # (--release: the replay solves 719 documents)
-cargo test -p frees-core --test parity # golden-corpus parity only
+cargo test --workspace --test parity   # golden-corpus parity only — what CI runs
+cargo test -p frees-core --features rustprop-backend --test parity   # same, single package
+                                       # NOT `cargo test -p frees-core --test parity`:
+                                       # the single-package form does not unify features,
+                                       # and the corpus is unservable without rustprop.
+                                       # It refuses with this command in the message.
 cargo test -p frees-core --test fuzz_properties        # property-based fuzzing
                                        # (PROPTEST_CASES=4096 for a longer soak)
 cargo bench -p frees-core --bench solve_bench          # the Phase 12 benchmarks
@@ -324,11 +338,47 @@ tools/aux-gen/run.sh --sweep           # its error-vs-resolution ladder; writes 
 - `tools/frees-home.sh` — resolves the reference repo as a sibling; the one place that path is decided
 - `fixtures/` — parity corpus + golden results; grow it per `fixtures/README.md`
 
-The property backend is **linked into the binary**: `crates/frees-core/src/props/data/*.phtab`
-are copies of `fixtures/proptables/*.phtab`, and `data/*.fraux` of
+### The property backend
+
+**Real-fluid properties are answered by rustprop** — the pure-Rust CoolProp
+8.0.0 port in the sibling `../rustprop` checkout, reached through a `path`
+dependency and gated by `frees-core`'s `rustprop-backend` feature. It is a
+plain Cargo dependency with no external deps of its own, so `frees-core` stays
+clear of wasm-bindgen; per-fluid data is opt-in at the feature level and this
+build enables four (`water`, `r134a`, `r1234yf`, `air`) plus `heos`,
+`humid-air` and `incompressible`. `props::tables::install_builtin_once` — which
+every public entry point calls — installs `RustpropBackend`, and
+`frees-wasm` requires it, so the browser and the native gate get the same
+engine. **Decision [D9](docs/decisions/0009-rustprop-backend.md) is the
+authority; read it before touching `props/tables.rs`,
+`props/rustprop_backend.rs`, `props/rustprop_warm.rs` or either tolerance
+file.**
+
+Two things follow that a new reader will otherwise get wrong:
+
+* **`cargo test --workspace` grades rustprop; `cargo test -p frees-core` does
+  not.** Resolver-v2 unifies `frees-core`'s features over the members being
+  built, and `frees-wasm` requires `rustprop-backend`, so the workspace form
+  turns it on. The single-package form does not, and the parity corpus
+  contains twelve documents no `(P,h)` table can serve, so
+  `tests/parity.rs` **refuses** that configuration and prints the command to
+  use. Everything else in `frees-core` still runs there.
+* **The adapter is not a pass-through.** `RustpropBackend` refuses non-finite
+  inputs before rustprop sees them and non-finite answers before the engine
+  does. Fidelity to CoolProp is rustprop's contract; surviving `NaN` out of a
+  Newton solve is this crate's. D9's Finding 2 has the panic that proved it.
+
+**The D1 `(P,h)` tables are still here, and are no longer what the browser
+downloads.** `crates/frees-core/src/props/data/*.phtab` are copies of
+`fixtures/proptables/*.phtab`, and `data/*.fraux` of
 `fixtures/auxtables/*.fraux`, all packed by `build.rs`, `include_bytes!`d by
-`props/tables.rs` and installed on the first `solve`/`check`. Regenerating them
-means copying them across as well as into `fixtures/`.
+`props/tables.rs` behind the `linked-tables` feature (on by default, off in
+`frees-wasm` alone) and installed on the first `solve`/`check` **only when
+`rustprop-backend` is off**. Regenerating them means copying them across as
+well as into `fixtures/`. What survives in the browser is the decoders and the
+`install_from_bytes` fetch seam — the offline path a host can fetch into.
+**Do not add a fluid to them**: D8's moratorium stands and rustprop supersedes
+an `air.phtab` and any fourth `FRAUX1` grid.
 
 There are **two** artifact kinds, and the difference is load-bearing:
 
@@ -347,15 +397,19 @@ There are **two** artifact kinds, and the difference is load-bearing:
 Neither kind is embedded verbatim. `crates/frees-core/build.rs` transposes each
 artifact into `f32` byte planes and deflates it; `props/tables.rs` inflates it
 once, at install time, and hands the decoders the generator's own bytes. That
-takes the nine files from 1014 KB on disk to **~678 KB of data section**, and is
-what put the module back under budget at **3031.0 KiB against 3072 KiB** after
-D7's 273.1 KiB breach. The shuffle is the load-bearing half: plain deflate only
-reaches 0.89 on these grids (which is what D7 measured before concluding, wrongly,
-that compression was not a lever), and byte planes take it to 0.68. **Regenerating
-a table needs no extra step** — copy the new `.phtab`/`.fraux` into
-`src/props/data/` as before and `build.rs` re-packs it; the checked-in artifacts
-stay exactly as the generators wrote them. Read D7 before adding a fourth fluid:
-the headroom is 41 KiB, which is less than one full `.phtab`.
+takes the nine files from 1014 KB on disk to **~678 KB of data section**, which
+is what put the module back under budget after D7's 273.1 KiB breach. The
+shuffle is the load-bearing half: plain deflate only reaches 0.89 on these grids
+(which is what D7 measured before concluding, wrongly, that compression was not
+a lever), and byte planes take it to 0.68. **Regenerating a table needs no extra
+step** — copy the new `.phtab`/`.fraux` into `src/props/data/` as before and
+`build.rs` re-packs it; the checked-in artifacts stay exactly as the generators
+wrote them.
+
+*(D7's "read this before adding a fourth fluid, the headroom is 41 KiB" no
+longer applies as written: D9 took those bytes out of the browser bundle
+entirely, so a fourth `.phtab` would cost the native build and nothing on the
+wire. It is also the wrong move — see the moratorium above.)*
 
 The **component library is also linked in**, the same way and for the same
 reason: `crates/frees-core/src/components/library-data/*.frees` is 122 KB of DSL

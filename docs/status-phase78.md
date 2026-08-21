@@ -300,6 +300,12 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    is gated too narrowly (`uses_property_call`), and whether `solve_pinned`
    should cache its blocking. This pass did neither. It remains the one fixture
    blocked on cost rather than correctness.
+   *(Tested 2026-08-21, Wave A5. Hypothesis 1 was already closed negatively
+   (the Java gates identically); hypothesis 2 was right and is built —
+   `engine.rs::PreparedPinnedSolver` hoists the structural half of
+   `solve_pinned` out of the per-step loop. The fixture now solves
+   bit-identically in ~12 min and the full replay dropped ~122 s → ~82 s;
+   the fixture stays held on cost alone — see `fixtures/README.md`.)*
 5. **The DAE path is still not routed.** `dae/solver.rs` is 2 115 lines of
    ported IDA and it has unit tests against `fixtures/dae-oracle.json`, but
    `method = ida` does not reach it from a document, so `pressure-cooker` stays

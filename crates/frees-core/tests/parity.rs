@@ -140,7 +140,7 @@ const WRONG_BACKEND: &str = "\
 the parity corpus cannot be replayed by the (P,h) TableBackend, and this build \
 has `rustprop-backend` OFF.
 
-Twelve of the 719 documents ask for HAPropsSI (the seven humid-air documents), \
+Twelve of the corpus documents ask for HAPropsSI (the seven humid-air ones), \
 single-phase (P,T) transport (hx-correlations-fluid), CompressibilityFactor \
 (thermo-compliance) or Air Enthalpy (the three pneumatic documents). The table \
 backend serves none of those at all, so they do not miss a tolerance — they \

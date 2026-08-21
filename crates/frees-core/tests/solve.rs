@@ -769,10 +769,11 @@ fn a_call_statement_is_refused_rather_than_dropped() {
 
     // A CALL naming an intrinsic the port has not reached keeps the explicit
     // not-yet-supported refusal. Phase 9 wired the whole control-systems
-    // suite, so the four eigen/Euler decompositions are what is left.
-    let err = failed("[a, b] = eigen(m)\nm = 1\n");
+    // suite and Wave A1 the eigen pair (ledger item 34), so the two Euler
+    // decompositions are what is left.
+    let err = failed("[a, b, c] = eulerdecompose(m)\nm = 1\n");
     let text = message(&err);
-    assert!(text.contains("eigen"), "{text}");
+    assert!(text.contains("eulerdecompose"), "{text}");
     assert!(text.contains("not yet supported"), "{text}");
 }
 

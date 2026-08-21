@@ -1054,9 +1054,13 @@ fn hqr2(h: &mut Mat, v: &mut Mat, nn: usize) -> Result<(Vec<f64>, Vec<f64>)> {
 /// * `expm$<i>$<j>$<n>`        — matrix-exponential element
 /// * `svd$s$<k>$<m>$<n>`       — k-th singular value
 /// * `svd$u|smat|v$<i>$<j>$<m>$<n>` — SVD factor elements
+/// * `eigen$val|re|im$<k>$<n>` — k-th eigenvalue (ascending), or its
+///   real/imaginary part in the complex-spectrum form
+/// * `eigen$vec$<i>$<k>$<n>`   — component `i` of the k-th eigenvector
+///   (unit 2-norm, largest-|·| component made positive)
 ///
-/// Returns `None` when `name` is not one of these (e.g. `eigen$…`, which has
-/// no kernel here), so the evaluator can fall through to its own handling.
+/// Returns `None` when `name` is not one of these, so the evaluator can fall
+/// through to its own handling.
 pub fn eval_intrinsic(name: &str, args: &[f64]) -> Option<Result<f64>> {
     let parts: Vec<&str> = name.split('$').collect();
     match parts.as_slice() {
@@ -1089,8 +1093,82 @@ pub fn eval_intrinsic(name: &str, args: &[f64]) -> Option<Result<f64>> {
                 _ => Ok(svd(&a)?.v[i][j]),
             }))
         }
+        ["eigen", kind @ ("val" | "re" | "im"), k, n] => {
+            let (k, n) = (parse_dim(k)?, parse_dim(n)?);
+            Some(from_row_major(args, n, n).and_then(|a| {
+                let e = eigen(&a)?;
+                // val is a real-spectrum form; re/im deliberately are not.
+                if *kind == "val" {
+                    check_real_spectrum(&e)?;
+                }
+                let idx = eigen_order(&e)[k];
+                Ok(if *kind == "im" { e.im[idx] } else { e.re[idx] })
+            }))
+        }
+        ["eigen", "vec", i, k, n] => {
+            let (i, k, n) = (parse_dim(i)?, parse_dim(k)?, parse_dim(n)?);
+            Some(from_row_major(args, n, n).and_then(|a| {
+                let e = eigen(&a)?;
+                check_real_spectrum(&e)?;
+                let col = eigen_order(&e)[k];
+                // Port of the tail of `Evaluator.evalEigen`: unit 2-norm, then
+                // the largest-magnitude component made positive. The magnitude
+                // scan is strictly-greater, so an exact tie keeps the LOWEST
+                // index — the `[[2,1],[1,2]]` golden's column 1 is (+,−)/√2
+                // only because of that tie-break; `>=` would flip it.
+                let mut v: Vec<f64> = (0..n).map(|r| e.v[r][col]).collect();
+                let norm = v.iter().map(|x| x * x).sum::<f64>().sqrt();
+                for x in &mut v {
+                    *x /= norm;
+                }
+                let mut max_idx = 0;
+                for r in 1..n {
+                    if v[r].abs() > v[max_idx].abs() {
+                        max_idx = r;
+                    }
+                }
+                if v[max_idx] < 0.0 {
+                    for x in &mut v {
+                        *x = -*x;
+                    }
+                }
+                Ok(v[i])
+            }))
+        }
         _ => None,
     }
+}
+
+/// The frEES kernel's eigenpair ordering (`Evaluator.evalEigen`): **ascending**
+/// by real part, then by imaginary part — Java's
+/// `comparingDouble(..).thenComparingDouble(..)`, whose `Double.compare`
+/// semantics `f64::total_cmp` reproduces (−0.0 before +0.0, NaN last). This is
+/// frEES's own sort applied *on top of* whatever the decomposition returned;
+/// it is not [`crate::control::tf::eigenvalues`]'s decreasing symmetric-path
+/// sort, and the two must not be shared.
+fn eigen_order(e: &Eigen) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..e.re.len()).collect();
+    order.sort_by(|&a, &b| {
+        e.re[a]
+            .total_cmp(&e.re[b])
+            .then(e.im[a].total_cmp(&e.im[b]))
+    });
+    order
+}
+
+/// Port of the `hasComplexEigenvalues()` refusal in `Evaluator.evalEigen`.
+/// Commons Math's test is `!Precision.equals(im, 0.0, 1e-12)`, i.e. complex
+/// iff any |im| exceeds 1e-12. The message is the Java's, verbatim.
+fn check_real_spectrum(e: &Eigen) -> Result<()> {
+    if e.im.iter().any(|im| im.abs() > 1e-12) {
+        return Err(err(
+            "Matrix has complex eigenvalues; this form supports real spectra \
+             only (symmetric matrices always qualify). Use the two-output form \
+             CALL Eigenvalues(A : re, im) to get a complex spectrum as \
+             real/imaginary parts.",
+        ));
+    }
+    Ok(())
 }
 
 fn parse_dim(text: &str) -> Option<usize> {
@@ -1457,11 +1535,75 @@ mod tests {
 
     #[test]
     fn eval_intrinsic_ignores_foreign_names() {
-        assert!(eval_intrinsic("eigen$val$0$2", &[1.0, 0.0, 0.0, 1.0]).is_none());
+        // `eigen$val$…` left this list when ledger item 34 wired the eigen
+        // kernels — see the eigen_* dispatch tests below.
         assert!(eval_intrinsic("prop$enthalpy$water$t$p", &[1.0]).is_none());
         assert!(eval_intrinsic("sqrt", &[4.0]).is_none());
         // Malformed dims fall through rather than panicking.
         assert!(eval_intrinsic("det$x", &[1.0]).is_none());
+        assert!(eval_intrinsic("eigen$val$x$2", &[1.0; 4]).is_none());
+    }
+
+    /// The `eigen$…` synthetics (ledger item 34): ordering is the frEES
+    /// kernel's ascending (real, imag) sort, NOT Commons Math's raw order and
+    /// NOT `control::tf::eigenvalues`'s decreasing symmetric sort.
+    #[test]
+    fn eigen_val_intrinsic_sorts_ascending() {
+        // [[2,1],[1,2]] has eigenvalues {1, 3}; ascending puts 1 first. This is
+        // the `eqsys-solves-eigenvalues-of-symmetric-matrix` golden's shape.
+        let a = [2.0, 1.0, 1.0, 2.0];
+        let l0 = eval_intrinsic("eigen$val$0$2", &a).unwrap().unwrap();
+        let l1 = eval_intrinsic("eigen$val$1$2", &a).unwrap().unwrap();
+        assert!((l0 - 1.0).abs() < 1e-9, "{l0}");
+        assert!((l1 - 3.0).abs() < 1e-9, "{l1}");
+        // A diagonal written in descending order still reads back ascending.
+        let d = [3.0, 0.0, 0.0, 2.0];
+        let d0 = eval_intrinsic("eigen$val$0$2", &d).unwrap().unwrap();
+        let d1 = eval_intrinsic("eigen$val$1$2", &d).unwrap().unwrap();
+        assert!((d0 - 2.0).abs() < 1e-12, "{d0}");
+        assert!((d1 - 3.0).abs() < 1e-12, "{d1}");
+    }
+
+    /// The vec form's sign convention, pinned against the
+    /// `eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`
+    /// golden: column 1 (λ=1) is (+,−)/√2 — the strictly-greater magnitude
+    /// tie-break keeps the LOWEST index on an exact tie, so the first
+    /// component is made positive. A `>=` scan would flip the column.
+    #[test]
+    fn eigen_vec_intrinsic_matches_the_java_sign_convention() {
+        let a = [2.0, 1.0, 1.0, 2.0];
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let expect = [[s, s], [-s, s]]; // V[i][k], columns are eigenvectors
+        for i in 0..2 {
+            for k in 0..2 {
+                let got = eval_intrinsic(&format!("eigen$vec${i}${k}$2"), &a)
+                    .unwrap()
+                    .unwrap();
+                assert!(
+                    (got - expect[i][k]).abs() < 1e-9,
+                    "V[{i},{k}] = {got}, want {}",
+                    expect[i][k]
+                );
+            }
+        }
+    }
+
+    /// val/vec refuse a complex spectrum with the Java's message; re/im carry
+    /// it as parts, ascending by (real, imag).
+    #[test]
+    fn eigen_intrinsics_route_complex_spectra_to_the_re_im_form() {
+        // [[0,-1],[1,0]] rotates: eigenvalues ±i.
+        let a = [0.0, -1.0, 1.0, 0.0];
+        let err = eval_intrinsic("eigen$val$0$2", &a).unwrap().unwrap_err();
+        assert!(err.to_string().contains("complex eigenvalues"), "{err}");
+        let err = eval_intrinsic("eigen$vec$0$0$2", &a).unwrap().unwrap_err();
+        assert!(err.to_string().contains("complex eigenvalues"), "{err}");
+        let re0 = eval_intrinsic("eigen$re$0$2", &a).unwrap().unwrap();
+        let im0 = eval_intrinsic("eigen$im$0$2", &a).unwrap().unwrap();
+        let im1 = eval_intrinsic("eigen$im$1$2", &a).unwrap().unwrap();
+        assert!(re0.abs() < 1e-12, "{re0}");
+        assert!((im0 - -1.0).abs() < 1e-9, "{im0}"); // ascending: −i before +i
+        assert!((im1 - 1.0).abs() < 1e-9, "{im1}");
     }
 
     #[test]

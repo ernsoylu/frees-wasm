@@ -59,7 +59,8 @@ macOS** — `COOLPROP_LIBRARY` must point at the `/usr/local/lib` dylib, never
 the vendored Linux `.so`, or fluid goldens silently record failures), with all
 21 non-promoted fixtures classified in `fixtures/README.md` (6 witnesses of
 already-ledgered divergences, 12 unported features incl. the newly-found
-unwired `CALL eigenvalues`/`eigen` — ledger item 34 — and 3 oracle artifacts).
+unwired `CALL eigenvalues`/`eigen` — ledger item 34, closed 2026-08-21 by
+Wave A1 — and 3 oracle artifacts).
 Property-based fuzzing landed (`tests/fuzz_properties.rs`, proptest, 7
 properties over parser/units/solve/MDF4 — dev-and-native-only, cfg-gated off
 wasm32 because proptest's getrandom refuses that target), the first benchmark
@@ -274,14 +275,14 @@ now lives in `Latex.tsx`.
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
 | [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach — superseded for the browser by D9), D8 (CoolProp-grade accuracy becomes the property path — **implemented and closed**, by rustprop rather than by the `coolprop.wasm` it imagined), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)** |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (719) and golden fixtures, the pending set (14, none of them a property hold), how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
+| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (722) and golden fixtures, the pending set (11, none of them a property hold), how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
 
 ## Build and test
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 719 documents)
+                                       # (--release: the replay solves 722 documents)
 cargo test --workspace --test parity   # golden-corpus parity only — what CI runs
 cargo test -p frees-core --features rustprop-backend --test parity   # same, single package
                                        # NOT `cargo test -p frees-core --test parity`:

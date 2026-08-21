@@ -429,12 +429,17 @@ this phase. Full context in [`docs/status-phase11.md`](status-phase11.md).
 The hardening pass: corpus growth to 701, property-based fuzzing, benchmarks.
 Full context in [`docs/status-phase12.md`](status-phase12.md).
 
-34. **`CALL eigenvalues` / `CALL eigen` are not wired.** The Java routes both
-    through Commons Math's eigen-decomposition; this port refuses them
-    explicitly. Found by the Phase 12 harvest (three
-    `eqsys-*eigen*` documents, staged in `corpus-pending/`). The
-    infrastructure exists (`linalg.rs` has the QR machinery); the CALL
-    flattener simply never grew the names.
+34. ~~**`CALL eigenvalues` / `CALL eigen` are not wired.**~~ **Closed
+    2026-08-21 (Wave A1).** The Java routes both through Commons Math's
+    eigen-decomposition; this port refused them explicitly until
+    `parser/expand.rs::flatten_eigen` (a transcription of
+    `EquationParser.flattenEigen`/`emitEigenvectors`) and the
+    `eigen$val|re|im|vec$…` kernels in `linalg::eval_intrinsic` (the
+    `Evaluator.evalEigen` contract: **ascending** (real, imag) sort on top of
+    the decomposition, unit-2-norm eigenvectors with the largest-magnitude
+    component made positive via a strictly-greater tie-break) landed. The
+    three `eqsys-*eigen*` documents promoted at the corpus default `1e-9`
+    with no tolerance entry; corpus 719 → 722.
 
 35. **An explicit `~` discard in destructuring leaks Java's global sink
     counter.** `[whole, ~] = DivMod(17, 5)` records `~ignored~N` in the

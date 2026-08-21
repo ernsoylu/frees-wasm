@@ -1015,6 +1015,8 @@ impl Flattener<'_> {
             "matexp" => self.flatten_mat_exp(&inputs, &outputs, source, loop_vars),
             "singularvalues" => self.flatten_singular_values(&inputs, &outputs, source, loop_vars),
             "svd" => self.flatten_svd(&inputs, &outputs, source, loop_vars),
+            "eigenvalues" => self.flatten_eigen(false, &inputs, &outputs, source, loop_vars),
+            "eigen" => self.flatten_eigen(true, &inputs, &outputs, source, loop_vars),
             "fft" => self.flatten_fft(false, &inputs, &outputs, source, loop_vars),
             "ifft" => self.flatten_fft(true, &inputs, &outputs, source, loop_vars),
             "convolve" => self.flatten_convolve(&inputs, &outputs, source, loop_vars),
@@ -1105,6 +1107,18 @@ impl Flattener<'_> {
                 let rows = self.in_mat_rows(inputs, 0, loop_vars)?;
                 let cols = self.in_mat_cols(inputs, 0, loop_vars)?;
                 set_vec(outputs, 0, rows.min(cols));
+            }
+            "eigenvalues" => {
+                let n = self.in_mat_rows(inputs, 0, loop_vars)?;
+                set_vec(outputs, 0, n);
+                if outputs.len() == 2 {
+                    set_vec(outputs, 1, n);
+                }
+            }
+            "eigen" => {
+                let n = self.in_mat_rows(inputs, 0, loop_vars)?;
+                set_vec(outputs, 0, n);
+                set_mat(outputs, 1, n, n);
             }
             "svd" => {
                 let m = self.in_mat_rows(inputs, 0, loop_vars)?;
@@ -1591,6 +1605,114 @@ impl Flattener<'_> {
                     },
                     source,
                 ))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenEigen` / `emitEigenvectors` (ledger item
+    /// 34). `Eigenvalues(A : lambda)` is the real-spectrum form,
+    /// `Eigenvalues(A : re, im)` carries a complex spectrum as its parts
+    /// (mirroring how FFT carries complex data), and `Eigen(A : lambda, V)`
+    /// adds the eigenvector matrix, eigenvectors as columns. The emitted
+    /// equations carry the *symbolic* matrix entries in their argument list,
+    /// so a matrix filled in by other equations orders the eigen block after
+    /// them — fixture `eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`
+    /// is the witness.
+    fn flatten_eigen(
+        &mut self,
+        want_vectors: bool,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        let complex_pair = !want_vectors && outputs.len() == 2;
+        let count_ok = if want_vectors {
+            outputs.len() == 2
+        } else {
+            outputs.len() == 1 || outputs.len() == 2
+        };
+        if inputs.len() != 1 || !count_ok {
+            return Err(parse_err(if want_vectors {
+                "Eigen expects 1 input matrix and 2 outputs (eigenvalue vector, \
+                 eigenvector matrix), e.g. CALL Eigen(A[1:3,1:3] : lambda[1:3], V[1:3,1:3])"
+            } else {
+                "Eigenvalues expects 1 input matrix and 1 output vector (real spectra) \
+                 or 2 output vectors (real and imaginary parts), e.g. \
+                 CALL Eigenvalues(A[1:3,1:3] : lambda[1:3]) or \
+                 CALL Eigenvalues(A[1:2,1:2] : re[1:2], im[1:2])"
+            }));
+        }
+        let a = self.parse_matrix_info(&inputs[0], loop_vars)?;
+        let lambda = self.parse_vector_info(&outputs[0], loop_vars)?;
+        if a.rows != a.cols || lambda.size != a.rows {
+            return Err(parse_err(
+                "Eigenvalues requires a square matrix and an eigenvalue vector \
+                 of matching size.",
+            ));
+        }
+        let n = a.rows;
+        self.reserve(
+            n.saturating_add(if complex_pair { n } else { 0 })
+                .saturating_add(if want_vectors { n.saturating_mul(n) } else { 0 }),
+        )?;
+        let entries = matrix_entries(&a);
+        let real_prefix = if complex_pair {
+            "eigen$re"
+        } else {
+            "eigen$val"
+        };
+        for k in 0..n {
+            self.push(Equation::new(
+                lambda.elements[k].clone(),
+                Expr::Call {
+                    function: format!("{real_prefix}${k}${n}"),
+                    args: entries.clone(),
+                },
+                source,
+            ))?;
+        }
+        if complex_pair {
+            let imag = self.parse_vector_info(&outputs[1], loop_vars)?;
+            if imag.size != n {
+                return Err(parse_err(
+                    "Eigenvalues requires the imaginary-part vector to match \
+                     the matrix size.",
+                ));
+            }
+            for k in 0..n {
+                self.push(Equation::new(
+                    imag.elements[k].clone(),
+                    Expr::Call {
+                        function: format!("eigen$im${k}${n}"),
+                        args: entries.clone(),
+                    },
+                    source,
+                ))?;
+            }
+        }
+        if want_vectors {
+            let v = self.parse_matrix_info(&outputs[1], loop_vars)?;
+            if v.rows != n || v.cols != n {
+                return Err(parse_err(
+                    "Eigen requires an n x n eigenvector matrix (eigenvectors \
+                     as columns).",
+                ));
+            }
+            // Row-major over (component i, eigenpair k), exactly the Java's
+            // `emitEigenvectors` loop order.
+            for i in 0..n {
+                for k in 0..n {
+                    self.push(Equation::new(
+                        v.elements[i][k].clone(),
+                        Expr::Call {
+                            function: format!("eigen$vec${i}${k}${n}"),
+                            args: entries.clone(),
+                        },
+                        source,
+                    ))?;
+                }
             }
         }
         Ok(())
@@ -3268,14 +3390,14 @@ fn set_mat(outputs: &mut [Expr], index: usize, rows: usize, cols: usize) {
 /// the matrix-expansion scope. Refused by name so a document using one fails
 /// loudly instead of being reported as an unknown procedure.
 ///
-/// What is left is the eigen/Euler decompositions. The dense linear-algebra,
+/// What is left is the Euler decompose/rotate pair. The dense linear-algebra,
 /// signal and statistics intrinsics (the Java `LIN_ALG_SIGNAL_STATS_CALLS`
-/// set) are wired above, and Phase 9 moved the whole control-systems suite out
-/// of here into [`control::flatten`] — both must stay out of this list, or
-/// `flatten_call_proc` short-circuits before their flatteners.
+/// set) are wired above, Phase 9 moved the whole control-systems suite out
+/// of here into [`control::flatten`], and the eigen pair left when ledger
+/// item 34 closed — all must stay out of this list, or `flatten_call_proc`
+/// short-circuits before their flatteners.
 /// `procedures::EXPANDED_CALL_TARGETS` is the matching stage-2 allowance.
-const UNPORTED_CALL_INTRINSICS: [&str; 4] =
-    ["eigenvalues", "eigen", "eulerrotate", "eulerdecompose"];
+const UNPORTED_CALL_INTRINSICS: [&str; 2] = ["eulerrotate", "eulerdecompose"];
 
 /// The number of outputs a fixed-shape CALL intrinsic produces, used to pad
 /// trailing omission. `-1` for user-defined calls and for intrinsics whose
@@ -4578,9 +4700,9 @@ mod tests {
 
     #[test]
     fn unported_call_intrinsics_are_refused_by_name() {
-        let message = expand_err("A = [1 0; 0 1]\nCALL Eigenvalues(A[1:2,1:2] : lambda[1:2])");
+        let message = expand_err("CALL EulerDecompose(R[1:3,1:3] : phi, theta, psi)");
         assert!(
-            message.contains("`CALL eigenvalues` is not supported by the wasm engine yet"),
+            message.contains("`CALL eulerdecompose` is not supported by the wasm engine yet"),
             "{message}"
         );
     }
@@ -4596,6 +4718,8 @@ mod tests {
             "matexp",
             "singularvalues",
             "svd",
+            "eigenvalues",
+            "eigen",
             "fft",
             "ifft",
             "convolve",
@@ -4616,15 +4740,24 @@ mod tests {
         }
     }
 
-    /// …and the four that are genuinely unported must still be refused, by
-    /// name rather than as an unknown procedure.
+    /// …and the two that are genuinely unported must still be refused, by
+    /// name rather than as an unknown procedure. (The eigen pair left this
+    /// list when ledger item 34 closed.)
     #[test]
-    fn the_eigen_and_euler_decompositions_are_still_refused() {
-        for name in ["eigenvalues", "eigen", "eulerrotate", "eulerdecompose"] {
+    fn the_euler_decompositions_are_still_refused() {
+        for name in ["eulerrotate", "eulerdecompose"] {
             assert!(
                 UNPORTED_CALL_INTRINSICS.contains(&name),
                 "`{name}` is not implemented and must remain refused"
             );
+            assert!(
+                !control::flatten::handles(name),
+                "`{name}` must not be claimed by control::flatten"
+            );
+        }
+        // The eigen pair must stay out of control::flatten too — they are
+        // matrix-expansion intrinsics, dispatched in flatten_call_proc.
+        for name in ["eigenvalues", "eigen"] {
             assert!(
                 !control::flatten::handles(name),
                 "`{name}` must not be claimed by control::flatten"

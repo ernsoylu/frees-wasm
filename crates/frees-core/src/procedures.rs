@@ -450,6 +450,11 @@ const EXPANDED_CALL_TARGETS: &[&str] = &[
     "convolve",
     "linfit",
     "polyfit",
+    // Ledger item 34: the eigen pair, flattened by `expand::flatten_eigen`
+    // into the `eigen$val|re|im|vec$…` synthetics `linalg::eval_intrinsic`
+    // decodes.
+    "eigenvalues",
+    "eigen",
     // Phase 9: the control-systems suite. `expand::flatten_call_proc` hands
     // these to `control::flatten`, which emits the `ss2tf$`/`step$`/`lqr$`/…
     // synthetics `control::eval` decodes. The membership test below pins this
@@ -502,8 +507,9 @@ const EXPANDED_CALL_TARGETS: &[&str] = &[
 
 /// CALL targets the Java `flattenCallProc` implements as intrinsics that this
 /// port does not. Naming them keeps the refusal honest — "not yet supported",
-/// not "unknown".
-const INTRINSIC_CALL_TARGETS: &[&str] = &["eigenvalues", "eigen", "eulerdecompose", "eulerrotate"];
+/// not "unknown". (The eigen pair left for `EXPANDED_CALL_TARGETS` when
+/// ledger item 34 closed.)
+const INTRINSIC_CALL_TARGETS: &[&str] = &["eulerdecompose", "eulerrotate"];
 
 /// Per-flatten module instance counter — the Java engine uses a shared
 /// `AtomicInteger` in the flatten context; a per-call counter is deterministic
@@ -1398,7 +1404,7 @@ mod tests {
 
     #[test]
     fn an_unported_intrinsic_call_keeps_the_refusal_message() {
-        for name in ["eigenvalues", "eigen", "eulerdecompose", "eulerrotate"] {
+        for name in ["eulerdecompose", "eulerrotate"] {
             let doc = parse_document(&format!("[a, b] = {name}(m, n)")).unwrap();
             let err = flatten_calls(doc.statements, &doc.defs).unwrap_err();
             assert!(
@@ -1421,6 +1427,8 @@ mod tests {
             "matexp",
             "singularvalues",
             "svd",
+            "eigenvalues",
+            "eigen",
             "fft",
             "ifft",
             "convolve",

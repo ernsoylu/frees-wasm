@@ -18,9 +18,10 @@
 //! `polyfit$`/`interp2$` kernel synthetics, and the two quadrature intrinsics
 //! (`Integral` / `GaussIntegral`, whose bodies live in [`crate::integral`]).
 //!
-//! Everything still missing from the Java `evalCall` chain — fluid properties
-//! (`prop$…`), matrix/eigen decompositions, control systems, and the
-//! TABLE/parametric/ODE result accessors — is rejected with an explicit
+//! The once-missing families have since been wired in place: fluid properties
+//! (`prop$…`, Phase 5), the matrix decompositions incl. eigen (`crate::linalg`),
+//! and the control systems (`crate::control::eval`, Phase 9). What still has no
+//! kernel — e.g. the Euler decompose/rotate pair — is rejected with an explicit
 //! `not yet supported: <name>` evaluation error rather than a wrong answer.
 //!
 //! # Design: a data-driven registry
@@ -2396,10 +2397,11 @@ fn eval_interp2_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Resu
     crate::interp2::interpolate(&x, &y, &z, xq, yq)
 }
 
-/// Synthetic `$`-calls the flattening passes generate. This port evaluates the
-/// procedure, signal, regression and interpolation families through the
-/// Phase-4 kernels; everything else (`prop$…`, matrix/eigen decompositions,
-/// control systems) still reports *not yet supported*.
+/// Synthetic `$`-calls the flattening passes generate: the procedure, signal,
+/// regression and interpolation families through the Phase-4 kernels, the
+/// property calls through `props`, the dense linear algebra (incl. the eigen
+/// decompositions) through `linalg`, and the control systems through
+/// `control::eval`. Anything else reports *not yet supported*.
 fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
     let parts: Vec<&str> = function.split('$').collect();
     match parts[0] {
@@ -2526,14 +2528,15 @@ fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Res
         // The dense linear-algebra synthetics, all of which take their matrix
         // flattened row-major in the argument list:
         //   det$<n>, qr$q|r$<i>$<j>$<m>$<n>, chol$l$<i>$<j>$<n>,
-        //   expm$<i>$<j>$<n>, svd$s$<k>$<m>$<n>, svd$u|smat|v$<i>$<j>$<m>$<n>
+        //   expm$<i>$<j>$<n>, svd$s$<k>$<m>$<n>, svd$u|smat|v$<i>$<j>$<m>$<n>,
+        //   eigen$val|re|im$<k>$<n>, eigen$vec$<i>$<k>$<n>
         // Port of the `startsWith("det$")` / `qr$` / `chol$` / `expm$` / `svd$`
-        // chain in `Evaluator.evalCall`, which routes each into
-        // `core.LinearAlgebra`. `det$<n>` is the one a user reaches without a
-        // CALL: `EquationParser` (and `parser::expand`) emit it for `det(A)`
-        // whenever `A` is larger than 3×3, because the closed-form cofactor
-        // expansion is O(n!).
-        "det" | "qr" | "chol" | "expm" | "svd" => {
+        // / `eigen$` chain in `Evaluator.evalCall`, which routes each into
+        // `core.LinearAlgebra` (eigen into `Evaluator.evalEigen`). `det$<n>` is
+        // the one a user reaches without a CALL: `EquationParser` (and
+        // `parser::expand`) emit it for `det(A)` whenever `A` is larger than
+        // 3×3, because the closed-form cofactor expansion is O(n!).
+        "det" | "qr" | "chol" | "expm" | "svd" | "eigen" => {
             let values = eval_args(args, env)?;
             match crate::linalg::eval_intrinsic(function, &values) {
                 Some(result) => result,
@@ -6155,10 +6158,11 @@ mod tests {
         // list any more: they route into `crate::linalg`, exactly as the Java
         // `Evaluator.evalCall` routes them into `core.LinearAlgebra`. See
         // `linear_algebra_synthetics_are_dispatched`. `prop$…` left the list in
-        // Phase 5 — see `property_synthetics_are_dispatched`, and the whole
+        // Phase 5 — see `property_synthetics_are_dispatched`, the whole
         // control-systems set left it in Phase 9 — see
-        // `control_systems_synthetics_are_dispatched`.
-        for name in ["eigen$val$1$3", "eulerdecompose$1$3"] {
+        // `control_systems_synthetics_are_dispatched` — and `eigen$…` left it
+        // when ledger item 34 closed.
+        for name in ["eulerdecompose$1$3"] {
             let message = err(&Expr::call(name, vec![n(1.0)]));
             assert!(message.contains("not yet supported"), "{name}: {message}");
             assert!(message.contains("synthetic"), "{name}: {message}");
@@ -7220,8 +7224,9 @@ mod tests {
     fn unported_synthetic_families_still_refuse_honestly() {
         // `det$` left this list when `crate::linalg` was wired in; `prop$` left
         // it in Phase 5 when `crate::props::propfun` was; the control-systems
-        // heads left it in Phase 9 when `crate::control::eval` was.
-        for name in ["eigen$val$0$2", "eulerrotate$1$3"] {
+        // heads left it in Phase 9 when `crate::control::eval` was; `eigen$`
+        // left it when ledger item 34 closed.
+        for name in ["eulerrotate$1$3"] {
             let msg = err(&Expr::call(name, vec![n(1.0)]));
             assert!(msg.contains("not yet supported"), "{name}: {msg}");
         }

@@ -62,7 +62,8 @@ The 21 failures divide cleanly — and the division is the finding:
 * **12 are unported features**: `HAPropsSI` humid air (5), D1 untabulated
   fluids `Air`/`INCOMP::MEG` (4), and — the one genuinely new gap this
   harvest found — **`CALL eigenvalues`/`eigen` is not wired** (3 documents;
-  ledger item 34).
+  ledger item 34). *(Since closed: the humid-air five and the fluid four by
+  D9/rustprop on 2026-08-18, the eigen three by Wave A1 on 2026-08-21.)*
 * **3 are oracle/comparison artifacts**: two D1 table-accuracy cases inside
   the documented band (worst 7.9e-8), promotable only with measured
   `tolerances.json` entries that were deliberately not added in bulk; one
@@ -227,6 +228,8 @@ gating the new dev-dependencies off the wasm target in the manifest.
 2. **`CALL eigenvalues`/`eigen` found unwired and left unwired.** This was a
    hardening phase; wiring a new CALL belongs with the Phase 8 backlog. The
    three documents wait in `corpus-pending/` as the acceptance test.
+   *(Closed 2026-08-21, Wave A1: wired and all three promoted — ledger
+   item 34.)*
 3. **No browser-side benchmark.** Native-vs-JVM only; the wasm factor is
    inferred from Phase 9's REPL timings, not measured on these documents.
 4. **The DAE surface is still un-fuzzed at API level**, and the SUNDIALS
@@ -249,7 +252,8 @@ gating the new dev-dependencies off the wasm target in the manifest.
 
 ## Divergences opened by this pass
 
-Ledger items **34** (`CALL eigenvalues`/`eigen` unwired) and **35** (the
+Ledger items **34** (`CALL eigenvalues`/`eigen` unwired — closed 2026-08-21,
+Wave A1) and **35** (the
 destructuring-`~` sink-counter leak, an oracle-side authoring hazard) in
 [`status-phase1.md`](status-phase1.md#opened-by-phase-12-2026-08-05). The six
 new failing witnesses of items already on the ledger are recorded against

@@ -5,9 +5,9 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 719
-fixtures/golden/*.json    what the Java engine produced for each      — 719
-fixtures/corpus-pending/  the staging area: documents not yet promoted — 14
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 722
+fixtures/golden/*.json    what the Java engine produced for each      — 722
+fixtures/corpus-pending/  the staging area: documents not yet promoted — 11
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -186,13 +186,13 @@ tables' own interpolation error, and under rustprop — which *is* CoolProp 8.0.
 #### Running the gate — the corpus has exactly one servable backend
 
 Since Wave-3 F6/F8 the corpus is **rustprop-graded by construction**. Twelve of
-the 719 documents ask for things the `(P,h)` `TableBackend` cannot serve *at
-all* — `HAPropsSI` (the seven humid-air documents), single-phase `(P,T)`
+the corpus documents (722 as of 2026-08-21) ask for things the `(P,h)`
+`TableBackend` cannot serve *at all* — `HAPropsSI` (the seven humid-air documents), single-phase `(P,T)`
 transport (`hx-correlations-fluid`), `CompressibilityFactor`
 (`thermo-compliance`) and `Air` `Enthalpy` (the three pneumatic documents) — so
 `tolerances.json` no longer has a configuration that replays the corpus.
 
-Use either of these; both grade all 719 through rustprop:
+Use either of these; both grade the whole corpus through rustprop:
 
 ```bash
 cargo test --workspace --test parity                              # what CI runs
@@ -200,8 +200,9 @@ cargo test -p frees-core --features rustprop-backend --test parity
 ```
 
 The first needs nothing turned on because `frees-wasm` requires the feature and
-resolver-v2 unifies it onto `frees-core`; the run prints *"719 fixtures match
-the Java oracle through rustprop (CoolProp 8.0.0)"*.
+resolver-v2 unifies it onto `frees-core`; the run prints *"&lt;count&gt; fixtures
+match the Java oracle through rustprop (CoolProp 8.0.0)"* with the live corpus
+count.
 
 **The single-package form without the feature refuses, on purpose.**
 `cargo test -p frees-core` (or `… --test parity`) does not unify anything, and
@@ -517,18 +518,21 @@ classification. If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 14 documents, none of them a property hold
+### What is pending today — 11 documents, none of them a property hold
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | `linalg::svd` **column-sign convention** — sign-only element flips, invariants identical, so the relative measure reads ~2.0 by construction | 6 | `linalg-full-svd`, `multiout-svd-discard-with-tilde`, `ctldesign-balreal-invariants-integration`, `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2`, `estimator-gramian-balreal` |
-| `CALL eigenvalues` / `eigen` **not wired** (ledger item 34) | 3 | the three `eqsys-*` |
 | A signal **decaying through zero**, so the relative measure has no denominator | 2 | `sysdesign-ex01-thermal-network-2` (`ode:m$port$qdot`), `ev-battery-cooling-pid` (`ode:pid$e`) — the second *solves and agrees*, at `t_bat` rel 5.0e-13 |
 | Pipeline ordering — `MODULE` flattening must run after the `FOR` unroller | 1 | `module_inside_for_loop` |
 | `method = ida` — the implicit-DAE path is assembled but not routed | 1 | `pressure-cooker` |
 | **Cost, not correctness** — correct with a coarse `maxstep`, no output after 420 s at the fixture's own `span/100` cap | 1 | `dyn_accessor_live` |
 
-**Zero of the fourteen is blocked on a property.** That is what
+*(The `CALL eigenvalues` / `eigen` row left this table on 2026-08-21: ledger
+item 34 closed, the three `eqsys-*` documents promoted at the corpus default
+`1e-9` with no tolerance entry, corpus 719 → 722, pending 14 → 11.)*
+
+**Zero of the eleven is blocked on a property.** That is what
 [D8](../docs/decisions/0008-coolprop-wasm.md) bought: it predicted twelve of the
 then-26 would clear under a real CoolProp, and twelve of twelve did — Wave-3 F6
 took nine and F8 the last three, corpus 707 → 719, pending 26 → 14, and
@@ -724,13 +728,15 @@ block form the grammar admits now parses into `Document` —
 `PLOT` / `PARAMETRIC` / `STATE TABLE` three landed in Phase 8's parser work and
 `DYNAMIC` / `LINEARIZE` in Phase 7's.
 
-**2. Library calls not ported (3).** The eleven control-systems `CALL`s (`lqr`,
-`lqe`, `c2d`, `routh`, `residue`, `tf2ss`, `pole`, `nichols`, `rlocus`, `step`,
-`ss2tf`) landed in Phase 9, string variables (`geom$`) on 2026-08-06
-(`parser/string_variables.rs`), and the material database (`E_`, `k_`),
-`MolarMass`, `eos_z` and `AdiabaticFlameTemp` in Phase 5. What is left is
-`CALL eigenvalues` / `eigen`, which the Phase-12 harvest found unwired — the
-three `eqsys-*` documents, ledger item 34.
+**2. Library calls not ported (0 — closed 2026-08-21).** The eleven
+control-systems `CALL`s (`lqr`, `lqe`, `c2d`, `routh`, `residue`, `tf2ss`,
+`pole`, `nichols`, `rlocus`, `step`, `ss2tf`) landed in Phase 9, string
+variables (`geom$`) on 2026-08-06 (`parser/string_variables.rs`), and the
+material database (`E_`, `k_`), `MolarMass`, `eos_z` and `AdiabaticFlameTemp`
+in Phase 5. The last member — `CALL eigenvalues` / `eigen`, which the Phase-12
+harvest found unwired (ledger item 34) — was wired on 2026-08-21
+(`parser/expand.rs::flatten_eigen` → `linalg::eval_intrinsic`), and the three
+`eqsys-*` documents promoted at the corpus default `1e-9`.
 
 **3. Pipeline-ordering deviation (1).** `module_inside_for_loop`: Java unrolls
 `FOR` *during* flattening, so `CALL Twice(i : r[i])` inside a two-iteration loop
@@ -830,12 +836,12 @@ destructuring fixture either; `multiout-user-function-with-tilde-discard` was
 dropped for exactly this. In `CALL` argument lists `~` remains a
 `ParseException`.)
 
-### Still pending — the fourteen, in detail
+### Still pending — the eleven, in detail
 
 The summary is the table under *What is pending today*; this is the per-document
-reason. Checked 2026-08-19: all 14 goldens carry `expect.error = null`, i.e.
-**the Java engine solved every one of them** — none is pending because the
-oracle refused it.
+reason. Checked 2026-08-19 (then 14; the three `eqsys-*` promoted 2026-08-21):
+all pending goldens carry `expect.error = null`, i.e. **the Java engine solved
+every one of them** — none is pending because the oracle refused it.
 
 | Document | Why it is held |
 |---|---|
@@ -844,9 +850,7 @@ oracle refused it.
 | `ctldesign-balreal-invariants-integration` | Same convention, through `balreal`. |
 | `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2` | Same convention, through bare matrix names into the control `CALL`s. |
 | `estimator-gramian-balreal` | Same convention, measured in full: `control::design::balreal` negates the second balancing basis vector, so `Ab[1,2]`, `Ab[2,1]`, `Bb[2,1]`, `Cb[1,2]` differ by sign only — same Hankel singular values, same I/O map. The other six variables match. |
-| `eqsys-eigen-waits-for-matrix-entries-solved-elsewhere` | **`CALL eigenvalues` / `eigen` is not wired** (ledger item 34). |
-| `eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations` | Same. |
-| `eqsys-solves-eigenvalues-of-symmetric-matrix` | Same. |
+| ~~`eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`~~, ~~`eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`~~, ~~`eqsys-solves-eigenvalues-of-symmetric-matrix`~~ | **promoted 2026-08-21** — was: `CALL eigenvalues` / `eigen` not wired (ledger item 34). `parser/expand.rs::flatten_eigen` now emits the `eigen$val\|re\|im\|vec$…` synthetics and `linalg::eval_intrinsic` decodes them with the Java kernel's ascending (real, imag) sort and unit-norm/sign-fixed eigenvectors. All three grade at the default `1e-9` with no tolerance entry. Corpus 719 → 722, pending 14 → 11. |
 | `sysdesign-ex01-thermal-network-2` | **Asymptotic FP noise, not promotable by tolerance.** `ode:m$port$qdot` decays through zero, so under the harness's own rule (`\|a−e\| ≤ rel·max(\|a\|,\|e\|)`) the relative deviation is 1.0 — the denominator collapses with the signal. Only a larger `ABS_TOL` could express it, and that would loosen all 719. |
 | `ev-battery-cooling-pid` | **Solves and agrees** since the `seedPropertyArgumentGuesses` port (`t_bat` 302.99999999993497 against the oracle's 303.000000000087, rel 5.0e-13) — held for the same reason as the row above: `ode:pid$e` is the PID error signal decaying to ~8.7e-11, which reads as a relative deviation of 1.9963. Also the slowest document in the set (~41 s), which is its own argument against the gate. |
 | `module_inside_for_loop` | `MODULE` flattening must run **after** `FOR` unrolling (cluster 3 above). Refused loudly until it does. |
@@ -871,7 +875,7 @@ triage are in `docs/status-phase12.md`. The 21 new pending rows, by blocker:
 |---|---|
 | `linalg-full-svd`, `multiout-svd-discard-with-tilde`, `ctldesign-balreal-invariants-integration`, `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2` | the recorded `linalg::svd` **column-sign convention** divergence (same mechanism as `estimator-gramian-balreal` above — sign-only element flips, invariants identical) |
 | ~~`sysdesign-ex16-moving-boundary-evaporator`~~ | **promoted 2026-08-06** — was the default-guess property probe divergence (`T(R134a, P=1, Hmass=…)`). Closed by porting `seedPropertyArgumentGuesses`, then by wiring it to the **main** solve path as well: it had first been added only to `solve_equation_list`, which the port's steady-state solve bypasses, so the transient documents were fixed and this one was not. Grades at 3.235e-6 — larger than its `(P,x)` siblings because it inverts `Temperature(R134a, P, h)`, the one shape the Java also tables. Corpus 704 → 705. |
-| `eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`, `eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`, `eqsys-solves-eigenvalues-of-symmetric-matrix` | **`CALL eigenvalues` / `eigen` is not wired** — the one genuinely new gap this harvest found (ledger item 34) |
+| ~~`eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`~~, ~~`eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`~~, ~~`eqsys-solves-eigenvalues-of-symmetric-matrix`~~ | **promoted 2026-08-21** — was: `CALL eigenvalues` / `eigen` not wired, the one genuinely new gap the Phase-12 harvest found (ledger item 34, closed) |
 | ~~`hvac-problem2-face-and-bypass`~~, ~~`hvac-problem3-psychrometric-balancing`~~, ~~`hvac-problem9-air-supply-wet-bulb`~~, ~~`sysdesign-ex12-moist-air-ahu`~~, ~~`sysdesign-ex13-humidifier`~~ | **promoted 2026-08-18 (Wave-3 F6)** — the `HAPropsSI` humid-air gap (as `adv_moistair_*` above) is closed by [D9](../docs/decisions/0009-rustprop-backend.md). All five grade at the default 1e-9 with no tolerance entry; worst per document 2.29e-15, 1.25e-15, 0, 0, 0. |
 | ~~`sysdesign-ex06-pneumatic`~~, ~~`sysdesign-ex06-pneumatic-2`~~, ~~`sysdesign-ex07-pneumatic-servo`~~ | **promoted 2026-08-18 (Wave-3 F8)** — was: no **state** table for `Air`. [D7](../docs/decisions/0007-auxiliary-property-grids.md) added a `(P,T)` grid carrying air's `viscosity`/`conductivity`/`Cpmass`/`Dmass` — enough for `htc_extair`, not for these, which want `Enthalpy`. **Do not generate an `air.phtab`**: [D8](../docs/decisions/0008-coolprop-wasm.md) supersedes it, and [D9](../docs/decisions/0009-rustprop-backend.md) delivered it — rustprop serves `Air` `Enthalpy` and `Temperature(Air, P, h)` directly, through the pseudo-pure `HSU_P` flash Wave-2 R6/R7 ported. All three grade at the default 1e-9 with no tolerance entry. Corpus 716 → 719, pending 17 → 14. |
 | ~~`sysdesign-ex11-liquid-cooling-loop`~~ | **promoted 2026-08-06** — the same `INCOMP::MEG` grid ([D7](../docs/decisions/0007-auxiliary-property-grids.md)) that unblocked `ev-thermal-management`. Grades an order of magnitude tighter (1.310e-4) because it sits off the laminar↔turbulent blend band. Corpus 703 → 704. |
@@ -939,7 +943,8 @@ Two findings beyond the nine:
   blocker.** Re-measured in the same run: the five `linalg::svd` column-sign
   documents plus `estimator-gramian-balreal` still differ by sign only
   (relative deviation ~2.0 by construction); the three `eqsys-*` still refuse
-  with "CALL `eigenvalues`/`eigen` is not yet supported"; `module_inside_for_loop`
+  with "CALL `eigenvalues`/`eigen` is not yet supported" *(re-checked
+  2026-08-21: no longer — wired and promoted)*; `module_inside_for_loop`
   still refuses at parse; `pressure-cooker` still refuses `method = ida`; and
   `sysdesign-ex01-thermal-network-2` still fails on `ode:m$port$qdot` decaying
   through zero (worst 9.4e-7 on a cell of magnitude 4.8e-6). `dyn_accessor_live`

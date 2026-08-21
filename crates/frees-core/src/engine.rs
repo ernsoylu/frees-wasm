@@ -92,7 +92,7 @@ use crate::integral::IntegralEquation;
 use crate::ode::accessors::OdeTableAccessors;
 use crate::parser::defs::Definitions;
 use crate::parser::{parse_document, Document, GuessDirective};
-use crate::procedures::flatten_calls_into;
+use crate::procedures::flatten_calls_counted;
 use crate::solver::blocker::{block_system, unknowns, Block};
 use crate::solver::newton::{newton_solve_problem, NewtonProblem, SolverSettings};
 use crate::units::registry::UnitRegistry;
@@ -496,14 +496,22 @@ pub fn solve_with(
     // `EquationSystemSolver.solve` after both.
     let statements = std::mem::take(&mut doc.statements);
     let mut parsed_names = std::mem::take(&mut doc.display_names);
-    doc.statements = flatten_calls_into(statements, &doc.defs, &mut parsed_names)?;
-    doc.display_names = parsed_names;
+    let (flattened, module_count) =
+        flatten_calls_counted(statements, &doc.defs, &mut parsed_names)?;
+    doc.statements = flattened;
     // The Java: `List<Equation> equations = new BoundedEquationList(componentEquations)`,
     // then `flatten(statements, …, equations, …)` appends into it. Component
     // equations therefore come FIRST, and the residual list, block ordering and
     // `block_equations` all inherit that order.
     let mut equations = std::mem::take(&mut components.equations);
-    equations.extend(crate::parser::expand::expand_document(&doc)?);
+    // The expansion continues the MODULE numbering (in-FOR instantiations)
+    // and registers its namespaced display names into the same map.
+    equations.extend(crate::parser::expand::expand_document_with(
+        &doc,
+        module_count,
+        &mut parsed_names,
+    )?);
+    doc.display_names = parsed_names;
     // The last step of `EquationParser.parseResult`: string variables
     // (`R$ = 'R134a'`) are compile-time constants — substitute their values
     // and drop the definition equations from the numeric system.
@@ -1259,9 +1267,15 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         member_units = components.member_units;
         parsed_names = doc.display_names.clone();
         let statements = std::mem::take(&mut doc.statements);
-        doc.statements = flatten_calls_into(statements, &doc.defs, &mut parsed_names)?;
+        let (flattened, module_count) =
+            flatten_calls_counted(statements, &doc.defs, &mut parsed_names)?;
+        doc.statements = flattened;
         let mut equations = components.equations;
-        equations.extend(crate::parser::expand::expand_document(&doc)?);
+        equations.extend(crate::parser::expand::expand_document_with(
+            &doc,
+            module_count,
+            &mut parsed_names,
+        )?);
         // String variables leave the numeric system here too, so `check`
         // reports the same equation/variable balance the solve path sees.
         let equations = crate::parser::string_variables::resolve(equations, &parsed_names)?;

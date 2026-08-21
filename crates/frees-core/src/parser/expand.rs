@@ -76,7 +76,7 @@
 // form stays.
 #![allow(clippy::needless_range_loop)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::ast::{BinOp, Equation, Expr, Statement};
 use crate::control;
@@ -132,6 +132,19 @@ const TOO_MANY_EQUATIONS: &str =
 /// [`Document::equations`] — the scalar pipeline's behaviour is frozen by the
 /// golden corpus.
 pub fn expand_document(doc: &Document) -> Result<Vec<Equation>> {
+    expand_document_with(doc, 0, &mut BTreeMap::new())
+}
+
+/// [`expand_document`], threading the two pieces of state the per-iteration
+/// MODULE instantiation needs: the instance count `procedures::flatten_calls`
+/// finished at (the shared numbering the Java keeps in one `moduleCounter`),
+/// and the document display-name map the instantiation registers namespaced
+/// variables into (`putIfAbsent` semantics — an existing spelling wins).
+pub fn expand_document_with(
+    doc: &Document,
+    module_counter_base: u32,
+    display_names: &mut BTreeMap<String, String>,
+) -> Result<Vec<Equation>> {
     let constants = extract_constants(&doc.statements);
     let symbolic = collect_symbolic(&doc.statements);
     let mut flattener = Flattener {
@@ -140,6 +153,8 @@ pub fn expand_document(doc: &Document) -> Result<Vec<Equation>> {
         symbolic: &symbolic,
         out: Vec::new(),
         sinks: next_sink_index(&doc.statements),
+        module_counter: module_counter_base,
+        generated_names: display_names,
     };
     flattener.flatten(&doc.statements, &Scope::default())?;
     Ok(flattener.out)
@@ -292,6 +307,14 @@ struct Flattener<'a> {
     out: Vec<Equation>,
     /// Next `~ignored~N` id for padded CALL outputs.
     sinks: u32,
+    /// MODULE instance numbering, continued from where
+    /// `procedures::flatten_calls` stopped — the Java keeps one
+    /// `moduleCounter` across parse-time flattening, and this is its second
+    /// half (the per-iteration instantiations inside unrolled FORs).
+    module_counter: u32,
+    /// The document display-name map (`putIfAbsent` semantics), which
+    /// [`Flattener::flatten_module_call`] registers namespaced names into.
+    generated_names: &'a mut BTreeMap<String, String>,
 }
 
 impl Flattener<'_> {
@@ -1033,11 +1056,19 @@ impl Flattener<'_> {
             _ if UNPORTED_CALL_INTRINSICS.contains(&def_name.as_str()) => Err(parse_err(format!(
                 "`CALL {def_name}` is not supported by the wasm engine yet"
             ))),
+            _ if self.defs.module(&def_name).is_some() => {
+                // A MODULE call that rode through `procedures::flatten_calls`
+                // inside a FOR body: Java flattens after unrolling, and this
+                // is the after-unrolling position — `loop_vars` carries the
+                // iteration binding, so each pass through the loop body
+                // instantiates its own namespace.
+                let def = self.defs.module(&def_name).expect("guard checked");
+                self.flatten_module_call(def, &inputs, &outputs, loop_vars)
+            }
             _ => {
-                if self.defs.procedure(&def_name).is_some() || self.defs.module(&def_name).is_some()
-                {
+                if self.defs.procedure(&def_name).is_some() {
                     Err(parse_err(format!(
-                        "CALL {def_name}: PROCEDURE/MODULE calls must be flattened before \
+                        "CALL {def_name}: PROCEDURE calls must be flattened before \
                          matrix expansion"
                     )))
                 } else if self.defs.function(&def_name).is_some() {
@@ -1606,6 +1637,112 @@ impl Flattener<'_> {
                     source,
                 ))?;
             }
+        }
+        Ok(())
+    }
+
+    /// Port of `EquationParser.flattenModuleCall`, at the Java's own pipeline
+    /// position — *after* FOR unrolling, so `loop_vars` carries the iteration
+    /// binding and every pass through a loop body gets its own namespace
+    /// (`twice$1$…`, `twice$2$…`). Inputs and outputs go through
+    /// [`Self::expand_expr`] exactly as the Java's `expandExpr`: an output
+    /// written `r[i]` resolves to the element variable `r[1]` before the
+    /// must-be-a-variable check, which is how an array cell receives a module
+    /// output. Body equations are namespaced and pushed as-is; display names
+    /// register with `putIfAbsent` semantics, all per the Java.
+    ///
+    /// Top-level MODULE calls never reach this: `procedures::flatten_calls`
+    /// (stage 2) instantiates them and this counter continues its numbering —
+    /// see `flatten_calls_counted` for the one recorded ordering divergence.
+    fn flatten_module_call(
+        &mut self,
+        def: &crate::parser::defs::ModuleDef,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        // Java increments before the arity checks; a failing CALL still
+        // consumed an instance number.
+        self.module_counter += 1;
+        let ns = format!("{}${}$", def.name, self.module_counter);
+
+        if inputs.len() != def.inputs.len() {
+            return Err(parse_err(format!(
+                "CALL {} provides {} input(s) but MODULE declares {}",
+                def.name,
+                inputs.len(),
+                def.inputs.len()
+            )));
+        }
+        if outputs.len() != def.outputs.len() {
+            return Err(parse_err(format!(
+                "CALL {} provides {} output variable(s) but MODULE declares {}",
+                def.name,
+                outputs.len(),
+                def.outputs.len()
+            )));
+        }
+
+        // Input binding equations: ns$param = inputExpr.
+        for (param, input) in def.inputs.iter().zip(inputs) {
+            let ns_param = format!("{ns}{param}");
+            let input_expr = self.expand_expr(input, loop_vars)?;
+            self.push(Equation::new(
+                Expr::Var(ns_param.clone()),
+                input_expr,
+                format!("MODULE {} input {param}", def.name),
+            ))?;
+            self.generated_names
+                .entry(ns_param.clone())
+                .or_insert(ns_param);
+        }
+
+        // Module body equations with namespaced variables. Same deviation as
+        // the stage-2 instantiation: Java silently drops non-Eq bodies, this
+        // port refuses (dropping equations changes the degrees of freedom).
+        for body_statement in &def.body {
+            match body_statement {
+                Statement::Eq(eq) => {
+                    let lhs = crate::procedures::namespace_expr(&eq.lhs, &ns);
+                    let rhs = crate::procedures::namespace_expr(&eq.rhs, &ns);
+                    for var in lhs.variables().into_iter().chain(rhs.variables()) {
+                        self.generated_names.entry(var.clone()).or_insert(var);
+                    }
+                    self.push(Equation::new(lhs, rhs, eq.source_text.clone()))?;
+                }
+                other => {
+                    let kind = match other {
+                        Statement::For { .. } => "a FOR block",
+                        Statement::CallProc { .. } => "a CALL",
+                        Statement::Symbolic(_) => "a SYMBOLIC declaration",
+                        Statement::Eq(_) => unreachable!(),
+                    };
+                    return Err(parse_err(format!(
+                        "MODULE {} body contains {kind}; only `=` equations can be \
+                         grafted into the caller's system",
+                        def.name
+                    )));
+                }
+            }
+        }
+
+        // Output binding equations: outputVar = ns$outputParam.
+        for (param, output) in def.outputs.iter().zip(outputs) {
+            let output_expr = self.expand_expr(output, loop_vars)?;
+            let Expr::Var(var_name) = &output_expr else {
+                return Err(parse_err(format!(
+                    "CALL output argument must resolve to a variable (in `CALL {}`)",
+                    def.name
+                )));
+            };
+            self.generated_names
+                .entry(var_name.clone())
+                .or_insert_with(|| var_name.clone());
+            self.push(Equation::new(
+                output_expr.clone(),
+                Expr::Var(format!("{ns}{param}")),
+                format!("MODULE {} output {param}", def.name),
+            ))?;
         }
         Ok(())
     }

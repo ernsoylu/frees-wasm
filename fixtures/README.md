@@ -5,9 +5,9 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 728
-fixtures/golden/*.json    what the Java engine produced for each      — 728
-fixtures/corpus-pending/  the staging area: documents not yet promoted — 5
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 729
+fixtures/golden/*.json    what the Java engine produced for each      — 729
+fixtures/corpus-pending/  the staging area: documents not yet promoted — 4
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -521,12 +521,11 @@ classification. If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 5 documents, none of them a property hold
+### What is pending today — 4 documents, none of them a property hold
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | A signal **decaying through zero**, so the relative measure has no denominator | 3 | `sysdesign-ex01-thermal-network-2` (`ode:m$port$qdot`), `ev-battery-cooling-pid` (`ode:pid$e`) — the second *solves and agrees*, at `t_bat` rel 5.0e-13 — and, since 2026-08-21, `pressure-cooker` (`ode:steel$port$qdot`): `method = ida` **is routed now** and the document integrates the full 1200 s, agreeing with the SUNDIALS oracle to ≤ 3.5e-8 on every non-decayed signal, but `steel$port$qdot` decays to microwatts and reads rel up to 5.7e-3 by denominator collapse |
-| Pipeline ordering — `MODULE` flattening must run after the `FOR` unroller | 1 | `module_inside_for_loop` |
 | **Cost, not correctness** — correct with a coarse `maxstep`, no output after 420 s at the fixture's own `span/100` cap | 1 | `dyn_accessor_live` |
 
 *(Two rows left this table on 2026-08-21. The `CALL eigenvalues` / `eigen`
@@ -539,7 +538,7 @@ largest-component-positive rule — and all six sign-blocked documents promoted
 at the corpus default `1e-9` with no tolerance entry, corpus 722 → 728,
 pending 11 → 5.)*
 
-**Zero of the five is blocked on a property.** That is what
+**Zero of the four is blocked on a property.** *(The pipeline-ordering row left 2026-08-21, Wave A4: MODULE instantiation moved to the expansion stage — after the unroller, at Java's own position — and `module_inside_for_loop` promoted exactly, display names and `block_count` included. Corpus 728 → 729.)* That is what
 [D8](../docs/decisions/0008-coolprop-wasm.md) bought: it predicted twelve of the
 then-26 would clear under a real CoolProp, and twelve of twelve did — Wave-3 F6
 took nine and F8 the last three, corpus 707 → 719, pending 26 → 14, and
@@ -745,13 +744,18 @@ harvest found unwired (ledger item 34) — was wired on 2026-08-21
 (`parser/expand.rs::flatten_eigen` → `linalg::eval_intrinsic`), and the three
 `eqsys-*` documents promoted at the corpus default `1e-9`.
 
-**3. Pipeline-ordering deviation (1).** `module_inside_for_loop`: Java unrolls
-`FOR` *during* flattening, so `CALL Twice(i : r[i])` inside a two-iteration loop
-produces two module instances (`twice$1$…`, `twice$2$…`). This port flattens
-CALLs in a pass that runs *before* unrolling, so it refuses the shape loudly
-rather than grafting one instance across both iterations. Fixing it means moving
-MODULE flattening past the unroller and re-basing the shared instance counter —
-not a local change. The fixture records exactly what Java produces.
+**3. Pipeline-ordering deviation (0 — closed 2026-08-21, Wave A4).**
+`module_inside_for_loop`: Java unrolls `FOR` *during* flattening, so
+`CALL Twice(i : r[i])` inside a two-iteration loop produces two module
+instances (`twice$1$…`, `twice$2$…`). This port used to flatten CALLs in a
+pass before unrolling and refused the shape. The fix is what this paragraph
+predicted: MODULE instantiation moved past the unroller — an in-FOR module
+CALL now rides through `procedures::flatten_calls` intact and
+`parser/expand.rs::flatten_module_call` (a transcription of
+`EquationParser.flattenModuleCall`) instantiates it per iteration with the
+loop variable bound, the shared instance counter re-based via
+`flatten_calls_counted`. The fixture is promoted and matches Java exactly,
+display names and `block_count` included.
 
 **4. Ill-posed by construction (1).** `solver_singular_linear_cycle` is
 structurally square but rank-deficient (`x = y+1`, `y = z+1`, `z = x-2` reduce
@@ -843,7 +847,7 @@ destructuring fixture either; `multiout-user-function-with-tilde-discard` was
 dropped for exactly this. In `CALL` argument lists `~` remains a
 `ParseException`.)
 
-### Still pending — the five, in detail
+### Still pending — the four, in detail
 
 The summary is the table under *What is pending today*; this is the per-document
 reason. Checked 2026-08-19 (then 14; the three `eqsys-*` and the six sign-hold
@@ -857,7 +861,7 @@ because the oracle refused it.
 | ~~`eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`~~, ~~`eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`~~, ~~`eqsys-solves-eigenvalues-of-symmetric-matrix`~~ | **promoted 2026-08-21** — was: `CALL eigenvalues` / `eigen` not wired (ledger item 34). `parser/expand.rs::flatten_eigen` now emits the `eigen$val\|re\|im\|vec$…` synthetics and `linalg::eval_intrinsic` decodes them with the Java kernel's ascending (real, imag) sort and unit-norm/sign-fixed eigenvectors. All three grade at the default `1e-9` with no tolerance entry. Corpus 719 → 722, pending 14 → 11. |
 | `sysdesign-ex01-thermal-network-2` | **Asymptotic FP noise, not promotable by tolerance.** `ode:m$port$qdot` decays through zero, so under the harness's own rule (`\|a−e\| ≤ rel·max(\|a\|,\|e\|)`) the relative deviation is 1.0 — the denominator collapses with the signal. Only a larger `ABS_TOL` could express it, and that would loosen all 719. |
 | `ev-battery-cooling-pid` | **Solves and agrees** since the `seedPropertyArgumentGuesses` port (`t_bat` 302.99999999993497 against the oracle's 303.000000000087, rel 5.0e-13) — held for the same reason as the row above: `ode:pid$e` is the PID error signal decaying to ~8.7e-11, which reads as a relative deviation of 1.9963. Also the slowest document in the set (~41 s), which is its own argument against the gate. |
-| `module_inside_for_loop` | `MODULE` flattening must run **after** `FOR` unrolling (cluster 3 above). Refused loudly until it does. |
+| ~~`module_inside_for_loop`~~ | **promoted 2026-08-21 (Wave A4)** — was: `MODULE` flattening ran before `FOR` unrolling. `parser/expand.rs::flatten_module_call` now transcribes `EquationParser.flattenModuleCall` at the after-unroll position (loop vars bound, `r[i]` outputs resolving to element variables, per-iteration namespaces, `putIfAbsent` display names), with the instance numbering continued from stage 2 via `flatten_calls_counted`. One recorded residue: a top-level MODULE call written after a FOR containing MODULE calls would number differently from Java — no corpus document has that shape. |
 | `pressure-cooker` | Was `method = ida` — **the routing landed 2026-08-21 (Wave A3)**: `ode/dynamic.rs::solve_with_ida` ports `DynamicSolver.solveWithIda` (grid `max(points ?? 200, 2)`, no `maxstep` on this path, rows straight from IDA's state vector, the `calcConsistentIc → reinit` fallback, the root/set-event loop), and wiring the first real document flushed out **two transcription bugs against SUNDIALS v6.7.0's `ida.c`** — `IDARestore` un-scaling all of `phi[1..=kk]` instead of `ns..=kk`, and `IDASetCoeffs`' `alpha0` summed over `alpha[1..=kk]` instead of `alpha[0..kk-1]` (a ~4× inflated error constant at order 5) — which had stalled the run at t ≈ 696 s. Fixed, the document integrates all 1200 s and matches the oracle to ≤ 3.5e-8 on every real signal. **Still held**, but by the decayed-signal rule: `steel$port$qdot` → 0 collapses the relative denominator (rel up to 5.7e-3 on microwatt cells; a blanket tolerance admitting that would assert nothing — same class as the two rows above). |
 | `dyn_accessor_live` | **Nothing missing — cost.** Correct with a coarse `maxstep`; no output after 420 s at the fixture's own `span/100` cap. |
 

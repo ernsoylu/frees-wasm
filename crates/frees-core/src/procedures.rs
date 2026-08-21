@@ -539,11 +539,17 @@ type GeneratedNames = BTreeMap<String, String>;
 ///
 /// CALLs inside `FOR` bodies are flattened in place when the loop has not been
 /// unrolled yet; that is exact for PROCEDURE calls (the generated equations
-/// keep the loop variable symbolic), while a MODULE call inside a FOR is
-/// refused — Java instantiates one namespace per *iteration* (its flattening
-/// runs after unrolling), and grafting a single instance here would produce
-/// silently colliding equations. Unrolled-first pipelines never hit that
-/// refusal.
+/// keep the loop variable symbolic). A MODULE call inside a FOR **passes
+/// through untouched** instead: Java instantiates one namespace per
+/// *iteration* (its flattening runs after unrolling), so the instantiation
+/// belongs to the expansion stage, which owns the unroller —
+/// `parser::expand::Flattener::flatten_module_call`, seeded with this stage's
+/// final instance count so the numbering continues where it left off.
+///
+/// One recorded numbering divergence survives the split: a top-level MODULE
+/// call written *after* a FOR containing MODULE calls is numbered here
+/// (before the FOR's instances) where Java numbers it after them. No corpus
+/// document has that shape; the harvest boundary is the reason.
 pub fn flatten_calls(statements: Vec<Statement>, defs: &Definitions) -> Result<Vec<Statement>> {
     flatten_calls_into(statements, defs, &mut BTreeMap::new())
 }
@@ -557,6 +563,18 @@ pub fn flatten_calls_into(
     defs: &Definitions,
     display_names: &mut BTreeMap<String, String>,
 ) -> Result<Vec<Statement>> {
+    Ok(flatten_calls_counted(statements, defs, display_names)?.0)
+}
+
+/// [`flatten_calls_into`], additionally returning the number of MODULE
+/// instances this stage created — the base the expansion stage's per-iteration
+/// module instantiation continues from, so the two stages share one numbering
+/// exactly as the Java's single `moduleCounter` does.
+pub fn flatten_calls_counted(
+    statements: Vec<Statement>,
+    defs: &Definitions,
+    display_names: &mut BTreeMap<String, String>,
+) -> Result<(Vec<Statement>, u32)> {
     let mut counter = ModuleCounter(0);
     let mut out = Vec::with_capacity(statements.len());
     for statement in statements {
@@ -569,7 +587,7 @@ pub fn flatten_calls_into(
             display_names,
         )?;
     }
-    Ok(out)
+    Ok((out, counter.0))
 }
 
 fn flatten_statement(
@@ -639,12 +657,17 @@ fn flatten_call(
     }
     if let Some(def) = defs.module(name) {
         if inside_for {
-            // See the `flatten_calls` doc — one instance per syntactic CALL
-            // would collide across iterations, so refuse rather than mis-graft.
-            return Err(FreesError::parse(format!(
-                "CALL of MODULE `{name}` inside a FOR loop is not supported by \
-                 the wasm engine yet"
-            )));
+            // See the `flatten_calls` doc — Java instantiates one namespace
+            // per iteration, so the CALL rides through to the expansion
+            // stage, whose unroller instantiates it with the loop variable
+            // bound (`Flattener::flatten_module_call`).
+            out.push(Statement::CallProc {
+                name: name.to_string(),
+                inputs,
+                outputs,
+                source_text: source_text.to_string(),
+            });
+            return Ok(());
         }
         return flatten_module_call(def, inputs, outputs, counter, out, display_names);
     }
@@ -828,7 +851,7 @@ fn output_not_a_variable(context: &str) -> FreesError {
 /// including the declared inputs/outputs (they connect to the caller through
 /// the binding equations), and leaves call *names* alone so intrinsics and
 /// user functions still resolve.
-fn namespace_expr(expr: &Expr, ns: &str) -> Expr {
+pub(crate) fn namespace_expr(expr: &Expr, ns: &str) -> Expr {
     match expr {
         Expr::Num { .. } | Expr::Str(_) => expr.clone(),
         Expr::Var(name) => Expr::Var(format!("{ns}{name}")),
@@ -1364,16 +1387,30 @@ mod tests {
         }
     }
 
+    /// A MODULE call inside a FOR is no longer refused here (Wave A4): it
+    /// rides through with the CALL intact so the expansion stage — which owns
+    /// the unroller — can instantiate one namespace per iteration, exactly as
+    /// Java's flatten-after-unroll does. Fixture `module_inside_for_loop` is
+    /// the end-to-end witness.
     #[test]
-    fn a_module_call_inside_a_for_is_refused() {
+    fn a_module_call_inside_a_for_passes_through_to_the_expansion_stage() {
         let doc =
             parse_document("MODULE m(x : y)\n  y = x\nEND\nFOR i = 1 TO 2\n  CALL m(i : w)\nEND")
                 .unwrap();
-        let err = flatten_calls(doc.statements, &doc.defs).unwrap_err();
-        assert!(
-            err.to_string().contains("MODULE `m` inside a FOR loop"),
-            "{err}"
-        );
+        let (out, module_count) =
+            flatten_calls_counted(doc.statements, &doc.defs, &mut BTreeMap::new()).unwrap();
+        // No instance was created at this stage…
+        assert_eq!(module_count, 0);
+        // …and the CALL survives inside the FOR body for stage 3.
+        match out.as_slice() {
+            [Statement::For { body, .. }] => {
+                assert!(
+                    matches!(body.as_slice(), [Statement::CallProc { name, .. }] if name == "m"),
+                    "{body:?}"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

@@ -121,6 +121,17 @@ fn document_is_scalar(doc: &frees_core::parser::Document) -> bool {
         .all(|eq| !mentions_array_syntax(&eq.lhs) && !mentions_array_syntax(&eq.rhs))
 }
 
+/// Whether any statement (recursively through FOR bodies) is still a CALL
+/// after stage-2 flattening — expander-owned content, not pass-through.
+fn contains_call_proc(statements: &[frees_core::ast::Statement]) -> bool {
+    use frees_core::ast::Statement;
+    statements.iter().any(|s| match s {
+        Statement::CallProc { .. } => true,
+        Statement::For { body, .. } => contains_call_proc(body),
+        _ => false,
+    })
+}
+
 #[test]
 fn every_corpus_document_passes_through_byte_identical() {
     let dir = corpus_dir();
@@ -153,6 +164,13 @@ fn every_corpus_document_passes_through_byte_identical() {
         // Documents that genuinely carry matrix content are the expander's job;
         // this pass only freezes the *scalar* pipeline.
         if !document_is_scalar(&doc) {
+            continue;
+        }
+        // A CALL that survives stage 2 is expander content too: since Wave A4
+        // an in-FOR MODULE call rides through for the per-iteration
+        // instantiation (`flatten_module_call`), so its expansion is
+        // *supposed* to add equations the raw document does not carry.
+        if contains_call_proc(&doc.statements) {
             continue;
         }
         let expanded = expand_document(&doc)

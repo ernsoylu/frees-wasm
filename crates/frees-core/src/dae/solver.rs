@@ -989,10 +989,16 @@ impl<'a> IdaDaeSolver<'a> {
             }
             self.psi[self.kk] = temp1;
         }
+        // SUNDIALS sums `alpha0` over `alpha[0..kk-1]` — from index 0, where
+        // `alpha[0] = 1` — not over `alpha[1..kk]`. The first transcription
+        // used the latter; at k = 5 with constant h that inflates `ck` (which
+        // is `|alpha[kk] + alphas − alpha0|`) about fourfold, so the error
+        // test rejected steps real IDA accepts, and a long smooth stretch
+        // ended in a spurious rejection cascade (`pressure-cooker`, t ≈ 696).
         let mut alphas = 0.0;
         let mut alpha0 = 0.0;
-        for i in 1..=self.kk {
-            alphas -= 1.0 / i as f64;
+        for i in 0..self.kk {
+            alphas -= 1.0 / (i + 1) as f64;
             alpha0 -= self.alpha[i];
         }
         self.cjlast = self.cj;
@@ -1033,14 +1039,28 @@ impl<'a> IdaDaeSolver<'a> {
     /// `phi` to `phi*`; a retry with a smaller `h` recomputes the coefficients
     /// from `psi`, so leaving `psi` advanced poisons every following attempt —
     /// the symptom is an error test that never passes however far `h` is cut.
+    ///
+    /// The `phi` half mirrors `set_coeffs` **exactly**: only columns
+    /// `ns..=kk` were scaled to `phi*`, and only when `ns <= kk`, so only
+    /// those may be scaled back (SUNDIALS `IDARestore`, verbatim). Dividing
+    /// all of `1..=kk` — the first transcription of this function did — is
+    /// wrong precisely after a stretch of constant `(h, k)` steps: `ns` sits
+    /// at `kused + 2 > kk`, `set_coeffs` scaled *nothing*, and the
+    /// unconditional un-scale divides the history by stale `beta`s. The
+    /// symptom was `pressure-cooker` stalling at t ≈ 696 s: the first
+    /// rejection after ~10 s of clean k = 5 stepping corrupted `phi`, and
+    /// every retry then plateaued at the same weighted error however far `h`
+    /// was cut.
     fn restore(&mut self, saved_t: f64) {
         self.tn = saved_t;
         for j in 1..=self.kk {
             self.psi[j - 1] = self.psi[j] - self.hh;
         }
-        for j in 1..=self.kk {
-            let inv = 1.0 / self.beta[j];
-            self.phi[j].iter_mut().for_each(|v| *v *= inv);
+        if self.ns <= self.kk {
+            for j in self.ns..=self.kk {
+                let inv = 1.0 / self.beta[j];
+                self.phi[j].iter_mut().for_each(|v| *v *= inv);
+            }
         }
     }
 

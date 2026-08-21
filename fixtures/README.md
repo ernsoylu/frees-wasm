@@ -525,9 +525,8 @@ someone fixed the engine is the point.
 
 | Blocker | Count | Documents |
 |---|---:|---|
-| A signal **decaying through zero**, so the relative measure has no denominator | 2 | `sysdesign-ex01-thermal-network-2` (`ode:m$port$qdot`), `ev-battery-cooling-pid` (`ode:pid$e`) — the second *solves and agrees*, at `t_bat` rel 5.0e-13 |
+| A signal **decaying through zero**, so the relative measure has no denominator | 3 | `sysdesign-ex01-thermal-network-2` (`ode:m$port$qdot`), `ev-battery-cooling-pid` (`ode:pid$e`) — the second *solves and agrees*, at `t_bat` rel 5.0e-13 — and, since 2026-08-21, `pressure-cooker` (`ode:steel$port$qdot`): `method = ida` **is routed now** and the document integrates the full 1200 s, agreeing with the SUNDIALS oracle to ≤ 3.5e-8 on every non-decayed signal, but `steel$port$qdot` decays to microwatts and reads rel up to 5.7e-3 by denominator collapse |
 | Pipeline ordering — `MODULE` flattening must run after the `FOR` unroller | 1 | `module_inside_for_loop` |
-| `method = ida` — the implicit-DAE path is assembled but not routed | 1 | `pressure-cooker` |
 | **Cost, not correctness** — correct with a coarse `maxstep`, no output after 420 s at the fixture's own `span/100` cap | 1 | `dyn_accessor_live` |
 
 *(Two rows left this table on 2026-08-21. The `CALL eigenvalues` / `eigen`
@@ -859,7 +858,7 @@ because the oracle refused it.
 | `sysdesign-ex01-thermal-network-2` | **Asymptotic FP noise, not promotable by tolerance.** `ode:m$port$qdot` decays through zero, so under the harness's own rule (`\|a−e\| ≤ rel·max(\|a\|,\|e\|)`) the relative deviation is 1.0 — the denominator collapses with the signal. Only a larger `ABS_TOL` could express it, and that would loosen all 719. |
 | `ev-battery-cooling-pid` | **Solves and agrees** since the `seedPropertyArgumentGuesses` port (`t_bat` 302.99999999993497 against the oracle's 303.000000000087, rel 5.0e-13) — held for the same reason as the row above: `ode:pid$e` is the PID error signal decaying to ~8.7e-11, which reads as a relative deviation of 1.9963. Also the slowest document in the set (~41 s), which is its own argument against the gate. |
 | `module_inside_for_loop` | `MODULE` flattening must run **after** `FOR` unrolling (cluster 3 above). Refused loudly until it does. |
-| `pressure-cooker` | `method = ida` — the implicit-DAE path is assembled but not routed. |
+| `pressure-cooker` | Was `method = ida` — **the routing landed 2026-08-21 (Wave A3)**: `ode/dynamic.rs::solve_with_ida` ports `DynamicSolver.solveWithIda` (grid `max(points ?? 200, 2)`, no `maxstep` on this path, rows straight from IDA's state vector, the `calcConsistentIc → reinit` fallback, the root/set-event loop), and wiring the first real document flushed out **two transcription bugs against SUNDIALS v6.7.0's `ida.c`** — `IDARestore` un-scaling all of `phi[1..=kk]` instead of `ns..=kk`, and `IDASetCoeffs`' `alpha0` summed over `alpha[1..=kk]` instead of `alpha[0..kk-1]` (a ~4× inflated error constant at order 5) — which had stalled the run at t ≈ 696 s. Fixed, the document integrates all 1200 s and matches the oracle to ≤ 3.5e-8 on every real signal. **Still held**, but by the decayed-signal rule: `steel$port$qdot` → 0 collapses the relative denominator (rel up to 5.7e-3 on microwatt cells; a blanket tolerance admitting that would assert nothing — same class as the two rows above). |
 | `dyn_accessor_live` | **Nothing missing — cost.** Correct with a coarse `maxstep`; no output after 420 s at the fixture's own `span/100` cap. |
 
 *(Phase 9 promoted eleven documents out of an earlier version of this table on

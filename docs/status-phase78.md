@@ -305,6 +305,12 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    `method = ida` does not reach it from a document, so `pressure-cooker` stays
    pending. Nothing here changed that, and the DAE surface was **not fuzzed** —
    the robustness sweep covers `ode/` and `analysis/` only.
+   *(Closed 2026-08-21, Wave A3: `ode/dynamic.rs::solve_with_ida` routes it,
+   and the first routed document exposed two transcription bugs against
+   SUNDIALS' `ida.c` — the `IDARestore` phi-rescale range and `IDASetCoeffs`'
+   `alpha0` index — both fixed and recorded in `fixtures/README.md`'s
+   `pressure-cooker` row. The document now integrates fully and is held only
+   by the decayed-signal comparison rule. The fuzzing gap stands.)*
 6. **The boot document tells users a lie.** The default example in the editor
    still reads *"Not yet ported to the browser engine: COMPONENT / connect
    models, DYNAMIC (ODE) blocks, fluid properties, TABLE / PARAMETRIC / PLOT /

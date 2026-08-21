@@ -545,9 +545,18 @@ fn a_turning_point_in_the_constraint_stops_instead_of_branch_jumping() {
         1e-6,
         "before the turning point",
     );
-    // Past it, this port refuses rather than picking a branch.
+    // Past it, this port refuses rather than picking a branch. Before the
+    // Wave-A3 `ck`/`restore` corrections the refusal arrived as a prompt
+    // rejection cascade ("could not take a step"); with the error test now
+    // matching real IDA's, the integrator instead grinds micro-steps against
+    // the singular constraint until the step budget runs out — the same
+    // outcome real IDA reports as IDA_TOO_MUCH_WORK. Either way it stops
+    // with a diagnosable error instead of branch-jumping.
     let err = s.step(3.0).unwrap_err().to_string();
-    assert!(err.contains("could not take a step"), "{err}");
+    assert!(
+        err.contains("could not take a step") || err.contains("steps without reaching"),
+        "{err}"
+    );
 }
 
 /// A 16-node / 15-flux heat chain in C-R-C form: n = 31, above
@@ -868,8 +877,13 @@ fn a_stopping_event_reports_the_crossing_time_and_direction() {
     assert!(step.root_return(), "flag {}", step.flag);
     assert_eq!(step.roots_found, vec![-1], "T is decreasing through 50");
     let exact = -(30.0f64 / 75.0).ln() / 0.05;
-    assert!(rel(step.t, exact) < 1e-8, "got {} want {exact}", step.t);
-    assert!((step.y[0] - 50.0).abs() < 1e-8);
+    // 1e-7, not 1e-8: the original bound was calibrated while `set_coeffs`
+    // computed an inflated error constant `ck` (the alpha0 index bug fixed
+    // 2026-08-21, Wave A3), which over-rejected steps and made the root
+    // *accidentally* sharper than rtol = 1e-9 buys. The corrected constant
+    // accepts the steps real IDA accepts; the crossing localises to ~1.4e-8.
+    assert!(rel(step.t, exact) < 1e-7, "got {} want {exact}", step.t);
+    assert!((step.y[0] - 50.0).abs() < 1e-7);
 }
 
 #[test]
@@ -937,7 +951,10 @@ fn for_assembly_wires_tolerances_id_roots_and_the_sparse_threshold() {
     let step = s.step(60.0).unwrap();
     assert!(step.root_return());
     let exact = -(30.0f64 / 75.0).ln() / 0.05;
-    assert!(rel(step.t, exact) < 1e-8, "got {}", step.t);
+    // 1e-7 for the same reason as the stopping-event test above: the
+    // corrected `ck` (Wave A3) localises the crossing to what rtol buys,
+    // not to what the old over-strict error test happened to deliver.
+    assert!(rel(step.t, exact) < 1e-7, "got {}", step.t);
 }
 
 /// `for_assembly` must pick the sparse linear solver above [`SPARSE_THRESHOLD`]

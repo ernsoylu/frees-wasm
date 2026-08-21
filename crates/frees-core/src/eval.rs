@@ -2880,6 +2880,11 @@ fn erf_inv(x: f64) -> f64 {
     // The logarithm argument must stay (1-x)(1+x): simplifying to 1-x² loses
     // accuracy near ±1 (Apache's own comment).
     let mut w = -libm::log((1.0 - x) * (1.0 + x));
+    // Late init on purpose: the four-branch cascade below is Apache's own
+    // control flow, and each branch mutates `w` before choosing its Horner
+    // coefficients. Folding it into a `let p = if ...` expression would
+    // restructure a transcribed numerical routine for a lint's benefit.
+    #[allow(clippy::needless_late_init)]
     let p;
     if w < 6.25 {
         w -= 3.125;
@@ -3524,6 +3529,10 @@ fn rj_besl(x: f64, alpha: f64, nb: usize) -> (Vec<f64>, isize) {
     ];
 
     let mut b = vec![0.0_f64; nb];
+    // Late init on purpose: `ncalc` is settled by one of several deeply
+    // nested branches below, mirroring the reference implementation. An
+    // expression form would mean restructuring the whole routine.
+    #[allow(clippy::needless_late_init)]
     let ncalc: isize;
     let magx = x as i32;
     if nb > 0 && (X_MIN..=X_MAX).contains(&x) && (0.0..1.0).contains(&alpha) {

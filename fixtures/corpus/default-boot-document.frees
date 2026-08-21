@@ -3,10 +3,11 @@
   checker, Tarjan blocker and Newton solver are Rust compiled to WebAssembly.
   Solve (F2) and Check need no server and work offline.
 
-  Not yet ported to the browser engine: COMPONENT / connect models, DYNAMIC
-  (ODE) blocks, fluid properties, TABLE / PARAMETRIC / PLOT / STATE blocks,
-  SYMBOLIC math, arrays, and the REPL / optimizer / curve-fit tools.
-  Documents that use them report an explicit error instead of solving. }
+  Also in-browser: COMPONENT / connect models, DYNAMIC (ODE) blocks,
+  real-fluid properties, TABLE / PARAMETRIC / PLOT / STATE blocks, SYMBOLIC
+  math, arrays, and the CAS REPL. Not wired yet: the optimizer, curve-fit
+  and Monte Carlo tools. Anything unported reports an explicit error
+  instead of solving. }
 
 { ---- Inputs with unit-annotated literals (converted to SI at parse time) ---- }
 P_in   = 350 [kPa]        { feed pressure }

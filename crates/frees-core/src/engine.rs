@@ -2211,8 +2211,11 @@ fn prop_arg_nominal(indicator: &str) -> Option<f64> {
 /// is clearly unphysical (a 1 Pa pressure sends a `√(ΔP)` resistance imaginary;
 /// a 1 K temperature breaks property calls). Ambiguous members are deliberately
 /// omitted — `v` is voltage as often as specific volume — as is enthalpy, whose
-/// reference point is fluid-dependent and which
-/// [`seed_consistent_enthalpy`] handles properly instead.
+/// reference point is fluid-dependent. (In principle
+/// [`seed_consistent_enthalpy`] supplies the fluid-aware enthalpy instead; in
+/// practice the generic 1e5 nominal from [`seed_prop_args_in`] lands first and
+/// the fluid-aware gate never opens — measured corpus-wide in Wave-3 F7,
+/// `docs/status-wave3-f7.md` §6, and faithful to the Java's identical order.)
 fn member_nominal(member: &str) -> Option<f64> {
     match member {
         "p" => Some(1.0e5),
@@ -2295,7 +2298,9 @@ fn seed_property_argument_guesses(
     }
     seed_stream_member_guesses(equations, specs, missing);
     // Last: the reference-dependent enthalpies, which need the pressures the
-    // passes above have just seeded.
+    // passes above have just seeded. Running last also means seed_prop_args_in
+    // has already taken every default `h` with its generic 1e5, so the
+    // fluid-aware branch below is corpus-wide dead — see its doc comment.
     for equation in equations {
         seed_consistent_enthalpy(&equation.lhs, specs, missing);
         seed_consistent_enthalpy(&equation.rhs, specs, missing);
@@ -2409,9 +2414,15 @@ fn seed_prop_args_in(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>, missing
 /// guess — to a thermodynamically consistent `Enthalpy(fluid, P, x=0.5)` (or
 /// `T ≈ 300 K` for an incompressible), using the call's *own* pressure
 /// argument, which the earlier passes have already seeded. Port of
-/// `seedConsistentEnthalpy`: the principled fix for the closed-loop cold-start
-/// NaN, since an enthalpy stuck at 1 J/kg is below every fluid's table range
-/// and a flat 1e5 nominal is meaningless against a fluid-dependent reference.
+/// `seedConsistentEnthalpy`, the pass *designed* as the principled fix for the
+/// closed-loop cold-start NaN (an enthalpy stuck at 1 J/kg is below every
+/// fluid's table range). Measured corpus-wide in Wave-3 F7
+/// (`docs/status-wave3-f7.md` §6): the fluid-aware nominal never actually
+/// runs, because [`seed_prop_args_in`] has already replaced the default guess
+/// with its flat 1e5 `h` nominal by the time this pass asks [`needs_seed`].
+/// The Java has the identical ordering and early-return, so the no-op is
+/// parity, not a bug; reordering the passes would change initial guesses at
+/// 28 call sites and is a parity decision, not a cleanup.
 fn seed_consistent_enthalpy(expr: &Expr, specs: &mut BTreeMap<String, VarSpec>, missing: Missing) {
     match expr {
         Expr::Call { function, args } => {

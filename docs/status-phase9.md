@@ -344,6 +344,14 @@ golden with the gate's own rules — is in
 
 ## Bundle: the one red gate
 
+> **Stale — corrected 2026-08-21.** These numbers are pre-commit: the
+> `opt-level = "s"` lever this section describes as "measured, not taken" was
+> taken in this phase's own commit (worth 535 KiB re-measured at the then-HEAD
+> — see `docs/status-phase10.md`'s bundle section), and D9 later removed the
+> property tables from the browser bundle entirely. As of 2026-08-19 the
+> bundle is **2721.9 KiB raw / 1118.2 KiB gzipped — 88.6 % of budget, green**.
+> The section is kept for its section-breakdown analysis, which still holds.
+
 ```
 wasm-pack build crates/frees-wasm --release --target web
   →  3,416,518 bytes  =  3336 KiB raw  /  1497 KiB gzipped

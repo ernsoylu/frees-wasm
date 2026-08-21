@@ -18,7 +18,7 @@ Measured, not estimated:
 |---|---|
 | `backend/core` (the port target) | **134 Java files, 38,181 LOC** |
 | `backend/web` (mostly deleted, contract retained) | 28 files, 6,788 LOC |
-| Test suite (the correctness oracle) | **197 files, 24,359 LOC, 1,237 `@Test` methods** |
+| Test suite (the correctness oracle) | **197 files, 24,359 LOC, 1,237 `@Test` methods** *(stale — the Phase-12 harvest re-measured the reference checkout at 184 files / 1,179 `@Test` methods, of which only ~625 carry a `.frees` document that can become a fixture; see `docs/status-phase12.md` §1. Every later "1,237-test corpus" mention in this plan inherits this correction.)* |
 | ANTLR grammar `Frees.g4` | 632 lines, ~55 parser rules |
 | Standard component library | **295 components** across 13 `.frees` files (168 KB) |
 | Intrinsic function names (`FunctionRegistry`) | 275 |

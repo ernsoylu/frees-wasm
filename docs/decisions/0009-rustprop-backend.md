@@ -257,15 +257,19 @@ between them.
 
 ## Consequences and open risks
 
-* **GitHub CI cannot build the wasm or web jobs until rustprop is published.**
-  `frees-core` reaches rustprop through a `path` dependency on a sibling
-  checkout, which F1 made *optional* so the runner could still build. D9 makes
-  `frees-wasm` require it, so the `wasm`, `web` and (through feature
-  unification) `native`/`parity` jobs now need `../rustprop` present. This is
-  the one thing in this record that is not self-contained: rustprop's crates.io
-  names are claimed but unpublished, pending its owner's registry token. Until
-  then the gate is a local gate. Nothing here needs to change when it lands —
-  only the two dependency lines.
+* ~~**GitHub CI cannot build the wasm or web jobs until rustprop is
+  published.**~~ **Closed 2026-08-20 by commit `cb1d7be`**, which switched the
+  three rustprop dependency lines from the sibling-path form to
+  `git = "https://github.com/ernsoylu/RustProp", tag = "v0.1.0"` — the runners
+  resolve the tag like any other git dependency and every CI job builds
+  without a sibling checkout. What remains open is only the *cosmetic* half:
+  when the claimed crates.io names are published (pending the owner's registry
+  token), the git/tag keys become a plain version requirement. The original
+  text follows for the record: `frees-core` reached rustprop through a `path`
+  dependency on a sibling checkout, which F1 made *optional* so the runner
+  could still build; D9 made `frees-wasm` require it, so the `wasm`, `web` and
+  (through feature unification) `native`/`parity` jobs needed `../rustprop`
+  present, and until publication the gate was a local gate.
 * **The fetch fallback is narrower than the seam suggests, and deliberately not
   widened here.** `install_from_bytes` takes one `FRPHTAB1` artifact and rebuilds
   the backend from the linked floor plus that artifact. With the floor now empty

@@ -2,11 +2,12 @@
 
 > **Historical.** This document records the state at the end of Phase 1–3 and
 > is kept for its divergence ledger (below), which is maintained. For the
-> current state read [`docs/status-phase78.md`](status-phase78.md) first, then
-> [`docs/status-phase7.md`](status-phase7.md),
-> [`docs/status-phase6.md`](status-phase6.md),
-> [`docs/status-phase5.md`](status-phase5.md) and
-> [`docs/status-phase4.md`](status-phase4.md).
+> current state read [`docs/status-phase12.md`](status-phase12.md) first, then
+> [`docs/status-wave3-f7.md`](status-wave3-f7.md) and decision
+> [D9](decisions/0009-rustprop-backend.md); the older per-phase status docs
+> (11, 10, 9, 78, 7, 6, 5, 4) fill in the history. *(Corrected 2026-08-21:
+> this pointer previously named `status-phase78.md` as current — four status
+> documents and five decisions had landed since.)*
 
 **Date:** 2026-07-30 · Workspace at the time: 644 tests green, clippy
 `-D warnings` clean, `cargo fmt` clean, wasm release bundle **397 KiB raw /
@@ -476,10 +477,10 @@ printf 'x = 2\ny = x^2\n' | cargo run -qp frees-cli -- solve
 
 ## Next (in dependency order)
 
-1. **Phase 3 remainder — the browser vertical slice**: Web Worker protocol,
-   `api.ts` fetch→RPC shim, vendor `web/` from `../frEES/frontend`, prove
-   Editor → Check → Solve → Solution offline. This is the thesis milestone.
-2. **Corpus growth**: harvest `examples.ts` documents into `fixtures/corpus/`
-   and fix what diverges (the retry-ladder gap will surface here first).
-3. **Phase 4**: `Differentiator` (unblocks the symbolic Jacobian), arrays &
-   matrix intrinsics, `ComplexExpansion`, procedural bodies.
+*(Corrected 2026-08-21: everything this section listed shipped long ago — the
+browser vertical slice in Phase 3, corpus growth through Phases 4–12 and the
+Phase-12 harvest, and the Phase 4 differentiator/arrays/complex/procedural
+work. The list is kept only so old links into it do not dangle; do not plan
+from it. Current open work is inventoried in
+[`docs/status-phase12.md`](status-phase12.md)'s "did not deliver" list and the
+ledger above.)*

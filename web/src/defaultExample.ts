@@ -6,18 +6,25 @@
 // supports today: comments, case-insensitive names, unit-annotated literals,
 // GUESS directives, a sequential chain, and a nonlinear simultaneous pair.
 // Verified against the engine: 12 equations / 12 unknowns, solves with zero
-// unit warnings. The previous EV COMPONENT model needs the component/connect
-// layer (Phase 6) and is kept below as EV_THERMAL_EXAMPLE_TEXT.
+// unit warnings. The previous EV COMPONENT boot model (which now solves in the
+// browser — Phase 6) is kept below as EV_THERMAL_EXAMPLE_TEXT.
+//
+// This document is also the parity fixture
+// fixtures/corpus/default-boot-document.frees, verbatim. Editing the template
+// string means editing the fixture identically and re-dumping its golden from
+// the Java oracle (tools/golden-dumper/run.sh accepts a corpus dir, so a
+// one-document scratch dir avoids touching the other goldens).
 
 export const DEFAULT_EXAMPLE_TEXT = `// Welcome to frees — running natively in your browser
 { This build runs the frees engine entirely in this tab: the parser, unit
   checker, Tarjan blocker and Newton solver are Rust compiled to WebAssembly.
   Solve (F2) and Check need no server and work offline.
 
-  Not yet ported to the browser engine: COMPONENT / connect models, DYNAMIC
-  (ODE) blocks, fluid properties, TABLE / PARAMETRIC / PLOT / STATE blocks,
-  SYMBOLIC math, arrays, and the REPL / optimizer / curve-fit tools.
-  Documents that use them report an explicit error instead of solving. }
+  Also in-browser: COMPONENT / connect models, DYNAMIC (ODE) blocks,
+  real-fluid properties, TABLE / PARAMETRIC / PLOT / STATE blocks, SYMBOLIC
+  math, arrays, and the CAS REPL. Not wired yet: the optimizer, curve-fit
+  and Monte Carlo tools. Anything unported reports an explicit error
+  instead of solving. }
 
 { ---- Inputs with unit-annotated literals (converted to SI at parse time) ---- }
 P_in   = 350 [kPa]        { feed pressure }

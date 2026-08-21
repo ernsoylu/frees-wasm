@@ -1,6 +1,6 @@
 {
   "name": "default-boot-document",
-  "source": "// Welcome to frees — running natively in your browser\n{ This build runs the frees engine entirely in this tab: the parser, unit\n  checker, Tarjan blocker and Newton solver are Rust compiled to WebAssembly.\n  Solve (F2) and Check need no server and work offline.\n\n  Not yet ported to the browser engine: COMPONENT / connect models, DYNAMIC\n  (ODE) blocks, fluid properties, TABLE / PARAMETRIC / PLOT / STATE blocks,\n  SYMBOLIC math, arrays, and the REPL / optimizer / curve-fit tools.\n  Documents that use them report an explicit error instead of solving. }\n\n{ ---- Inputs with unit-annotated literals (converted to SI at parse time) ---- }\nP_in   = 350 [kPa]        { feed pressure }\nT_in   = 25 [C]           { feed temperature — offset units convert exactly }\nD_pipe = 0.05 [m]         { pipe bore }\nv_flow = 2 [m/s]          { mean velocity }\nrho    = 998 [kg/m^3]     { water density }\n\n{ ---- A sequential chain: each line solves from the ones before ---- }\nA_pipe  = pi# * D_pipe ^ 2 / 4\nmdot    = rho * A_pipe * v_flow\ndP      = 35 [kPa]\nP_out   = P_in - dP\n{ variable names are case-insensitive: MDOT and V_FLOW are mdot and v_flow }\nKE_flux = MDOT * V_FLOW ^ 2 / 2\n\n{ ---- A nonlinear simultaneous pair: one Tarjan block, Newton iteration\n  with step-halving. GUESS seeds the iteration start point. ---- }\nGUESS x = 2\nGUESS y = 3\nx ^ 2 + y ^ 3 = 77\nx / y = 1.23456\n",
+  "source": "// Welcome to frees — running natively in your browser\n{ This build runs the frees engine entirely in this tab: the parser, unit\n  checker, Tarjan blocker and Newton solver are Rust compiled to WebAssembly.\n  Solve (F2) and Check need no server and work offline.\n\n  Also in-browser: COMPONENT / connect models, DYNAMIC (ODE) blocks,\n  real-fluid properties, TABLE / PARAMETRIC / PLOT / STATE blocks, SYMBOLIC\n  math, arrays, and the CAS REPL. Not wired yet: the optimizer, curve-fit\n  and Monte Carlo tools. Anything unported reports an explicit error\n  instead of solving. }\n\n{ ---- Inputs with unit-annotated literals (converted to SI at parse time) ---- }\nP_in   = 350 [kPa]        { feed pressure }\nT_in   = 25 [C]           { feed temperature — offset units convert exactly }\nD_pipe = 0.05 [m]         { pipe bore }\nv_flow = 2 [m/s]          { mean velocity }\nrho    = 998 [kg/m^3]     { water density }\n\n{ ---- A sequential chain: each line solves from the ones before ---- }\nA_pipe  = pi# * D_pipe ^ 2 / 4\nmdot    = rho * A_pipe * v_flow\ndP      = 35 [kPa]\nP_out   = P_in - dP\n{ variable names are case-insensitive: MDOT and V_FLOW are mdot and v_flow }\nKE_flux = MDOT * V_FLOW ^ 2 / 2\n\n{ ---- A nonlinear simultaneous pair: one Tarjan block, Newton iteration\n  with step-halving. GUESS seeds the iteration start point. ---- }\nGUESS x = 2\nGUESS y = 3\nx ^ 2 + y ^ 3 = 77\nx / y = 1.23456\n",
   "expect": {
     "variables": {
       "A_pipe": 0.001963495408493621,
@@ -31,6 +31,8 @@
       "y": "y"
     },
     "block_count": 11,
+    "ode_tables": [
+    ],
     "error": null
   },
   "oracle": {

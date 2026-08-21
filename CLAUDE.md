@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phases 0–7 are implemented** — the Phase-3 wasm boundary is wired, Phase 4
+**All 13 planned phases (0–12) are implemented — the plan is finished, and
+post-plan work continues as decisions D5–D9 plus lettered Waves.** This
+paragraph describes Phases 0–7; the paragraphs below cover 8–12. The Phase-3
+wasm boundary is wired, Phase 4
 (differentiator, matrix, complex, procedural, tables, integrals, kernels, latex,
 solver retry ladder) is complete, Phase 5 ports `props/` in full and gives the
 browser a **working real-fluid property backend**, Phase 6 ports the acausal
@@ -15,7 +18,8 @@ boundary, and the parity replay compares them. A Rust workspace ports the frees
 engine to WebAssembly. Solve, check, transient integration, real-fluid
 properties, property diagrams, component networks, the component datasheet, the
 language reference, the CAS REPL, the control-systems `CALL`s and the Data
-Analyzer's `.mf4` reading all run in-browser with **zero `/api/` traffic**.
+Analyzer's CSV path all run in-browser with **zero `/api/` traffic** (the
+`.mf4` reader shipped with Phase 10 and was later removed by D6 — see below).
 Current gate numbers live in
 [`docs/status-phase12.md`](docs/status-phase12.md) — do not trust a count copied
 into this paragraph.
@@ -326,6 +330,15 @@ tools/aux-gen/run.sh --sweep           # its error-vs-resolution ladder; writes 
 > (`"$HOME/.cargo/bin/cargo"`, `./node_modules/.bin/vitest`) and redirect to a
 > file.
 
+> **One agent per working tree.** Two agents editing this checkout at once has
+> already broken a gate twice (recorded in `docs/status-phase78.md`, gap 8):
+> one left the tree uncompilable for ~15 minutes, and fmt churn landed in
+> files neither owned. The convention: an agent that edits runs in its own
+> `git worktree` (`git worktree add ../frees-wasm-<task> <branch>`), merges
+> back only with the gates green, and removes the worktree after; read-only
+> agents may share the main tree freely. If a task cannot use a worktree, do
+> not run a second editing agent beside it.
+
 ## Workspace layout
 
 - `crates/frees-core` — the engine (target-agnostic; **must never depend on wasm-bindgen**)
@@ -341,8 +354,10 @@ tools/aux-gen/run.sh --sweep           # its error-vs-resolution ladder; writes 
 ### The property backend
 
 **Real-fluid properties are answered by rustprop** — the pure-Rust CoolProp
-8.0.0 port in the sibling `../rustprop` checkout, reached through a `path`
-dependency and gated by `frees-core`'s `rustprop-backend` feature. It is a
+8.0.0 port, consumed as a git dependency pinned to the **`v0.1.0` tag** of
+`github.com/ernsoylu/RustProp` (no sibling checkout is needed since commit
+`cb1d7be`; it used to be a `path` dependency) and gated by `frees-core`'s
+`rustprop-backend` feature. It is a
 plain Cargo dependency with no external deps of its own, so `frees-core` stays
 clear of wasm-bindgen; per-fluid data is opt-in at the feature level and this
 build enables four (`water`, `r134a`, `r1234yf`, `air`) plus `heos`,

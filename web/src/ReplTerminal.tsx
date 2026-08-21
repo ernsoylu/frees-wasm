@@ -170,20 +170,12 @@ Variable Queries & Assignments:
   › x = 42 [m/s]
   = x = 42 [m/s]
 
-Implicit Single-Unknown Solver:
-  Solve equations implicitly by specifying a single unknown variable, e.g.:
-  › P = 50000 * volume
-  = volume = 5 [m^3]
+Not available in the browser REPL (each refuses with a message naming itself):
+  CALL lines (e.g. CALL Eigenvalues(A : lambda)) — use a CALL in the document
+  matrix/vector literals and range vectors ([1 2 3], 1:2:10)
+  implicit single-unknown solves (P = 50000 * volume) — solve via the document
 
-CALL Library (eigen, control systems, partial fractions, …):
-  Run a CALL procedure against workspace arrays. Inputs and outputs may be
-  bare names — output lengths are sized automatically from the inputs:
-  › CALL Eigenvalues(A : lambda)
-  › CALL Routh(den : nRHP, stable)
-  › CALL Bode(num, den, w : mag, phase)
-  (Finite-zero counts for Zero/tf2zp still take an explicit size, e.g. zr[1:2].)
-
-Symbolic CAS (Symja) — returns a transformed expression as text:
+Symbolic CAS — returns a transformed expression as text:
   › Factor(x^2 - 1)              = (-1+x)*(1+x)
   › Expand((x+1)^3)              Simplify(...)
   › Together(...)  Cancel(...)   Numerator(...)  Denominator(...)

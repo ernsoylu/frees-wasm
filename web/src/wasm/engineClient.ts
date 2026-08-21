@@ -78,6 +78,16 @@ export async function wasmSolve(
   return JSON.parse(await call('solve', [source, requestJson])) as SolveResponse
 }
 
+/** Runs a Tables-workbook sweep in the engine worker; resolves to the raw
+ *  JSON string the `solve_table` boundary emits (parsing and the error-to-rows
+ *  mapping happen in api.ts, which owns the response shape). */
+export async function wasmSolveTable(
+  source: string,
+  requestJson: string,
+): Promise<string> {
+  return call('solveTable', [source, requestJson])
+}
+
 /** Runs a check in the engine worker; resolves to the parsed CheckResponse. */
 export async function wasmCheck(
   source: string,

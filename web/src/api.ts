@@ -16,6 +16,7 @@ import {
   wasmReplClear,
   wasmReplEvaluate,
   wasmSolve,
+  wasmSolveTable,
 } from './wasm/engineClient'
 
 export interface VariableResult {
@@ -928,18 +929,46 @@ export interface SolveTableResponse {
   variables: VariableResult[]
 }
 
-/** Parametric table solving is not ported yet — rejects; the App.tsx call site
- *  catches and writes the message into every row of the table. */
+/** `POST /api/solve/table` — the Tables workbook Solve, now served by the
+ *  wasm `solve_table` export (Wave B). Never rejects: a cap breach, a syntax
+ *  error, or an engine-infrastructure failure all resolve to a response whose
+ *  every row carries the message — the same shape the App.tsx catch used to
+ *  build, so the call site needs no change and always has rows to render. */
 export async function solveTable(
-  _text: string,
-  _stopCriteria: StopCriteria,
-  _variableInfo: VariableInfo[],
-  _displayUnitSystem: UnitSystem,
-  _variables: string[],
-  _rows: Record<string, number>[],
-  _functionTables: FunctionTableDto[] = [],
+  text: string,
+  stopCriteria: StopCriteria,
+  variableInfo: VariableInfo[],
+  displayUnitSystem: UnitSystem,
+  variables: string[],
+  rows: Record<string, number>[],
+  functionTables: FunctionTableDto[] = [],
 ): Promise<SolveTableResponse> {
-  throw new Error(NOT_IN_BROWSER_ENGINE)
+  const request = JSON.stringify({
+    stopCriteria,
+    variableInfo,
+    displayUnitSystem,
+    table: { variables, rows },
+    functionTables,
+  })
+  const everyRowFailed = (error: string): SolveTableResponse => ({
+    results: rows.map(() => ({ success: false, values: {}, error })),
+    stats: null,
+    variables: [],
+  })
+  try {
+    const parsed = JSON.parse(await wasmSolveTable(text, request)) as SolveTableResponse & {
+      error?: string
+    }
+    if (parsed.error) {
+      return everyRowFailed(parsed.error)
+    }
+    return parsed
+  } catch (e) {
+    // Only infrastructure can land here (worker died, wasm failed to load).
+    return everyRowFailed(
+      `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
 }
 
 // ---------------------------------------------------------------------------

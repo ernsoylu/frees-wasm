@@ -280,6 +280,13 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    there is no place for the Java controllers' input validation to live, so the
    library is the only line of defence and had none. **A `PARAMETRIC` block
    still cannot be solved from the Tables tab in the browser.**
+   *(First slice closed 2026-08-22, Wave B1: `frees-wasm/src/analysis.rs`
+   exports `solve_table`, driving `run_sweep` end-to-end — with
+   `engine::solve_with_parametric` finally delivering the accessor channel —
+   behind the transcribed controller caps (5 000 rows, a cooperative 120 s
+   deadline) and their verbatim messages. The Tables workbook Solve works
+   in-browser. The optimizer/Monte-Carlo/curve-fit/param-fit surfaces remain
+   unwired; their validation homes arrive with their exports.)*
 2. **The fuzz is adversarial, not generative.** These are 42 hand-chosen cases
    from a brief, plus the four defects they turned up. There is no property-based
    or coverage-guided fuzzing of the integrator anywhere in the tree — no

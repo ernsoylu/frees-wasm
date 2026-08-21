@@ -53,8 +53,8 @@ pub mod units;
 pub use ast::{BinOp, CmpOp, Equation, Expr, LogicOp, Statement};
 pub use diag::{Diagnostic, FreesError, Result, Severity, Span};
 pub use engine::{
-    check, check_with, solve, solve_with, CheckReport, EquationResidual, PartialDiagnostics,
-    Solution, SolveFailure, SolveStats, SyntaxErrorInfo, VariableOverride,
+    check, check_with, solve, solve_with, solve_with_parametric, CheckReport, EquationResidual,
+    PartialDiagnostics, Solution, SolveFailure, SolveStats, SyntaxErrorInfo, VariableOverride,
 };
 pub use parser::{parse_document, Document, GuessDirective};
 pub use solver::{Block, BlockingReport, NewtonReport, SolverSettings};

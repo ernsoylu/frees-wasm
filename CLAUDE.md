@@ -48,7 +48,10 @@ fixture it says must be committed no longer exists.
 Curve Fit, PID Tuner, Monte Carlo and Parameter Estimation modals and the
 PDF/EPS exports are removed — they only ever surfaced `NOT_IN_BROWSER_ENGINE`
 stubs. The stubs, the pid helpers and Phase 8's `analysis/` module remain as
-the wiring seam (ledger item 36); the Tables workbook stays (its GUI Solve is
+the wiring seam (ledger item 36); the Tables workbook stays (since Wave B1,
+2026-08-22, its GUI Solve is **wired** — the wasm `solve_table` export drives
+`analysis::parametric::run_sweep` behind the transcribed controller caps, and
+the old note below is history: its GUI Solve was
 also stubbed but the workbook is core UI — a wire-next candidate, not a clip).
 
 **Phase 12 is implemented — the plan's last phase.** A hardening pass that

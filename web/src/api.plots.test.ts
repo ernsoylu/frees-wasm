@@ -18,6 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('./wasm/engineClient', () => ({
+  wasmSolveTable: vi.fn(),
   wasmFluids: vi.fn(),
   wasmPropertyDiagram: vi.fn(),
   wasmPsychrometricChart: vi.fn(),

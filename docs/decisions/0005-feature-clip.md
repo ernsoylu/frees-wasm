@@ -28,7 +28,12 @@ Keep, deliberately:
 * **the Tables workbook** — its GUI Solve path is also a stub
   (`solveTable`), but the workbook is core UI whose Check path and
   document-level `TABLE`/`PARAMETRIC` blocks work; it is a wire-next
-  candidate, not a clip.
+  candidate, not a clip. *(Wired 2026-08-22, Wave B1 — the first affordance
+  to take the reverse migration this decision kept open: the wasm
+  `solve_table` export drives `analysis::parametric::run_sweep` behind the
+  transcribed controller caps, `api.ts`'s stub became the real call, and the
+  workbook Solve works in-browser. Eight `NOT_IN_BROWSER_ENGINE` stubs
+  remain.)*
 
 ## Context
 

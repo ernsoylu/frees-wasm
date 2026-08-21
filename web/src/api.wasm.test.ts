@@ -14,15 +14,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('./wasm/engineClient', () => ({
   wasmSolve: vi.fn(),
   wasmCheck: vi.fn(),
+  wasmSolveTable: vi.fn(),
   // api.ts imports these too (the REPL seam); unused here but a mocked module
   // must declare every export its importer names.
   wasmReplEvaluate: vi.fn(),
   wasmReplClear: vi.fn(),
 }))
 
-import { check, solve, DEFAULT_STOP_CRITERIA } from './api'
+import { check, solve, solveTable, DEFAULT_STOP_CRITERIA } from './api'
 import { mergeCodeTables } from './tables'
-import { wasmCheck, wasmSolve } from './wasm/engineClient'
+import { wasmCheck, wasmSolve, wasmSolveTable } from './wasm/engineClient'
 
 const solveMock = vi.mocked(wasmSolve)
 const checkMock = vi.mocked(wasmCheck)
@@ -246,5 +247,65 @@ describe('check() over the wasm boundary payloads', () => {
     const request = JSON.parse(requestJson)
     expect(request.variableInfo).toEqual([row])
     expect(request.stopCriteria.complexMode).toBe(true)
+  })
+})
+
+// ── solveTable (Wave B: the Tables workbook GUI Solve) ────────────────────
+
+// Verbatim boundary output. Regenerate with a one-off example calling
+// frees_wasm::solve_table("y = 2 * x\n",
+//   '{"table": {"variables": ["x", "y"], "rows": [{"x": 1}, {"x": 2}]}}').
+const SOLVE_TABLE_OK =
+  '{"results":[{"error":null,"success":true,"values":{"x":1.0,"y":2.0}},{"error":null,"success":true,"values":{"x":2.0,"y":4.0}}],"stats":{"elapsedMillis":1,"equations":2,"failed":0,"iterations":3,"maxResidual":0.0,"runs":2,"solved":2,"unknowns":2},"variables":[{"name":"x","uncertainty":0.0,"units":"-","value":2.0},{"name":"y","uncertainty":0.0,"units":"-","value":4.0}]}'
+
+const SOLVE_TABLE_CAP =
+  '{"results":[],"stats":null,"variables":[],"error":"The parametric table has too many rows (5001; limit 5000). Reduce the run count."}'
+
+describe('solveTable (wasm engine)', () => {
+  const tableMock = vi.mocked(wasmSolveTable)
+
+  it('round-trips the SolveTableResponse the App writes onto the table spec', async () => {
+    tableMock.mockResolvedValueOnce(SOLVE_TABLE_OK)
+    const r = await solveTable(
+      'y = 2 * x\n',
+      DEFAULT_STOP_CRITERIA,
+      [],
+      'SI',
+      ['x', 'y'],
+      [{ x: 1 }, { x: 2 }],
+    )
+    expect(r.results).toHaveLength(2)
+    expect(r.results[0]).toEqual({ error: null, success: true, values: { x: 1, y: 2 } })
+    expect(r.stats?.runs).toBe(2)
+    expect(r.stats?.solved).toBe(2)
+    expect(r.variables.map((v) => v.name)).toEqual(['x', 'y'])
+    // The request carries the table under the Java field names.
+    const [source, requestJson] = tableMock.mock.calls[0]
+    expect(source).toBe('y = 2 * x\n')
+    const request = JSON.parse(requestJson)
+    expect(request.table.variables).toEqual(['x', 'y'])
+    expect(request.table.rows).toEqual([{ x: 1 }, { x: 2 }])
+  })
+
+  it('maps a top-level boundary error onto every row', async () => {
+    tableMock.mockResolvedValueOnce(SOLVE_TABLE_CAP)
+    const r = await solveTable('y = 2 * x\n', DEFAULT_STOP_CRITERIA, [], 'SI', ['x'], [
+      { x: 1 },
+      { x: 2 },
+    ])
+    expect(r.results).toHaveLength(2)
+    for (const row of r.results) {
+      expect(row.success).toBe(false)
+      expect(row.error).toMatch(/too many rows/)
+    }
+    expect(r.stats).toBeNull()
+  })
+
+  it('resolves (never rejects) when the engine infrastructure dies', async () => {
+    tableMock.mockRejectedValueOnce(new Error('worker terminated'))
+    const r = await solveTable('y = 2 * x\n', DEFAULT_STOP_CRITERIA, [], 'SI', ['x'], [{ x: 1 }])
+    expect(r.results).toHaveLength(1)
+    expect(r.results[0].success).toBe(false)
+    expect(r.results[0].error).toBe('Browser engine error: worker terminated')
   })
 })

@@ -480,6 +480,22 @@ pub fn solve_with(
     settings: &SolverSettings,
     overrides: &[VariableOverride],
 ) -> std::result::Result<Solution, SolveFailure> {
+    solve_with_parametric(source, settings, overrides, None)
+}
+
+/// [`solve_with`] with the parametric-accessor channel installed — the
+/// per-row solve of a Tables-workbook sweep (`analysis::parametric::run_sweep`
+/// drives it through the wasm boundary's `solve_table`). The accessors are
+/// what `TableValue`/`TableAvg`/`IntegralValue`/… read; a plain solve passes
+/// `None` and every accessor reports its empty-context default, exactly as
+/// the Java's thread-bound `ParametricAccessors` behaves outside
+/// `solveTableWithAccessors`.
+pub fn solve_with_parametric(
+    source: &str,
+    settings: &SolverSettings,
+    overrides: &[VariableOverride],
+    parametric: Option<&crate::analysis::parametric::ParametricAccessors>,
+) -> std::result::Result<Solution, SolveFailure> {
     crate::props::tables::install_builtin_once();
     let mut doc = parse_document(source)?;
     reject_unsupported(&doc)?;
@@ -517,11 +533,16 @@ pub fn solve_with(
     // and drop the definition equations from the numeric system.
     let equations = crate::parser::string_variables::resolve(equations, &doc.display_names)?;
     let defs = &doc.defs;
-    // The document context every residual evaluation runs under. The two
-    // optional channels (`ode`, `parametric`) start empty; the accessor pass
-    // below installs the ODE bridge when — and only when — the analytic system
-    // actually reads a solved `DYNAMIC` block.
-    let base_ctx = EvalContext::with_defs(defs);
+    // The document context every residual evaluation runs under. The `ode`
+    // channel starts empty; the accessor pass below installs the ODE bridge
+    // when — and only when — the analytic system actually reads a solved
+    // `DYNAMIC` block. The `parametric` channel is the caller's: a table
+    // sweep's per-row solve carries its accessors in, everything else `None`.
+    let base_ctx = {
+        let mut ctx = EvalContext::with_defs(defs);
+        ctx.parametric = parametric;
+        ctx
+    };
 
     // Pipeline stage 3b — the Integral pass, at the Java position (`solve`
     // runs `IntegralSolver.hoistNested` then `findIntegrals` on the flattened

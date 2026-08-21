@@ -1,9 +1,10 @@
 // Module worker hosting the frees WASM engine off the UI thread.
 //
 // Protocol (see engineClient.ts, the only sender):
-//   request  {id, method: 'solve' | 'check' | 'reference' | 'version' |
-//                     'fluids' | 'propertyDiagram' | 'psychrometricChart' |
-//                     'replEvaluate' | 'replClear' | 'measurementCalc',
+//   request  {id, method: 'solve' | 'solveTable' | 'check' | 'reference' |
+//                     'version' | 'fluids' | 'propertyDiagram' |
+//                     'psychrometricChart' | 'replEvaluate' | 'replClear' |
+//                     'measurementCalc',
 //             args: string[]}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
@@ -32,6 +33,7 @@ import init, {
   repl_clear,
   repl_evaluate,
   solve,
+  solve_table,
   version,
 } from './pkg/frees_wasm.js'
 
@@ -39,6 +41,7 @@ export interface EngineRequest {
   id: number
   method:
     | 'solve'
+    | 'solveTable'
     | 'check'
     | 'reference'
     | 'version'
@@ -85,6 +88,9 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
     switch (method) {
       case 'solve':
         result = solve(args[0] ?? '', args[1] ?? '')
+        break
+      case 'solveTable':
+        result = solve_table(args[0] ?? '', args[1] ?? '')
         break
       case 'check':
         result = check(args[0] ?? '', args[1] ?? '')

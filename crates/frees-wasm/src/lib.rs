@@ -35,6 +35,7 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use wasm_bindgen::prelude::*;
 
+mod analysis;
 mod measurement;
 mod repl;
 
@@ -43,6 +44,10 @@ mod repl;
 // (The `.mf4` open/window/close entry points were removed with the MDF4
 // feature — signals now reach `measurement_calc` inline.)
 pub use measurement::measurement_calc;
+
+// The Tables-workbook sweep (POST /api/solve/table) — Wave B's first wiring
+// of the Phase-8 analysis layer, behind the transcribed controller caps.
+pub use analysis::solve_table;
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
 /// Rust backtrace instead of `unreachable executed`, and install the property

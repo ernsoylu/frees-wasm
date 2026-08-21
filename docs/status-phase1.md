@@ -265,8 +265,21 @@ Both found by the adversarial sweep over the CAS and the control suite, and
 pinned by `crates/frees-core/tests/cas_control_robustness.rs`. Full context in
 [`docs/status-phase9.md`](status-phase9.md).
 
-24. **`balreal` returns a valid balanced realisation whose second state carries
-    the opposite sign from the oracle's.** Re-checking
+24. ~~**`balreal` returns a valid balanced realisation whose second state
+    carries the opposite sign from the oracle's.**~~ **Closed 2026-08-21
+    (Wave A2).** The convention proved not statable as a normalisation — the
+    `linalg-full-svd` golden's V column 2 has its largest component
+    *negative*, contradicting any make-positive rule — so, per this item's own
+    closing sentence ("a convention is transcribed rather than invented"),
+    `linalg::svd`'s one-sided Jacobi kernel was replaced with a line-faithful
+    transcription of Commons Math 3.6.1's JAMA-derived
+    `SingularValueDecomposition`, Householder reflector signs and all. All
+    six sign-held fixtures (this one, `linalg-full-svd`,
+    `multiout-svd-discard-with-tilde`, `ctldesign-balreal-invariants-integration`,
+    `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2`)
+    promoted at the corpus default `1e-9`; corpus 722 → 728. The original
+    diagnosis, kept because its sign-flip mechanics are what made the fix
+    checkable: re-checking
     `fixtures/corpus-pending/corpus/estimator-gramian-balreal.frees` against its
     golden: `L` (the Kalman gain), `Wc` and `Wo` all match to better than
     `1e-9`, and exactly four entries mismatch — `Ab[1,2]`, `Ab[2,1]`,

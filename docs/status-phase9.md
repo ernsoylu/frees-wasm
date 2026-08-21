@@ -431,6 +431,9 @@ cleanup.
 2. **`balreal` returns a balanced realisation in the opposite state-sign
    convention from the oracle**, which is why `estimator-gramian-balreal` is
    still pending and why it is a Phase 9 debt rather than a Phase 7 one.
+   *(Closed 2026-08-21, Wave A2: `linalg::svd` became a transcription of
+   Commons Math's own JAMA-derived algorithm — signs included — and the
+   fixture promoted with the five other sign holds; ledger item 24.)*
    Diagnosed here from the golden: 31 of 35 variables match to better than
    `1e-9` — the Kalman gain `L` and both gramians included — and the four that
    do not are exactly `Ab[1,2]`, `Ab[2,1]`, `Bb[2,1]`, `Cb[1,2]`, each with the

@@ -5,9 +5,9 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 722
-fixtures/golden/*.json    what the Java engine produced for each      — 722
-fixtures/corpus-pending/  the staging area: documents not yet promoted — 11
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 728
+fixtures/golden/*.json    what the Java engine produced for each      — 728
+fixtures/corpus-pending/  the staging area: documents not yet promoted — 5
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -488,7 +488,10 @@ are regressions:
   for `Bb[2,1]` / `Cb[1,2]`. Verified to be a pure state-basis flip —
   `T·Aⱼ·T = Aᵣ`, `T·Bⱼ = Bᵣ`, `Cⱼ·T = Cᵣ` — with identical eigenvalues
   `{−1, −2}` and identical transfer function `1/(s²+3s+2)`. Both are valid; a
-  balanced realisation is only unique up to that sign.
+  balanced realisation is only unique up to that sign. *(Closed 2026-08-21:
+  since `linalg::svd` became the Commons Math transcription, the port lands on
+  the Java's basis exactly — this note stays as the record of why the two
+  could legitimately differ before.)*
 * **LQR on an unstabilisable plant.** `A = [2 1; 0 3]`, `B = [1; 1]` has
   `rank[B, AB] = 1` and the *unreachable* mode is `λ = +2`, so no stabilising
   gain exists. The Java returns one anyway — and it does not stabilise. Measured
@@ -518,21 +521,26 @@ classification. If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 11 documents, none of them a property hold
+### What is pending today — 5 documents, none of them a property hold
 
 | Blocker | Count | Documents |
 |---|---:|---|
-| `linalg::svd` **column-sign convention** — sign-only element flips, invariants identical, so the relative measure reads ~2.0 by construction | 6 | `linalg-full-svd`, `multiout-svd-discard-with-tilde`, `ctldesign-balreal-invariants-integration`, `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2`, `estimator-gramian-balreal` |
 | A signal **decaying through zero**, so the relative measure has no denominator | 2 | `sysdesign-ex01-thermal-network-2` (`ode:m$port$qdot`), `ev-battery-cooling-pid` (`ode:pid$e`) — the second *solves and agrees*, at `t_bat` rel 5.0e-13 |
 | Pipeline ordering — `MODULE` flattening must run after the `FOR` unroller | 1 | `module_inside_for_loop` |
 | `method = ida` — the implicit-DAE path is assembled but not routed | 1 | `pressure-cooker` |
 | **Cost, not correctness** — correct with a coarse `maxstep`, no output after 420 s at the fixture's own `span/100` cap | 1 | `dyn_accessor_live` |
 
-*(The `CALL eigenvalues` / `eigen` row left this table on 2026-08-21: ledger
-item 34 closed, the three `eqsys-*` documents promoted at the corpus default
-`1e-9` with no tolerance entry, corpus 719 → 722, pending 14 → 11.)*
+*(Two rows left this table on 2026-08-21. The `CALL eigenvalues` / `eigen`
+row: ledger item 34 closed, the three `eqsys-*` documents promoted, corpus
+719 → 722. The `linalg::svd` column-sign row: ledger item 24 closed —
+`linalg::svd` is now a line-faithful transcription of Commons Math 3.6.1's
+JAMA-derived `SingularValueDecomposition`, whose Householder reflector signs
+the goldens record, replacing the one-sided Jacobi kernel and its invented
+largest-component-positive rule — and all six sign-blocked documents promoted
+at the corpus default `1e-9` with no tolerance entry, corpus 722 → 728,
+pending 11 → 5.)*
 
-**Zero of the eleven is blocked on a property.** That is what
+**Zero of the five is blocked on a property.** That is what
 [D8](../docs/decisions/0008-coolprop-wasm.md) bought: it predicted twelve of the
 then-26 would clear under a real CoolProp, and twelve of twelve did — Wave-3 F6
 took nine and F8 the last three, corpus 707 → 719, pending 26 → 14, and
@@ -836,20 +844,17 @@ destructuring fixture either; `multiout-user-function-with-tilde-discard` was
 dropped for exactly this. In `CALL` argument lists `~` remains a
 `ParseException`.)
 
-### Still pending — the eleven, in detail
+### Still pending — the five, in detail
 
 The summary is the table under *What is pending today*; this is the per-document
-reason. Checked 2026-08-19 (then 14; the three `eqsys-*` promoted 2026-08-21):
-all pending goldens carry `expect.error = null`, i.e. **the Java engine solved
-every one of them** — none is pending because the oracle refused it.
+reason. Checked 2026-08-19 (then 14; the three `eqsys-*` and the six sign-hold
+documents promoted 2026-08-21): all pending goldens carry `expect.error =
+null`, i.e. **the Java engine solved every one of them** — none is pending
+because the oracle refused it.
 
 | Document | Why it is held |
 |---|---|
-| `linalg-full-svd` | `linalg::svd`'s **column-sign convention**. The decomposition is valid and the invariants match; individual `U`/`V` elements are negated relative to Commons Math, so the relative measure reads ~2.0 by construction. |
-| `multiout-svd-discard-with-tilde` | Same convention, reached through the destructuring form. |
-| `ctldesign-balreal-invariants-integration` | Same convention, through `balreal`. |
-| `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2` | Same convention, through bare matrix names into the control `CALL`s. |
-| `estimator-gramian-balreal` | Same convention, measured in full: `control::design::balreal` negates the second balancing basis vector, so `Ab[1,2]`, `Ab[2,1]`, `Bb[2,1]`, `Cb[1,2]` differ by sign only — same Hankel singular values, same I/O map. The other six variables match. |
+| ~~`linalg-full-svd`~~, ~~`multiout-svd-discard-with-tilde`~~, ~~`ctldesign-balreal-invariants-integration`~~, ~~`ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`~~, ~~`-2`~~, ~~`estimator-gramian-balreal`~~ | **promoted 2026-08-21** — was: `linalg::svd`'s column-sign convention (sign-only `U`/`V`/balancing-basis flips; ledger item 24). The convention proved **not statable as a normalisation** — in `linalg-full-svd`'s golden, V column 2's largest component is *negative*, contradicting any make-positive rule — so `linalg::svd` was replaced with a line-faithful transcription of Commons Math 3.6.1's JAMA-derived `SingularValueDecomposition`, whose Householder reflector signs reproduce the oracle's element-exact. All six grade at the default `1e-9` with no tolerance entry (the machine-zero Gramian off-diagonals pass under `ABS_TOL = 1e-12`). Corpus 722 → 728, pending 11 → 5. |
 | ~~`eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`~~, ~~`eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`~~, ~~`eqsys-solves-eigenvalues-of-symmetric-matrix`~~ | **promoted 2026-08-21** — was: `CALL eigenvalues` / `eigen` not wired (ledger item 34). `parser/expand.rs::flatten_eigen` now emits the `eigen$val\|re\|im\|vec$…` synthetics and `linalg::eval_intrinsic` decodes them with the Java kernel's ascending (real, imag) sort and unit-norm/sign-fixed eigenvectors. All three grade at the default `1e-9` with no tolerance entry. Corpus 719 → 722, pending 14 → 11. |
 | `sysdesign-ex01-thermal-network-2` | **Asymptotic FP noise, not promotable by tolerance.** `ode:m$port$qdot` decays through zero, so under the harness's own rule (`\|a−e\| ≤ rel·max(\|a\|,\|e\|)`) the relative deviation is 1.0 — the denominator collapses with the signal. Only a larger `ABS_TOL` could express it, and that would loosen all 719. |
 | `ev-battery-cooling-pid` | **Solves and agrees** since the `seedPropertyArgumentGuesses` port (`t_bat` 302.99999999993497 against the oracle's 303.000000000087, rel 5.0e-13) — held for the same reason as the row above: `ode:pid$e` is the PID error signal decaying to ~8.7e-11, which reads as a relative deviation of 1.9963. Also the slowest document in the set (~41 s), which is its own argument against the gate. |
@@ -873,7 +878,7 @@ triage are in `docs/status-phase12.md`. The 21 new pending rows, by blocker:
 
 | Documents | Blocked on |
 |---|---|
-| `linalg-full-svd`, `multiout-svd-discard-with-tilde`, `ctldesign-balreal-invariants-integration`, `ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`, `-2` | the recorded `linalg::svd` **column-sign convention** divergence (same mechanism as `estimator-gramian-balreal` above — sign-only element flips, invariants identical) |
+| ~~`linalg-full-svd`~~, ~~`multiout-svd-discard-with-tilde`~~, ~~`ctldesign-balreal-invariants-integration`~~, ~~`ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`~~, ~~`-2`~~ | **promoted 2026-08-21** — was the recorded `linalg::svd` **column-sign convention** divergence (same mechanism as `estimator-gramian-balreal` above), closed by the Commons Math SVD transcription (ledger item 24) |
 | ~~`sysdesign-ex16-moving-boundary-evaporator`~~ | **promoted 2026-08-06** — was the default-guess property probe divergence (`T(R134a, P=1, Hmass=…)`). Closed by porting `seedPropertyArgumentGuesses`, then by wiring it to the **main** solve path as well: it had first been added only to `solve_equation_list`, which the port's steady-state solve bypasses, so the transient documents were fixed and this one was not. Grades at 3.235e-6 — larger than its `(P,x)` siblings because it inverts `Temperature(R134a, P, h)`, the one shape the Java also tables. Corpus 704 → 705. |
 | ~~`eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`~~, ~~`eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`~~, ~~`eqsys-solves-eigenvalues-of-symmetric-matrix`~~ | **promoted 2026-08-21** — was: `CALL eigenvalues` / `eigen` not wired, the one genuinely new gap the Phase-12 harvest found (ledger item 34, closed) |
 | ~~`hvac-problem2-face-and-bypass`~~, ~~`hvac-problem3-psychrometric-balancing`~~, ~~`hvac-problem9-air-supply-wet-bulb`~~, ~~`sysdesign-ex12-moist-air-ahu`~~, ~~`sysdesign-ex13-humidifier`~~ | **promoted 2026-08-18 (Wave-3 F6)** — the `HAPropsSI` humid-air gap (as `adv_moistair_*` above) is closed by [D9](../docs/decisions/0009-rustprop-backend.md). All five grade at the default 1e-9 with no tolerance entry; worst per document 2.29e-15, 1.25e-15, 0, 0, 0. |
@@ -942,7 +947,9 @@ Two findings beyond the nine:
 * **The other twelve holds are unchanged and none of them is a property
   blocker.** Re-measured in the same run: the five `linalg::svd` column-sign
   documents plus `estimator-gramian-balreal` still differ by sign only
-  (relative deviation ~2.0 by construction); the three `eqsys-*` still refuse
+  (relative deviation ~2.0 by construction) *(re-checked 2026-08-21: no
+  longer — the Commons Math SVD transcription closed ledger item 24 and all
+  six promoted)*; the three `eqsys-*` still refuse
   with "CALL `eigenvalues`/`eigen` is not yet supported" *(re-checked
   2026-08-21: no longer — wired and promoted)*; `module_inside_for_loop`
   still refuses at parse; `pressure-cooker` still refuses `method = ida`; and

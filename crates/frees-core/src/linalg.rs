@@ -28,11 +28,14 @@
 //!   relative symmetry `1.0e-9`, absolute positivity `1.0e-12`.
 //! * [`expm`] — scaling-and-squaring with a [6/6] Padé approximant, a
 //!   line-for-line port of the Java method (Commons Math has no `expm`).
-//! * [`singular_values`] / [`svd`] — one-sided Jacobi. Values match Commons
-//!   Math to solver tolerance; the **column signs** of U/V are normalised here
-//!   (largest-magnitude component of each V column made positive), which is a
-//!   deterministic convention but not bit-identical to Commons Math's
-//!   bidiagonalisation output. Recorded as a known divergence.
+//! * [`singular_values`] / [`svd`] — a line-faithful transcription of Commons
+//!   Math 3.6.1's `SingularValueDecomposition` (JAMA-derived Golub–Kahan
+//!   bidiagonalisation + implicit-shift QR), **including the column signs of
+//!   U and V**, which are whatever the Householder reflector sign choices
+//!   produce. The previous one-sided-Jacobi kernel with an invented
+//!   largest-component-positive sign rule was ledger item 24's divergence;
+//!   the balreal/SVD goldens compare signs element-exact, so do not "clean
+//!   up" the signs with any normalisation pass.
 
 // Float guards here are written `!(x > 0.0)` on purpose: the negation makes
 // NaN take the reject branch, which `x <= 0.0` would not. Clippy's
@@ -315,7 +318,7 @@ pub fn expm(a: &Mat) -> Result<Mat> {
 }
 
 // ---------------------------------------------------------------------------
-// SVD (one-sided Jacobi)
+// SVD (Commons Math / JAMA Golub–Kahan)
 // ---------------------------------------------------------------------------
 
 /// The three factors of a thin SVD, `A = U·S·Vᵀ`, with the Commons Math
@@ -333,107 +336,385 @@ pub fn singular_values(a: &Mat) -> Result<Vec<f64>> {
     Ok(svd(a)?.s)
 }
 
-/// Full thin SVD via one-sided Jacobi. See the module docs for the sign
-/// convention (deterministic here, not guaranteed bit-identical to Commons
-/// Math on sign-indeterminate columns).
+/// Full thin SVD: a line-faithful transcription of Commons Math 3.6.1's
+/// `SingularValueDecomposition` constructor (JAMA-derived) — Golub–Kahan
+/// bidiagonalisation by Householder reflections, then the implicit-shift QR
+/// sweep, with a wide input transposed up front and the factors swapped back
+/// ("m" is always the largest dimension), exactly as the Java does.
+///
+/// Faithfulness deliberately includes the **column signs** of U and V, which
+/// are whatever the reflector sign choices produce. The balreal/SVD parity
+/// goldens compare U/V elements sign-exact (ledger item 24 was the previous
+/// Jacobi kernel's invented sign rule), so no normalisation may be applied
+/// on top. The kase-1/2/3/4 structure, thresholds (`TINY + EPS·…`) and the
+/// NaN-tolerant `!(|e[k]| > threshold)` comparison (MATH-947) are the Java's.
+#[allow(clippy::too_many_lines)]
 pub fn svd(a: &Mat) -> Result<Svd> {
-    let (m, n) = check_rect(a, "SVD")?;
-    if m >= n {
-        svd_tall(a, m, n)
+    let (rows, cols) = check_rect(a, "SVD")?;
+    // Commons Math: EPS = 0x1.0p-52 (= f64::EPSILON), TINY = 0x1.0p-966.
+    let eps = f64::EPSILON;
+    let tiny = 2.0f64.powi(-966);
+    let transposed = rows < cols;
+    let (m, n) = if transposed {
+        (cols, rows)
     } else {
-        // svd(Aᵀ) = (V, S, U): compute on the transpose and swap the factors.
-        let t: Mat = (0..n).map(|i| (0..m).map(|j| a[j][i]).collect()).collect();
-        let Svd { u, s, v } = svd_tall(&t, n, m)?;
-        Ok(Svd { u: v, s, v: u })
-    }
-}
+        (rows, cols)
+    };
+    let mut aw: Mat = if transposed {
+        (0..cols)
+            .map(|i| (0..rows).map(|j| a[j][i]).collect())
+            .collect()
+    } else {
+        a.clone()
+    };
 
-/// One-sided Jacobi on an m×n matrix with m >= n.
-fn svd_tall(a: &Mat, m: usize, n: usize) -> Result<Svd> {
-    let mut u: Mat = a.clone();
-    let mut v = identity(n);
-    let eps = 1.0e-12;
-    let max_sweeps = 60;
-    for _ in 0..max_sweeps {
-        let mut off = 0.0f64;
-        for p in 0..n {
-            for q in (p + 1)..n {
-                let mut alpha = 0.0;
-                let mut beta = 0.0;
-                let mut gamma = 0.0;
-                for row in u.iter().take(m) {
-                    alpha += row[p] * row[p];
-                    beta += row[q] * row[q];
-                    gamma += row[p] * row[q];
+    let mut sv = vec![0.0f64; n];
+    let mut u = vec![vec![0.0f64; n]; m];
+    let mut v = vec![vec![0.0f64; n]; n];
+    let mut e = vec![0.0f64; n];
+    let mut work = vec![0.0f64; m];
+
+    // Reduce A to bidiagonal form, storing the diagonal elements in sv and
+    // the super-diagonal elements in e.
+    let nct = (m - 1).min(n);
+    let nrt = n.saturating_sub(2);
+    for k in 0..nct.max(nrt) {
+        if k < nct {
+            // Compute the transformation for the k-th column and place the
+            // k-th diagonal in sv[k] (2-norm without under/overflow).
+            sv[k] = 0.0;
+            for i in k..m {
+                sv[k] = sv[k].hypot(aw[i][k]);
+            }
+            if sv[k] != 0.0 {
+                if aw[k][k] < 0.0 {
+                    sv[k] = -sv[k];
                 }
-                if gamma == 0.0 {
-                    continue;
+                for i in k..m {
+                    aw[i][k] /= sv[k];
                 }
-                off = off.max(gamma.abs() / (alpha * beta).sqrt().max(f64::MIN_POSITIVE));
-                if gamma.abs() <= eps * (alpha * beta).sqrt() {
-                    continue;
+                aw[k][k] += 1.0;
+            }
+            sv[k] = -sv[k];
+        }
+        for j in (k + 1)..n {
+            if k < nct && sv[k] != 0.0 {
+                // Apply the transformation.
+                let mut t = 0.0;
+                for i in k..m {
+                    t += aw[i][k] * aw[i][j];
                 }
-                // Jacobi rotation zeroing the (p, q) inner product.
-                let zeta = (beta - alpha) / (2.0 * gamma);
-                let t = zeta.signum() / (zeta.abs() + (1.0 + zeta * zeta).sqrt());
-                let c = 1.0 / (1.0 + t * t).sqrt();
-                let s = c * t;
-                for row in u.iter_mut().take(m) {
-                    let up = row[p];
-                    let uq = row[q];
-                    row[p] = c * up - s * uq;
-                    row[q] = s * up + c * uq;
-                }
-                for row in v.iter_mut().take(n) {
-                    let vp = row[p];
-                    let vq = row[q];
-                    row[p] = c * vp - s * vq;
-                    row[q] = s * vp + c * vq;
+                t = -t / aw[k][k];
+                for i in k..m {
+                    aw[i][j] += t * aw[i][k];
                 }
             }
+            // Place the k-th row of A into e for the subsequent row
+            // transformation.
+            e[j] = aw[k][j];
         }
-        if off <= eps {
-            break;
+        if k < nct {
+            // Place the transformation in U for subsequent back
+            // multiplication.
+            for i in k..m {
+                u[i][k] = aw[i][k];
+            }
+        }
+        if k < nrt {
+            // Compute the k-th row transformation and place the k-th
+            // super-diagonal in e[k].
+            e[k] = 0.0;
+            for i in (k + 1)..n {
+                e[k] = e[k].hypot(e[i]);
+            }
+            if e[k] != 0.0 {
+                if e[k + 1] < 0.0 {
+                    e[k] = -e[k];
+                }
+                for i in (k + 1)..n {
+                    e[i] /= e[k];
+                }
+                e[k + 1] += 1.0;
+            }
+            e[k] = -e[k];
+            if k + 1 < m && e[k] != 0.0 {
+                // Apply the transformation.
+                for item in work.iter_mut().skip(k + 1) {
+                    *item = 0.0;
+                }
+                for j in (k + 1)..n {
+                    for i in (k + 1)..m {
+                        work[i] += e[j] * aw[i][j];
+                    }
+                }
+                for j in (k + 1)..n {
+                    let t = -e[j] / e[k + 1];
+                    for i in (k + 1)..m {
+                        aw[i][j] += t * work[i];
+                    }
+                }
+            }
+            // Place the transformation in V for subsequent back
+            // multiplication.
+            for i in (k + 1)..n {
+                v[i][k] = e[i];
+            }
         }
     }
-    // Column norms are the singular values.
-    let mut order: Vec<usize> = (0..n).collect();
-    let norms: Vec<f64> = (0..n)
-        .map(|j| (0..m).map(|i| u[i][j] * u[i][j]).sum::<f64>().sqrt())
-        .collect();
-    order.sort_by(|&x, &y| {
-        norms[y]
-            .partial_cmp(&norms[x])
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-    let mut su = vec![vec![0.0; n]; m];
-    let mut sv = vec![vec![0.0; n]; n];
-    let mut sigma = vec![0.0; n];
-    for (dst, &src) in order.iter().enumerate() {
-        sigma[dst] = norms[src];
-        // Deterministic sign: largest-|.| component of the V column positive.
-        let mut max_idx = 0;
-        for i in 1..n {
-            if v[i][src].abs() > v[max_idx][src].abs() {
-                max_idx = i;
-            }
-        }
-        let flip = if v[max_idx][src] < 0.0 { -1.0 } else { 1.0 };
+
+    // Set up the final bidiagonal matrix of order p.
+    let mut p = n;
+    if nct < n {
+        sv[nct] = aw[nct][nct];
+    }
+    if m < p {
+        sv[p - 1] = 0.0;
+    }
+    if nrt + 1 < p {
+        e[nrt] = aw[nrt][p - 1];
+    }
+    e[p - 1] = 0.0;
+
+    // Generate U.
+    for j in nct..n {
         for i in 0..m {
-            su[i][dst] = if norms[src] > 0.0 {
-                flip * u[i][src] / norms[src]
-            } else {
-                0.0
-            };
+            u[i][j] = 0.0;
+        }
+        u[j][j] = 1.0;
+    }
+    for k in (0..nct).rev() {
+        if sv[k] != 0.0 {
+            for j in (k + 1)..n {
+                let mut t = 0.0;
+                for i in k..m {
+                    t += u[i][k] * u[i][j];
+                }
+                t = -t / u[k][k];
+                for i in k..m {
+                    u[i][j] += t * u[i][k];
+                }
+            }
+            for i in k..m {
+                u[i][k] = -u[i][k];
+            }
+            u[k][k] += 1.0;
+            // Java: for (i = 0; i < k - 1; i++) — empty when k = 0.
+            for i in 0..k.saturating_sub(1) {
+                u[i][k] = 0.0;
+            }
+        } else {
+            for i in 0..m {
+                u[i][k] = 0.0;
+            }
+            u[k][k] = 1.0;
+        }
+    }
+
+    // Generate V.
+    for k in (0..n).rev() {
+        if k < nrt && e[k] != 0.0 {
+            for j in (k + 1)..n {
+                let mut t = 0.0;
+                for i in (k + 1)..n {
+                    t += v[i][k] * v[i][j];
+                }
+                t = -t / v[k + 1][k];
+                for i in (k + 1)..n {
+                    v[i][j] += t * v[i][k];
+                }
+            }
         }
         for i in 0..n {
-            sv[i][dst] = flip * v[i][src];
+            v[i][k] = 0.0;
+        }
+        v[k][k] = 1.0;
+    }
+
+    // Main iteration loop for the singular values.
+    let pp = p - 1;
+    while p > 0 {
+        // kase = 1  if sv[p-1] and e[k-1] are negligible and k < p
+        // kase = 2  if sv[k] is negligible and k < p
+        // kase = 3  if e[k-1] is negligible, k < p, and sv[k..p] are not
+        //           (one QR step)
+        // kase = 4  if e[p-2] is negligible (convergence)
+        let mut k: isize = p as isize - 2;
+        while k >= 0 {
+            let ku = k as usize;
+            let threshold = tiny + eps * (sv[ku].abs() + sv[ku + 1].abs());
+            // Written `!(… > threshold)` so a NaN takes the break instead of
+            // looping forever (Commons Math issue MATH-947).
+            if !(e[ku].abs() > threshold) {
+                e[ku] = 0.0;
+                break;
+            }
+            k -= 1;
+        }
+        let kase;
+        if k == p as isize - 2 {
+            kase = 4;
+        } else {
+            let mut ks: isize = p as isize - 1;
+            while ks >= k {
+                if ks == k {
+                    break;
+                }
+                let ksu = ks as usize;
+                let t = if ks != p as isize { e[ksu].abs() } else { 0.0 }
+                    + if ks != k + 1 { e[ksu - 1].abs() } else { 0.0 };
+                if sv[ksu].abs() <= tiny + eps * t {
+                    sv[ksu] = 0.0;
+                    break;
+                }
+                ks -= 1;
+            }
+            if ks == k {
+                kase = 3;
+            } else if ks == p as isize - 1 {
+                kase = 1;
+            } else {
+                kase = 2;
+                k = ks;
+            }
+        }
+        let k = (k + 1) as usize;
+        match kase {
+            // Deflate negligible sv[p-1].
+            1 => {
+                let mut f = e[p - 2];
+                e[p - 2] = 0.0;
+                for j in (k..=(p - 2)).rev() {
+                    let mut t = sv[j].hypot(f);
+                    let cs = sv[j] / t;
+                    let sn = f / t;
+                    sv[j] = t;
+                    if j != k {
+                        f = -sn * e[j - 1];
+                        e[j - 1] *= cs;
+                    }
+                    for i in 0..n {
+                        t = cs * v[i][j] + sn * v[i][p - 1];
+                        v[i][p - 1] = -sn * v[i][j] + cs * v[i][p - 1];
+                        v[i][j] = t;
+                    }
+                }
+            }
+            // Split at negligible sv[k].
+            2 => {
+                let mut f = e[k - 1];
+                e[k - 1] = 0.0;
+                for j in k..p {
+                    let mut t = sv[j].hypot(f);
+                    let cs = sv[j] / t;
+                    let sn = f / t;
+                    sv[j] = t;
+                    f = -sn * e[j];
+                    e[j] *= cs;
+                    for i in 0..m {
+                        t = cs * u[i][j] + sn * u[i][k - 1];
+                        u[i][k - 1] = -sn * u[i][j] + cs * u[i][k - 1];
+                        u[i][j] = t;
+                    }
+                }
+            }
+            // One QR step.
+            3 => {
+                // Calculate the shift.
+                let max_pm1_pm2 = sv[p - 1].abs().max(sv[p - 2].abs());
+                let scale = max_pm1_pm2
+                    .max(e[p - 2].abs())
+                    .max(sv[k].abs())
+                    .max(e[k].abs());
+                let sp = sv[p - 1] / scale;
+                let spm1 = sv[p - 2] / scale;
+                let epm1 = e[p - 2] / scale;
+                let sk = sv[k] / scale;
+                let ek = e[k] / scale;
+                let b = ((spm1 + sp) * (spm1 - sp) + epm1 * epm1) / 2.0;
+                let c = (sp * epm1) * (sp * epm1);
+                let mut shift = 0.0;
+                if b != 0.0 || c != 0.0 {
+                    shift = (b * b + c).sqrt();
+                    if b < 0.0 {
+                        shift = -shift;
+                    }
+                    shift = c / (b + shift);
+                }
+                let mut f = (sk + sp) * (sk - sp) + shift;
+                let mut g = sk * ek;
+                // Chase zeros.
+                for j in k..(p - 1) {
+                    let mut t = f.hypot(g);
+                    let mut cs = f / t;
+                    let mut sn = g / t;
+                    if j != k {
+                        e[j - 1] = t;
+                    }
+                    f = cs * sv[j] + sn * e[j];
+                    e[j] = cs * e[j] - sn * sv[j];
+                    g = sn * sv[j + 1];
+                    sv[j + 1] *= cs;
+                    for i in 0..n {
+                        t = cs * v[i][j] + sn * v[i][j + 1];
+                        v[i][j + 1] = -sn * v[i][j] + cs * v[i][j + 1];
+                        v[i][j] = t;
+                    }
+                    t = f.hypot(g);
+                    cs = f / t;
+                    sn = g / t;
+                    sv[j] = t;
+                    f = cs * e[j] + sn * sv[j + 1];
+                    sv[j + 1] = -sn * e[j] + cs * sv[j + 1];
+                    g = sn * e[j + 1];
+                    e[j + 1] *= cs;
+                    if j < m - 1 {
+                        for i in 0..m {
+                            t = cs * u[i][j] + sn * u[i][j + 1];
+                            u[i][j + 1] = -sn * u[i][j] + cs * u[i][j + 1];
+                            u[i][j] = t;
+                        }
+                    }
+                }
+                e[p - 2] = f;
+            }
+            // Convergence.
+            _ => {
+                // Make the singular values positive.
+                if sv[k] <= 0.0 {
+                    sv[k] = if sv[k] < 0.0 { -sv[k] } else { 0.0 };
+                    for i in 0..=pp {
+                        v[i][k] = -v[i][k];
+                    }
+                }
+                // Order the singular values.
+                let mut k = k;
+                while k < pp {
+                    if sv[k] >= sv[k + 1] {
+                        break;
+                    }
+                    sv.swap(k, k + 1);
+                    if k < n - 1 {
+                        for i in 0..n {
+                            v[i].swap(k, k + 1);
+                        }
+                    }
+                    if k < m - 1 {
+                        for i in 0..m {
+                            u[i].swap(k, k + 1);
+                        }
+                    }
+                    k += 1;
+                }
+                p -= 1;
+            }
         }
     }
-    Ok(Svd {
-        u: su,
-        s: sigma,
-        v: sv,
+
+    // A wide input was decomposed as its transpose: swap the factors back.
+    Ok(if transposed {
+        Svd { u: v, s: sv, v: u }
+    } else {
+        Svd { u, s: sv, v }
     })
 }
 

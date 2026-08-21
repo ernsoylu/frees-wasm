@@ -6161,12 +6161,11 @@ mod tests {
         // Phase 5 — see `property_synthetics_are_dispatched`, the whole
         // control-systems set left it in Phase 9 — see
         // `control_systems_synthetics_are_dispatched` — and `eigen$…` left it
-        // when ledger item 34 closed.
-        for name in ["eulerdecompose$1$3"] {
-            let message = err(&Expr::call(name, vec![n(1.0)]));
-            assert!(message.contains("not yet supported"), "{name}: {message}");
-            assert!(message.contains("synthetic"), "{name}: {message}");
-        }
+        // when ledger item 34 closed, which leaves the Euler pair alone here.
+        let name = "eulerdecompose$1$3";
+        let message = err(&Expr::call(name, vec![n(1.0)]));
+        assert!(message.contains("not yet supported"), "{name}: {message}");
+        assert!(message.contains("synthetic"), "{name}: {message}");
     }
 
     /// Phase 9: `control::eval` claims 42 synthetic heads. Reaching them from
@@ -7225,11 +7224,10 @@ mod tests {
         // `det$` left this list when `crate::linalg` was wired in; `prop$` left
         // it in Phase 5 when `crate::props::propfun` was; the control-systems
         // heads left it in Phase 9 when `crate::control::eval` was; `eigen$`
-        // left it when ledger item 34 closed.
-        for name in ["eulerrotate$1$3"] {
-            let msg = err(&Expr::call(name, vec![n(1.0)]));
-            assert!(msg.contains("not yet supported"), "{name}: {msg}");
-        }
+        // left it when ledger item 34 closed, leaving the Euler pair alone.
+        let name = "eulerrotate$1$3";
+        let msg = err(&Expr::call(name, vec![n(1.0)]));
+        assert!(msg.contains("not yet supported"), "{name}: {msg}");
     }
 
     // =====================================================================

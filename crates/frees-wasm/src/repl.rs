@@ -536,7 +536,19 @@ fn evaluate_cas(function: &str, args_text: &str) -> Outcome {
         cas::apply(op, &expression)
     };
     match result {
-        Ok(value) => Outcome::ok(0.0, value.text, String::new(), None),
+        // Ledger item 25: a ceiling that silently declined work (an opaque
+        // oversized power, an over-degree Apart) rides in `note`, printed
+        // under the value so "returned unfactored" is distinguishable from
+        // "proved irreducible". The value line itself stays byte-identical.
+        Ok(value) => match value.note {
+            Some(note) => Outcome::ok(
+                0.0,
+                format!("{}\n  (declined: {note})", value.text),
+                String::new(),
+                None,
+            ),
+            None => Outcome::ok(0.0, value.text, String::new(), None),
+        },
         Err(cas::CasError::NoClosedForm { .. }) => {
             Outcome::fail(format!("{function}: no closed form found for this input."))
         }

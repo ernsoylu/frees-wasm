@@ -130,6 +130,10 @@ pub struct CasResult {
     pub latex: String,
     pub input: String,
     pub text: String,
+    /// Ledger item 25: set when a ceiling (`MAX_POW`, `MAX_APART_DEGREE`)
+    /// silently declined part of the work — "returned unfactored" must be
+    /// distinguishable from "proved irreducible". `None` on a full answer.
+    pub note: Option<String>,
 }
 
 /// The operations reachable from `ReplEvaluator.CAS_CALL`.
@@ -201,6 +205,7 @@ impl Op {
 
 /// Run a single-argument operation over an already-built expression.
 pub fn apply_expr(op: Op, expr: &Expr) -> CasResultOf<CasResult> {
+    ops::clear_ceiling_note();
     let result = match op {
         Op::Factor => ops::factor(expr)?,
         Op::Expand => ops::expand(expr)?,
@@ -225,6 +230,7 @@ pub fn apply_expr(op: Op, expr: &Expr) -> CasResultOf<CasResult> {
 
 /// Run a `(expression, variable)` operation over an already-built expression.
 pub fn apply_expr_with_variable(op: Op, expr: &Expr, variable: &str) -> CasResultOf<CasResult> {
+    ops::clear_ceiling_note();
     let var = require_identifier(variable)?;
     let result = match op {
         Op::Apart => ops::apart(expr, &var)?,
@@ -282,6 +288,9 @@ fn build(input: &Expr, result: Expr) -> CasResultOf<CasResult> {
         latex,
         input: symja_input,
         text,
+        // Whatever ceiling fired during the lowering above (cleared at the
+        // op entry points, so it can only be this operation's).
+        note: ops::take_ceiling_note(),
     })
 }
 

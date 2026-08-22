@@ -312,10 +312,18 @@ pinned by `crates/frees-core/tests/cas_control_robustness.rs`. Full context in
     distinguishes *"proved irreducible"* from *"declined above the exponent
     ceiling"*, so a user cannot tell which they were given. `Apart` has the same
     shape at `MAX_APART_DEGREE = 64`: over the ceiling it returns the input
-    unchanged rather than saying it declined. **Open.** The ceilings themselves
+    unchanged rather than saying it declined. ~~**Open.**~~ **Closed
+    2026-08-22 (Wave C5).** The ceilings themselves
     are right — they are what stops `(x+1)^100000` being a denial of service,
     and wasm has no timeout to fall back on — but "declined" needs to be
-    sayable. (`cas/ops.rs::MAX_POW`, `cas/ops.rs::MAX_APART_DEGREE`)
+    sayable. It now is: the two gates record a thread-local note that
+    `engine::apply_expr` drains into `CasResult::note`, and the REPL prints
+    it under the value (`(declined: an exponent of 100 exceeds the ^64
+    expansion ceiling …)`). The value line itself is byte-identical to
+    before — the note is a separate channel, so no parity surface moves.
+    No `diag.rs` change was needed, honouring the contract-file rule.
+    (`cas/ops.rs::record_ceiling_note`, pinned by
+    `cas_control_robustness::a_ceiling_decline_carries_a_note_instead_of_silence`)
 
 ### Opened by Phase 10 (2026-08-01)
 

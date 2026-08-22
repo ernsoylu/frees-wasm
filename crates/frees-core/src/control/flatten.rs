@@ -837,6 +837,30 @@ fn flatten_ss2ss<H: Host + ?Sized>(
 }
 
 /// `CALL ss2tf(A, B, C, D : num, den)`. Port of `flattenSs2tf`.
+/// Ceiling on the state count reaching the `ss2tf$` kernel (Wave C4, closing
+/// Phase 9's gap 5). The Leverrier recursion behind the kernel is measured at
+/// **5.0 s for 201 states** — the slowest single operation Phase 9 found —
+/// and nothing upstream bounded `n`, because the per-cell synthetic re-runs
+/// the whole recursion for every coefficient of every Newton residual sweep.
+/// The corpus's real usage tops out below 10 states; 64 leaves an order of
+/// magnitude of margin while keeping the worst admissible case ~100× cheaper
+/// than the measured cliff. The Java has no ceiling here — a wasm-native
+/// guard in the `measurement.rs` MAX_INPUTS tradition, refusing loudly at
+/// parse time rather than spinning a worker.
+const MAX_SS2TF_STATES: usize = 64;
+
+fn check_ss2tf_states(n: usize) -> Result<()> {
+    if n > MAX_SS2TF_STATES {
+        return Err(parse_err(format!(
+            "ss2tf: the state matrix has too many states ({n}; limit \
+             {MAX_SS2TF_STATES}). Reduce the model order — the per-coefficient \
+             expansion re-runs a full Leverrier recursion for every equation \
+             at this size."
+        )));
+    }
+    Ok(())
+}
+
 fn flatten_ss2tf<H: Host + ?Sized>(
     host: &mut H,
     inputs: &[Expr],
@@ -857,6 +881,7 @@ fn flatten_ss2tf<H: Host + ?Sized>(
             a.rows, a.cols
         )));
     }
+    check_ss2tf_states(n)?;
     let b = vector_elements(host, &inputs[1], n)?;
     let c = row_vector_elements(host, &inputs[2], n)?;
     let d = scalar_element(host, &inputs[3])?;
@@ -897,6 +922,7 @@ fn flatten_ss2tf_mimo<H: Host + ?Sized>(
             a.rows, a.cols
         )));
     }
+    check_ss2tf_states(n)?;
     let b = host.matrix_info(&inputs[1])?;
     let cm = host.matrix_info(&inputs[2])?;
     let dm = host.matrix_info(&inputs[3])?;

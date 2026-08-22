@@ -977,3 +977,60 @@ fn cas_identities_refuse_rather_than_half_solve() {
     assert!((out["c2"] - 1.0).abs() < 1e-9, "{:?}", out["c2"]);
     assert!(out["c1"].abs() < 1e-9, "{:?}", out["c1"]);
 }
+
+/// Wave C4: the `ss2tf` state ceiling. 201 states cost a measured 5.0 s in
+/// the per-coefficient Leverrier kernel (Phase 9, gap 5) with nothing
+/// bounding `n`; the guard refuses at parse time, by name, above 64.
+#[test]
+fn ss2tf_refuses_a_state_matrix_above_the_ceiling() {
+    let mut doc = String::new();
+    doc.push_str("FOR i = 1 TO 65\n  FOR j = 1 TO 65\n    A[i,j] = 0\n  END\nEND\n");
+    doc.push_str("FOR i = 1 TO 65\n  B[i] = 0\n  C[i] = 0\nEND\nD = 0\n");
+    doc.push_str("CALL ss2tf(A[1:65,1:65], B[1:65], C[1:65], D : num[1:66], den[1:66])\n");
+    let message = solve_refused(&doc);
+    assert!(
+        message.contains("ss2tf: the state matrix has too many states (65; limit 64)"),
+        "{message}"
+    );
+    // …and the corpus-sized case still passes through to the flattener.
+    let mut small = String::new();
+    small.push_str("A[1,1] = 0\nA[1,2] = 1\nA[2,1] = -2\nA[2,2] = -3\n");
+    small.push_str("B[1] = 0\nB[2] = 1\nC[1] = 1\nC[2] = 0\nD = 0\n");
+    small.push_str("CALL ss2tf(A[1:2,1:2], B[1:2], C[1:2], D : num[1:3], den[1:3])\n");
+    let solution = frees_core::solve(&small, &Default::default()).expect("2-state ss2tf solves");
+    assert!(close(solution.values["den[1]"], 1.0));
+    assert!(close(solution.values["den[2]"], 3.0));
+    assert!(close(solution.values["den[3]"], 2.0));
+}
+
+/// Wave C5 (ledger item 25): a ceiling that declines work must SAY so. The
+/// value stays exactly what the Java/Symja parity recorded — the note is a
+/// separate channel.
+#[test]
+fn a_ceiling_decline_carries_a_note_instead_of_silence() {
+    use frees_core::cas::engine as cas;
+    // Factor(x^100 + 1): over MAX_POW the power interns opaquely — correct
+    // as a value, unfactored as an answer, and now labelled as declined.
+    let over = cas::factor("x^100 + 1").unwrap();
+    assert_eq!(over.text, "1+x^100");
+    let note = over.note.expect("the decline must be sayable");
+    assert!(note.contains("exceeds the ^64 expansion ceiling"), "{note}");
+    // Under the ceiling: a genuine factorisation, no note.
+    let under = cas::factor("x^2 - 1").unwrap();
+    assert!(under.note.is_none(), "{:?}", under.note);
+    // The note never leaks across operations.
+    let clean = cas::expand("(x+1)^2").unwrap();
+    assert!(clean.note.is_none(), "{:?}", clean.note);
+    // Apart over MAX_APART_DEGREE: a degree-93 denominator built from
+    // in-ceiling powers, so the degree gate (not the pow gate) is what fires.
+    let apart = cas::apart("1/((x^60 + 1)*(x^33 + 1))", "x").unwrap();
+    let note = apart.note.expect("over-degree Apart must say it declined");
+    assert!(note.contains("exceeds Apart's 64"), "{note}");
+    // An oversized power inside an Apart input declines at the pow ceiling
+    // instead — first ceiling wins, and either way the decline is named.
+    let opaque = cas::apart("1/(x^65 + 1)", "x").unwrap();
+    assert!(opaque
+        .note
+        .expect("still sayable")
+        .contains("expansion ceiling"),);
+}

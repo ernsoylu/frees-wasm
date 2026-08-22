@@ -138,6 +138,36 @@ const MAX_TERMS: usize = 4096;
 /// Largest linear system [`apart`] will solve — the degree of the denominator.
 const MAX_APART_DEGREE: usize = 64;
 
+// Ledger item 25 (Wave C5): the ceilings above are right, but "declined, not
+// proved" has to be *sayable*. When a ceiling turns an operation into a no-op
+// — an oversized exponent interning opaquely, an over-degree Apart returning
+// its input — the decline is recorded here and drained by
+// `engine::apply_expr` into `CasResult::note`, which the REPL prints under
+// the value. A thread-local because the lowering is deeply recursive and the
+// wasm build is single-threaded anyway; the native test runner is not, which
+// is why this must not be a `static Cell`.
+std::thread_local! {
+    static CEILING_NOTE: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+pub(crate) fn clear_ceiling_note() {
+    CEILING_NOTE.with(|note| *note.borrow_mut() = None);
+}
+
+pub(crate) fn take_ceiling_note() -> Option<String> {
+    CEILING_NOTE.with(|note| note.borrow_mut().take())
+}
+
+fn record_ceiling_note(message: String) {
+    CEILING_NOTE.with(|note| {
+        let mut slot = note.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(message);
+        }
+    });
+}
+
 // ── generators ──────────────────────────────────────────────────────────────
 
 /// The generator table: every indeterminate the polynomial core sees.
@@ -449,6 +479,14 @@ impl Lower<'_> {
                     .ok_or_else(|| CasError::unsupported("0 raised to a negative power"))?;
                 return checked(p);
             }
+            // Ledger 25: the exponent ceiling is about to make this power one
+            // opaque generator — the answer will be *unfactored*, not proved
+            // irreducible, and the user must be able to tell which.
+            record_ceiling_note(format!(
+                "an exponent of {n} exceeds the ^{MAX_POW} expansion ceiling, so the power \
+                 was kept opaque — the result is returned unexpanded, not proved \
+                 irreducible"
+            ));
         }
         // A symbolic or oversized exponent makes the whole power one opaque
         // generator, with both halves canonicalised first so `cos(2*x+1)` and
@@ -1283,7 +1321,16 @@ pub fn apart(e: &Expr, var: &str) -> Result<Expr, CasError> {
 /// rational function of `var` alone, which is the case Symja returns unchanged.
 fn partial_fractions(rf: &RatFun, var: &str) -> Option<Decomposition> {
     let degree = rf.denom().to_upoly(var)?.degree_or_zero();
-    if degree == 0 || degree > MAX_APART_DEGREE {
+    if degree > MAX_APART_DEGREE {
+        // Ledger 25: over the ceiling Apart returns its input unchanged —
+        // say so instead of letting "declined" read as "already simplest".
+        record_ceiling_note(format!(
+            "the denominator degree {degree} exceeds Apart's {MAX_APART_DEGREE} \
+             ceiling, so the expression was returned undecomposed"
+        ));
+        return None;
+    }
+    if degree == 0 {
         return None;
     }
     let decomposition = rf.partial_fractions(var).ok()?;

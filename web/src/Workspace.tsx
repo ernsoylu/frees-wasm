@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from '@mantine/core'
 import {
+  IconAdjustments,
   IconAdjustmentsHorizontal,
   IconChevronRight,
   IconComponents,
@@ -272,7 +273,8 @@ function ArrayRow({ g }: Readonly<{ g: ArrayGroup }>) {
 function ComponentRow({
   c,
   replNames,
-}: Readonly<{ c: ComponentGroup; replNames: Set<string> }>) {
+  onTunePid,
+}: Readonly<{ c: ComponentGroup; replNames: Set<string>; onTunePid?: (c: ComponentGroup) => void }>) {
   const [open, setOpen] = useState(false)
   return (
     <Paper withBorder p={0} radius="sm" style={{ overflow: 'hidden' }}>
@@ -300,6 +302,22 @@ function ComponentRow({
           )}
         </Group>
         <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          {c.type === 'SigPID' && onTunePid && (
+            <Tooltip label="Auto-tune this PID's gains (PID Tuner)">
+              <Button
+                size="compact-xs"
+                variant="light"
+                color="teal"
+                leftSection={<IconAdjustments size={12} />}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onTunePid(c)
+                }}
+              >
+                Tune…
+              </Button>
+            </Tooltip>
+          )}
           <Text size="xs" c="dimmed" ff="monospace">
             {c.params.length > 0 && `${c.params.length} par`}
             {c.params.length > 0 && c.members.length > 0 && ' · '}
@@ -384,6 +402,8 @@ interface Props {
   onEdit?: () => void
   onExportSpreadsheet?: (vars: VariableResult[]) => void
   /** Opens the PID Tuner for a selected SigPID component instance. */
+  onTunePid?: (c: ComponentGroup) => void
+  /** Opens the PID Tuner for a selected SigPID component instance. */
   /** Last solve response — feeds the Diagnostics section (stats, blocks,
    *  residuals; opens itself when the solve failed). */
   diagnostics?: SolveResponse | null
@@ -397,7 +417,7 @@ interface Props {
   sliderStrip?: React.ReactNode
 }
 
-export default function Workspace({ variables, replNames, components: instances, onEdit, onExportSpreadsheet, diagnostics, pinnedNames, pinnableNames, onPin, sliderStrip }: Readonly<Props>) {
+export default function Workspace({ variables, replNames, components: instances, onEdit, onExportSpreadsheet, onTunePid, diagnostics, pinnedNames, pinnableNames, onPin, sliderStrip }: Readonly<Props>) {
   const [query, setQuery] = useState('')
   // The input stays urgent (every keystroke paints immediately); the heavy
   // filter + regroup below trails behind at transition priority, so typing in
@@ -502,7 +522,7 @@ export default function Workspace({ variables, replNames, components: instances,
                 <Text size="xs" fw={700} c="dimmed" tt="uppercase" lts="0.05em">Components</Text>
               </Group>
               {components.map((c) => (
-                <ComponentRow key={c.name} c={c} replNames={repl} />
+                <ComponentRow key={c.name} c={c} replNames={repl} onTunePid={onTunePid} />
               ))}
             </Stack>
           )}

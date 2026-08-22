@@ -297,6 +297,11 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    validation, and the three modals restored. Every analysis module with a
    REST endpoint is now reachable in-browser; `allroots` (the findAllSolutions
    solve flag) and the document-level PARAMETRIC surfacing stay open.)*
+   *(Fourth slice, Wave B4: `pid_tune` + `extract_plant` — the last two
+   NOT_IN_BROWSER_ENGINE stubs with engine backing. Gap 1's headline is now
+   closed: every analysis and control surface with a REST endpoint runs
+   in-browser. What stays open from this item: `allroots`, the PARAMETRIC
+   document-block surfacing, and `exportVector` (a product decision).)*
 2. **The fuzz is adversarial, not generative.** These are 42 hand-chosen cases
    from a brief, plus the four defects they turned up. There is no property-based
    or coverage-guided fuzzing of the integrator anywhere in the tree — no

@@ -21,6 +21,8 @@ import {
   wasmOptimize,
   wasmOptimizeMulti,
   wasmParameterFit,
+  wasmPidTune,
+  wasmExtractPlant,
   wasmSolveTable,
 } from './wasm/engineClient'
 
@@ -1099,8 +1101,16 @@ export interface PidTuneResponse {
 
 /** PID tuning (loop shaping + step metrics) is not ported yet — rejects; both
  *  PidTunerModal call sites catch and surface the message via setError. */
-export async function pidTune(_req: PidTuneRequest): Promise<PidTuneResponse> {
-  throw new Error(NOT_IN_BROWSER_ENGINE)
+export async function pidTune(request: PidTuneRequest): Promise<PidTuneResponse> {
+  // Served by the wasm `pid_tune` export (Wave B4). Rejects on a refused
+  // request or infrastructure failure — the PidTunerModal's catch handles it.
+  const parsed = JSON.parse(await wasmPidTune(JSON.stringify(request))) as PidTuneResponse & {
+    error?: string
+  }
+  if (parsed.error) {
+    throw new Error(parsed.error)
+  }
+  return parsed
 }
 
 // ---------------------------------------------------------------------------
@@ -1124,6 +1134,18 @@ export interface PlantRequest {
 
 /** Plant linearization needs DYNAMIC solving + the CAS, not ported yet —
  *  rejects; the App.tsx catch degrades to "enter the plant manually". */
-export async function extractPlant(_req: PlantRequest): Promise<{ num: number[]; den: number[] }> {
-  throw new Error(NOT_IN_BROWSER_ENGINE)
+export async function extractPlant(
+  request: PlantRequest,
+): Promise<{ num: number[]; den: number[] }> {
+  // Served by the wasm `extract_plant` export (Wave B4). Rejects on failure —
+  // App.tsx's catch falls back to manual plant entry.
+  const parsed = JSON.parse(await wasmExtractPlant(JSON.stringify(request))) as {
+    num: number[]
+    den: number[]
+    error?: string
+  }
+  if (parsed.error) {
+    throw new Error(parsed.error)
+  }
+  return parsed
 }

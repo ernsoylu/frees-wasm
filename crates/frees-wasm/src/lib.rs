@@ -50,7 +50,10 @@ pub use measurement::measurement_calc;
 // Monte Carlo run (/api/solve/montecarlo), the optimizers (/api/optimize,
 // /api/optimize/multi), the curve fitter (/api/curve-fit) and the parameter
 // fit (/api/measurements/parameter-fit).
-pub use analysis::{curve_fit, monte_carlo, optimize, optimize_multi, parameter_fit, solve_table};
+pub use analysis::{
+    curve_fit, extract_plant, monte_carlo, optimize, optimize_multi, parameter_fit, pid_tune,
+    solve_table,
+};
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
 /// Rust backtrace instead of `unreachable executed`, and install the property

@@ -20,6 +20,8 @@ vi.mock('./wasm/engineClient', () => ({
   wasmOptimizeMulti: vi.fn(),
   wasmCurveFit: vi.fn(),
   wasmParameterFit: vi.fn(),
+  wasmPidTune: vi.fn(),
+  wasmExtractPlant: vi.fn(),
   // api.ts imports these too (the REPL seam); unused here but a mocked module
   // must declare every export its importer names.
   wasmReplEvaluate: vi.fn(),

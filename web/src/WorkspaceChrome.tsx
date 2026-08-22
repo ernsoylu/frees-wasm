@@ -806,6 +806,7 @@ interface TopBarProps {
   onMinMax: () => void
   onCurveFit: () => void
   onParameterFit: () => void
+  onPidTuner: () => void
 }
 
 function solveTooltipFor(canSolve: boolean, isTable: boolean): string {
@@ -967,6 +968,9 @@ export function TopBar(props: Readonly<TopBarProps>) {
             </Menu.Item>
             <Menu.Item leftSection={<IconChartHistogram size={14} />} onClick={props.onMonteCarlo}>
               Monte Carlo Uncertainty
+            </Menu.Item>
+            <Menu.Item leftSection={<IconAdjustments size={14} />} onClick={props.onPidTuner}>
+              PID Tuner
             </Menu.Item>
             <Menu.Item leftSection={<IconCrosshair size={14} />} onClick={props.onParameterFit}>
               Parameter Estimation

@@ -370,3 +370,122 @@ fn parameter_fit_caps_speak_the_java_messages() {
         "The measured series has too many samples (200001; limit 200000). Decimate it first."
     );
 }
+
+// ── Wave B4: pid_tune + extract_plant ──────────────────────────────────────
+
+#[test]
+fn pid_tune_echoes_the_suggested_crossover_and_tunes_a_first_order_plant() {
+    // The Java controller test's plant 1/(5s+1): suggestWc == 0.2 when wc is
+    // omitted, and the tuned loop must report finite gains and a step trace.
+    let out: Value = serde_json::from_str(&frees_wasm::pid_tune(
+        r#"{"num": [1], "den": [5, 1], "type": "pi"}"#,
+    ))
+    .unwrap();
+    assert!(out.get("error").is_none(), "{out}");
+    assert!((out["wc"].as_f64().unwrap() - 0.2).abs() < 1e-12, "{out}");
+    assert_eq!(out["pm"].as_f64().unwrap(), 60.0);
+    assert!(out["kp"].as_f64().unwrap().is_finite());
+    assert!(out["ki"].as_f64().unwrap().is_finite());
+    assert!(out["t"].as_array().unwrap().len() >= 50);
+    assert_eq!(
+        out["t"].as_array().unwrap().len(),
+        out["y"].as_array().unwrap().len()
+    );
+}
+
+#[test]
+fn pid_tune_validation_speaks_the_java_messages() {
+    let out: Value =
+        serde_json::from_str(&frees_wasm::pid_tune(r#"{"num": [], "den": []}"#)).unwrap();
+    assert_eq!(
+        out["error"],
+        "A plant transfer function (num and den coefficients) is required."
+    );
+    let out: Value = serde_json::from_str(&frees_wasm::pid_tune(
+        r#"{"num": [1], "den": [5, 1], "type": "ZN"}"#,
+    ))
+    .unwrap();
+    assert_eq!(
+        out["error"],
+        "Controller type must be one of p, pi, pid (got 'ZN')."
+    );
+}
+
+#[test]
+fn extract_plant_recovers_the_first_order_plant_from_a_closed_loop() {
+    // The ControlControllerPlantTest loop: SP(k=5) -> PID(2,1,0) -> PLANT
+    // (first order, tau=2). The recovered G must equal 1/(2s+1) as a rational
+    // function at several frequencies.
+    let text = "SigConstant SP(k=5)\nSigPID PID(Kp=2, Ki=1, Kd=0, tau=0.1, i0=0, d0=0)\nSigFirstOrder PLANT(tau=2, y0=0)\nconnect(SP.out, PID.sp)\nconnect(PLANT.out, PID.pv)\nconnect(PID.out, PLANT.in)\nDYNAMIC loop(method = ode23s, time = 0 .. 40, points = 400)\nEND\n";
+    let request = serde_json::json!({
+        "text": text,
+        "dynamic": "loop",
+        "reference": "SP",
+        "output": "plant.out.sig",
+        "referenceOnSp": true,
+        "type": "pi",
+        "kp": 2.0,
+        "ki": 1.0,
+        "kd": 0.0,
+    });
+    let out: Value =
+        serde_json::from_str(&frees_wasm::extract_plant(&request.to_string())).unwrap();
+    assert!(out.get("error").is_none(), "{out}");
+    let num: Vec<f64> = out["num"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
+    let den: Vec<f64> = out["den"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
+    // Rational-function equality against 1/(2s+1) at w in {0, 0.1, 0.5, 1, 3}
+    // (robust to uncancelled common factors), tol 1e-3 — the Java test's own
+    // acceptance rule.
+    let eval_poly = |p: &[f64], w: f64| -> (f64, f64) {
+        // p(jw) with descending coefficients: returns (re, im).
+        let mut re = 0.0;
+        let mut im = 0.0;
+        for &c in p {
+            // multiply (re, im) by jw, then add c
+            let (nre, nim) = (-im * w, re * w);
+            re = nre + c;
+            im = nim;
+        }
+        (re, im)
+    };
+    for w in [0.0, 0.1, 0.5, 1.0, 3.0] {
+        let (gn_re, gn_im) = eval_poly(&num, w);
+        let (gd_re, gd_im) = eval_poly(&den, w);
+        // expected 1/(2jw+1): num 1, den (1, 2w)
+        // cross-multiplied: G_num * (1 + 2jw) == G_den * 1
+        let lhs = (
+            gn_re * 1.0 - gn_im * (2.0 * w),
+            gn_re * (2.0 * w) + gn_im * 1.0,
+        );
+        let scale = (gd_re * gd_re + gd_im * gd_im).sqrt().max(1e-12);
+        assert!(
+            ((lhs.0 - gd_re).powi(2) + (lhs.1 - gd_im).powi(2)).sqrt() / scale < 1e-3,
+            "w={w}: num={num:?} den={den:?}"
+        );
+    }
+}
+
+#[test]
+fn extract_plant_names_a_missing_reference_constant() {
+    let out: Value = serde_json::from_str(&frees_wasm::extract_plant(
+        r#"{"text": "x = 1\n", "dynamic": "loop", "reference": "SP",
+            "output": "plant.out.sig", "referenceOnSp": true,
+            "type": "pi", "kp": 1, "ki": 0, "kd": 0}"#,
+    ))
+    .unwrap();
+    assert_eq!(
+        out["error"],
+        "Could not find a constant to perturb on reference source 'SP' \
+         (expected a SigConstant with a k= value)."
+    );
+}

@@ -113,6 +113,14 @@ export async function wasmParameterFit(requestJson: string): Promise<string> {
   return call('parameterFit', [requestJson])
 }
 
+/** The two ControlController surfaces (Wave B4); raw JSON strings out. */
+export async function wasmPidTune(requestJson: string): Promise<string> {
+  return call('pidTune', [requestJson])
+}
+export async function wasmExtractPlant(requestJson: string): Promise<string> {
+  return call('extractPlant', [requestJson])
+}
+
 /** Runs a check in the engine worker; resolves to the parsed CheckResponse. */
 export async function wasmCheck(
   source: string,

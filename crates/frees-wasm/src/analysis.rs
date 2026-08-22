@@ -1096,3 +1096,389 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
         "fittedV": outcome.fitted_series.v,
     }))
 }
+
+// ---------------------------------------------------------------------------
+// Wave B4: the two ControlController endpoints. Both are unit-free by
+// construction — bare SI coefficient arrays in and out, no display-unit or
+// variableInfo plumbing anywhere on the path.
+// ---------------------------------------------------------------------------
+
+/// The Java's `min(points, 2000)` cap and its 400 fallback.
+const MAX_TUNE_POINTS: usize = 2_000;
+const DEFAULT_TUNE_POINTS: usize = 400;
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct PidTuneRequest {
+    num: Vec<f64>,
+    den: Vec<f64>,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    wc: Option<f64>,
+    pm: Option<f64>,
+    horizon: Option<f64>,
+    points: Option<i64>,
+}
+
+/// Loop-shaping PID tuning (`POST /api/control/pidtune`). Returns a
+/// `TuneResponse` JSON string; a refused request carries a top-level
+/// `"error"` — the same body the Java's 400 sends.
+#[wasm_bindgen]
+pub fn pid_tune(request_json: &str) -> String {
+    match pid_tune_inner(request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({ "error": message }).to_string(),
+    }
+}
+
+fn pid_tune_inner(request_json: &str) -> Result<Value, String> {
+    let request: PidTuneRequest =
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?;
+
+    // The controller's checks and defaults, in its order and words.
+    if request.num.is_empty() || request.den.is_empty() {
+        return Err(
+            "A plant transfer function (num and den coefficients) is required.".to_string(),
+        );
+    }
+    let raw_kind = request.kind.clone();
+    let kind = raw_kind
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_else(|| "pi".to_string());
+    if !matches!(kind.as_str(), "p" | "pi" | "pid") {
+        // The Java interpolates the raw, un-lowercased type.
+        return Err(format!(
+            "Controller type must be one of p, pi, pid (got '{}').",
+            raw_kind.as_deref().unwrap_or("")
+        ));
+    }
+    let wc = match request.wc {
+        Some(w) if w > 0.0 => w,
+        _ => frees_core::control::pid::suggest_wc(&request.num, &request.den),
+    };
+    let pm = match request.pm {
+        Some(p) if p > 0.0 && p < 90.0 => p,
+        _ => 60.0,
+    };
+    let horizon = request.horizon.unwrap_or(0.0);
+    let points = match request.points {
+        Some(p) if p > 0 => (p as usize).min(MAX_TUNE_POINTS),
+        _ => DEFAULT_TUNE_POINTS,
+    };
+
+    let result =
+        frees_core::control::pid::tune(&request.num, &request.den, &kind, wc, pm, horizon, points)
+            .map_err(|e| e.to_string_message())?;
+
+    // `wc`/`pm` echo the *resolved request* values (the Java contract); the
+    // realized margins ride in gainMargin/phaseMargin. `w_gm`/`w_pm` have no
+    // slot in the Java DTO and are dropped.
+    Ok(json!({
+        "kp": result.kp,
+        "ki": result.ki,
+        "kd": result.kd,
+        "wc": wc,
+        "pm": pm,
+        "t": result.t,
+        "y": result.y,
+        "riseTime": result.rise_time,
+        "peakTime": result.peak_time,
+        "settlingTime": result.settling_time,
+        "overshoot": result.overshoot,
+        "gainMargin": result.gain_margin,
+        "phaseMargin": result.phase_margin,
+    }))
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct PlantRequest {
+    text: String,
+    // `Option` because the Java 400s on *null* while a blank string passes
+    // through to fail later — transcribed as-is.
+    dynamic: Option<String>,
+    reference: Option<String>,
+    output: Option<String>,
+    reference_on_sp: bool,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    kp: f64,
+    ki: f64,
+    kd: f64,
+}
+
+/// Linearize a closed PID loop and recover the open-loop plant
+/// (`POST /api/control/plant`). Returns `{num, den}` or `{"error": …}`.
+///
+/// Composition of the Java `computePlant`, step for step: shrink the DYNAMIC
+/// header to a 2-point/1-second run, perturb the reference `SigConstant`
+/// through an injected free variable, append the `LINEARIZE freespidlin`
+/// block, run one ordinary solve (LINEARIZE rides the normal `solve_with`
+/// path — no accessor bridge involved), read the `freespid_a…d` matrices
+/// back out of `solution.values`, and undo the loop algebra with
+/// `ss_to_tf`/`controller_tf`/`recover_plant`.
+///
+/// One budget divergence, recorded rather than faked: the Java hands the
+/// solve a 40 s wall-clock cap (`LINEARIZE_BUDGET_S`); this port's
+/// `SolverSettings` has no time field (core has no clock on wasm32), so the
+/// single solve runs uncapped. The three numeric settings are identical to
+/// `SolverSettings::default()`.
+#[wasm_bindgen]
+pub fn extract_plant(request_json: &str) -> String {
+    match extract_plant_inner(request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({ "error": message }).to_string(),
+    }
+}
+
+fn extract_plant_inner(request_json: &str) -> Result<Value, String> {
+    frees_core::props::tables::install_builtin_once();
+    let request: PlantRequest =
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?;
+
+    if request.text.trim().is_empty() {
+        return Err("The document text is required to linearize the loop.".to_string());
+    }
+    let (Some(dynamic), Some(reference), Some(output)) = (
+        request.dynamic.clone(),
+        request.reference.clone(),
+        request.output.clone(),
+    ) else {
+        return Err(
+            "The DYNAMIC block name, reference source and measured output are required."
+                .to_string(),
+        );
+    };
+    let kind = request
+        .kind
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_else(|| "pi".to_string());
+
+    let shrunk = shrink_dynamic(&request.text, &dynamic);
+    let Some(injected) = inject_reference_variable(&shrunk, &reference, "freespidref") else {
+        return Err(format!(
+            "Could not find a constant to perturb on reference source '{reference}' \
+             (expected a SigConstant with a k= value)."
+        ));
+    };
+    let doc = format!(
+        "{injected}\nLINEARIZE freespidlin(block = {dynamic}, a = freespid_a, \
+         b = freespid_b, c = freespid_c, d = freespid_d)\n  INPUT freespidref\n  \
+         OUTPUT {output}\nEND\n"
+    );
+
+    let solution = frees_core::solve_with(&doc, &frees_core::SolverSettings::default(), &[])
+        .map_err(|failure| failure.to_string_message())?;
+
+    let a = read_matrix(&solution.values, "freespid_a");
+    let n = a.len();
+    if n == 0 {
+        return Err("The linearized loop has no states — nothing to identify.".to_string());
+    }
+    let b_mat = read_matrix(&solution.values, "freespid_b");
+    let b: Vec<f64> = (0..n)
+        .map(|i| {
+            b_mat
+                .get(i)
+                .and_then(|row| row.first())
+                .copied()
+                .unwrap_or(0.0)
+        })
+        .collect();
+    let c_mat = read_matrix(&solution.values, "freespid_c");
+    let c: Vec<f64> = match c_mat.first() {
+        Some(row) => {
+            let mut row = row.clone();
+            row.resize(n, 0.0);
+            row
+        }
+        None => vec![0.0; n],
+    };
+    let d = read_matrix(&solution.values, "freespid_d")
+        .first()
+        .and_then(|row| row.first())
+        .copied()
+        .unwrap_or(0.0);
+
+    let (m_num, m_den) = frees_core::control::pid::ss_to_tf(&a, &b, &c, d);
+    let (c_num, c_den) =
+        frees_core::control::pid::controller_tf(&kind, request.kp, request.ki, request.kd)
+            .map_err(|e| e.to_string_message())?;
+    let (g_num, g_den) = frees_core::control::pid::recover_plant(
+        &m_num,
+        &m_den,
+        &c_num,
+        &c_den,
+        request.reference_on_sp,
+    );
+    Ok(json!({ "num": g_num, "den": g_den }))
+}
+
+/// `ControlController.shrinkDynamic`, hand-scanned (this crate carries no
+/// regex engine): inside the named block's header parentheses, the time span
+/// becomes `0 .. 1` (keeping the key as written) and `points` becomes 2. No
+/// matching header leaves the text unchanged, exactly like the Java.
+fn shrink_dynamic(text: &str, dynamic: &str) -> String {
+    let lower = text.to_ascii_lowercase();
+    let needle = "dynamic";
+    let name_lower = dynamic.to_ascii_lowercase();
+    let mut search = 0usize;
+    while let Some(pos) = lower[search..].find(needle) {
+        let start = search + pos;
+        // Word boundary on both sides of `dynamic`.
+        let before_ok = start == 0
+            || !lower.as_bytes()[start - 1].is_ascii_alphanumeric()
+                && lower.as_bytes()[start - 1] != b'_';
+        let mut cursor = start + needle.len();
+        let bytes = text.as_bytes();
+        // Require whitespace, then the block name, then optional ws and '('.
+        let mut ok = before_ok && cursor < bytes.len() && bytes[cursor].is_ascii_whitespace();
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+        let name_end = cursor + name_lower.len();
+        ok = ok && name_end <= bytes.len() && lower[cursor..name_end] == name_lower && {
+            let mut after = name_end;
+            while after < bytes.len() && bytes[after].is_ascii_whitespace() {
+                after += 1;
+            }
+            after < bytes.len() && bytes[after] == b'(' && {
+                cursor = after;
+                true
+            }
+        };
+        if !ok {
+            search = start + needle.len();
+            continue;
+        }
+        let args_start = cursor + 1;
+        let Some(rel_close) = text[args_start..].find(')') else {
+            return text.to_string();
+        };
+        let args_end = args_start + rel_close;
+        let rewritten: Vec<String> = text[args_start..args_end]
+            .split(',')
+            .map(|piece| {
+                let trimmed = piece.trim();
+                let key = trimmed
+                    .split('=')
+                    .next()
+                    .map(str::trim)
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                if (key == "time" || key == "t") && trimmed.contains("..") {
+                    let written_key = trimmed.split('=').next().map(str::trim).unwrap_or("time");
+                    format!("{written_key} = 0 .. 1")
+                } else if key == "points" {
+                    "points = 2".to_string()
+                } else {
+                    trimmed.to_string()
+                }
+            })
+            .collect();
+        return format!(
+            "{}{}{}",
+            &text[..args_start],
+            rewritten.join(", "),
+            &text[args_end..]
+        );
+    }
+    text.to_string()
+}
+
+/// `ControlController.injectReferenceVariable`, hand-scanned: the first
+/// `<reference>( … k = <value> … )` gets its `k` bound to `var_name`, and the
+/// original value becomes a prepended free assignment. `None` when either
+/// the instance or its `k=` is missing.
+fn inject_reference_variable(text: &str, reference: &str, var_name: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut search = 0usize;
+    let instance_start = loop {
+        let pos = text[search..].find(reference)?;
+        let start = search + pos;
+        let before_ok =
+            start == 0 || !(bytes[start - 1].is_ascii_alphanumeric() || bytes[start - 1] == b'_');
+        let mut after = start + reference.len();
+        while after < bytes.len() && bytes[after].is_ascii_whitespace() {
+            after += 1;
+        }
+        if before_ok && after < bytes.len() && bytes[after] == b'(' {
+            break (after + 1, start);
+        }
+        search = start + reference.len();
+    };
+    let (args_start, _) = (instance_start.0, instance_start.1);
+    let args_end = args_start + text[args_start..].find(')')?;
+    let args = &text[args_start..args_end];
+    // Find `k = <value>` (k as its own word) inside the args.
+    let args_lower = args.to_ascii_lowercase();
+    let mut k_search = 0usize;
+    let (value_start, value_end) = loop {
+        let pos = args_lower[k_search..].find('k')?;
+        let at = k_search + pos;
+        let before_ok = at == 0
+            || !(args.as_bytes()[at - 1].is_ascii_alphanumeric()
+                || args.as_bytes()[at - 1] == b'_');
+        let mut cursor = at + 1;
+        while cursor < args.len() && args.as_bytes()[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+        if before_ok && cursor < args.len() && args.as_bytes()[cursor] == b'=' {
+            cursor += 1;
+            while cursor < args.len() && args.as_bytes()[cursor].is_ascii_whitespace() {
+                cursor += 1;
+            }
+            let rel_end = args[cursor..].find(',').unwrap_or(args.len() - cursor);
+            break (cursor, cursor + rel_end);
+        }
+        k_search = at + 1;
+    };
+    let value = args[value_start..value_end].trim().to_string();
+    if value.is_empty() {
+        return None;
+    }
+    let mut out = String::with_capacity(text.len() + var_name.len() * 2 + value.len() + 8);
+    out.push_str(var_name);
+    out.push_str(" = ");
+    out.push_str(&value);
+    out.push('\n');
+    out.push_str(&text[..args_start + value_start]);
+    out.push_str(var_name);
+    out.push_str(&text[args_start + value_end..]);
+    Some(out)
+}
+
+/// `ControlController.readMatrix`: gather `name[i,j]` cells (lowercase,
+/// 1-indexed) from the solved values, size the matrix to the maxima, and
+/// default missing cells to zero.
+fn read_matrix(values: &BTreeMap<String, f64>, name: &str) -> Vec<Vec<f64>> {
+    let prefix = format!("{name}[");
+    let mut cells: Vec<(usize, usize, f64)> = Vec::new();
+    let mut rows = 0usize;
+    let mut cols = 0usize;
+    for (key, &value) in values.range(prefix.clone()..) {
+        if !key.starts_with(&prefix) {
+            break;
+        }
+        let inner = &key[prefix.len()..key.len().saturating_sub(1)];
+        let Some((i_txt, j_txt)) = inner.split_once(',') else {
+            continue; // the 1-D single-column spelling; the [i,j] one carries it
+        };
+        let (Ok(i), Ok(j)) = (i_txt.trim().parse::<usize>(), j_txt.trim().parse::<usize>()) else {
+            continue;
+        };
+        if i == 0 || j == 0 {
+            continue;
+        }
+        rows = rows.max(i);
+        cols = cols.max(j);
+        cells.push((i - 1, j - 1, value));
+    }
+    let mut out = vec![vec![0.0; cols]; rows];
+    for (i, j, value) in cells {
+        out[i][j] = value;
+    }
+    out
+}

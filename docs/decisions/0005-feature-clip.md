@@ -48,6 +48,17 @@ Keep, deliberately:
   budget), and MinMaxModal, CurveFitModal and ParameterFitModal restored from
   this decision's commit into a Tools → Analysis section. Three stubs remain:
   `exportVector` (no browser FOP), `pidTune` and `extractPlant` — Wave B4.)*
+  *(Wave B4, 2026-08-22: `pid_tune` and `extract_plant` close the set —
+  loop-shaping PID tuning with the controller's defaults/caps (suggested
+  crossover, pm 60°, points ≤ 2000), and plant extraction composing the
+  Java's shrink-DYNAMIC / inject-reference / LINEARIZE / matrix-readback /
+  loop-algebra chain over one ordinary solve (hand-scanned text transforms —
+  this crate carries no regex engine). PidTunerModal returns with all three
+  of its launch points: the Tools menu, and the SigPID row's "Tune…" button
+  in the Workspace. **The reverse migration is complete: of the nine stubs
+  this decision kept, only `exportVector` remains** — a product decision
+  (client-side svg-to-pdf, or declare SVG the permanent vector path), not a
+  wiring gap.)*
 
 ## Context
 

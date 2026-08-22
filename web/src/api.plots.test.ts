@@ -24,6 +24,8 @@ vi.mock('./wasm/engineClient', () => ({
   wasmOptimizeMulti: vi.fn(),
   wasmCurveFit: vi.fn(),
   wasmParameterFit: vi.fn(),
+  wasmPidTune: vi.fn(),
+  wasmExtractPlant: vi.fn(),
   wasmFluids: vi.fn(),
   wasmPropertyDiagram: vi.fn(),
   wasmPsychrometricChart: vi.fn(),

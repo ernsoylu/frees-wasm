@@ -5,7 +5,8 @@
 //                     'version' | 'fluids' | 'propertyDiagram' |
 //                     'psychrometricChart' | 'replEvaluate' | 'replClear' |
 //                     'monteCarlo' | 'optimize' | 'optimizeMulti' |
-//                     'curveFit' | 'parameterFit' | 'measurementCalc',
+//                     'curveFit' | 'parameterFit' | 'pidTune' |
+//                     'extractPlant' | 'measurementCalc',
 //             args: string[]}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
@@ -27,6 +28,7 @@
 import init, {
   check,
   curve_fit,
+  extract_plant,
   fluids,
   measurement_calc,
   property_diagram,
@@ -38,6 +40,7 @@ import init, {
   optimize,
   optimize_multi,
   parameter_fit,
+  pid_tune,
   solve,
   solve_table,
   version,
@@ -53,6 +56,8 @@ export interface EngineRequest {
     | 'optimizeMulti'
     | 'curveFit'
     | 'parameterFit'
+    | 'pidTune'
+    | 'extractPlant'
     | 'check'
     | 'reference'
     | 'version'
@@ -117,6 +122,12 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
         break
       case 'parameterFit':
         result = parameter_fit(args[0] ?? '')
+        break
+      case 'pidTune':
+        result = pid_tune(args[0] ?? '')
+        break
+      case 'extractPlant':
+        result = extract_plant(args[0] ?? '')
         break
       case 'check':
         result = check(args[0] ?? '', args[1] ?? '')

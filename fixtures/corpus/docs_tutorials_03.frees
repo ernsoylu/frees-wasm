@@ -1,0 +1,3 @@
+x_peak  = MaxValue('x')            { should be the 0.05 release }
+t_cross = TimeAt('x', 0)           { first zero crossing }
+E_final = FinalValue('energy')     { how much energy is left at t = 5 s }

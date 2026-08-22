@@ -1,0 +1,40 @@
+{
+  "name": "docs_tutorials_14",
+  "source": "T_evap = 263.15 [K]     { -10 C }\nT_cond = 313.15 [K]     {  40 C }\neta_c  = 0.72\n\n{ 1: saturated vapor leaving the evaporator }\nP1 = P_sat(R134a, T=T_evap)\nh1 = Enthalpy(R134a, T=T_evap, x=1)\ns1 = Entropy(R134a, T=T_evap, x=1)\n\n{ 2: compressor discharge at condenser pressure }\nP2  = P_sat(R134a, T=T_cond)\nh2s = Enthalpy(R134a, P=P2, s=s1)        { isentropic ideal }\nh2  = h1 + (h2s - h1) / eta_c            { real discharge enthalpy }\n\n{ 3: saturated liquid off the condenser; 4: after the expansion valve }\nh3 = Enthalpy(R134a, P=P2, x=0)\nh4 = h3                                  { throttling: isenthalpic }\n",
+  "expect": {
+    "variables": {
+      "P1": 200603.30747267744,
+      "P2": 1016593.02212064,
+      "T_cond": 313.15,
+      "T_evap": 263.15,
+      "eta_c": 0.72,
+      "h1": 392664.91356786405,
+      "h2": 439629.8846376529,
+      "h2s": 426479.692738112,
+      "h3": 256409.2445573684,
+      "h4": 256409.2445573684,
+      "s1": 1733.3507972613968
+    },
+    "display_names": {
+      "eta_c": "eta_c",
+      "h1": "h1",
+      "h2": "h2",
+      "h2s": "h2s",
+      "h3": "h3",
+      "h4": "h4",
+      "p1": "P1",
+      "p2": "P2",
+      "s1": "s1",
+      "t_cond": "T_cond",
+      "t_evap": "T_evap"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

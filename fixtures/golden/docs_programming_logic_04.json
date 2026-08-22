@@ -1,0 +1,22 @@
+{
+  "name": "docs_programming_logic_04",
+  "source": "PROCEDURE heat_transfer(T1, T2 : Q_dot)\n  Q_dot := 0.8 * 12 * (T1 - T2) / 0.25\nEND\n\nCALL heat_transfer(100, 20 : heat_loss)\n",
+  "expect": {
+    "variables": {
+      "heat_loss": 3072.0000000000005
+    },
+    "display_names": {
+      "heat_loss": "heat_loss",
+      "t1": "T1",
+      "t2": "T2"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

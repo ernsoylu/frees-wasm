@@ -1,0 +1,22 @@
+{
+  "name": "docs_language_fundamentals_12",
+  "source": "T_f = ConvertTemp(C, F, 100)   { 212 F }\nT_k = ConvertTemp(F, K, 32)    { 273.15 K }\n",
+  "expect": {
+    "variables": {
+      "T_f": 211.99999999999994,
+      "T_k": 273.15
+    },
+    "display_names": {
+      "t_f": "T_f",
+      "t_k": "T_k"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

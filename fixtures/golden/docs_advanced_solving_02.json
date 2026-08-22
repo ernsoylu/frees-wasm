@@ -1,0 +1,28 @@
+{
+  "name": "docs_advanced_solving_02",
+  "source": "{ Tank draining: dV/dt = -C*sqrt(V), V(0) = V0 }\nV0 = 1.0\nC = 0.02\n{ integrate the DROP from 0..60 s, then rebuild V }\ndrop = Integral(-C * sqrt(V0 - drop), t, 0, 60)\nV   = V0 - drop          { water volume at t = 60 s }\n",
+  "expect": {
+    "variables": {
+      "C": 0.02,
+      "V": 2.559999973099274,
+      "V0": 1.0,
+      "drop": -1.559999973099274,
+      "t": 60.0
+    },
+    "display_names": {
+      "c": "C",
+      "drop": "drop",
+      "t": "t",
+      "v": "V",
+      "v0": "V0"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

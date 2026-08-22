@@ -1,0 +1,6 @@
+FUNCTION [q, r] = DivMod(a, b)
+  q := trunc(a / b)
+  r := mod(a, b)
+END
+
+[quotient, remainder] = DivMod(17, 5)   { 3, 2 }

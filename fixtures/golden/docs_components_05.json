@@ -1,0 +1,20 @@
+{
+  "name": "docs_components_05",
+  "source": "RET.in.P = 100000 [Pa]      { fix the return pressure }\n",
+  "expect": {
+    "variables": {
+      "ret.in.p": 100000.0
+    },
+    "display_names": {
+      "ret$in$p": "ret.in.p"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

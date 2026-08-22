@@ -1,0 +1,6 @@
+m = 2 [kg]
+k = 800 [N/m]
+c = 8 [N-s/m]
+
+wn   = sqrt(k / m)              { natural frequency -> 20 rad/s }
+zeta = c / (2 * sqrt(k * m))    { damping ratio     -> 0.1     }

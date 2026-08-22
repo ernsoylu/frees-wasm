@@ -5,8 +5,8 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 729
-fixtures/golden/*.json    what the Java engine produced for each      — 729
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 772
+fixtures/golden/*.json    what the Java engine produced for each      — 772
 fixtures/corpus-pending/  the staging area: documents not yet promoted — 4
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
@@ -341,7 +341,22 @@ Extend it further from, in rough order of value:
    files on 2026-08-18. It read "41 promoted, 6 pending": two of those six,
    `hx-correlations-fluid` and `thermo-compliance`, were promoted by Wave-3 F6
    below, and the figure had already drifted by one before that.)*
-2. `../frEES/frontend/src/docs/*.md` (documented snippets) — still untouched
+2. `../frEES/frontend/src/docs/*.md` (documented snippets) — **harvested
+   2026-08-22 (Wave D1 slice)**: 142 fenced blocks across 14 files, 129
+   candidates after filtering (1 was already in the corpus verbatim), the
+   oracle solved 44, **43 promoted** (`docs_*`), 1 pending
+   (`docs_fluids_materials_03`, the CO2 linkage hold above). The harvest also
+   caught two real engine divergences, both fixed the same day: the
+   component-free early return skipped the Java's dotted-name mangling
+   (`docs_components_05`), and display names were over-registered for
+   `Convert`/`ConvertTemp` unit tokens and matrix-library temporaries
+   (`docs_language_fundamentals_12`/`_13`, `docs_matrix_algebra_03`). The 85
+   non-solving blocks classify as: 24 Python-style `#` prose comments, 21
+   underspecified fragments (an equation shown without its inputs), 14
+   display-form slice syntax (`v[1:3]` in prose the grammar rejects), 11
+   declaration-only fragments, 10 other pseudo-syntax, 3 other solver
+   refusals, 2 prose ellipses (`..` as continuation). They are doc
+   *illustrations*, not documents — none is worth a fixture
 3. the Java test classes — **harvested (Phase 12)**:
    `tools/harvest-java-tests/harvest.py` extracted 212 candidates from 13
    classes (both `"""` text blocks and `\n`-concatenated `solve(...)`
@@ -521,12 +536,13 @@ classification. If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 4 documents, none of them a property hold
+### What is pending today — 5 documents, one of them a property hold
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | A signal **decaying through zero**, so the relative measure has no denominator | 3 | `sysdesign-ex01-thermal-network-2` (`ode:m$port$qdot`), `ev-battery-cooling-pid` (`ode:pid$e`) — the second *solves and agrees*, at `t_bat` rel 5.0e-13 — and, since 2026-08-21, `pressure-cooker` (`ode:steel$port$qdot`): `method = ida` **is routed now** and the document integrates the full 1200 s, agreeing with the SUNDIALS oracle to ≤ 3.5e-8 on every non-decayed signal, but `steel$port$qdot` decays to microwatts and reads rel up to 5.7e-3 by denominator collapse |
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact) but takes **~12 minutes** against the whole replay's ~82 s | 1 | `dyn_accessor_live` |
+| **Fluid not linked** — `MolarMass(CarbonDioxide)` needs CO2 in the build's `rustprop-data` features (currently water, r134a, r1234yf, air; a fifth fluid costs native *and wasm* bytes, so it is a bundle decision, not a bug). The other two calls in the document — `MolarMass(C8H18)` and `MolarMass('Al2(SO4)3')` — are formula parses and already answer | 1 | `docs_fluids_materials_03` (from the 2026-08-22 docs harvest below) |
 
 *(Two rows left this table on 2026-08-21. The `CALL eigenvalues` / `eigen`
 row: ledger item 34 closed, the three `eqsys-*` documents promoted, corpus
@@ -538,7 +554,11 @@ largest-component-positive rule — and all six sign-blocked documents promoted
 at the corpus default `1e-9` with no tolerance entry, corpus 722 → 728,
 pending 11 → 5.)*
 
-**Zero of the four is blocked on a property.** *(The pipeline-ordering row left 2026-08-21, Wave A4: MODULE instantiation moved to the expansion stage — after the unroller, at Java's own position — and `module_inside_for_loop` promoted exactly, display names and `block_count` included. Corpus 728 → 729.)* That is what
+**One of the five is blocked on a property — and it is a *linkage* hold, not a
+backend gap** (the 2026-08-22 docs harvest's `docs_fluids_materials_03`, above:
+rustprop serves CO2 fine, this build just does not link its data). Before that
+harvest the set read "4, none of them a property hold", which D8/D9 earned and
+the history below records. *(The pipeline-ordering row left 2026-08-21, Wave A4: MODULE instantiation moved to the expansion stage — after the unroller, at Java's own position — and `module_inside_for_loop` promoted exactly, display names and `block_count` included. Corpus 728 → 729.)* That is what
 [D8](../docs/decisions/0008-coolprop-wasm.md) bought: it predicted twelve of the
 then-26 would clear under a real CoolProp, and twelve of twelve did — Wave-3 F6
 took nine and F8 the last three, corpus 707 → 719, pending 26 → 14, and

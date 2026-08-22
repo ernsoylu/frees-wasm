@@ -1,0 +1,6 @@
+{ Pick k = 1.8 above 300 K, else 1.2 }
+temp = 350 [K]
+k = If(temp, 300, 1.2, 1.5, 1.8)   { k = 1.8 }
+
+{ Sum of squares 1+4+9+16 = 30 }
+s = Sum(i, 1, 4, i^2)

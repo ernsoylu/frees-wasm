@@ -1,0 +1,55 @@
+{
+  "name": "docs_components_08",
+  "source": "COMPONENT Heater(in, out)\n  PARAM fluid$, Q\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\n  T_out    = Temperature(fluid$, P=out.P, h=out.h)   { named output }\nEND\n\nSource SUP(fluid$=Water, mdot=0.5 [kg/s], P=200000 [Pa], T=290 [K])\nHeater H1(fluid$=Water, Q=50000 [W])\nSink   RET()\nconnect(SUP.out, H1.in)\nconnect(H1.out, RET.in)\n\nT_supply = H1.T_out          { read the named output }\n",
+  "expect": {
+    "variables": {
+      "T_supply": 313.9190069424992,
+      "h1.in.h": 70917.56957564679,
+      "h1.in.mdot": 0.5,
+      "h1.in.p": 200000.0,
+      "h1.out.h": 170917.56957564678,
+      "h1.out.mdot": 0.5,
+      "h1.out.p": 200000.0,
+      "h1.t_out": 313.9190069424992,
+      "ret.h": 170917.56957564678,
+      "ret.in.h": 170917.56957564678,
+      "ret.in.mdot": 0.5,
+      "ret.in.p": 200000.0,
+      "ret.mdot": 0.5,
+      "ret.p": 200000.0,
+      "sup.out.h": 70917.56957564679,
+      "sup.out.mdot": 0.5,
+      "sup.out.p": 200000.0
+    },
+    "display_names": {
+      "h1$in$h": "h1.in.h",
+      "h1$in$mdot": "h1.in.mdot",
+      "h1$in$p": "h1.in.p",
+      "h1$out$h": "h1.out.h",
+      "h1$out$mdot": "h1.out.mdot",
+      "h1$out$p": "h1.out.p",
+      "h1$t_out": "h1.t_out",
+      "q": "Q",
+      "ret$h": "ret.h",
+      "ret$in$h": "ret.in.h",
+      "ret$in$mdot": "ret.in.mdot",
+      "ret$in$p": "ret.in.p",
+      "ret$mdot": "ret.mdot",
+      "ret$p": "ret.p",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "t_out": "T_out",
+      "t_supply": "T_supply",
+      "water": "Water"
+    },
+    "block_count": 17,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

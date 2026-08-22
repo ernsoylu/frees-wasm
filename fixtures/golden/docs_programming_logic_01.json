@@ -1,0 +1,21 @@
+{
+  "name": "docs_programming_logic_01",
+  "source": "FUNCTION poly_fit(x)\n  poly_fit := 0.5 * x^2 + 2 * x + 1\nEND\n\ny = poly_fit(3)          { y = 9.5 }\n",
+  "expect": {
+    "variables": {
+      "y": 11.5
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

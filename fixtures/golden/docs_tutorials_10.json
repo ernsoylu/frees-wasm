@@ -1,0 +1,28 @@
+{
+  "name": "docs_tutorials_10",
+  "source": "R = 220 [ohm]\nL = 0.1 [H]\nC = 1e-6 [F]\n\nw0 = 1 / sqrt(L * C)         { resonance -> 3162 rad/s (~503 Hz) }\nQ  = w0 * L / R              { quality factor -> ~1.44 }\n",
+  "expect": {
+    "variables": {
+      "C": 255.37222277777775,
+      "L": 0.1,
+      "Q": 8.994778867087337E-5,
+      "R": 220.0,
+      "w0": 0.1978851350759214
+    },
+    "display_names": {
+      "c": "C",
+      "l": "L",
+      "q": "Q",
+      "r": "R",
+      "w0": "w0"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

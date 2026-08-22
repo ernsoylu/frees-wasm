@@ -1,0 +1,6 @@
+{ Tank draining: dV/dt = -C*sqrt(V), V(0) = V0 }
+V0 = 1.0
+C = 0.02
+{ integrate the DROP from 0..60 s, then rebuild V }
+drop = Integral(-C * sqrt(V0 - drop), t, 0, 60)
+V   = V0 - drop          { water volume at t = 60 s }

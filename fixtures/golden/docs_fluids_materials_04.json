@@ -1,0 +1,22 @@
+{
+  "name": "docs_fluids_materials_04",
+  "source": "{ Stoichiometric combustion of octane }\nLHV = HeatingValue(C8H18, 'LHV')   { ~44.4 MJ/kg }\nafr = StoichAFR(C8H18)             { ~15.0 }\n",
+  "expect": {
+    "variables": {
+      "LHV": 4.478683731353736E7,
+      "afr": 15.027299705861754
+    },
+    "display_names": {
+      "afr": "afr",
+      "lhv": "LHV"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

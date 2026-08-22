@@ -1,0 +1,4 @@
+{ Pressure in psi, result wanted in kPa }
+P_psi = 100 [psi]
+P_Pa  = P_psi * Convert(psi, Pa)     { scaling only }
+P_kPa = P_Pa / 1000                  { 689.5 kPa }

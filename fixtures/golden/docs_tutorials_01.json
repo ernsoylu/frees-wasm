@@ -1,0 +1,28 @@
+{
+  "name": "docs_tutorials_01",
+  "source": "m = 2 [kg]\nk = 800 [N/m]\nc = 8 [N-s/m]\n\nwn   = sqrt(k / m)              { natural frequency -> 20 rad/s }\nzeta = c / (2 * sqrt(k * m))    { damping ratio     -> 0.1     }\n",
+  "expect": {
+    "variables": {
+      "c": 8.0,
+      "k": 800.0,
+      "m": 2.0,
+      "wn": 20.0,
+      "zeta": 0.1
+    },
+    "display_names": {
+      "c": "c",
+      "k": "k",
+      "m": "m",
+      "wn": "wn",
+      "zeta": "zeta"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

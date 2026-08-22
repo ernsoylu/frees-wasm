@@ -1,0 +1,10 @@
+{ Pressure [Pa] vs flow rate [m^3/s] }
+TABLE pump_curve(flow [m^3/s]) [Pa]
+  0.0       50000
+  0.001     45000
+  0.002     32000
+  0.003     0
+END
+
+{ Linear interpolation, with [Pa] units carried to dP }
+dP = pump_curve(0.0015)

@@ -1,0 +1,1 @@
+prob = Probability(75, 85, 80, 5)   { 0.6827 — within ±1σ of N(80, 5) }

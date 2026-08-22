@@ -1,0 +1,30 @@
+{
+  "name": "docs_fluids_materials_02",
+  "source": "{ Steady conduction through an aluminum slab }\nT_hot = 400 [K];  T_cold = 300 [K]\nL = 0.1 [m];  A = 2 [m^2]\nk = k_(Aluminum)                 { ~237 W/m-K }\nq = k * A * (T_hot - T_cold) / L { watts }\n",
+  "expect": {
+    "variables": {
+      "A": 2.0,
+      "L": 0.1,
+      "T_cold": 300.0,
+      "T_hot": 400.0,
+      "k": 237.0,
+      "q": 474000.0
+    },
+    "display_names": {
+      "a": "A",
+      "k": "k",
+      "l": "L",
+      "q": "q",
+      "t_cold": "T_cold",
+      "t_hot": "T_hot"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

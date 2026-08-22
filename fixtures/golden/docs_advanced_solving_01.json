@@ -1,0 +1,22 @@
+{
+  "name": "docs_advanced_solving_01",
+  "source": "{ Integrates 3*x^2 from 0 to 1 -> 1.0 }\narea = Integral(3 * x^2, x, 0, 1)\n",
+  "expect": {
+    "variables": {
+      "area": 1.0000000080123408,
+      "x": 1.0
+    },
+    "display_names": {
+      "area": "area",
+      "x": "x"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

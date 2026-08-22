@@ -1,0 +1,24 @@
+{
+  "name": "docs_language_fundamentals_09",
+  "source": "P = 140 [kPa]      { stored as 140000 Pa }\nm = 120 [lb]       { stored as 54.43 kg }\nT = 25 [C]         { stored as 298.15 K }\n",
+  "expect": {
+    "variables": {
+      "P": 140000.0,
+      "T": 298.15,
+      "m": 54.4310844
+    },
+    "display_names": {
+      "m": "m",
+      "p": "P",
+      "t": "T"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

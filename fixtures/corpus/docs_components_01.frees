@@ -1,0 +1,9 @@
+{ Supply -> pipe -> return: what pressure is lost to friction? }
+Source  SUP(fluid$=Water, mdot=2 [kg/s], P=300000 [Pa], T=298 [K])
+Pipe    LINE(fluid$=Water, L=50 [m], D=0.05 [m], rough=0.0001)
+Sink    RET()
+
+connect(SUP.out, LINE.in)
+connect(LINE.out, RET.in)
+
+dP = SUP.out.P - RET.in.P     { probe: frictional pressure drop, Pa }

@@ -1,0 +1,20 @@
+{
+  "name": "docs_programming_logic_05",
+  "source": "{ Pressure [Pa] vs flow rate [m^3/s] }\nTABLE pump_curve(flow [m^3/s]) [Pa]\n  0.0       50000\n  0.001     45000\n  0.002     32000\n  0.003     0\nEND\n\n{ Linear interpolation, with [Pa] units carried to dP }\ndP = pump_curve(0.0015)\n",
+  "expect": {
+    "variables": {
+      "dP": 38500.0
+    },
+    "display_names": {
+      "dp": "dP"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

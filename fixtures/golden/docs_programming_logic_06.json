@@ -1,0 +1,20 @@
+{
+  "name": "docs_programming_logic_06",
+  "source": "TABLE bsfc(rpm : load = 0.25, 0.50, 1.0)\n  1000   320   300   290\n  3000   280   260   250\n  5000   300   270   255\nEND\n\ng_per_kWh = Interpolate2D('bsfc', 2500, 0.6)   { same as bsfc(2500, 0.6) }\n",
+  "expect": {
+    "variables": {
+      "g_per_kWh": 268.0
+    },
+    "display_names": {
+      "g_per_kwh": "g_per_kWh"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "docs_language_fundamentals_08",
+  "source": "{ Nominal values }\nP = 100000 [Pa]\nT = 300 [K]\nR = 287 [J/kg-K]\nP = rho * R * T          { rho is the computed result }\n\n{ Measured-input uncertainties }\nUncertaintyOf(P) = 500 [Pa]\nUncertaintyOf(T) = 2.0 [K]\n\n{ Propagated uncertainty in density }\nunc_rho = UncertaintyOf(rho)\n",
+  "expect": {
+    "variables": {
+      "P": 100000.0,
+      "R": 287.0,
+      "T": 300.0,
+      "rho": 1.1614401858304297,
+      "unc_rho": 0.009678668309771722,
+      "uncertaintyof$p": 500.0,
+      "uncertaintyof$r": 2.581766349398458E-14,
+      "uncertaintyof$rho": 0.009678668309771722,
+      "uncertaintyof$t": 2.0,
+      "uncertaintyof$unc_rho": 0.0
+    },
+    "display_names": {
+      "p": "P",
+      "r": "R",
+      "rho": "rho",
+      "t": "T",
+      "unc_rho": "unc_rho"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

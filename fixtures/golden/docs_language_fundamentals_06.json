@@ -1,0 +1,20 @@
+{
+  "name": "docs_language_fundamentals_06",
+  "source": "prob = Probability(75, 85, 80, 5)   { 0.6827 — within ±1σ of N(80, 5) }\n",
+  "expect": {
+    "variables": {
+      "prob": 0.682689492137086
+    },
+    "display_names": {
+      "prob": "prob"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,8 @@
+T_db = 25 [C]            { dry-bulb }
+P_atm = 101325 [Pa]
+phi = 0.60               { 60% relative humidity }
+
+w       = HumRat(AirH2O, T=T_db, P=P_atm, R=phi)
+T_dew   = DewPoint(AirH2O, T=T_db, P=P_atm, R=phi)
+T_wet   = WetBulb(AirH2O, T=T_db, P=P_atm, R=phi)
+h_moist = Enthalpy(AirH2O, T=T_db, P=P_atm, R=phi)   { J/kg dry air }

@@ -1,0 +1,5 @@
+{ Steady conduction through an aluminum slab }
+T_hot = 400 [K];  T_cold = 300 [K]
+L = 0.1 [m];  A = 2 [m^2]
+k = k_(Aluminum)                 { ~237 W/m-K }
+q = k * A * (T_hot - T_cold) / L { watts }

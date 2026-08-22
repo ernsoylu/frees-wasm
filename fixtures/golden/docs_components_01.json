@@ -1,0 +1,63 @@
+{
+  "name": "docs_components_01",
+  "source": "{ Supply -> pipe -> return: what pressure is lost to friction? }\nSource  SUP(fluid$=Water, mdot=2 [kg/s], P=300000 [Pa], T=298 [K])\nPipe    LINE(fluid$=Water, L=50 [m], D=0.05 [m], rough=0.0001)\nSink    RET()\n\nconnect(SUP.out, LINE.in)\nconnect(LINE.out, RET.in)\n\ndP = SUP.out.P - RET.in.P     { probe: frictional pressure drop, Pa }\n",
+  "expect": {
+    "variables": {
+      "dP": 13620.080056239618,
+      "line.a": 0.001963495408493621,
+      "line.f": 0.02618069139188495,
+      "line.in.h": 104476.96714085608,
+      "line.in.mdot": 2.0,
+      "line.in.p": 300000.0,
+      "line.mu": 8.930444194766424E-4,
+      "line.out.h": 104476.96714085608,
+      "line.out.mdot": 2.0,
+      "line.out.p": 286379.9199437604,
+      "line.re_d": 57029.16974639756,
+      "line.rho": 997.1756540908732,
+      "line.v": 1.0214766391551966,
+      "ret.h": 104476.96714085608,
+      "ret.in.h": 104476.96714085608,
+      "ret.in.mdot": 2.0,
+      "ret.in.p": 286379.9199437604,
+      "ret.mdot": 2.0,
+      "ret.p": 286379.9199437604,
+      "sup.out.h": 104476.96714085608,
+      "sup.out.mdot": 2.0,
+      "sup.out.p": 300000.0
+    },
+    "display_names": {
+      "dp": "dP",
+      "line$a": "line.a",
+      "line$f": "line.f",
+      "line$in$h": "line.in.h",
+      "line$in$mdot": "line.in.mdot",
+      "line$in$p": "line.in.p",
+      "line$mu": "line.mu",
+      "line$out$h": "line.out.h",
+      "line$out$mdot": "line.out.mdot",
+      "line$out$p": "line.out.p",
+      "line$re_d": "line.re_d",
+      "line$rho": "line.rho",
+      "line$v": "line.v",
+      "ret$h": "ret.h",
+      "ret$in$h": "ret.in.h",
+      "ret$in$mdot": "ret.in.mdot",
+      "ret$in$p": "ret.in.p",
+      "ret$mdot": "ret.mdot",
+      "ret$p": "ret.p",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "water": "Water"
+    },
+    "block_count": 22,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

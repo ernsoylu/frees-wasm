@@ -1,0 +1,12 @@
+{ Nominal values }
+P = 100000 [Pa]
+T = 300 [K]
+R = 287 [J/kg-K]
+P = rho * R * T          { rho is the computed result }
+
+{ Measured-input uncertainties }
+UncertaintyOf(P) = 500 [Pa]
+UncertaintyOf(T) = 2.0 [K]
+
+{ Propagated uncertainty in density }
+unc_rho = UncertaintyOf(rho)

@@ -1,0 +1,24 @@
+{
+  "name": "docs_fluids_materials_03",
+  "source": "M  = MolarMass(CarbonDioxide)   { 0.04401 kg/mol }\nM2 = MolarMass(C8H18)           { 0.11423 kg/mol }\nM3 = MolarMass('Al2(SO4)3')     { quote formulas containing parentheses }\n",
+  "expect": {
+    "variables": {
+      "M": 0.0440098,
+      "M2": 0.114231,
+      "M3": 0.34213107600000003
+    },
+    "display_names": {
+      "m": "M",
+      "m2": "M2",
+      "m3": "M3"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

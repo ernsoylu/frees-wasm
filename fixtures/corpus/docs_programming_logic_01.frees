@@ -1,0 +1,5 @@
+FUNCTION poly_fit(x)
+  poly_fit := 0.5 * x^2 + 2 * x + 1
+END
+
+y = poly_fit(3)          { y = 9.5 }

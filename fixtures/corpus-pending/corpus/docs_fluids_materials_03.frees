@@ -1,0 +1,3 @@
+M  = MolarMass(CarbonDioxide)   { 0.04401 kg/mol }
+M2 = MolarMass(C8H18)           { 0.11423 kg/mol }
+M3 = MolarMass('Al2(SO4)3')     { quote formulas containing parentheses }

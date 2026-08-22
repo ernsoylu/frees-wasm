@@ -1,0 +1,6 @@
+R = 220 [ohm]
+L = 0.1 [H]
+C = 1e-6 [F]
+
+w0 = 1 / sqrt(L * C)         { resonance -> 3162 rad/s (~503 Hz) }
+Q  = w0 * L / R              { quality factor -> ~1.44 }

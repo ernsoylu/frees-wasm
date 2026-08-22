@@ -1653,6 +1653,30 @@ fn expand_component_layer(
     // a document with no component layer must not touch it at all — otherwise
     // every scalar solve in the corpus pays for 295 component definitions.
     if doc.components.is_empty() {
+        // One thing the Java's always-on expander still does to such a
+        // document: its top-level rewrite mangles dotted names (`RET.in.P` →
+        // `ret$in$p`) and records their display spellings, instances or no
+        // instances. The 2026-08-22 docs harvest caught the early return
+        // skipping that (`docs_components_05`). Reproduce it with an expander
+        // over empty definition lists — no instances, no connects, and no
+        // parse of the builtin library — and only when a dotted name actually
+        // appears, so the corpus's scalar documents still pay nothing.
+        if mentions_dotted_var(&doc.statements, &doc.dynamics) {
+            let statements = std::mem::take(&mut doc.statements);
+            let mut dynamics = std::mem::take(&mut doc.dynamics);
+            let mut display_names = std::mem::take(&mut doc.display_names);
+            let mut expander = crate::components::expander::ComponentExpander::new(
+                &[],
+                &[],
+                &[],
+                &[],
+                &mut display_names,
+            )?;
+            doc.statements = expander.rewrite_statements(statements)?;
+            rewrite_dynamic_bodies(&mut expander, &mut dynamics)?;
+            doc.dynamics = dynamics;
+            doc.display_names = display_names;
+        }
         return Ok(ComponentLayer::default());
     }
 
@@ -1722,6 +1746,45 @@ fn expand_component_layer(
 ///
 /// A `set` action's target is a *variable name*, so it goes through the same
 /// rewrite and keeps the flat name when the rewrite produces a plain `Var`.
+/// Does anything the component layer's top-level rewrite would touch mention a
+/// dotted variable (`a.b`, `inst.port.member`)? Gates the component-free
+/// rewrite in [`expand_component_layer`]: the Java pays its rewrite on every
+/// document, this port only where it can matter.
+fn mentions_dotted_var(
+    statements: &[Statement],
+    dynamics: &[crate::ode::dynamic::DynamicSystem],
+) -> bool {
+    fn expr_dotted(e: &Expr) -> bool {
+        e.variables().iter().any(|v| v.contains('.'))
+    }
+    fn statements_dotted(statements: &[Statement]) -> bool {
+        statements.iter().any(|s| match s {
+            Statement::Eq(eq) => expr_dotted(&eq.lhs) || expr_dotted(&eq.rhs),
+            Statement::For {
+                start, end, body, ..
+            } => expr_dotted(start) || expr_dotted(end) || statements_dotted(body),
+            Statement::Symbolic(_) => false,
+            Statement::CallProc {
+                inputs, outputs, ..
+            } => inputs.iter().any(expr_dotted) || outputs.iter().any(expr_dotted),
+        })
+    }
+    statements_dotted(statements)
+        || dynamics.iter().any(|ds| {
+            ds.body_equations
+                .iter()
+                .any(|eq| expr_dotted(&eq.lhs) || expr_dotted(&eq.rhs))
+                || statements_dotted(&ds.for_blocks)
+                || ds.initials.iter().any(|ic| expr_dotted(&ic.value))
+                || ds.events.iter().any(|ev| {
+                    expr_dotted(&ev.lhs)
+                        || expr_dotted(&ev.rhs)
+                        || ev.set_var.as_deref().is_some_and(|v| v.contains('.'))
+                        || ev.set_expr.as_ref().is_some_and(expr_dotted)
+                })
+        })
+}
+
 fn rewrite_dynamic_bodies(
     expander: &mut crate::components::expander::ComponentExpander<'_, '_>,
     systems: &mut [crate::ode::dynamic::DynamicSystem],
@@ -1976,7 +2039,16 @@ fn complete_display_names(
             equation
                 .variables()
                 .into_iter()
-                .filter(|v| element_parts(v).is_some()),
+                // An internal matrix-library temporary (`backslash_temp_6[1]`)
+                // is minted as an element Var directly, so in the Java it never
+                // passes any of the four registration sites and `displayNames`
+                // has no entry for it — while it *does* stay in the variables
+                // map. Replaying the rule over the expanded system would invent
+                // entries the oracle lacks (caught by the 2026-08-22 docs
+                // harvest, `docs_matrix_algebra_03`).
+                .filter(|v| {
+                    element_parts(v).is_some() && !crate::parser::expand::is_internal_temp(v)
+                }),
         );
     }
     for element in elements {

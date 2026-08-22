@@ -1,0 +1,5 @@
+Re = 1e5
+eps = 0.00015
+D = 0.25 [m]
+{ ff is unknown — set a guess of ~0.02 in Variable Info }
+1/sqrt(ff) = -2*log10(eps/(3.7*D) + 2.51/(Re*sqrt(ff)))

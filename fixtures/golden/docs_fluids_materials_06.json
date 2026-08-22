@@ -1,0 +1,38 @@
+{
+  "name": "docs_fluids_materials_06",
+  "source": "h = 100 [W/m^2-K];  k = 0.6 [W/m-K]\nalpha = 0.15e-6 [m^2/s];  L = 0.02 [m];  t = 600 [s]\n\nBi = h * L / k\nFo = alpha * t / L^2\ntheta_c = heisler_temp('wall', Bi, Fo, 0)   { centre }\ntheta_s = heisler_temp('wall', Bi, Fo, 1)   { surface }\nQ_ratio = heisler_q('wall', Bi, Fo)         { heat removed fraction }\n",
+  "expect": {
+    "variables": {
+      "Bi": 3.3333333333333335,
+      "Fo": 0.22499999999999998,
+      "L": 0.02,
+      "Q_ratio": 0.32952524994160104,
+      "alpha": 1.5E-7,
+      "h": 100.0,
+      "k": 0.6,
+      "t": 600.0,
+      "theta_c": 0.8710062253809431,
+      "theta_s": 0.29935683484980896
+    },
+    "display_names": {
+      "alpha": "alpha",
+      "bi": "Bi",
+      "fo": "Fo",
+      "h": "h",
+      "k": "k",
+      "l": "L",
+      "q_ratio": "Q_ratio",
+      "t": "t",
+      "theta_c": "theta_c",
+      "theta_s": "theta_s"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,3 @@
+Source SUP(s1, fluid$=Water, mdot=2, P=300000, T=298)
+Pipe   LINE(s1, s2, fluid$=Water, L=50, D=0.05, rough=0.0001)
+Sink   RET(s2)

@@ -1,0 +1,17 @@
+T_evap = 263.15 [K]     { -10 C }
+T_cond = 313.15 [K]     {  40 C }
+eta_c  = 0.72
+
+{ 1: saturated vapor leaving the evaporator }
+P1 = P_sat(R134a, T=T_evap)
+h1 = Enthalpy(R134a, T=T_evap, x=1)
+s1 = Entropy(R134a, T=T_evap, x=1)
+
+{ 2: compressor discharge at condenser pressure }
+P2  = P_sat(R134a, T=T_cond)
+h2s = Enthalpy(R134a, P=P2, s=s1)        { isentropic ideal }
+h2  = h1 + (h2s - h1) / eta_c            { real discharge enthalpy }
+
+{ 3: saturated liquid off the condenser; 4: after the expansion valve }
+h3 = Enthalpy(R134a, P=P2, x=0)
+h4 = h3                                  { throttling: isenthalpic }

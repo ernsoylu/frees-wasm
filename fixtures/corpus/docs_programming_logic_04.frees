@@ -1,0 +1,5 @@
+PROCEDURE heat_transfer(T1, T2 : Q_dot)
+  Q_dot := 0.8 * 12 * (T1 - T2) / 0.25
+END
+
+CALL heat_transfer(100, 20 : heat_loss)

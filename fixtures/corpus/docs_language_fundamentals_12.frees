@@ -1,0 +1,2 @@
+T_f = ConvertTemp(C, F, 100)   { 212 F }
+T_k = ConvertTemp(F, K, 32)    { 273.15 K }

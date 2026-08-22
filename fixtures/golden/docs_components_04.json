@@ -1,0 +1,51 @@
+{
+  "name": "docs_components_04",
+  "source": "Source SUP(s1, fluid$=Water, mdot=2, P=300000, T=298)\nPipe   LINE(s1, s2, fluid$=Water, L=50, D=0.05, rough=0.0001)\nSink   RET(s2)\n",
+  "expect": {
+    "variables": {
+      "line.a": 0.001963495408493621,
+      "line.f": 0.02618069139188495,
+      "line.mu": 8.930444194766424E-4,
+      "line.re_d": 57029.16974639756,
+      "line.rho": 997.1756540908732,
+      "line.v": 1.0214766391551966,
+      "ret.h": 104476.96714085608,
+      "ret.mdot": 2.0,
+      "ret.p": 286379.9199437604,
+      "s1.h": 104476.96714085608,
+      "s1.mdot": 2.0,
+      "s1.p": 300000.0,
+      "s2.h": 104476.96714085608,
+      "s2.mdot": 2.0,
+      "s2.p": 286379.9199437604
+    },
+    "display_names": {
+      "line$a": "line.a",
+      "line$f": "line.f",
+      "line$mu": "line.mu",
+      "line$re_d": "line.re_d",
+      "line$rho": "line.rho",
+      "line$v": "line.v",
+      "ret$h": "ret.h",
+      "ret$mdot": "ret.mdot",
+      "ret$p": "ret.p",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p",
+      "water": "Water"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

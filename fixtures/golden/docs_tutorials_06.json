@@ -1,0 +1,32 @@
+{
+  "name": "docs_tutorials_06",
+  "source": "P_atm  = 101325 [Pa]\nT_in   = 30 [C]\nphi_in = 0.50\nmdot   = 1.5 [kg/s]          { dry-air basis }\n\nw_in  = HumRat(AirH2O, T=T_in, P=P_atm, R=phi_in)\nh_in  = Enthalpy(AirH2O, T=T_in, P=P_atm, R=phi_in)\nT_dew = DewPoint(AirH2O, T=T_in, P=P_atm, R=phi_in)\n",
+  "expect": {
+    "variables": {
+      "P_atm": 101325.0,
+      "T_dew": 291.6008253667626,
+      "T_in": 303.15,
+      "h_in": 64355.67707062224,
+      "mdot": 1.5,
+      "phi_in": 0.5,
+      "w_in": 0.01337258655974562
+    },
+    "display_names": {
+      "h_in": "h_in",
+      "mdot": "mdot",
+      "p_atm": "P_atm",
+      "phi_in": "phi_in",
+      "t_dew": "T_dew",
+      "t_in": "T_in",
+      "w_in": "w_in"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

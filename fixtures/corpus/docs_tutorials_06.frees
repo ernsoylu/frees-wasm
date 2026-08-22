@@ -1,0 +1,8 @@
+P_atm  = 101325 [Pa]
+T_in   = 30 [C]
+phi_in = 0.50
+mdot   = 1.5 [kg/s]          { dry-air basis }
+
+w_in  = HumRat(AirH2O, T=T_in, P=P_atm, R=phi_in)
+h_in  = Enthalpy(AirH2O, T=T_in, P=P_atm, R=phi_in)
+T_dew = DewPoint(AirH2O, T=T_in, P=P_atm, R=phi_in)

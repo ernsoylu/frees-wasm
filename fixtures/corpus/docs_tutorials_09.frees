@@ -1,0 +1,29 @@
+{ AC cooling coil: psychrometrics by hand, then as components -- Tutorial 2 }
+P_atm  = 101325 [Pa]
+T_in   = 30 [C]
+phi_in = 0.50
+mdot   = 1.5 [kg/s]
+
+w_in  = HumRat(AirH2O, T=T_in, P=P_atm, R=phi_in)
+h_in  = Enthalpy(AirH2O, T=T_in, P=P_atm, R=phi_in)
+T_dew = DewPoint(AirH2O, T=T_in, P=P_atm, R=phi_in)
+
+T_out = 12 [C]
+w_out = HumRat(AirH2O, T=T_out, P=P_atm, R=1)
+h_out = Enthalpy(AirH2O, T=T_out, P=P_atm, R=1)
+
+Q_total  = mdot * (h_in - h_out)
+mdot_w   = mdot * (w_in - w_out)
+Q_latent = mdot * 2.501e6 * (w_in - w_out)
+Q_sens   = Q_total - Q_latent
+SHR      = Q_sens / Q_total
+
+{ The same coil from the moist-air library }
+MoistAirSource AHU(P=P_atm, T=303.15 [K], W=w_in, mdot=1.5 [kg/s])
+CoolingCoil    COIL(Tout=285.15 [K])
+MoistAirSink   RET()
+connect(AHU.out, COIL.in)
+connect(COIL.out, RET.in)
+
+Q_coil     = COIL.Q
+Q_coil_lat = COIL.Q_lat

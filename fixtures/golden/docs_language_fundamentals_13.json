@@ -1,0 +1,24 @@
+{
+  "name": "docs_language_fundamentals_13",
+  "source": "{ Pressure in psi, result wanted in kPa }\nP_psi = 100 [psi]\nP_Pa  = P_psi * Convert(psi, Pa)     { scaling only }\nP_kPa = P_Pa / 1000                  { 689.5 kPa }\n",
+  "expect": {
+    "variables": {
+      "P_Pa": 4.7537678131693325E9,
+      "P_kPa": 4753767.813169332,
+      "P_psi": 689475.7293168
+    },
+    "display_names": {
+      "p_kpa": "P_kPa",
+      "p_pa": "P_Pa",
+      "p_psi": "P_psi"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

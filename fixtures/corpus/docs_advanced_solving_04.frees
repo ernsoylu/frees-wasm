@@ -1,0 +1,10 @@
+m = 1.0; k = 20.0; c = 0.5
+DYNAMIC mass_spring (method = ode45, t = 0 .. 20, points = 400)
+  der(x) = v
+  der(v) = -(c/m) * v - (k/m) * x
+  energy = 0.5*m*v^2 + 0.5*k*x^2      { auxiliary column, decays }
+  x(0) = 1.0
+  v(0) = 0.0
+END
+
+final_displacement = FinalValue('x')   { read back into the analytic solve }

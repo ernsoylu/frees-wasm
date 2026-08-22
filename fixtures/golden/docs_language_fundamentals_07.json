@@ -1,0 +1,26 @@
+{
+  "name": "docs_language_fundamentals_07",
+  "source": "Re = 1e5\neps = 0.00015\nD = 0.25 [m]\n{ ff is unknown — set a guess of ~0.02 in Variable Info }\n1/sqrt(ff) = -2*log10(eps/(3.7*D) + 2.51/(Re*sqrt(ff)))\n",
+  "expect": {
+    "variables": {
+      "D": 0.25,
+      "Re": 100000.0,
+      "eps": 1.5E-4,
+      "ff": 0.020726643846400945
+    },
+    "display_names": {
+      "d": "D",
+      "eps": "eps",
+      "ff": "ff",
+      "re": "Re"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

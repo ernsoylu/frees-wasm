@@ -889,10 +889,31 @@ fn parse_call_atom(c: &mut Cursor<'_>, name: String) -> Result<Expr> {
         return Ok(call);
     }
     if lower == "convert" {
-        return build_convert(args, span);
+        // Both arguments are unit tokens, never variables: the Java grammar
+        // routes them through `unit` contexts that `visitVarAtom` never sees,
+        // so `Convert(psi, Pa)` leaves no `psi`/`pa` display entries. Undo the
+        // registration the expression-first parse above just did (the
+        // 2026-08-22 docs harvest caught the difference).
+        let tokens: Vec<String> = args.iter().map(|a| unquote(&a.raw).to_string()).collect();
+        let call = build_convert(args, span);
+        for token in &tokens {
+            c.forget_display_name_if_new(token, mark);
+        }
+        return call;
     }
     if lower == "converttemp" {
-        return build_convert_temp(args, span);
+        // The first two arguments are temperature-scale tokens (C, K, F, R);
+        // only the third is a real expression. Same rule as `Convert` above.
+        let tokens: Vec<String> = args
+            .iter()
+            .take(2)
+            .map(|a| unquote(&a.raw).to_string())
+            .collect();
+        let call = build_convert_temp(args, span);
+        for token in &tokens {
+            c.forget_display_name_if_new(token, mark);
+        }
+        return call;
     }
     Ok(Expr::call(
         &name,

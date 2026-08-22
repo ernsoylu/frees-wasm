@@ -533,9 +533,6 @@ impl<'d, 'n> ComponentExpander<'d, 'n> {
     /// Rewrites the dotted member references in top-level statements to flat
     /// names. Port of `rewriteStatements`.
     pub fn rewrite_statements(&mut self, statements: Vec<Statement>) -> Result<Vec<Statement>> {
-        if self.net.instance_index.is_empty() && !self.net.has_defs {
-            return Ok(statements);
-        }
         statements
             .into_iter()
             .map(|s| self.rewrite_statement(s))
@@ -552,9 +549,6 @@ impl<'d, 'n> ComponentExpander<'d, 'n> {
     /// non-square. This is what lets an acausal component take a
     /// scheduled/controlled transient input.
     pub fn rewrite_top_equation(&mut self, eq: &Equation) -> Result<Equation> {
-        if self.net.instance_index.is_empty() && !self.net.has_defs {
-            return Ok(eq.clone());
-        }
         Ok(Equation::new(
             self.rewrite_top_expr(&eq.lhs)?,
             self.rewrite_top_expr(&eq.rhs)?,
@@ -566,9 +560,12 @@ impl<'d, 'n> ComponentExpander<'d, 'n> {
     /// `DYNAMIC` initial value or event guard) to flat solver names. Port of
     /// `rewriteTopExpr`.
     pub fn rewrite_top_expr(&mut self, e: &Expr) -> Result<Expr> {
-        if self.net.instance_index.is_empty() && !self.net.has_defs {
-            return Ok(e.clone());
-        }
+        // No "no instances, no defs" short-circuit here: the Java's
+        // `rewriteTop` runs unconditionally and mangles dotted names
+        // (`a.b.c` -> `a$b$c`, display spelling recorded) even on an empty
+        // network, and the component-free rewrite in
+        // `engine::expand_component_layer` depends on exactly that (the
+        // 2026-08-22 docs harvest's `docs_components_05`).
         self.net.rewrite_top(e, self.display_names)
     }
 
@@ -3741,7 +3738,13 @@ mod tests {
     }
 
     #[test]
-    fn a_document_with_no_components_passes_through_untouched() {
+    fn an_empty_network_still_mangles_dotted_names_like_the_java() {
+        // RE-PINNED 2026-08-22 (docs harvest, `docs_components_05`). This test
+        // used to assert the opposite — "no components ⇒ no rewrite at all" —
+        // via a short-circuit the Java does not have. The oracle's golden for
+        // `RET.in.P = 100000 [Pa]` shows `rewriteTopVar` runs on an empty
+        // network too: a dotted name becomes its `$`-flattened form and the
+        // dotted spelling lands in `displayNames`.
         let builtins: Vec<ComponentDef> = Vec::new();
         let defs: Vec<ComponentDef> = Vec::new();
         let mut display = BTreeMap::new();
@@ -3749,11 +3752,14 @@ mod tests {
         let mut ex = ComponentExpander::new(&builtins, &defs, &[], &[], &mut display).unwrap();
         assert!(ex.is_empty());
         assert!(ex.expand().unwrap().is_empty());
-        // No components ⇒ no rewrite at all: `a.b` is left exactly as parsed.
         let out = ex.rewrite_statements(statements).unwrap();
-        assert_eq!(out, vec![Statement::Eq(eq("z = a.b"))]);
+        let rewritten = match &out[..] {
+            [Statement::Eq(equation)] => equation,
+            other => panic!("expected one equation, got {other:?}"),
+        };
+        assert_eq!(rewritten.rhs, Expr::Var("a$b".into()));
         assert!(ex.connections().is_empty());
-        assert!(display.is_empty());
+        assert_eq!(display.get("a$b"), Some(&"a.b".to_string()));
     }
 
     #[test]

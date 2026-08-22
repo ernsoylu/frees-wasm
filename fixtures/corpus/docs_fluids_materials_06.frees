@@ -1,0 +1,8 @@
+h = 100 [W/m^2-K];  k = 0.6 [W/m-K]
+alpha = 0.15e-6 [m^2/s];  L = 0.02 [m];  t = 600 [s]
+
+Bi = h * L / k
+Fo = alpha * t / L^2
+theta_c = heisler_temp('wall', Bi, Fo, 0)   { centre }
+theta_s = heisler_temp('wall', Bi, Fo, 1)   { surface }
+Q_ratio = heisler_q('wall', Bi, Fo)         { heat removed fraction }

@@ -1,0 +1,6 @@
+{ Mass of air in a rigid tank }
+P = 500 [kPa]
+Vol = 0.05 [m^3]
+T = 25 [C]
+R = 0.287 [kJ/kg-K]
+P * Vol = m * R * T      { frees solves this for m }

@@ -1,0 +1,60 @@
+{
+  "name": "docs_matrix_algebra_02",
+  "source": "I[1:3, 1:3] = eye(3)                 { 3x3 identity }\ngrid[1:11] = linspace(0, 1, 11)      { 0, 0.1, …, 1.0 }\n",
+  "expect": {
+    "variables": {
+      "I[1,1]": 1.0,
+      "I[1,2]": 0.0,
+      "I[1,3]": 0.0,
+      "I[2,1]": 0.0,
+      "I[2,2]": 1.0,
+      "I[2,3]": 0.0,
+      "I[3,1]": 0.0,
+      "I[3,2]": 0.0,
+      "I[3,3]": 1.0,
+      "grid[10]": 0.9,
+      "grid[11]": 1.0,
+      "grid[1]": 0.0,
+      "grid[2]": 0.1,
+      "grid[3]": 0.2,
+      "grid[4]": 0.3,
+      "grid[5]": 0.4,
+      "grid[6]": 0.5,
+      "grid[7]": 0.6,
+      "grid[8]": 0.7,
+      "grid[9]": 0.8
+    },
+    "display_names": {
+      "grid": "grid",
+      "grid[10]": "grid[10]",
+      "grid[11]": "grid[11]",
+      "grid[1]": "grid[1]",
+      "grid[2]": "grid[2]",
+      "grid[3]": "grid[3]",
+      "grid[4]": "grid[4]",
+      "grid[5]": "grid[5]",
+      "grid[6]": "grid[6]",
+      "grid[7]": "grid[7]",
+      "grid[8]": "grid[8]",
+      "grid[9]": "grid[9]",
+      "i": "I",
+      "i[1,1]": "I[1,1]",
+      "i[1,2]": "I[1,2]",
+      "i[1,3]": "I[1,3]",
+      "i[2,1]": "I[2,1]",
+      "i[2,2]": "I[2,2]",
+      "i[2,3]": "I[2,3]",
+      "i[3,1]": "I[3,1]",
+      "i[3,2]": "I[3,2]",
+      "i[3,3]": "I[3,3]"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

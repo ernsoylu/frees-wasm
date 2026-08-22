@@ -1,0 +1,30 @@
+{ Series RLC low-pass filter -- Tutorial 3 }
+R = 220 [ohm]
+L = 0.1 [H]
+C = 1e-6 [F]
+
+w0 = 1 / sqrt(L * C)
+Q  = w0 * L / R
+
+f  = 200 [Hz]
+w  = 2 * pi# * f
+X_L = w * L
+X_C = 1 / (w * C)
+Z_mag = sqrt(R^2 + (X_L - X_C)^2)
+phi   = arctan((X_L - X_C) / R)
+V_s   = 5 [V]
+I_mag = V_s / Z_mag
+V_out = I_mag * X_C
+gain  = V_out / V_s
+
+num = [1]
+den = [L * C, R * C, 1]
+omega[1:400] = linspace(100, 30000, 400)
+CALL bode(num, den, omega : mag, phase)
+
+PLOT 'RLC Low-Pass Bode'
+  kind = bode
+  omega = omega
+  mag = mag
+  phase = phase
+END

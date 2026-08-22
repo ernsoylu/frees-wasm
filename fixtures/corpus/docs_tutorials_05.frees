@@ -1,0 +1,30 @@
+{ Mass-spring-damper: ring-down, accessors, and Bode -- Tutorial 1 }
+m = 2 [kg]
+k = 800 [N/m]
+c = 8 [N-s/m]
+wn   = sqrt(k / m)
+zeta = c / (2 * sqrt(k * m))
+
+DYNAMIC msd (method = ode45, time = 0 .. 5, points = 500)
+  der(x) = v
+  der(v) = -(c/m) * v - (k/m) * x
+  energy = 0.5*m*v^2 + 0.5*k*x^2
+  x(0) = 0.05
+  v(0) = 0
+END
+
+x_peak  = MaxValue('x')
+t_cross = TimeAt('x', 0)
+E_final = FinalValue('energy')
+
+num = [1]
+den = [m, c, k]
+omega[1:400] = linspace(0.5, 100, 400)
+CALL bode(num, den, omega : mag, phase)
+
+PLOT 'MSD Bode'
+  kind = bode
+  omega = omega
+  mag = mag
+  phase = phase
+END

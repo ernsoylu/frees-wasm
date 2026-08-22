@@ -1,0 +1,24 @@
+{
+  "name": "docs_tutorials_03",
+  "source": "x_peak  = MaxValue('x')            { should be the 0.05 release }\nt_cross = TimeAt('x', 0)           { first zero crossing }\nE_final = FinalValue('energy')     { how much energy is left at t = 5 s }\n",
+  "expect": {
+    "variables": {
+      "E_final": 0.0,
+      "t_cross": 0.0,
+      "x_peak": 0.0
+    },
+    "display_names": {
+      "e_final": "E_final",
+      "t_cross": "t_cross",
+      "x_peak": "x_peak"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

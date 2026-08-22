@@ -1,0 +1,22 @@
+{
+  "name": "docs_fluids_materials_05",
+  "source": "F_12 = viewfactor_perp(1 [m], 1 [m], 1 [m])   { ~0.2000 }\nF_21 = viewfactor_disks(1 [m], 0.5 [m], 0.4 [m])\n",
+  "expect": {
+    "variables": {
+      "F_12": 0.20004377607540316,
+      "F_21": 0.20798390368117858
+    },
+    "display_names": {
+      "f_12": "F_12",
+      "f_21": "F_21"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

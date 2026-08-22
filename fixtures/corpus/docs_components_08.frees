@@ -1,0 +1,15 @@
+COMPONENT Heater(in, out)
+  PARAM fluid$, Q
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h + Q / in.mdot
+  T_out    = Temperature(fluid$, P=out.P, h=out.h)   { named output }
+END
+
+Source SUP(fluid$=Water, mdot=0.5 [kg/s], P=200000 [Pa], T=290 [K])
+Heater H1(fluid$=Water, Q=50000 [W])
+Sink   RET()
+connect(SUP.out, H1.in)
+connect(H1.out, RET.in)
+
+T_supply = H1.T_out          { read the named output }

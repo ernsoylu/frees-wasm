@@ -1,0 +1,3 @@
+theta = 30 [deg]          { stored as radians internally }
+y = sin(theta)            { 0.5 }
+deg = theta * Convert('rad', 'deg')

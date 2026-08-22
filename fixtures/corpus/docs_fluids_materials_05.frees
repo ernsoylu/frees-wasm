@@ -1,0 +1,2 @@
+F_12 = viewfactor_perp(1 [m], 1 [m], 1 [m])   { ~0.2000 }
+F_21 = viewfactor_disks(1 [m], 0.5 [m], 0.4 [m])

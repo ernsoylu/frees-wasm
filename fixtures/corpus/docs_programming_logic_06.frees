@@ -1,0 +1,7 @@
+TABLE bsfc(rpm : load = 0.25, 0.50, 1.0)
+  1000   320   300   290
+  3000   280   260   250
+  5000   300   270   255
+END
+
+g_per_kWh = Interpolate2D('bsfc', 2500, 0.6)   { same as bsfc(2500, 0.6) }

@@ -1,0 +1,25 @@
+{
+  "name": "docs_language_fundamentals_05",
+  "source": "{ Pick k = 1.8 above 300 K, else 1.2 }\ntemp = 350 [K]\nk = If(temp, 300, 1.2, 1.5, 1.8)   { k = 1.8 }\n\n{ Sum of squares 1+4+9+16 = 30 }\ns = Sum(i, 1, 4, i^2)\n",
+  "expect": {
+    "variables": {
+      "k": 1.8,
+      "s": 30.0,
+      "temp": 350.0
+    },
+    "display_names": {
+      "i": "i",
+      "k": "k",
+      "s": "s",
+      "temp": "temp"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

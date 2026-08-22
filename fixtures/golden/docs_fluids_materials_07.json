@@ -1,0 +1,32 @@
+{
+  "name": "docs_fluids_materials_07",
+  "source": "T_db = 25 [C]            { dry-bulb }\nP_atm = 101325 [Pa]\nphi = 0.60               { 60% relative humidity }\n\nw       = HumRat(AirH2O, T=T_db, P=P_atm, R=phi)\nT_dew   = DewPoint(AirH2O, T=T_db, P=P_atm, R=phi)\nT_wet   = WetBulb(AirH2O, T=T_db, P=P_atm, R=phi)\nh_moist = Enthalpy(AirH2O, T=T_db, P=P_atm, R=phi)   { J/kg dry air }\n",
+  "expect": {
+    "variables": {
+      "P_atm": 101325.0,
+      "T_db": 298.15,
+      "T_dew": 289.85353868298404,
+      "T_wet": 292.617430203434,
+      "h_moist": 55573.946666556505,
+      "phi": 0.6,
+      "w": 0.01194902651563823
+    },
+    "display_names": {
+      "h_moist": "h_moist",
+      "p_atm": "P_atm",
+      "phi": "phi",
+      "t_db": "T_db",
+      "t_dew": "T_dew",
+      "t_wet": "T_wet",
+      "w": "w"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

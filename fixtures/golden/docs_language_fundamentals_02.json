@@ -1,0 +1,24 @@
+{
+  "name": "docs_language_fundamentals_02",
+  "source": "theta = 30 [deg]          { stored as radians internally }\ny = sin(theta)            { 0.5 }\ndeg = theta * Convert('rad', 'deg')\n",
+  "expect": {
+    "variables": {
+      "deg": 29.999999999999996,
+      "theta": 0.5235987755982988,
+      "y": 0.49999999999999994
+    },
+    "display_names": {
+      "deg": "deg",
+      "theta": "theta",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

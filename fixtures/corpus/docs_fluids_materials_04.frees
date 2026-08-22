@@ -1,0 +1,3 @@
+{ Stoichiometric combustion of octane }
+LHV = HeatingValue(C8H18, 'LHV')   { ~44.4 MJ/kg }
+afr = StoichAFR(C8H18)             { ~15.0 }

@@ -1,0 +1,20 @@
+{
+  "name": "docs_language_fundamentals_03",
+  "source": "phi = atan2(1, -1)        { 2.356 rad = 135 deg }\n",
+  "expect": {
+    "variables": {
+      "phi": 2.356194490192345
+    },
+    "display_names": {
+      "phi": "phi"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

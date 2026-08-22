@@ -1,0 +1,2 @@
+{ Integrates 3*x^2 from 0 to 1 -> 1.0 }
+area = Integral(3 * x^2, x, 0, 1)

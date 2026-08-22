@@ -419,6 +419,97 @@ mod tests {
         assert!(err.to_string_message().contains("not a finite value"));
     }
 
+    /// D3 slice (2026-08-22): the humid-air **error shapes**, pinned.
+    ///
+    /// The success path is graded against 912 recorded CoolProp points in
+    /// `tests/humidair_grading.rs`; nothing graded the refusal path, and a
+    /// rustprop tag bump that changed these messages would have slipped
+    /// through with every gate green. Each message below is upstream CoolProp
+    /// 8.0.0's `HAPropsSI` text verbatim (rustprop's `Display` is upstream's
+    /// `what()`), probed 2026-08-22 against the v0.1.0 tag — so this test is
+    /// the tripwire: if a bump changes one, the change is a fidelity question
+    /// to answer, not a silent drift.
+    #[test]
+    fn humid_air_error_shapes_are_upstreams_verbatim() {
+        type Case = (
+            &'static str,
+            &'static str,
+            f64,
+            &'static str,
+            f64,
+            &'static str,
+            f64,
+            &'static str,
+        );
+        let cases: &[Case] = &[
+            // An unknown output key names the parser and lists the vocabulary.
+            (
+                "Banana", "T", 298.15, "P", 101_325.0, "R", 0.5,
+                "your input [Banana] was not understood to Name2Type",
+            ),
+            // Relative humidity outside [0, 1], either side, names key + range.
+            (
+                "H", "T", 298.15, "P", 101_325.0, "R", 1.5,
+                "The input for key (Rh) with value (1.5) is outside the range of validity: (0) to (1)",
+            ),
+            (
+                "H", "T", 298.15, "P", 101_325.0, "R", -0.2,
+                "The input for key (Rh) with value (-0.2) is outside the range of validity: (0) to (1)",
+            ),
+            // Dry-bulb below the 130 K floor of the RP-1485 model.
+            (
+                "H", "T", 100.0, "P", 101_325.0, "R", 0.5,
+                "The input for key (T) with value (100) is outside the range of validity",
+            ),
+            // A trio without pressure — duplicate keys included — is refused
+            // with upstream's fixed sentence, not a generic parse error.
+            (
+                "H", "T", 298.15, "T", 300.0, "R", 0.5,
+                "Pressure must be one of the inputs to HAPropsSI",
+            ),
+            (
+                "H", "T", 298.15, "R", 0.5, "W", 0.01,
+                "Pressure must be one of the inputs to HAPropsSI",
+            ),
+            // Humidity ratio below zero names upstream's HumRat spelling.
+            (
+                "H", "T", 298.15, "P", 101_325.0, "W", -0.01,
+                "The input for key (HumRat) with value (-0.01) is outside the range of validity: (0) to (10)",
+            ),
+            // A non-positive pressure is a range refusal of its own.
+            ("H", "T", 298.15, "P", 0.0, "R", 0.5, "Pressure out of range"),
+        ];
+        for (out, n1, v1, n2, v2, n3, v3, want) in cases {
+            let err = B
+                .ha_props_si(out, n1, *v1, n2, *v2, n3, *v3)
+                .expect_err(want);
+            assert!(matches!(err, FreesError::Property { .. }));
+            let msg = err.to_string_message();
+            assert!(
+                msg.contains(want),
+                "{out}({n1}={v1}, {n2}={v2}, {n3}={v3}): expected {want:?} in {msg:?}"
+            );
+        }
+    }
+
+    /// Two edges the refusal pins above must NOT grow guards for, recorded so
+    /// nobody "fixes" them on the frees side: upstream accepts `W` at its
+    /// range ceiling of 10 kg/kg, and it computes from a wet-bulb *above* the
+    /// dry-bulb without any consistency check. Both answer finite numbers in
+    /// CoolProp 8.0.0 and therefore must answer here — an invented refusal
+    /// would be a parity break, not a safety net.
+    #[test]
+    fn humid_air_upstream_permissiveness_is_preserved() {
+        let at_w_ceiling = B
+            .ha_props_si("H", "T", 298.15, "P", 101_325.0, "W", 10.0)
+            .unwrap();
+        assert!(at_w_ceiling.is_finite() && at_w_ceiling > 0.0);
+        let wetbulb_above_drybulb = B
+            .ha_props_si("H", "T", 298.15, "P", 101_325.0, "B", 320.0)
+            .unwrap();
+        assert!(wetbulb_above_drybulb.is_finite() && wetbulb_above_drybulb > 0.0);
+    }
+
     #[test]
     fn errors_classify_as_property_errors() {
         let unknown = B

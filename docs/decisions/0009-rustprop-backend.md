@@ -438,6 +438,15 @@ down 4x in one wave because rustprop got faster, and rustprop is still getting
 faster. The next person to weigh this module should weigh the whole of it, not
 another fluid's worth of it.
 
+*Re-weighed 2026-08-22 (Wave D3), against the v0.1.0 git tag the build now
+consumes: five standalone release runs of
+`tests/rustprop_warm.rs::warm_t_of_p_hmass_costs_tens_of_microseconds` at load
+~2.5-3 measured **4.70-5.09x** (warm 39.5-42.5 us, cold 200.1-213.0 us — the
+absolutes are ~3x the quiet-box figures, the load; the ratio is the
+measurement). The 5.2x band held: no cold-path speed-up landed between the F7
+measurement and the tag, so the "keep" verdict stands unchanged, as does the 3x
+floor. The number to re-check is this one, whenever the tag is next bumped.*
+
 ---
 
 ## Amendment — Wave-3 F5: the tolerance list is re-baselined and re-labelled

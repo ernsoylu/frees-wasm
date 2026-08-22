@@ -195,6 +195,11 @@ outside the cache-storage API; every hashed asset is in.
    unified Save that remembers where the project came from (file handle vs
    library row — `FileSystemFileHandle` is structured-cloneable and could
    live in the library) is the obvious next UX step and was cut for scope.
+   *(Closed 2026-08-22, Wave E, in its minimal form: `App.tsx` tracks the
+   project's provenance (`file` / `browser` / none), so Save re-saves a
+   library-opened project to the library — with a confirming toast — and
+   keeps meaning the file picker otherwise. The `FileSystemFileHandle`
+   half, re-saving to the same file without a picker, stays open.)*
 3. **The precache-everything call has no opt-out.** A metered-connection user
    pays 30 MB on first visit. Workbox supports runtime-caching strategies
    that would precache the boot path (~4 MB) and cache the rest on use; that
@@ -205,6 +210,10 @@ outside the cache-storage API; every hashed asset is in.
    build assumes base `/`. Deploying anywhere but the origin root breaks the
    Help route and the SW scope. Not a regression — but the phase that makes
    deployment a headline should have fixed it, and did not.
+   *(Route half closed 2026-08-22, Wave E: `main.tsx` now resolves `/help`
+   against `import.meta.env.BASE_URL`, trailing-slash tolerant, so a
+   `vite build --base` sub-path deploy routes correctly. The service-worker
+   scope under a sub-path remains unverified.)*
 5. **No multi-tab coordination for the library.** Two tabs can save under the
    same name; last write wins, silently. IndexedDB gives the primitives
    (`versionchange` is handled; `BroadcastChannel` is not used). The autosave

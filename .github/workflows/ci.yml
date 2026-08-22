@@ -90,6 +90,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # Wave D6: the library must keep compiling with every feature off —
+      # `linked-tables` and `rustprop-backend` are both optional, and nothing
+      # else exercised this configuration (D9 recorded it as untested).
+      - name: Check --no-default-features
+        run: cargo check -p frees-core --no-default-features
+
       - name: Test
         run: cargo test --workspace
 

@@ -44,7 +44,12 @@ const theme = createTheme({
   defaultRadius: 'md',
 })
 
-const isHelpPage = globalThis.location.pathname === '/help'
+// Route relative to the deploy base (Wave E, closing Phase 11's gap 4):
+// `pathname === '/help'` only worked for an origin-root deploy. BASE_URL is
+// '/' in dev and whatever `vite build --base` was given, so a sub-path
+// deploy's `/tools/frees/help` routes correctly too. Trailing-slash tolerant.
+const helpPath = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/help`
+const isHelpPage = globalThis.location.pathname.replace(/\/$/, '') === helpPath
 
 // Register the service worker (no-op in dev, where the plugin disables it).
 setupPwa()

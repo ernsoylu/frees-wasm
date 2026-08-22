@@ -310,7 +310,11 @@ between them.
   the bytes, so `--no-default-features` is not a tested configuration. The
   library compiles without them; the test targets do not, and that is on purpose
   — the alternative is `cfg` noise across five modules to support a
-  configuration nothing ships.
+  configuration nothing ships. *(Since 2026-08-22, Wave D6, the library-only
+  half is pinned: CI's native job runs
+  `cargo check -p frees-core --no-default-features`, so "compiles without
+  them" can no longer rot silently. The test targets stay excluded, as this
+  paragraph intends.)*
 
 ## What was explicitly not done
 

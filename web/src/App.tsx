@@ -935,9 +935,29 @@ export default function App() {
     pendingActionRef.current = null
   }, [])
 
+  // Wave E (closing Phase 11's gap 2): where this project lives. Opened from
+  // the browser library => Save re-saves there; opened from a file (or never
+  // saved anywhere) => Save keeps meaning the file picker, as before.
+  const projectSourceRef = useRef<'file' | 'browser' | null>(null)
+
   const handleSaveProject = useCallback(async () => {
+    if (projectSourceRef.current === 'browser') {
+      const meta = await saveStoredProject(projectName, buildProject(currentSlices()))
+      if (meta) {
+        isDirtyRef.current = false
+        notifications.show({
+          color: 'teal',
+          title: 'Saved',
+          message: `Saved “${projectName}” to the browser library.`,
+        })
+      }
+      return
+    }
     const saved = await saveProject(buildProject(currentSlices()), projectName)
-    if (saved) isDirtyRef.current = false
+    if (saved) {
+      isDirtyRef.current = false
+      projectSourceRef.current = 'file'
+    }
   }, [currentSlices, projectName])
 
   const handleRenameProject = useCallback(() => setRenameOpen(true), [])
@@ -969,7 +989,10 @@ export default function App() {
   // surfaced by the modal, never silent.
   const handleSaveToBrowser = useCallback(async () => {
     const meta = await saveStoredProject(projectName, buildProject(currentSlices()))
-    if (meta) isDirtyRef.current = false
+    if (meta) {
+      isDirtyRef.current = false
+      projectSourceRef.current = 'browser'
+    }
     return meta !== null
   }, [currentSlices, projectName])
 
@@ -980,6 +1003,7 @@ export default function App() {
           if (p) {
             applyProject(p)
             setProjectName(name)
+            projectSourceRef.current = 'browser'
             setLibraryOpen(false)
           } else {
             notifications.show({
@@ -1003,6 +1027,7 @@ export default function App() {
         const p = await readProjectFile(file)
         applyProject(p)
         setProjectName(file.name.replace(/\.frees$/i, ''))
+        projectSourceRef.current = 'file'
       } catch (err) {
         setDialogError(err instanceof Error ? err.message : 'Could not open project file.')
       }
@@ -1011,6 +1036,7 @@ export default function App() {
   )
 
   const performNewProject = useCallback(() => {
+    projectSourceRef.current = null
     suppressDirtyRef.current = true
     isDirtyRef.current = false
     clearProjectLocal()

@@ -227,6 +227,12 @@ outside the cache-storage API; every hashed asset is in.
    icons — but nothing in CI *runs* it. A Playwright job doing the offline
    reload in CI would close the gap; it needs a browser in the runner and was
    deferred.
+   *(Closed 2026-08-22, Wave D4: `web/e2e/offline.spec.ts` with a committed
+   Playwright config — first-visit precache, an offline reload, an offline
+   Solve graded against the parity golden's `x = 4.69401…`, and zero
+   `/api/` requests — runs in the web CI job against the built `dist`
+   through `tools/serve-dist.py`, chromium installed in the runner.
+   Locally: `npm run build && npx playwright test`, ~8 s after the build.)*
 
 ---
 

@@ -232,6 +232,18 @@ jobs:
           fi
           echo "sw.js precaches $(grep -o 'revision' dist/sw.js | wc -l) manifest (present), wasm referenced"
 
+      # Wave D4, closing Phase 11's gap 7: the steps above only assert the
+      # PWA files EXIST — this actually RUNS the service worker: first-visit
+      # precache, an offline reload, an offline Solve of the boot document
+      # graded against the parity golden's value, and zero /api/ requests.
+      - name: Install Playwright chromium
+        working-directory: web
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Offline PWA proof (Playwright)
+        working-directory: web
+        run: npx --no-install playwright test
+
   parity:
     name: parity corpus
     runs-on: ubuntu-latest

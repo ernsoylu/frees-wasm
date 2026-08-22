@@ -287,6 +287,11 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    deadline) and their verbatim messages. The Tables workbook Solve works
    in-browser. The optimizer/Monte-Carlo/curve-fit/param-fit surfaces remain
    unwired; their validation homes arrive with their exports.)*
+   *(Second slice, same day, Wave B2: `monte_carlo` exports
+   `analysis::montecarlo::run` — seeded JavaRandom, the 2–1000 sample cap,
+   the 120 s truncating budget, internal-temp filtering and display-unit
+   sigma-width conversion per the Java controller — and the MonteCarloModal
+   returns from D5's own commit. Optimizer/curve-fit/param-fit remain.)*
 2. **The fuzz is adversarial, not generative.** These are 42 hand-chosen cases
    from a brief, plus the four defects they turned up. There is no property-based
    or coverage-guided fuzzing of the integrator anywhere in the tree — no

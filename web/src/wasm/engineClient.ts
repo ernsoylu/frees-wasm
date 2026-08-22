@@ -88,6 +88,16 @@ export async function wasmSolveTable(
   return call('solveTable', [source, requestJson])
 }
 
+/** Runs a Monte Carlo propagation in the engine worker; resolves to the raw
+ *  JSON string the `monte_carlo` boundary emits (api.ts owns parsing and the
+ *  error-to-rejection mapping the modal's catch expects). */
+export async function wasmMonteCarlo(
+  source: string,
+  requestJson: string,
+): Promise<string> {
+  return call('monteCarlo', [source, requestJson])
+}
+
 /** Runs a check in the engine worker; resolves to the parsed CheckResponse. */
 export async function wasmCheck(
   source: string,

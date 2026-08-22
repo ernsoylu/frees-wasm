@@ -16,6 +16,7 @@ import {
   wasmReplClear,
   wasmReplEvaluate,
   wasmSolve,
+  wasmMonteCarlo,
   wasmSolveTable,
 } from './wasm/engineClient'
 
@@ -995,18 +996,35 @@ export interface MonteCarloResult {
   truncated: boolean
 }
 
-/** Monte Carlo uncertainty propagation is not ported yet — rejects; the
- *  MonteCarloModal catch shows the message via setError. */
+/** `POST /api/solve/montecarlo` — served by the wasm `monte_carlo` export
+ *  (Wave B2). Rejects on a refused request or an infrastructure failure —
+ *  the MonteCarloModal's catch shows the message via setError, which is why
+ *  this keeps the throwing contract (unlike solveTable, whose caller renders
+ *  rows either way). */
 export async function runMonteCarlo(
-  _text: string,
-  _stopCriteria: StopCriteria,
-  _variableInfo: VariableInfo[],
-  _displayUnitSystem: UnitSystem,
-  _functionTables: FunctionTableDto[],
-  _samples: number,
-  _seed: number,
+  text: string,
+  stopCriteria: StopCriteria,
+  variableInfo: VariableInfo[],
+  displayUnitSystem: UnitSystem,
+  functionTables: FunctionTableDto[],
+  samples: number,
+  seed: number,
 ): Promise<MonteCarloResult> {
-  throw new Error(NOT_IN_BROWSER_ENGINE)
+  const request = JSON.stringify({
+    stopCriteria,
+    variableInfo,
+    displayUnitSystem,
+    functionTables,
+    samples,
+    seed,
+  })
+  const parsed = JSON.parse(await wasmMonteCarlo(text, request)) as MonteCarloResult & {
+    error?: string
+  }
+  if (parsed.error) {
+    throw new Error(parsed.error)
+  }
+  return parsed
 }
 
 // ---------------------------------------------------------------------------

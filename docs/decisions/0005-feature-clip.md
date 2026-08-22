@@ -33,7 +33,12 @@ Keep, deliberately:
   `solve_table` export drives `analysis::parametric::run_sweep` behind the
   transcribed controller caps, `api.ts`'s stub became the real call, and the
   workbook Solve works in-browser. Eight `NOT_IN_BROWSER_ENGINE` stubs
-  remain.)*
+  remain.)* *(Wave B2, 2026-08-22: `runMonteCarlo` follows — the wasm
+  `monte_carlo` export drives `analysis::montecarlo::run` (seeded, JavaRandom,
+  the 2–1000 sample cap and 120 s truncating budget transcribed), and
+  `MonteCarloModal.tsx` is restored from this decision's own commit
+  (`git show 7f049be^:…`) with its launch point in the Tools menu — the
+  "one-line change per launch point" claim held. Seven stubs remain.)*
 
 ## Context
 

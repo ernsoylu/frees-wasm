@@ -4,7 +4,7 @@
 //   request  {id, method: 'solve' | 'solveTable' | 'check' | 'reference' |
 //                     'version' | 'fluids' | 'propertyDiagram' |
 //                     'psychrometricChart' | 'replEvaluate' | 'replClear' |
-//                     'measurementCalc',
+//                     'monteCarlo' | 'measurementCalc',
 //             args: string[]}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
@@ -32,6 +32,7 @@ import init, {
   reference,
   repl_clear,
   repl_evaluate,
+  monte_carlo,
   solve,
   solve_table,
   version,
@@ -42,6 +43,7 @@ export interface EngineRequest {
   method:
     | 'solve'
     | 'solveTable'
+    | 'monteCarlo'
     | 'check'
     | 'reference'
     | 'version'
@@ -91,6 +93,9 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
         break
       case 'solveTable':
         result = solve_table(args[0] ?? '', args[1] ?? '')
+        break
+      case 'monteCarlo':
+        result = monte_carlo(args[0] ?? '', args[1] ?? '')
         break
       case 'check':
         result = check(args[0] ?? '', args[1] ?? '')

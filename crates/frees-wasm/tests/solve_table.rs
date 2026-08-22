@@ -119,3 +119,91 @@ fn a_blank_document_and_a_missing_table_are_data_not_exceptions() {
     let out = call("y = 2\n", "{}");
     assert_eq!(out["error"], "The request carries no table.");
 }
+
+// ── monte_carlo (Wave B2) ──────────────────────────────────────────────────
+
+fn mc(source: &str, request: &str) -> Value {
+    serde_json::from_str(&frees_wasm::monte_carlo(source, request)).expect("valid JSON out")
+}
+
+#[test]
+fn a_seeded_run_reproduces_the_library_oracle_through_the_boundary() {
+    // The same document/seed as montecarlo.rs's transcribed JVM oracle:
+    // x = 2 with sigma 0.1, y = 3x, seed 42, 8 samples.
+    let out = mc(
+        "x = 2\ny = 3 * x\n",
+        r#"{"samples": 8, "seed": 42,
+            "variableInfo": [{"name": "x", "guess": 2, "uncertainty": 0.1}]}"#,
+    );
+    assert!(out.get("error").is_none(), "{out}");
+    assert_eq!(out["requestedSamples"], 8);
+    assert_eq!(out["failedSamples"], 0);
+    assert_eq!(out["truncated"], false);
+    assert_eq!(out["sources"], json_arr(&["x"]));
+    let samples = out["samples"].as_array().unwrap();
+    assert_eq!(samples.len(), 8);
+    // First JVM-oracle draw (montecarlo.rs oracle test), boundary-for-library.
+    let x0 = samples[0]["values"]["x"].as_f64().unwrap();
+    assert!((x0 - 2.1141905315473055).abs() < 1e-12, "{x0}");
+    let y0 = samples[0]["values"]["y"].as_f64().unwrap();
+    assert!((y0 - 3.0 * x0).abs() < 1e-12, "{y0}");
+    // Stats are sorted by |sigma| descending: y (3σ_x) before x (σ_x).
+    let stats = out["stats"].as_array().unwrap();
+    assert_eq!(stats[0]["variable"], "y", "{stats:?}");
+    assert_eq!(stats[1]["variable"], "x", "{stats:?}");
+    let ratio = stats[0]["sigma"].as_f64().unwrap() / stats[1]["sigma"].as_f64().unwrap();
+    assert!((ratio - 3.0).abs() < 1e-9, "{ratio}");
+    // firstOrderSigma rides in from the base solve's propagation pass.
+    assert!(
+        (stats[1]["firstOrderSigma"].as_f64().unwrap() - 0.1).abs() < 1e-12,
+        "{stats:?}"
+    );
+}
+
+#[test]
+fn the_sample_count_cap_refuses_with_the_java_message() {
+    let out = mc("x = 2\n", r#"{"samples": 1001}"#);
+    assert_eq!(
+        out["error"].as_str().unwrap(),
+        "Monte Carlo sample count must be between 2 and 1000 (got 1001). \
+         Adjust the sample count.",
+        "{out}"
+    );
+    let out = mc("x = 2\n", r#"{"samples": 1}"#);
+    assert!(out["error"].as_str().unwrap().contains("(got 1)"), "{out}");
+}
+
+#[test]
+fn a_run_without_uncertainty_sources_refuses_with_the_library_message() {
+    let out = mc("x = 2\n", r#"{"samples": 8}"#);
+    assert_eq!(
+        out["error"].as_str().unwrap(),
+        "Monte Carlo needs at least one variable with a declared uncertainty \
+         (set one in the Variable Information window).",
+        "{out}"
+    );
+}
+
+#[test]
+fn the_seed_defaults_to_42_and_is_deterministic() {
+    let request = r#"{"samples": 4,
+        "variableInfo": [{"name": "x", "guess": 2, "uncertainty": 0.1}]}"#;
+    let a = mc("x = 2\ny = 3 * x\n", request);
+    let b = mc("x = 2\ny = 3 * x\n", request);
+    assert_eq!(a, b);
+    let seeded = mc(
+        "x = 2\ny = 3 * x\n",
+        r#"{"samples": 4, "seed": 42,
+            "variableInfo": [{"name": "x", "guess": 2, "uncertainty": 0.1}]}"#,
+    );
+    assert_eq!(a["samples"], seeded["samples"]);
+}
+
+fn json_arr(items: &[&str]) -> Value {
+    Value::Array(
+        items
+            .iter()
+            .map(|s| Value::String((*s).to_string()))
+            .collect(),
+    )
+}

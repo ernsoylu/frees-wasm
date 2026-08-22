@@ -18,6 +18,7 @@ import {
 import {
   IconAdjustments,
   IconChartGridDots,
+  IconChartHistogram,
   IconSitemap,
   IconChartLine,
   IconChecks,
@@ -796,6 +797,9 @@ interface TopBarProps {
   onOpenTerminal: () => void
   /** Tools menu: equation tools (also reachable from the left rail). */
   onVariableInfo: () => void
+  /** Tools → Analysis: the Monte Carlo modal (re-added by Wave B2; the other
+   *  D5-clipped analysis affordances return as their surfaces wire). */
+  onMonteCarlo: () => void
 }
 
 function solveTooltipFor(canSolve: boolean, isTable: boolean): string {
@@ -946,6 +950,11 @@ export function TopBar(props: Readonly<TopBarProps>) {
             <Menu.Label>Equation tools</Menu.Label>
             <Menu.Item leftSection={<IconVariable size={14} />} onClick={props.onVariableInfo}>
               Variable Information
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Label>Analysis</Menu.Label>
+            <Menu.Item leftSection={<IconChartHistogram size={14} />} onClick={props.onMonteCarlo}>
+              Monte Carlo Uncertainty
             </Menu.Item>
             <Menu.Divider />
             <Menu.Label>Auxiliary panels</Menu.Label>

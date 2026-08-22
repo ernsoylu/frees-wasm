@@ -258,6 +258,12 @@ so no in-range request behaves differently. Each is pinned from both sides by
     the controller's own number. **Deliberate.** *Note this is a symptom of a
     larger gap, not just a bug: none of `analysis/` is reachable from a document
     or the wasm boundary yet, so its validation has no upstream owner.*
+    *(Update 2026-08-22, Waves B1/B2: two of the surfaces now have their owner
+    — `frees-wasm/src/analysis.rs` validates the table sweep (row cap,
+    cooperative deadline) and the Monte Carlo run (the 2–1000 sample cap with
+    the Java's verbatim message, the 120 s truncating budget). The
+    optimizer/NSGA-II/curve-fit/param-fit validations still await their
+    exports.)*
 
 ### Opened by the Phase 9 robustness pass (2026-08-01)
 

@@ -315,3 +315,236 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
         "variables": last_variables,
     }))
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/solve/montecarlo — Wave B2.
+// Port of `SolveController.computeMonteCarlo` + its post-processing block.
+// ---------------------------------------------------------------------------
+
+/// `frees.solver.max-mc-samples` (default) — `SolveController`.
+const MAX_MC_SAMPLES: usize = 1_000;
+
+/// The Java's `request.samples()` fallback.
+const MC_DEFAULT_SAMPLES: usize = 200;
+
+/// `frees.solver.max-mc-seconds` (default). Unlike the table budget, running
+/// out is **not** an error: the run truncates and answers with
+/// `truncated: true`, exactly as the Java's deadline does.
+const MAX_MC_SECONDS: f64 = 120.0;
+
+/// The Java's `request.seed()` fallback (and the old modal's default field).
+const MC_DEFAULT_SEED: i64 = 42;
+
+/// `SolveController.badSampleCountMessage`, verbatim.
+fn bad_sample_count_message(n: i64) -> String {
+    format!(
+        "Monte Carlo sample count must be between 2 and {MAX_MC_SAMPLES} (got {n}). \
+         Adjust the sample count."
+    )
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct MonteCarloRequest {
+    stop_criteria: Option<StopCriteriaDto>,
+    variable_info: Vec<VariableInfoDto>,
+    display_unit_system: Option<String>,
+    samples: Option<i64>,
+    seed: Option<i64>,
+}
+
+/// Run a Monte Carlo uncertainty propagation. `request_json` is the
+/// `MonteCarloRequest` body; returns a `MonteCarloResponse` JSON string —
+/// on a refused request the envelope carries a top-level `"error"` (the
+/// api.ts side turns that into the rejection the modal's catch shows).
+#[wasm_bindgen]
+pub fn monte_carlo(source: &str, request_json: &str) -> String {
+    match monte_carlo_inner(source, request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({
+            "stats": [],
+            "samples": [],
+            "sources": [],
+            "requestedSamples": 0,
+            "failedSamples": 0,
+            "truncated": false,
+            "error": message,
+        })
+        .to_string(),
+    }
+}
+
+fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> {
+    frees_core::props::tables::install_builtin_once();
+
+    let request: MonteCarloRequest = if request_json.trim().is_empty() {
+        MonteCarloRequest::default()
+    } else {
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?
+    };
+
+    if source.trim().is_empty() {
+        return Err("The document is empty.".to_string());
+    }
+    let n = request.samples.unwrap_or(MC_DEFAULT_SAMPLES as i64);
+    if n < 2 || n > MAX_MC_SAMPLES as i64 {
+        return Err(bad_sample_count_message(n));
+    }
+    let seed = request.seed.unwrap_or(MC_DEFAULT_SEED);
+
+    // The Java parse gate: a syntax error answers once, before any sampling.
+    if let Err(failure) = frees_core::parse_document(source) {
+        return Err(format!("Syntax error: {}", failure.to_string_message()));
+    }
+
+    let facade = SolveRequest {
+        variable_info: request.variable_info,
+        stop_criteria: request.stop_criteria,
+        display_unit_system: request.display_unit_system.clone(),
+        fill_missing: None,
+    };
+    let settings = settings_of(&facade);
+    let overrides = overrides_of(&facade);
+    let system = unit_system_of(&facade);
+    let explicit_units = explicit_units_of(&facade);
+
+    // `VariableInfoDto.toSpec`, exactly: guess/lower/upper convert to SI with
+    // the full factor + offset, the uncertainty (an interval width) by the
+    // factor alone, and an unknown unit falls back to factor 1 / offset 0.
+    let mut specs: BTreeMap<String, frees_core::analysis::uncertainty::UncertaintySpec> =
+        BTreeMap::new();
+    for dto in &facade.variable_info {
+        let name = dto.name.trim().to_ascii_lowercase();
+        if name.is_empty() {
+            continue;
+        }
+        let (factor, offset) = match dto.units.as_deref().map(str::trim) {
+            Some(unit) if !unit.is_empty() && unit != "-" => {
+                match frees_core::units::registry::UnitRegistry::parse_with_offset(unit) {
+                    Ok(recorded) => (recorded.factor, recorded.offset),
+                    Err(_) => (1.0, 0.0),
+                }
+            }
+            _ => (1.0, 0.0),
+        };
+        let mut spec = frees_core::analysis::uncertainty::UncertaintySpec::default();
+        if let Some(lower) = dto.lower {
+            spec.lower = lower * factor + offset;
+        }
+        if let Some(upper) = dto.upper {
+            spec.upper = upper * factor + offset;
+        }
+        if let Some(guess) = dto.guess {
+            spec.guess = guess * factor + offset;
+        } else {
+            spec.guess = spec.guess.clamp(spec.lower, spec.upper);
+        }
+        if let Some(uncertainty) = dto.uncertainty {
+            spec.uncertainty = uncertainty * factor;
+        }
+        specs.insert(name, spec);
+    }
+
+    // The base solve the Java reads `base.uncertainties()` from —
+    // `montecarlo::run` keeps only the base *values*, so the first-order
+    // sigmas (and the display-name/unit maps every conversion below needs)
+    // come from this boundary-side solve. One extra solve; the Java pays the
+    // same shape differently (its `run` returns the whole base result).
+    let base = frees_core::solve_with(source, &settings, &overrides)
+        .map_err(|failure| failure.to_string_message())?;
+
+    let started = now_ms();
+    let outcome = frees_core::analysis::montecarlo::run(
+        source,
+        &settings,
+        &specs,
+        &base.uncertainties,
+        n as usize,
+        seed,
+        || (now_ms() - started) / 1000.0 > MAX_MC_SECONDS,
+    )
+    .map_err(|e| e.to_string_message())?;
+
+    // The controller's post-processing block: internal temporaries filtered,
+    // names remapped to display spellings, values to display units — sigmas
+    // as interval widths (factor only), percentiles as plain values — and
+    // stats sorted by |sigma| descending.
+    let display_value = |key: &str, si: f64| -> f64 {
+        let unit = base
+            .inferred_units
+            .get(key)
+            .map(String::as_str)
+            .unwrap_or("");
+        crate::to_display(key, si, None, unit, system, &explicit_units).0
+    };
+    let display_width = |key: &str, about: f64, width: f64| -> f64 {
+        let unit = base
+            .inferred_units
+            .get(key)
+            .map(String::as_str)
+            .unwrap_or("");
+        crate::to_display(key, about, Some(width), unit, system, &explicit_units)
+            .2
+            .unwrap_or(width)
+    };
+
+    let mut stats: Vec<&frees_core::analysis::montecarlo::VariableStats> = outcome
+        .stats
+        .iter()
+        .filter(|s| !frees_core::parser::expand::is_internal_temp(&s.variable))
+        .collect();
+    stats.sort_by(|a, b| b.sigma.abs().total_cmp(&a.sigma.abs()));
+    let stats_json: Vec<Value> = stats
+        .iter()
+        .map(|s| {
+            let display = crate::display_of(&base.display_names, &s.variable).clone();
+            let key = display.to_ascii_lowercase();
+            json!({
+                "variable": display,
+                "mean": display_value(&key, s.mean),
+                "sigma": display_width(&key, s.mean, s.sigma),
+                "p5": display_value(&key, s.p5),
+                "p50": display_value(&key, s.p50),
+                "p95": display_value(&key, s.p95),
+                "firstOrderSigma": display_width(&key, s.mean, s.first_order_sigma),
+            })
+        })
+        .collect();
+
+    let samples_json: Vec<Value> = outcome
+        .samples
+        .iter()
+        .map(|sample| {
+            let values: BTreeMap<String, f64> = sample
+                .values
+                .iter()
+                .filter(|(name, _)| !frees_core::parser::expand::is_internal_temp(name))
+                .map(|(name, si)| {
+                    let display = crate::display_of(&base.display_names, name).clone();
+                    let key = display.to_ascii_lowercase();
+                    (display, display_value(&key, *si))
+                })
+                .collect();
+            json!({
+                "success": sample.success,
+                "values": values,
+                "error": sample.error,
+            })
+        })
+        .collect();
+
+    let sources: Vec<String> = outcome
+        .sources
+        .iter()
+        .map(|name| crate::display_of(&base.display_names, name).clone())
+        .collect();
+
+    Ok(json!({
+        "stats": stats_json,
+        "samples": samples_json,
+        "sources": sources,
+        "requestedSamples": n,
+        "failedSamples": outcome.failed_samples,
+        "truncated": outcome.truncated,
+    }))
+}

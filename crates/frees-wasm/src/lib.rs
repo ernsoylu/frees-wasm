@@ -45,9 +45,10 @@ mod repl;
 // feature — signals now reach `measurement_calc` inline.)
 pub use measurement::measurement_calc;
 
-// The Tables-workbook sweep (POST /api/solve/table) — Wave B's first wiring
-// of the Phase-8 analysis layer, behind the transcribed controller caps.
-pub use analysis::solve_table;
+// The Tables-workbook sweep (POST /api/solve/table) and the Monte Carlo run
+// (POST /api/solve/montecarlo) — Wave B's wiring of the Phase-8 analysis
+// layer, behind the transcribed controller caps.
+pub use analysis::{monte_carlo, solve_table};
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
 /// Rust backtrace instead of `unreachable executed`, and install the property

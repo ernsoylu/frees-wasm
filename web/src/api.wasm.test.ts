@@ -15,15 +15,16 @@ vi.mock('./wasm/engineClient', () => ({
   wasmSolve: vi.fn(),
   wasmCheck: vi.fn(),
   wasmSolveTable: vi.fn(),
+  wasmMonteCarlo: vi.fn(),
   // api.ts imports these too (the REPL seam); unused here but a mocked module
   // must declare every export its importer names.
   wasmReplEvaluate: vi.fn(),
   wasmReplClear: vi.fn(),
 }))
 
-import { check, solve, solveTable, DEFAULT_STOP_CRITERIA } from './api'
+import { check, runMonteCarlo, solve, solveTable, DEFAULT_STOP_CRITERIA } from './api'
 import { mergeCodeTables } from './tables'
-import { wasmCheck, wasmSolve, wasmSolveTable } from './wasm/engineClient'
+import { wasmCheck, wasmMonteCarlo, wasmSolve, wasmSolveTable } from './wasm/engineClient'
 
 const solveMock = vi.mocked(wasmSolve)
 const checkMock = vi.mocked(wasmCheck)
@@ -307,5 +308,49 @@ describe('solveTable (wasm engine)', () => {
     expect(r.results).toHaveLength(1)
     expect(r.results[0].success).toBe(false)
     expect(r.results[0].error).toBe('Browser engine error: worker terminated')
+  })
+})
+
+// ── runMonteCarlo (Wave B2) ────────────────────────────────────────────────
+
+// Verbatim boundary output shape (abridged sample list). Regenerate via
+// frees_wasm::monte_carlo("x = 2\ny = 3 * x\n",
+//   '{"samples": 2, "seed": 42, "variableInfo": [{"name": "x", "guess": 2, "uncertainty": 0.1}]}').
+const MONTE_CARLO_OK =
+  '{"stats":[{"variable":"y","mean":6.31,"sigma":0.29,"p5":6.1,"p50":6.3,"p95":6.5,"firstOrderSigma":0.3},{"variable":"x","mean":2.1,"sigma":0.097,"p5":2.03,"p50":2.1,"p95":2.17,"firstOrderSigma":0.1}],"samples":[{"error":null,"success":true,"values":{"x":2.11,"y":6.34}},{"error":null,"success":true,"values":{"x":2.09,"y":6.27}}],"sources":["x"],"requestedSamples":2,"failedSamples":0,"truncated":false}'
+
+const MONTE_CARLO_CAP =
+  '{"stats":[],"samples":[],"sources":[],"requestedSamples":0,"failedSamples":0,"truncated":false,"error":"Monte Carlo sample count must be between 2 and 1000 (got 1001). Adjust the sample count."}'
+
+describe('runMonteCarlo (wasm engine)', () => {
+  const mcMock = vi.mocked(wasmMonteCarlo)
+
+  it('round-trips the MonteCarloResult the modal renders', async () => {
+    mcMock.mockResolvedValueOnce(MONTE_CARLO_OK)
+    const r = await runMonteCarlo(
+      'x = 2\ny = 3 * x\n',
+      DEFAULT_STOP_CRITERIA,
+      [{ name: 'x', guess: 2, lower: null, upper: null, units: null, uncertainty: 0.1 }],
+      'SI',
+      [],
+      2,
+      42,
+    )
+    expect(r.stats.map((s) => s.variable)).toEqual(['y', 'x'])
+    expect(r.sources).toEqual(['x'])
+    expect(r.requestedSamples).toBe(2)
+    expect(r.truncated).toBe(false)
+    const [source, requestJson] = mcMock.mock.calls[0]
+    expect(source).toBe('x = 2\ny = 3 * x\n')
+    const request = JSON.parse(requestJson)
+    expect(request.samples).toBe(2)
+    expect(request.seed).toBe(42)
+  })
+
+  it('rejects with the boundary error so the modal catch shows it', async () => {
+    mcMock.mockResolvedValueOnce(MONTE_CARLO_CAP)
+    await expect(
+      runMonteCarlo('x = 2\n', DEFAULT_STOP_CRITERIA, [], 'SI', [], 1001, 42),
+    ).rejects.toThrow(/between 2 and 1000/)
   })
 })

@@ -52,6 +52,7 @@ import {
   solve,
   replClear,
   solveTable,
+  runMonteCarlo,
   SolveResponse,
   StopCriteria,
   UnitSystem,
@@ -128,6 +129,7 @@ const PlotTab = lazy(() => import('./PlotTab'))
 const ComponentWizardModal = lazy(() => import('./ComponentWizardModal'))
 const SliderStrip = lazy(() => import('./SliderStrip'))
 const PlotConfigModal = lazy(() => import('./plots/PlotConfigModal'))
+const MonteCarloModal = lazy(() => import('./MonteCarloModal'))
 // Clipped (decision D5): the Min/Max, Curve Fit, PID Tuner, Monte Carlo and
 // Parameter Fit modals launched engine features that only exist as
 // NOT_IN_BROWSER_ENGINE stubs in api.ts. The stubs (and the pidLoop /
@@ -486,6 +488,7 @@ export default function App() {
     () => boot?.varDrafts ?? {},
   )
   const [showVariableInfo, setShowVariableInfo] = useState(false)
+  const [showMonteCarlo, setShowMonteCarlo] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [showComponentWizard, setShowComponentWizard] = useState(false)
@@ -2822,6 +2825,7 @@ export default function App() {
           onOpenWorkspace={() => dockRef.current?.open('workspace')}
           onOpenTerminal={() => dockRef.current?.open('terminal')}
           onVariableInfo={() => setShowVariableInfo(true)}
+          onMonteCarlo={() => setShowMonteCarlo(true)}
         />
         <input
           ref={projectFileRef}
@@ -2867,6 +2871,26 @@ export default function App() {
         </Flex>
       )}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+
+      {showMonteCarlo && (
+        <Suspense fallback={null}>
+          <MonteCarloModal
+            opened
+            onClose={() => setShowMonteCarlo(false)}
+            onRun={(samples, seed) =>
+              runMonteCarlo(
+                effectiveText(),
+                { ...stopCriteria, complexMode },
+                buildVariableInfo(),
+                unitSystem,
+                functionTableDtos(),
+                samples,
+                seed,
+              )
+            }
+          />
+        </Suspense>
+      )}
 
       {showExamples && (
         <Suspense fallback={null}>

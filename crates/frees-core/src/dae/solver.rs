@@ -1498,6 +1498,12 @@ impl<'a> IdaDaeSolver<'a> {
                     self.max_steps
                 )));
             }
+            // The boundary-installed wall-clock budget (Wave C1) — the same
+            // check `ode/integrator.rs::guard` makes on the explicit path.
+            // Native callers install nothing and can never strike here.
+            if let Some(message) = crate::ode::deadline::strike() {
+                return Err(FreesError::solver(message));
+            }
             if self.nst > 0 {
                 let phi0 = self.phi[0].clone();
                 self.set_ewt(&phi0)?;

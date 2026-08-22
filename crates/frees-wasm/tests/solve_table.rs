@@ -489,3 +489,35 @@ fn extract_plant_names_a_missing_reference_constant() {
          (expected a SigConstant with a k= value)."
     );
 }
+
+// ── Wave C1: the transient wall-clock budget ───────────────────────────────
+
+#[test]
+fn a_transient_over_its_elapsed_budget_stops_with_the_named_deadline_error() {
+    // An expired budget (elapsedTimeSeconds is honoured since C1, clamped to
+    // 60 s): a maxstep-forced many-step integration must strike immediately
+    // rather than spin. The classification is the boundary's own message —
+    // never a Java-classified error, so no golden can ever meet it.
+    let doc = "k = 0.05\nTinf = 20\nDYNAMIC cooling (method = ode45, time = 0 .. 60, \
+               points = 5, maxstep = 0.00001)\n  der(Temp) = -k*(Temp - Tinf)\n  \
+               Temp(0) = 95\nEND\n";
+    let out: Value = serde_json::from_str(&frees_wasm::solve(
+        doc,
+        r#"{"stopCriteria": {"elapsedTimeSeconds": 1e-9}}"#,
+    ))
+    .unwrap();
+    assert_eq!(out["success"], false, "{out}");
+    let error = out["error"].as_str().unwrap();
+    assert!(
+        error.contains("exceeded its 0-second wall-clock budget"),
+        "{error}"
+    );
+    assert!(error.contains("Stop Criteria"), "{error}");
+
+    // The same document with the default budget solves — and the deadline
+    // guard cleared the thread-local, so this call cannot inherit a strike.
+    let quick = "k = 0.05\nTinf = 20\nDYNAMIC cooling (method = ode45, time = 0 .. 60, \
+                 points = 5)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n";
+    let out: Value = serde_json::from_str(&frees_wasm::solve(quick, "{}")).unwrap();
+    assert_eq!(out["success"], true, "{out}");
+}

@@ -130,10 +130,13 @@ struct StopCriteriaDto {
     /// accepted and ignored.
     #[allow(dead_code)]
     change_in_variables: Option<f64>,
-    /// No clock inside the solver on `wasm32-unknown-unknown`; accepted and
-    /// ignored (the Java cap exists to protect a shared worker — in-browser
-    /// the user only stalls their own tab).
-    #[allow(dead_code)]
+    /// Honoured for the **transient** path since Wave C1: the boundary
+    /// installs a `Date.now()` deadline (clamped to
+    /// [`MAX_ELAPSED_SECONDS_CAP`], the Java cap) that
+    /// `ode/integrator.rs::guard` and the IDA step loop check between steps
+    /// — the Java `OdeIntegrator.guard`'s own `nanoTime()` half, which core
+    /// dropped because it has no clock on `wasm32-unknown-unknown`. The
+    /// steady Newton path still runs unclocked, exactly as before.
     elapsed_time_seconds: Option<f64>,
     #[allow(dead_code)]
     complex_mode: Option<bool>,
@@ -142,6 +145,47 @@ struct StopCriteriaDto {
 /// Server-side ceiling on the requested iteration budget
 /// (`SolverApiSupport.MAX_ITERATIONS_CAP`).
 const MAX_ITERATIONS_CAP: usize = 10_000;
+
+/// `SolverApiSupport.MAX_ELAPSED_SECONDS_CAP` — the ceiling on the transient
+/// wall-clock budget a request may ask for, and the default when it asks for
+/// nothing. The Java applies it per solve on a shared worker; in-browser it
+/// is what stops a stiff transient spinning the worker for minutes with no
+/// cancel (the Phase 7–8 gap 3 measurement: 182 s).
+const MAX_ELAPSED_SECONDS_CAP: f64 = 60.0;
+
+/// Clears the transient deadline however the request ends — the worker
+/// thread is reused, so a leaked deadline would haunt the next solve.
+struct DeadlineGuard;
+
+impl Drop for DeadlineGuard {
+    fn drop(&mut self) {
+        frees_core::ode::deadline::clear();
+    }
+}
+
+/// Install the Wave-C1 transient budget for this request: the requested
+/// `elapsedTimeSeconds` clamped into `(0, MAX_ELAPSED_SECONDS_CAP]`, measured
+/// with the boundary's own clock.
+fn install_transient_deadline(request: &SolveRequest) -> DeadlineGuard {
+    let budget = request
+        .stop_criteria
+        .as_ref()
+        .and_then(|stop| stop.elapsed_time_seconds)
+        .filter(|s| s.is_finite() && *s > 0.0)
+        .unwrap_or(MAX_ELAPSED_SECONDS_CAP)
+        .min(MAX_ELAPSED_SECONDS_CAP);
+    let started = now_ms();
+    frees_core::ode::deadline::install(
+        Box::new(move || (now_ms() - started) / 1000.0 > budget),
+        format!(
+            "DYNAMIC: the transient exceeded its {budget:.0}-second wall-clock \
+             budget and was stopped. Raise Stop Criteria \u{2192} elapsed time \
+             (up to {MAX_ELAPSED_SECONDS_CAP:.0} s), simplify the model, or \
+             coarsen the tolerances."
+        ),
+    );
+    DeadlineGuard
+}
 
 fn parse_request(request_json: &str) -> Result<SolveRequest, String> {
     if request_json.trim().is_empty() {
@@ -272,6 +316,10 @@ pub fn solve(source: &str, request_json: &str) -> String {
 
     let system = unit_system_of(&request);
     let explicit_units = explicit_units_of(&request);
+
+    // Wave C1: bound the transient path's wall clock for this request; the
+    // guard clears the thread-local on every exit path.
+    let _deadline = install_transient_deadline(&request);
 
     let started = now_ms();
     match frees_core::solve_with(source, &settings, &overrides) {

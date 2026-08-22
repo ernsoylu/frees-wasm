@@ -587,13 +587,20 @@ fn scaled_norm(v: &[f64], scale: &[f64]) -> f64 {
 
 // ── Guards ──────────────────────────────────────────────────────────────
 
-/// `OdeIntegrator.guard`, minus its `System.nanoTime()` deadline check.
+/// `OdeIntegrator.guard` — both halves now: the step cap, and the wall-clock
+/// deadline the Java kept in `System.nanoTime()` and this port dropped for
+/// nine phases because core has no clock. Wave C1 restores it through
+/// [`crate::ode::deadline`]: the boundary installs the predicate and its
+/// message; the native/parity path installs nothing and can never strike.
 fn guard(steps: usize) -> Result<()> {
     if steps > MAX_STEPS {
         return Err(FreesError::solver(format!(
             "DYNAMIC: exceeded {MAX_STEPS} integration steps — the system may be \
              too stiff or the tolerances too tight."
         )));
+    }
+    if let Some(message) = crate::ode::deadline::strike() {
+        return Err(FreesError::solver(message));
     }
     Ok(())
 }

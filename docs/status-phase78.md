@@ -317,6 +317,16 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    imported in `frees-wasm/src/lib.rs`), so an injected deadline predicate is
    available and was not built. `montecarlo::run` already takes exactly such a
    predicate; the integrator does not.
+   *(Closed 2026-08-22, Wave C1: `ode/deadline.rs` — a boundary-installed
+   thread-local predicate + message, checked in `integrator::guard` (whose
+   doc comment had recorded the dropped `nanoTime()` half for nine phases)
+   and in the IDA step loop. The wasm `solve` export installs it from the
+   request's `elapsedTimeSeconds`, clamped to the Java's 60 s
+   `MAX_ELAPSED_SECONDS_CAP` and defaulted to it; a drop-guard clears it on
+   every exit path so the reused worker thread cannot inherit a strike.
+   Nothing installs on the native/parity path, so the replay cannot be
+   killed and no golden can meet the message. The steady Newton path stays
+   unclocked, as before.)*
 4. **`dyn_accessor_live` is still unfixed, and neither hypothesis was tested.**
    Phase 7 named two things to look at — whether the univariate bracketing path
    is gated too narrowly (`uses_property_call`), and whether `solve_pinned`

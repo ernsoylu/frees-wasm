@@ -175,6 +175,15 @@ equivalent of. Their full write-up is
     exceeds depth 1. Closing it means structural sharing in `Expr` (a contract
     file) or memoising `substitute_params`. Pinned at depth 16 by
     `component_robustness.rs::parameter_substitution_stays_within_its_measured_exponential`.
+    *(Re-examined 2026-08-22, Wave C3: the memoisation half of that sentence
+    was the wrong prescription and is withdrawn. The cost is not repeated
+    identical calls — it is materialising the `2^d`-node result as an owned
+    tree, which no memo can avoid; `k = k + k` at depth `d` simply *is* that
+    many owned nodes when `Expr` boxes its children. The only real closure is
+    the other half — structural sharing (`Rc`) in `Expr` — which touches
+    `ast.rs` and ripples through parser, eval and the CAS, so it needs its
+    own decision record rather than a wave commit. Left open, still latent:
+    depth 1 remains the library's and corpus's maximum.)*
 
 ### Opened by Phase 7 (2026-07-31)
 

@@ -17,6 +17,7 @@
 //! component layer Phase 6 shipped.
 pub mod accessors;
 pub mod analysis;
+pub mod deadline;
 pub mod dynamic;
 pub mod events;
 pub mod integrator;

@@ -169,7 +169,11 @@ property backend, and the linked `.phtab`/`.fraux` artifacts left with the new
 `linked-tables` Cargo feature. Bit-exact CoolProp *and* smaller on the wire:
 **2721.9 KiB raw / 1118.2 KiB gzipped** re-measured 2026-08-19 on `wave4-f9`
 (88.6 % of the 3072 KiB budget, 350.1 KiB headroom), against 3042.3 / 1597.7
-before the switch. Thirteen of the 23 entries in `fixtures/tolerances.json` are
+before the switch. *(Superseded 2026-08-22: Wave B wired the whole Phase-8
+analysis layer for +340 KiB, taking the module to **3064.9 KiB**, and the
+budget was raised **3072 → 4096 KiB** — owner-authorized, sanctioned by the
+CI header's own rule since D9 paid debt (1); the header's dated entry has
+the full lever-by-lever justification. Current headroom ≈ 1031 KiB.)* Thirteen of the 23 entries in `fixtures/tolerances.json` are
 retired: the rustprop configuration is graded by
 `fixtures/tolerances-rustprop.json` and its **ten** entries, one file per
 backend, chosen by the same `rustprop-backend` cfg that chooses the backend.

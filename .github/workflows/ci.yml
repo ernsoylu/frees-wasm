@@ -71,7 +71,21 @@ env:
   # within 2 bytes (2 787 264 vs 2 787 262), because installing rustprop is what
   # makes the data section unreachable and LTO drops it. Debt (2) still untouched
   # and still unneeded.
-  WASM_BUDGET_KB: 3072
+  #
+  # 2026-08-22: raised 3072 -> 4096, owner-authorized, after Wave B wired the
+  # entire Phase-8 analysis layer (solve_table, monte_carlo, optimize,
+  # optimize_multi, curve_fit, parameter_fit, pid_tune, extract_plant) for
+  # +340 KiB and left 7.1 KiB of headroom at 3064.9 KiB raw / ~1250 gzipped.
+  # The raise is sanctioned by this header's own rule: debt (1) was paid by
+  # D9. Before raising, every cheaper lever was re-measured and found spent:
+  # wasm-opt -Oz / opt-level="s" / LTO / codegen-units=1 all active,
+  # wasm-pack 0.15's binaryen produces byte-identical output, and twiggy
+  # shows no item above 0.75% — the growth is diffuse (serde DTO
+  # monomorphisation + eight new export paths), so only debt (2), the lazy
+  # chunk split, can shrink it structurally. That stays the pay-down path if
+  # this ceiling is ever approached again; do not raise past 4096 without
+  # doing it.
+  WASM_BUDGET_KB: 4096
 
 jobs:
   native:

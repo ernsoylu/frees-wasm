@@ -292,6 +292,11 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    the 120 s truncating budget, internal-temp filtering and display-unit
    sigma-width conversion per the Java controller — and the MonteCarloModal
    returns from D5's own commit. Optimizer/curve-fit/param-fit remain.)*
+   *(Third slice, Wave B3: all four OptimizeController surfaces — optimize,
+   optimize/multi, curve-fit, parameter-fit — exported with their controller
+   validation, and the three modals restored. Every analysis module with a
+   REST endpoint is now reachable in-browser; `allroots` (the findAllSolutions
+   solve flag) and the document-level PARAMETRIC surfacing stay open.)*
 2. **The fuzz is adversarial, not generative.** These are 42 hand-chosen cases
    from a brief, plus the four defects they turned up. There is no property-based
    or coverage-guided fuzzing of the integrator anywhere in the tree — no

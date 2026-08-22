@@ -207,3 +207,166 @@ fn json_arr(items: &[&str]) -> Value {
             .collect(),
     )
 }
+
+// ── Wave B3: the four OptimizeController endpoints ─────────────────────────
+
+#[test]
+fn curve_fit_reproduces_the_library_oracle_through_the_boundary() {
+    // The curvefit.rs oracle's exponential-decay data, default start.
+    let xs: Vec<f64> = (0..9).map(|i| i as f64 * 0.5).collect();
+    let ys: Vec<f64> = xs.iter().map(|x| 5.0 * (-1.3 * x).exp() + 0.7).collect();
+    let request = serde_json::json!({
+        "model": "y = a * exp(-b * x) + c",
+        "yVariable": "y",
+        "xVariable": "x",
+        "parameters": ["a", "b", "c"],
+        "xData": xs,
+        "yData": ys,
+    });
+    let out: Value = serde_json::from_str(&frees_wasm::curve_fit(&request.to_string())).unwrap();
+    assert_eq!(out["success"], true, "{out}");
+    assert_eq!(out["parameterNames"], json_arr(&["a", "b", "c"]));
+    let fitted = out["fittedParameters"].as_array().unwrap();
+    for (i, expect) in [(0, 5.0), (1, 1.3), (2, 0.7)] {
+        let got = fitted[i].as_f64().unwrap();
+        assert!((got - expect).abs() < 1e-6, "param {i}: {got} vs {expect}");
+    }
+    assert!(out["rSquared"].as_f64().unwrap() > 0.999999, "{out}");
+}
+
+#[test]
+fn curve_fit_validation_speaks_the_java_messages() {
+    let out: Value = serde_json::from_str(&frees_wasm::curve_fit(r#"{"model": ""}"#)).unwrap();
+    assert_eq!(out["error"], "Model equation is required.");
+    let out: Value = serde_json::from_str(&frees_wasm::curve_fit(
+        r#"{"model": "y = a*x", "xVariable": "x", "yVariable": "y",
+            "parameters": ["a"], "xData": [1, 2], "yData": [1]}"#,
+    ))
+    .unwrap();
+    assert_eq!(
+        out["error"],
+        "x and y data must have the same length (got 2 and 1)."
+    );
+}
+
+#[test]
+fn optimize_finds_a_univariate_minimum_in_display_shape() {
+    // f = (x - 3)^2 + 1: minimum at x = 3, f = 1.
+    let out: Value = serde_json::from_str(&frees_wasm::optimize(
+        "f = (x - 3)^2 + 1\n",
+        r#"{"objective": "f", "decisions": ["x"], "lowers": [0], "uppers": [10]}"#,
+    ))
+    .unwrap();
+    assert_eq!(out["success"], true, "{out}");
+    let x = out["decision"]["value"].as_f64().unwrap();
+    assert!((x - 3.0).abs() < 1e-6, "{x}");
+    let f = out["objective"]["value"].as_f64().unwrap();
+    assert!((f - 1.0).abs() < 1e-9, "{f}");
+    assert!(out["evaluations"].as_u64().unwrap() > 0);
+    assert_eq!(out["decisions"].as_array().unwrap().len(), 1);
+    assert!(!out["variables"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn optimize_validation_speaks_the_java_messages() {
+    let out: Value = serde_json::from_str(&frees_wasm::optimize("", "{}")).unwrap();
+    assert_eq!(out["error"], "No equations entered.");
+    let out: Value =
+        serde_json::from_str(&frees_wasm::optimize("f = x\n", r#"{"objective": "f"}"#)).unwrap();
+    assert_eq!(out["error"], "Independent variable name is required.");
+}
+
+#[test]
+fn optimize_multi_returns_a_sorted_front_with_echoed_names() {
+    // Two competing objectives over one decision: f1 = x^2, f2 = (x - 2)^2.
+    let out: Value = serde_json::from_str(&frees_wasm::optimize_multi(
+        "f1 = x^2\nf2 = (x - 2)^2\n",
+        r#"{"objectives": ["f1", "f2"], "decisions": ["x"],
+            "lowers": [0], "uppers": [2],
+            "populationSize": 16, "generations": 8}"#,
+    ))
+    .unwrap();
+    assert_eq!(out["success"], true, "{out}");
+    assert_eq!(out["decisionNames"], json_arr(&["x"]));
+    assert_eq!(out["objectiveNames"], json_arr(&["f1", "f2"]));
+    let front = out["front"].as_array().unwrap();
+    assert!(front.len() >= 2, "{out}");
+    // Sorted by the first objective, and every point trades off: f1 up, f2 down.
+    let f1s: Vec<f64> = front
+        .iter()
+        .map(|p| p["objectives"][0].as_f64().unwrap())
+        .collect();
+    assert!(f1s.windows(2).all(|w| w[0] <= w[1]), "{f1s:?}");
+}
+
+#[test]
+fn optimize_multi_needs_two_objectives() {
+    let out: Value = serde_json::from_str(&frees_wasm::optimize_multi(
+        "f1 = x^2\n",
+        r#"{"objectives": ["f1"], "decisions": ["x"], "lowers": [0], "uppers": [2]}"#,
+    ))
+    .unwrap();
+    assert_eq!(
+        out["error"],
+        "Multi-objective optimization needs at least two objective variables."
+    );
+}
+
+#[test]
+fn parameter_fit_calibrates_a_decay_rate_against_its_own_trajectory() {
+    // Generate the measured series from the true k = 0.05, then fit from a
+    // wrong start: the boundary's solve callback must drive the real engine's
+    // DYNAMIC path per candidate.
+    let doc = |k: f64| {
+        format!(
+            "k = {k}\nTinf = 20\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 31)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n"
+        )
+    };
+    let truth: Value = serde_json::from_str(&frees_wasm::solve(&doc(0.05), "{}")).unwrap();
+    let rows = truth["odeTables"][0]["rows"].as_array().unwrap();
+    let ts: Vec<f64> = rows.iter().map(|r| r[0].as_f64().unwrap()).collect();
+    let vs: Vec<f64> = rows.iter().map(|r| r[1].as_f64().unwrap()).collect();
+
+    let request = serde_json::json!({
+        "text": doc(0.2),
+        "parameters": ["k"],
+        "initial": [0.2],
+        "lower": [0.001],
+        "upper": [1.0],
+        "odeBlock": "cooling",
+        "column": "temp",
+        "measuredT": ts,
+        "measuredV": vs,
+    });
+    let out: Value =
+        serde_json::from_str(&frees_wasm::parameter_fit(&request.to_string())).unwrap();
+    assert_eq!(out["success"], true, "{out}");
+    assert_eq!(out["parameterNames"], json_arr(&["k"]));
+    let k = out["fittedValues"][0].as_f64().unwrap();
+    assert!((k - 0.05).abs() < 1e-3, "fitted k = {k}");
+    assert!(
+        out["rmse"].as_f64().unwrap() < out["initialRmse"].as_f64().unwrap(),
+        "{out}"
+    );
+    assert_eq!(out["truncated"], false);
+    assert!(!out["fittedT"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn parameter_fit_caps_speak_the_java_messages() {
+    let out: Value = serde_json::from_str(&frees_wasm::parameter_fit(r#"{"text": ""}"#)).unwrap();
+    assert_eq!(out["error"], "The model document is required.");
+    let big: Vec<f64> = vec![0.0; 200_001];
+    let request = serde_json::json!({
+        "text": "x = 1\n",
+        "parameters": ["k"], "initial": [1], "lower": [0], "upper": [2],
+        "odeBlock": "d", "column": "c",
+        "measuredT": big, "measuredV": big,
+    });
+    let out: Value =
+        serde_json::from_str(&frees_wasm::parameter_fit(&request.to_string())).unwrap();
+    assert_eq!(
+        out["error"],
+        "The measured series has too many samples (200001; limit 200000). Decimate it first."
+    );
+}

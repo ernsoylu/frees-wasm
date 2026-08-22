@@ -16,7 +16,11 @@ import {
   wasmReplClear,
   wasmReplEvaluate,
   wasmSolve,
+  wasmCurveFit,
   wasmMonteCarlo,
+  wasmOptimize,
+  wasmOptimizeMulti,
+  wasmParameterFit,
   wasmSolveTable,
 } from './wasm/engineClient'
 
@@ -618,16 +622,26 @@ const OPTIMIZE_FAILURE: Omit<OptimizeResponse, 'error'> = {
   variables: [],
 }
 
-/** Single-objective optimization is not ported yet — resolves to a failed
- *  OptimizeResponse whose `error` the Min/Max modal displays inline. */
+/** `POST /api/optimize` — served by the wasm `optimize` export (Wave B3).
+ *  Never rejects: a refused request and an infrastructure failure both
+ *  resolve to a failed OptimizeResponse whose `error` the Min/Max modal
+ *  displays inline. */
 export async function optimize(
-  _text: string,
-  _stopCriteria: StopCriteria,
-  _variableInfo: VariableInfo[],
-  _displayUnitSystem: UnitSystem,
-  _params: OptimizeParams,
+  text: string,
+  stopCriteria: StopCriteria,
+  variableInfo: VariableInfo[],
+  displayUnitSystem: UnitSystem,
+  params: OptimizeParams,
 ): Promise<OptimizeResponse> {
-  return { ...OPTIMIZE_FAILURE, error: NOT_IN_BROWSER_ENGINE }
+  const request = JSON.stringify({ stopCriteria, variableInfo, displayUnitSystem, ...params })
+  try {
+    return JSON.parse(await wasmOptimize(text, request)) as OptimizeResponse
+  } catch (e) {
+    return {
+      ...OPTIMIZE_FAILURE,
+      error: `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,
+    }
+  }
 }
 
 export interface MultiObjectiveParams {
@@ -664,15 +678,23 @@ const PARETO_FAILURE: Omit<ParetoResponse, 'error'> = {
   evaluations: 0,
 }
 
-/** Multi-objective (Pareto) optimization is not ported yet — resolves to a
- *  failed ParetoResponse whose `error` the Min/Max modal displays inline. */
+/** `POST /api/optimize/multi` — served by the wasm `optimize_multi` export
+ *  (Wave B3). Never rejects; raw SI numbers, exactly as the Java endpoint. */
 export async function optimizeMulti(
-  _text: string,
-  _stopCriteria: StopCriteria,
-  _variableInfo: VariableInfo[],
-  _params: MultiObjectiveParams,
+  text: string,
+  stopCriteria: StopCriteria,
+  variableInfo: VariableInfo[],
+  params: MultiObjectiveParams,
 ): Promise<ParetoResponse> {
-  return { ...PARETO_FAILURE, error: NOT_IN_BROWSER_ENGINE }
+  const request = JSON.stringify({ stopCriteria, variableInfo, ...params })
+  try {
+    return JSON.parse(await wasmOptimizeMulti(text, request)) as ParetoResponse
+  } catch (e) {
+    return {
+      ...PARETO_FAILURE,
+      error: `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,
+    }
+  }
 }
 
 export interface CurveFitParams {
@@ -708,10 +730,17 @@ const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
   fittedValues: [],
 }
 
-/** Curve fitting (Levenberg–Marquardt) is not ported yet — resolves to a
- *  failed CurveFitResponse whose `error` the Curve Fit modal displays inline. */
-export async function curveFit(_params: CurveFitParams): Promise<CurveFitResponse> {
-  return { ...CURVE_FIT_FAILURE, error: NOT_IN_BROWSER_ENGINE }
+/** `POST /api/curve-fit` — served by the wasm `curve_fit` export (Wave B3).
+ *  Never rejects; the modal displays `error` inline. */
+export async function curveFit(params: CurveFitParams): Promise<CurveFitResponse> {
+  try {
+    return JSON.parse(await wasmCurveFit(JSON.stringify(params))) as CurveFitResponse
+  } catch (e) {
+    return {
+      ...CURVE_FIT_FAILURE,
+      error: `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -760,10 +789,18 @@ const PARAMETER_FIT_FAILURE: ParameterFitResult = {
   fittedV: [],
 }
 
-/** Parameter estimation needs DYNAMIC (ODE) solving, not ported yet — resolves
- *  to a failed ParameterFitResult; the modal shows `error` via setError. */
-export async function parameterFit(_params: ParameterFitParams): Promise<ParameterFitResult> {
-  return { ...PARAMETER_FIT_FAILURE, error: NOT_IN_BROWSER_ENGINE }
+/** `POST /api/measurements/parameter-fit` — served by the wasm
+ *  `parameter_fit` export (Wave B3), which drives the engine's DYNAMIC path
+ *  per candidate. Never rejects; the modal shows `error` via setError. */
+export async function parameterFit(params: ParameterFitParams): Promise<ParameterFitResult> {
+  try {
+    return JSON.parse(await wasmParameterFit(JSON.stringify(params))) as ParameterFitResult
+  } catch (e) {
+    return {
+      ...PARAMETER_FIT_FAILURE,
+      error: `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,
+    }
+  }
 }
 
 export interface DiagramCurve {

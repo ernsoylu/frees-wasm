@@ -98,6 +98,21 @@ export async function wasmMonteCarlo(
   return call('monteCarlo', [source, requestJson])
 }
 
+/** The four OptimizeController surfaces (Wave B3); raw JSON strings out,
+ *  api.ts owns parsing and each caller's error discipline. */
+export async function wasmOptimize(source: string, requestJson: string): Promise<string> {
+  return call('optimize', [source, requestJson])
+}
+export async function wasmOptimizeMulti(source: string, requestJson: string): Promise<string> {
+  return call('optimizeMulti', [source, requestJson])
+}
+export async function wasmCurveFit(requestJson: string): Promise<string> {
+  return call('curveFit', [requestJson])
+}
+export async function wasmParameterFit(requestJson: string): Promise<string> {
+  return call('parameterFit', [requestJson])
+}
+
 /** Runs a check in the engine worker; resolves to the parsed CheckResponse. */
 export async function wasmCheck(
   source: string,

@@ -263,7 +263,8 @@ so no in-range request behaves differently. Each is pinned from both sides by
     cooperative deadline) and the Monte Carlo run (the 2–1000 sample cap with
     the Java's verbatim message, the 120 s truncating budget). The
     optimizer/NSGA-II/curve-fit/param-fit validations still await their
-    exports.)*
+    exports.)* *(Wave B3, same day: they arrived — all six analysis surfaces
+    with REST endpoints now validate at `frees-wasm/src/analysis.rs`.)*
 
 ### Opened by the Phase 9 robustness pass (2026-08-01)
 

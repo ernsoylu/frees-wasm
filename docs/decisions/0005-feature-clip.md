@@ -39,6 +39,15 @@ Keep, deliberately:
   `MonteCarloModal.tsx` is restored from this decision's own commit
   (`git show 7f049be^:…`) with its launch point in the Tools menu — the
   "one-line change per launch point" claim held. Seven stubs remain.)*
+  *(Wave B3, 2026-08-22: the remaining analysis quartet follows — `optimize`,
+  `optimize_multi`, `curve_fit` and `parameter_fit` exports with the
+  OptimizeController's validation transcribed verbatim (the shared
+  "No equations entered."/"Syntax error: " idioms, the [40, 200]
+  population/generations clamps, curve-fit's ordered field checks, the
+  parameter-fit [10, 300] evaluation clamp, 200 000-sample ceiling and 120 s
+  budget), and MinMaxModal, CurveFitModal and ParameterFitModal restored from
+  this decision's commit into a Tools → Analysis section. Three stubs remain:
+  `exportVector` (no browser FOP), `pidTune` and `extractPlant` — Wave B4.)*
 
 ## Context
 

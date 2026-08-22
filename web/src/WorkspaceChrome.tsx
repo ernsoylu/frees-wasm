@@ -19,6 +19,8 @@ import {
   IconAdjustments,
   IconChartGridDots,
   IconChartHistogram,
+  IconCrosshair,
+  IconTargetArrow,
   IconSitemap,
   IconChartLine,
   IconChecks,
@@ -797,9 +799,13 @@ interface TopBarProps {
   onOpenTerminal: () => void
   /** Tools menu: equation tools (also reachable from the left rail). */
   onVariableInfo: () => void
-  /** Tools → Analysis: the Monte Carlo modal (re-added by Wave B2; the other
-   *  D5-clipped analysis affordances return as their surfaces wire). */
+  /** Tools → Analysis: the D5-clipped affordances, re-added as their
+   *  surfaces wired (Monte Carlo in Wave B2; Min/Max, Curve Fit and
+   *  Parameter Estimation in Wave B3). */
   onMonteCarlo: () => void
+  onMinMax: () => void
+  onCurveFit: () => void
+  onParameterFit: () => void
 }
 
 function solveTooltipFor(canSolve: boolean, isTable: boolean): string {
@@ -953,8 +959,17 @@ export function TopBar(props: Readonly<TopBarProps>) {
             </Menu.Item>
             <Menu.Divider />
             <Menu.Label>Analysis</Menu.Label>
+            <Menu.Item leftSection={<IconTargetArrow size={14} />} onClick={props.onMinMax}>
+              Min / Max (optimize)
+            </Menu.Item>
+            <Menu.Item leftSection={<IconMathFunction size={14} />} onClick={props.onCurveFit}>
+              Curve Fit
+            </Menu.Item>
             <Menu.Item leftSection={<IconChartHistogram size={14} />} onClick={props.onMonteCarlo}>
               Monte Carlo Uncertainty
+            </Menu.Item>
+            <Menu.Item leftSection={<IconCrosshair size={14} />} onClick={props.onParameterFit}>
+              Parameter Estimation
             </Menu.Item>
             <Menu.Divider />
             <Menu.Label>Auxiliary panels</Menu.Label>

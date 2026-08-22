@@ -20,6 +20,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('./wasm/engineClient', () => ({
   wasmSolveTable: vi.fn(),
   wasmMonteCarlo: vi.fn(),
+  wasmOptimize: vi.fn(),
+  wasmOptimizeMulti: vi.fn(),
+  wasmCurveFit: vi.fn(),
+  wasmParameterFit: vi.fn(),
   wasmFluids: vi.fn(),
   wasmPropertyDiagram: vi.fn(),
   wasmPsychrometricChart: vi.fn(),

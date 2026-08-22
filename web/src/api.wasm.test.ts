@@ -16,15 +16,19 @@ vi.mock('./wasm/engineClient', () => ({
   wasmCheck: vi.fn(),
   wasmSolveTable: vi.fn(),
   wasmMonteCarlo: vi.fn(),
+  wasmOptimize: vi.fn(),
+  wasmOptimizeMulti: vi.fn(),
+  wasmCurveFit: vi.fn(),
+  wasmParameterFit: vi.fn(),
   // api.ts imports these too (the REPL seam); unused here but a mocked module
   // must declare every export its importer names.
   wasmReplEvaluate: vi.fn(),
   wasmReplClear: vi.fn(),
 }))
 
-import { check, runMonteCarlo, solve, solveTable, DEFAULT_STOP_CRITERIA } from './api'
+import { check, curveFit, optimize, runMonteCarlo, solve, solveTable, DEFAULT_STOP_CRITERIA } from './api'
 import { mergeCodeTables } from './tables'
-import { wasmCheck, wasmMonteCarlo, wasmSolve, wasmSolveTable } from './wasm/engineClient'
+import { wasmCheck, wasmCurveFit, wasmMonteCarlo, wasmOptimize, wasmSolve, wasmSolveTable } from './wasm/engineClient'
 
 const solveMock = vi.mocked(wasmSolve)
 const checkMock = vi.mocked(wasmCheck)
@@ -352,5 +356,40 @@ describe('runMonteCarlo (wasm engine)', () => {
     await expect(
       runMonteCarlo('x = 2\n', DEFAULT_STOP_CRITERIA, [], 'SI', [], 1001, 42),
     ).rejects.toThrow(/between 2 and 1000/)
+  })
+})
+
+// ── Wave B3 contracts ──────────────────────────────────────────────────────
+
+describe('optimize / curveFit (wasm engine)', () => {
+  it('optimize round-trips and spreads params into the request body', async () => {
+    vi.mocked(wasmOptimize).mockResolvedValueOnce(
+      '{"success":true,"error":null,"warning":null,"objective":{"name":"f","value":1.0,"units":"-","uncertainty":0.0},"decision":{"name":"x","value":3.0,"units":"-","uncertainty":0.0},"decisions":[{"name":"x","value":3.0,"units":"-","uncertainty":0.0}],"evaluations":19,"variables":[]}',
+    )
+    const r = await optimize('f = (x-3)^2 + 1\n', DEFAULT_STOP_CRITERIA, [], 'SI', {
+      objective: 'f',
+      decisions: ['x'],
+      lowers: [0],
+      uppers: [10],
+      method: 'brent',
+      maximize: false,
+    })
+    expect(r.success).toBe(true)
+    expect(r.decision?.value).toBe(3)
+    const [, requestJson] = vi.mocked(wasmOptimize).mock.calls[0]
+    const request = JSON.parse(requestJson)
+    expect(request.objective).toBe('f')
+    expect(request.decisions).toEqual(['x'])
+  })
+
+  it('curveFit resolves the boundary error inline, never rejects', async () => {
+    vi.mocked(wasmCurveFit).mockResolvedValueOnce(
+      '{"success":false,"error":"Model equation is required.","fittedParameters":[],"parameterNames":[],"rSquared":0,"rmse":0,"iterations":0,"residuals":[],"fittedValues":[]}',
+    )
+    const r = await curveFit({
+      model: '', yVariable: 'y', xVariable: 'x', parameters: [], xData: [], yData: [],
+    })
+    expect(r.success).toBe(false)
+    expect(r.error).toBe('Model equation is required.')
   })
 })

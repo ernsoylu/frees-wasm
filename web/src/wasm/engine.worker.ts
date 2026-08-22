@@ -4,7 +4,8 @@
 //   request  {id, method: 'solve' | 'solveTable' | 'check' | 'reference' |
 //                     'version' | 'fluids' | 'propertyDiagram' |
 //                     'psychrometricChart' | 'replEvaluate' | 'replClear' |
-//                     'monteCarlo' | 'measurementCalc',
+//                     'monteCarlo' | 'optimize' | 'optimizeMulti' |
+//                     'curveFit' | 'parameterFit' | 'measurementCalc',
 //             args: string[]}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
@@ -25,6 +26,7 @@
 
 import init, {
   check,
+  curve_fit,
   fluids,
   measurement_calc,
   property_diagram,
@@ -33,6 +35,9 @@ import init, {
   repl_clear,
   repl_evaluate,
   monte_carlo,
+  optimize,
+  optimize_multi,
+  parameter_fit,
   solve,
   solve_table,
   version,
@@ -44,6 +49,10 @@ export interface EngineRequest {
     | 'solve'
     | 'solveTable'
     | 'monteCarlo'
+    | 'optimize'
+    | 'optimizeMulti'
+    | 'curveFit'
+    | 'parameterFit'
     | 'check'
     | 'reference'
     | 'version'
@@ -96,6 +105,18 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
         break
       case 'monteCarlo':
         result = monte_carlo(args[0] ?? '', args[1] ?? '')
+        break
+      case 'optimize':
+        result = optimize(args[0] ?? '', args[1] ?? '')
+        break
+      case 'optimizeMulti':
+        result = optimize_multi(args[0] ?? '', args[1] ?? '')
+        break
+      case 'curveFit':
+        result = curve_fit(args[0] ?? '')
+        break
+      case 'parameterFit':
+        result = parameter_fit(args[0] ?? '')
         break
       case 'check':
         result = check(args[0] ?? '', args[1] ?? '')

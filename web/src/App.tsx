@@ -130,6 +130,9 @@ const ComponentWizardModal = lazy(() => import('./ComponentWizardModal'))
 const SliderStrip = lazy(() => import('./SliderStrip'))
 const PlotConfigModal = lazy(() => import('./plots/PlotConfigModal'))
 const MonteCarloModal = lazy(() => import('./MonteCarloModal'))
+const MinMaxModal = lazy(() => import('./MinMaxModal'))
+const CurveFitModal = lazy(() => import('./CurveFitModal'))
+const ParameterFitModal = lazy(() => import('./ParameterFitModal'))
 // Clipped (decision D5): the Min/Max, Curve Fit, PID Tuner, Monte Carlo and
 // Parameter Fit modals launched engine features that only exist as
 // NOT_IN_BROWSER_ENGINE stubs in api.ts. The stubs (and the pidLoop /
@@ -489,6 +492,9 @@ export default function App() {
   )
   const [showVariableInfo, setShowVariableInfo] = useState(false)
   const [showMonteCarlo, setShowMonteCarlo] = useState(false)
+  const [showMinMax, setShowMinMax] = useState(false)
+  const [showCurveFit, setShowCurveFit] = useState(false)
+  const [showParameterFit, setShowParameterFit] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [showComponentWizard, setShowComponentWizard] = useState(false)
@@ -2826,6 +2832,9 @@ export default function App() {
           onOpenTerminal={() => dockRef.current?.open('terminal')}
           onVariableInfo={() => setShowVariableInfo(true)}
           onMonteCarlo={() => setShowMonteCarlo(true)}
+          onMinMax={() => setShowMinMax(true)}
+          onCurveFit={() => setShowCurveFit(true)}
+          onParameterFit={() => setShowParameterFit(true)}
         />
         <input
           ref={projectFileRef}
@@ -2871,6 +2880,47 @@ export default function App() {
         </Flex>
       )}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+
+      {showMinMax && (
+        <Suspense fallback={null}>
+          <MinMaxModal
+            variables={checkResult?.variables ?? []}
+            text={effectiveText()}
+            stopCriteria={stopCriteria}
+            complexMode={complexMode}
+            variableInfo={buildVariableInfo()}
+            unitSystem={unitSystem}
+            onClose={() => setShowMinMax(false)}
+          />
+        </Suspense>
+      )}
+
+      {showCurveFit && (
+        <Suspense fallback={null}>
+          <CurveFitModal
+            tables={tables}
+            defaultTableId={activeTableId}
+            onClose={() => setShowCurveFit(false)}
+            onInsertEquation={(eq) => applyText(textRef.current.trim() + '\n\n' + eq)}
+          />
+        </Suspense>
+      )}
+
+      {showParameterFit && (
+        <Suspense fallback={null}>
+          <ParameterFitModal
+            opened
+            onClose={() => setShowParameterFit(false)}
+            text={effectiveText()}
+            stopCriteria={{ ...stopCriteria, complexMode }}
+            variableInfo={buildVariableInfo()}
+            functionTables={functionTableDtos()}
+            analyzers={analyzers}
+            tables={tables}
+            onApply={(next) => applyText(next)}
+          />
+        </Suspense>
+      )}
 
       {showMonteCarlo && (
         <Suspense fallback={null}>

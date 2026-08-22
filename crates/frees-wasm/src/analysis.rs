@@ -548,3 +548,551 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         "truncated": outcome.truncated,
     }))
 }
+
+// ---------------------------------------------------------------------------
+// Wave B3: the four OptimizeController endpoints. All four share the Java
+// class's helpers, transcribed once here:
+// ---------------------------------------------------------------------------
+
+/// `SolverApiSupport.NO_EQUATIONS_MESSAGE`, verbatim.
+const NO_EQUATIONS_MESSAGE: &str = "No equations entered.";
+
+/// `SolverApiSupport.SYNTAX_ERROR_PREFIX` + first line, the idiom all four
+/// endpoints use for a parse failure.
+fn syntax_error(failure: &frees_core::diag::FreesError) -> String {
+    let message = failure.to_string_message();
+    format!(
+        "Syntax error: {}",
+        message.lines().next().unwrap_or(&message)
+    )
+}
+
+/// `OptimizeController.clampPositive`: null-or-nonpositive falls back, else
+/// capped. Population and generations both use (40, 200).
+fn clamp_positive(value: Option<i64>, fallback: usize, max: usize) -> usize {
+    match value {
+        Some(v) if v > 0 => (v as usize).min(max),
+        _ => fallback,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/curve-fit — the cheapest of the four: a pure expression fitter
+// with no engine dependency, no unit conversion, and a thin pass-through
+// controller. `lowerBounds`/`upperBounds` are accepted and ignored exactly as
+// the Java does (its Commons Math 3.x LM has no box constraints — the guard
+// block is an empty comment), so the omission is behaviour-identical.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct CurveFitRequest {
+    model: String,
+    y_variable: String,
+    x_variable: String,
+    parameters: Vec<String>,
+    x_data: Vec<f64>,
+    y_data: Vec<f64>,
+    initial_guess: Option<Vec<f64>>,
+}
+
+/// Least-squares curve fit. Returns a `CurveFitResponse` JSON string.
+#[wasm_bindgen]
+pub fn curve_fit(request_json: &str) -> String {
+    match curve_fit_inner(request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({
+            "success": false,
+            "error": message,
+            "fittedParameters": [],
+            "parameterNames": [],
+            "rSquared": 0.0,
+            "rmse": 0.0,
+            "iterations": 0,
+            "residuals": [],
+            "fittedValues": [],
+        })
+        .to_string(),
+    }
+}
+
+fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
+    frees_core::props::tables::install_builtin_once();
+    let request: CurveFitRequest =
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?;
+
+    // `validateCurveFitRequest`, in the Java's order and words.
+    if request.model.trim().is_empty() {
+        return Err("Model equation is required.".to_string());
+    }
+    if request.x_variable.trim().is_empty() {
+        return Err("Independent variable name is required.".to_string());
+    }
+    if request.y_variable.trim().is_empty() {
+        return Err("Dependent variable name is required.".to_string());
+    }
+    if request.parameters.is_empty() {
+        return Err("At least one parameter to fit is required.".to_string());
+    }
+    if request.x_data.is_empty() || request.y_data.is_empty() {
+        return Err("Data points are required.".to_string());
+    }
+    if request.x_data.len() != request.y_data.len() {
+        return Err(format!(
+            "x and y data must have the same length (got {} and {}).",
+            request.x_data.len(),
+            request.y_data.len()
+        ));
+    }
+
+    let result = frees_core::analysis::curvefit::fit(
+        &request.model,
+        &request.y_variable,
+        &request.x_variable,
+        &request.parameters,
+        &request.x_data,
+        &request.y_data,
+        request.initial_guess.as_deref(),
+    )
+    .map_err(|e| match e {
+        // Parse → the shared syntax prefix; everything else → the Java's
+        // catch-all wrapper ("Curve fitting failed: " + message).
+        frees_core::diag::FreesError::Parse { .. } => {
+            let message = e.to_string_message();
+            format!(
+                "Syntax error: {}",
+                message.lines().next().unwrap_or(&message)
+            )
+        }
+        other => format!("Curve fitting failed: {}", other.to_string_message()),
+    })?;
+
+    Ok(json!({
+        "success": true,
+        "error": Value::Null,
+        "fittedParameters": result.fitted_parameters,
+        "parameterNames": result.parameter_names,
+        "rSquared": result.r_squared,
+        "rmse": result.rmse,
+        "iterations": result.iterations,
+        "residuals": result.residuals,
+        "fittedValues": result.fitted_values,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/optimize — single/multi-decision minimisation with the library's
+// own evaluation budgets; the controller adds no numeric clamps, only shape
+// checks and display-unit conversion on the way out.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct OptimizeRequest {
+    stop_criteria: Option<StopCriteriaDto>,
+    variable_info: Vec<VariableInfoDto>,
+    display_unit_system: Option<String>,
+    objective: String,
+    // The legacy scalar triple beside the list form, exactly as the Java DTO.
+    decision: Option<String>,
+    lower: Option<f64>,
+    upper: Option<f64>,
+    maximize: Option<bool>,
+    decisions: Vec<String>,
+    lowers: Vec<f64>,
+    uppers: Vec<f64>,
+    method: Option<String>,
+    constraints: Vec<String>,
+}
+
+/// Constrained/unconstrained optimisation. Returns an `OptimizeResponse`
+/// JSON string.
+#[wasm_bindgen]
+pub fn optimize(source: &str, request_json: &str) -> String {
+    match optimize_inner(source, request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({
+            "success": false,
+            "error": message,
+            "warning": Value::Null,
+            "objective": Value::Null,
+            "decision": Value::Null,
+            "decisions": [],
+            "evaluations": 0,
+            "variables": [],
+        })
+        .to_string(),
+    }
+}
+
+fn optimize_inner(source: &str, request_json: &str) -> Result<Value, String> {
+    frees_core::props::tables::install_builtin_once();
+    let request: OptimizeRequest = if request_json.trim().is_empty() {
+        OptimizeRequest::default()
+    } else {
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?
+    };
+
+    // `validateOptimizeRequest`, in the Java's order and words.
+    if source.trim().is_empty() {
+        return Err(NO_EQUATIONS_MESSAGE.to_string());
+    }
+    let (decisions, lowers, uppers) = if request.decisions.is_empty() {
+        let Some(decision) = request.decision.clone() else {
+            return Err("Independent variable name is required.".to_string());
+        };
+        let (Some(lower), Some(upper)) = (request.lower, request.upper) else {
+            return Err("Both bounds of the independent variable are required.".to_string());
+        };
+        (vec![decision], vec![lower], vec![upper])
+    } else {
+        if request.lowers.len() != request.decisions.len()
+            || request.uppers.len() != request.decisions.len()
+        {
+            return Err("Each independent variable requires lower and upper bounds.".to_string());
+        }
+        (
+            request.decisions.clone(),
+            request.lowers.clone(),
+            request.uppers.clone(),
+        )
+    };
+    if let Err(failure) = frees_core::parse_document(source) {
+        return Err(syntax_error(&failure));
+    }
+
+    let facade = SolveRequest {
+        variable_info: request.variable_info,
+        stop_criteria: request.stop_criteria,
+        display_unit_system: request.display_unit_system.clone(),
+        fill_missing: None,
+    };
+    let settings = settings_of(&facade);
+    let overrides = overrides_of(&facade);
+    let system = unit_system_of(&facade);
+    let explicit_units = explicit_units_of(&facade);
+
+    let problem = frees_core::analysis::optimizer::Problem {
+        text: source.to_string(),
+        settings,
+        overrides,
+        objective: request.objective.clone(),
+        decisions: decisions.clone(),
+        lowers,
+        uppers,
+        method: Some(request.method.unwrap_or_else(|| "brent".to_string())),
+        maximize: request.maximize == Some(true),
+        constraints: request.constraints.clone(),
+    };
+    let result =
+        frees_core::analysis::optimizer::optimize(&problem).map_err(|e| e.to_string_message())?;
+
+    // `buildOptimizeResponse`: every DTO in display units. The solved system
+    // rides on `result.solution`, so the objective/decision rows are looked
+    // up out of the same `variable_rows` pass the plain solve uses.
+    let (rows, uncertainties) = variable_rows(&result.solution, system, &explicit_units);
+    let entries = variable_entries(&rows, &uncertainties);
+    let dto_for = |name: &str| -> Value {
+        let lower = name.to_ascii_lowercase();
+        entries
+            .iter()
+            .find(|e| {
+                e["name"]
+                    .as_str()
+                    .is_some_and(|n| n.to_ascii_lowercase() == lower)
+            })
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
+    let decision_dtos: Vec<Value> = decisions.iter().map(|d| dto_for(d)).collect();
+    Ok(json!({
+        "success": true,
+        "error": Value::Null,
+        "warning": result.warning,
+        "objective": dto_for(&request.objective),
+        "decision": decision_dtos.first().cloned().unwrap_or(Value::Null),
+        "decisions": decision_dtos,
+        "evaluations": result.evaluations,
+        "variables": entries,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/optimize/multi — NSGA-II. Raw SI numbers out (the Java sends no
+// unit system); the [40, 200] clamps on population AND generations are the
+// controller's (the library floors population at 8 and caps it at 200 itself
+// — ledger 23 — but generations are unclamped there, so the boundary clamp
+// is load-bearing).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct MultiObjectiveRequest {
+    stop_criteria: Option<StopCriteriaDto>,
+    variable_info: Vec<VariableInfoDto>,
+    objectives: Vec<String>,
+    maximize: Vec<bool>,
+    decisions: Vec<String>,
+    lowers: Vec<f64>,
+    uppers: Vec<f64>,
+    population_size: Option<i64>,
+    generations: Option<i64>,
+    constraints: Vec<String>,
+}
+
+/// Multi-objective (Pareto) optimisation. Returns a `ParetoResponse` JSON
+/// string.
+#[wasm_bindgen]
+pub fn optimize_multi(source: &str, request_json: &str) -> String {
+    match optimize_multi_inner(source, request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({
+            "success": false,
+            "error": message,
+            "decisionNames": [],
+            "objectiveNames": [],
+            "front": [],
+            "evaluations": 0,
+        })
+        .to_string(),
+    }
+}
+
+fn optimize_multi_inner(source: &str, request_json: &str) -> Result<Value, String> {
+    frees_core::props::tables::install_builtin_once();
+    let request: MultiObjectiveRequest = if request_json.trim().is_empty() {
+        MultiObjectiveRequest::default()
+    } else {
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?
+    };
+
+    // `validateMultiObjectiveRequest`, in the Java's order and words.
+    if source.trim().is_empty() {
+        return Err(NO_EQUATIONS_MESSAGE.to_string());
+    }
+    if request.objectives.len() < 2 {
+        return Err(
+            "Multi-objective optimization needs at least two objective variables.".to_string(),
+        );
+    }
+    if request.decisions.is_empty()
+        || request.lowers.len() != request.decisions.len()
+        || request.uppers.len() != request.decisions.len()
+    {
+        return Err("Each decision variable requires matching lower and upper bounds.".to_string());
+    }
+    if let Err(failure) = frees_core::parse_document(source) {
+        return Err(syntax_error(&failure));
+    }
+
+    let facade = SolveRequest {
+        variable_info: request.variable_info,
+        stop_criteria: request.stop_criteria,
+        display_unit_system: None,
+        fill_missing: None,
+    };
+    let settings = settings_of(&facade);
+    let overrides = overrides_of(&facade);
+
+    let mut maximize = request.maximize.clone();
+    maximize.resize(request.objectives.len(), false);
+    let problem = frees_core::analysis::pareto::Problem {
+        text: source.to_string(),
+        settings,
+        overrides,
+        objectives: request.objectives.clone(),
+        maximize,
+        decisions: request.decisions.clone(),
+        lowers: request.lowers.clone(),
+        uppers: request.uppers.clone(),
+        population_size: clamp_positive(request.population_size, 40, 200),
+        generations: clamp_positive(request.generations, 40, 200),
+        seed: 42,
+        constraints: request.constraints.clone(),
+    };
+    let result = frees_core::analysis::pareto::optimize_multi(&problem)
+        .map_err(|e| e.to_string_message())?;
+
+    let front: Vec<Value> = result
+        .front
+        .iter()
+        .map(|p| json!({ "decisions": p.decisions, "objectives": p.objectives }))
+        .collect();
+    Ok(json!({
+        "success": true,
+        "error": Value::Null,
+        // Echoed verbatim from the request, exactly as the Java does.
+        "decisionNames": request.decisions,
+        "objectiveNames": request.objectives,
+        "front": front,
+        "evaluations": result.evaluations,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/measurements/parameter-fit — calibrate DYNAMIC-block parameters
+// against a measured series. The only one of the four whose library entry
+// takes a solve callback and an `expired` predicate: the callback adapts the
+// engine's `OdeTableResult` into paramfit's `OdeTableView` (the `Option`
+// cells exist for the view's own generality — a real table's cells are all
+// `Some`, so a genuine NaN and an unfilled cell are indistinguishable there,
+// which is fine: the fitter treats both as penalty). `functionTables` are
+// accepted and ignored — the same treatment every export in this crate gives
+// them, but noted here because this endpoint's modal always sends them and
+// the omission can change an answer that uses one, not just a diagnostic.
+// ---------------------------------------------------------------------------
+
+/// `frees.solver.max-fit-evaluations` (default) and the Java's `[10, …]`
+/// floor / `150` fallback.
+const MAX_FIT_EVALUATIONS: usize = 300;
+const DEFAULT_FIT_EVALUATIONS: usize = 150;
+
+/// `OptimizeController.MAX_FIT_SAMPLES`.
+const MAX_FIT_SAMPLES: usize = 200_000;
+
+/// `frees.solver.max-fit-seconds` (default) — the same 120 s budget the
+/// table and Monte Carlo runs use.
+const MAX_FIT_SECONDS: f64 = 120.0;
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct ParameterFitRequest {
+    text: String,
+    stop_criteria: Option<StopCriteriaDto>,
+    variable_info: Vec<VariableInfoDto>,
+    parameters: Vec<String>,
+    initial: Vec<f64>,
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    ode_block: String,
+    column: String,
+    measured_t: Vec<f64>,
+    measured_v: Vec<f64>,
+    max_evaluations: Option<i64>,
+}
+
+/// Fit DYNAMIC-block parameters to a measured series. Returns a
+/// `ParameterFitResponse` JSON string.
+#[wasm_bindgen]
+pub fn parameter_fit(request_json: &str) -> String {
+    match parameter_fit_inner(request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({
+            "success": false,
+            "error": message,
+            "parameterNames": [],
+            "fittedValues": [],
+            "rmse": 0.0,
+            "initialRmse": 0.0,
+            "evaluations": 0,
+            "truncated": false,
+            "fittedT": [],
+            "fittedV": [],
+        })
+        .to_string(),
+    }
+}
+
+fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
+    frees_core::props::tables::install_builtin_once();
+    let request: ParameterFitRequest =
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?;
+
+    // `validateParameterFit`, in the Java's order and words.
+    if request.text.trim().is_empty() {
+        return Err("The model document is required.".to_string());
+    }
+    if request.parameters.is_empty()
+        || request.initial.len() != request.parameters.len()
+        || request.lower.len() != request.parameters.len()
+        || request.upper.len() != request.parameters.len()
+    {
+        return Err("Each parameter needs an initial value and lower/upper bounds.".to_string());
+    }
+    if request.ode_block.trim().is_empty() || request.column.trim().is_empty() {
+        return Err("Pick the DYNAMIC block and the column to fit against.".to_string());
+    }
+    if request.measured_t.len() != request.measured_v.len() || request.measured_t.len() < 2 {
+        return Err(
+            "The measured series needs at least two (t, y) samples of equal length.".to_string(),
+        );
+    }
+    if request.measured_t.len() > MAX_FIT_SAMPLES {
+        return Err(format!(
+            "The measured series has too many samples ({}; limit {MAX_FIT_SAMPLES}). \
+             Decimate it first.",
+            request.measured_t.len()
+        ));
+    }
+    if let Err(failure) = frees_core::parse_document(&request.text) {
+        return Err(syntax_error(&failure));
+    }
+
+    let facade = SolveRequest {
+        variable_info: request.variable_info,
+        stop_criteria: request.stop_criteria,
+        display_unit_system: None,
+        fill_missing: None,
+    };
+    let settings = settings_of(&facade);
+    let overrides = overrides_of(&facade);
+
+    let max_evaluations = match request.max_evaluations {
+        Some(v) => (v.max(10) as usize).min(MAX_FIT_EVALUATIONS),
+        None => DEFAULT_FIT_EVALUATIONS.min(MAX_FIT_EVALUATIONS),
+    };
+    let parameters: Vec<String> = request
+        .parameters
+        .iter()
+        .map(|p| p.trim().to_ascii_lowercase())
+        .collect();
+    let fit_request = frees_core::analysis::paramfit::FitRequest {
+        text: &request.text,
+        parameters: &parameters,
+        initial: &request.initial,
+        lower: &request.lower,
+        upper: &request.upper,
+        ode_block: &request.ode_block,
+        column: &request.column,
+        measured_t: &request.measured_t,
+        measured_v: &request.measured_v,
+        max_evaluations,
+    };
+    let started = now_ms();
+    let solve = |text: &str| -> Option<Vec<frees_core::analysis::paramfit::OdeTableView>> {
+        frees_core::solve_with(text, &settings, &overrides)
+            .ok()
+            .map(|solution| {
+                solution
+                    .ode_tables
+                    .iter()
+                    .map(|table| frees_core::analysis::paramfit::OdeTableView {
+                        name: table.name.clone(),
+                        columns: table.columns.clone(),
+                        rows: table
+                            .rows
+                            .iter()
+                            .map(|row| row.iter().map(|v| Some(*v)).collect())
+                            .collect(),
+                    })
+                    .collect()
+            })
+    };
+    let outcome = frees_core::analysis::paramfit::run(&fit_request, solve, || {
+        (now_ms() - started) / 1000.0 > MAX_FIT_SECONDS
+    })
+    .map_err(|e| e.to_string_message())?;
+
+    Ok(json!({
+        "success": true,
+        "error": Value::Null,
+        "parameterNames": outcome.parameters,
+        "fittedValues": outcome.fitted,
+        "rmse": outcome.rmse,
+        "initialRmse": outcome.initial_rmse,
+        "evaluations": outcome.evaluations,
+        "truncated": outcome.truncated,
+        "fittedT": outcome.fitted_series.t,
+        "fittedV": outcome.fitted_series.v,
+    }))
+}

@@ -3,7 +3,7 @@ import { ActionIcon, Button, Group, Modal, Stack, Table, Text, Tooltip } from '@
 import { IconDeviceFloppy, IconFolderOpen, IconPencil, IconTrash } from '@tabler/icons-react'
 import { TextPromptModal } from './dialogs'
 import type { StoredProjectMeta } from './projectStore'
-import { deleteStoredProject, listStoredProjects, renameStoredProject } from './projectStore'
+import { deleteStoredProject, listStoredProjects, renameStoredProject, subscribeLibraryChanges } from './projectStore'
 
 // Phase 11: the browser project library (decision D4). Projects saved here
 // live in this browser's IndexedDB — no server, no files to juggle. The modal
@@ -61,6 +61,13 @@ export function ProjectLibraryModal({
   }
   useEffect(() => {
     if (opened) refresh()
+  }, [opened, refresh])
+
+  // Wave E: another tab saved/deleted/renamed — refresh the listing live
+  // while this modal is open (BroadcastChannel never echoes to the sender).
+  useEffect(() => {
+    if (!opened) return
+    return subscribeLibraryChanges(() => refresh())
   }, [opened, refresh])
 
   // Disarm the delete confirmation after a beat — a destructive second click

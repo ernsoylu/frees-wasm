@@ -187,6 +187,7 @@ import {
   mirrorIsNewer,
   readAutosaveMirror,
   saveStoredProject,
+  subscribeLibraryChanges,
   writeAutosaveMirror,
 } from './projectStore'
 import { ProjectLibraryModal } from './ProjectLibraryModal'
@@ -934,6 +935,28 @@ export default function App() {
     setShowSaveCheck(false)
     pendingActionRef.current = null
   }, [])
+
+  // Wave E (narrowing Phase 11's gap 5): if another tab overwrites or
+  // deletes the browser-library project THIS tab has open, say so — writes
+  // stay last-write-wins, but silently is no longer how they win.
+  useEffect(() => {
+    return subscribeLibraryChanges((change) => {
+      if (projectSourceRef.current !== 'browser') return
+      const current = projectName.trim().toLowerCase()
+      const changed = change.name.trim().toLowerCase()
+      if (changed !== current) return
+      notifications.show({
+        color: 'yellow',
+        title: change.kind === 'deleted' ? 'Project deleted in another tab' : 'Project changed in another tab',
+        message:
+          change.kind === 'deleted'
+            ? `“${projectName}” was deleted from the browser library by another tab. Saving here will re-create it.`
+            : change.kind === 'renamed'
+              ? `“${projectName}” was renamed to “${change.to ?? ''}” by another tab. Saving here will re-create “${projectName}”.`
+              : `“${projectName}” was saved by another tab. Saving here will overwrite that version.`,
+      })
+    })
+  }, [projectName])
 
   // Wave E (closing Phase 11's gap 2): where this project lives. Opened from
   // the browser library => Save re-saves there; opened from a file (or never

@@ -37,6 +37,48 @@ interface ProjectRow extends StoredProjectMeta {
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
+// ---------------------------------------------------------------------------
+// Multi-tab coordination (Wave E, narrowing Phase 11's gap 5). BroadcastChannel
+// posts never echo to the sending tab, so every received event IS another tab:
+// the library modal refreshes its listing live, and App warns when the project
+// it has open was just overwritten elsewhere. Writes stay last-write-wins —
+// this is the *visibility* half, not a locking scheme.
+// ---------------------------------------------------------------------------
+
+/** One library mutation as seen from another tab. */
+export interface LibraryChange {
+  kind: 'saved' | 'deleted' | 'renamed'
+  name: string
+  /** The new name, for renames. */
+  to?: string
+}
+
+const LIBRARY_CHANNEL = 'frees-project-library'
+
+function postLibraryChange(change: LibraryChange): void {
+  try {
+    // A throwaway channel per post: cheap, and avoids holding a handle that
+    // some test environments never close.
+    const channel = new BroadcastChannel(LIBRARY_CHANNEL)
+    channel.postMessage(change)
+    channel.close()
+  } catch {
+    // No BroadcastChannel (old jsdom, exotic embeds): writes still work,
+    // other tabs just refresh on their own next open.
+  }
+}
+
+/** Subscribe to other tabs' library mutations; returns the unsubscriber. */
+export function subscribeLibraryChanges(listener: (change: LibraryChange) => void): () => void {
+  try {
+    const channel = new BroadcastChannel(LIBRARY_CHANNEL)
+    channel.onmessage = (event: MessageEvent<LibraryChange>) => listener(event.data)
+    return () => channel.close()
+  } catch {
+    return () => {}
+  }
+}
+
 /**
  * Open (and on first use create) the database. Resolves null wherever
  * IndexedDB is unavailable or refuses to open — private modes, partitioned
@@ -138,6 +180,7 @@ export async function saveStoredProject(name: string, project: FreesProject): Pr
   }
   try {
     await await_(db.transaction(PROJECTS_STORE, 'readwrite').objectStore(PROJECTS_STORE).put(row))
+    postLibraryChange({ kind: 'saved', name: row.name })
     return { name: row.name, savedAt: row.savedAt, size: row.size }
   } catch {
     return null
@@ -149,6 +192,7 @@ export async function deleteStoredProject(name: string): Promise<void> {
   if (!db) return
   try {
     await await_(db.transaction(PROJECTS_STORE, 'readwrite').objectStore(PROJECTS_STORE).delete(normalizeName(name)))
+    postLibraryChange({ kind: 'deleted', name: normalizeName(name) })
   } catch {
     // Deleting an absent row is not an error worth surfacing.
   }
@@ -174,6 +218,7 @@ export async function renameStoredProject(from: string, to: string): Promise<boo
     if (existing) return false
     await await_(store.put({ ...row, name: target }))
     await await_(store.delete(source))
+    postLibraryChange({ kind: 'renamed', name: source, to: target })
     return true
   } catch {
     return false

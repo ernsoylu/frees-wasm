@@ -219,6 +219,13 @@ outside the cache-storage API; every hashed asset is in.
    (`versionchange` is handled; `BroadcastChannel` is not used). The autosave
    mirror has the same property, mitigated by it being a mirror of a
    single-tab-authoritative localStorage key.
+   *(Narrowed 2026-08-22, Wave E: `projectStore.ts` now posts every
+   save/delete/rename on a `BroadcastChannel`, the library modal refreshes
+   its listing live, and App warns when the browser-library project a tab has
+   open is saved, renamed or deleted by another tab. Writes are still
+   last-write-wins — this closed the *silently*, not the race. The autosave
+   mirror is deliberately untouched: it mirrors a single-tab-authoritative
+   key, so cross-tab posts for it would be noise.)*
 6. **The PWA icons are unreviewed by any designer.** They are a
    correctly-sized, correctly-masked placeholder mark (italic *f* + equals),
    generated from SVG in-repo. Fine for install criteria; not a brand.

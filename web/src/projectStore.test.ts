@@ -18,8 +18,10 @@ import {
   readAutosaveMirror,
   renameStoredProject,
   saveStoredProject,
+  subscribeLibraryChanges,
   writeAutosaveMirror,
 } from './projectStore'
+import type { LibraryChange } from './projectStore'
 
 const SLICES: ProjectSlices = {
   text: 'x = 2 [m]',
@@ -124,6 +126,46 @@ describe('the project library', () => {
     await saveStoredProject('same', project())
     expect(await renameStoredProject('same', 'same')).toBe(true)
     expect(await loadStoredProject('same')).not.toBeNull()
+  })
+})
+
+describe('multi-tab coordination (Wave E)', () => {
+  // In a browser a BroadcastChannel post never echoes to the *posting channel*,
+  // but it does reach every other channel of the same name in the same context
+  // — which is exactly what a subscriber in "another tab" is. Delivery is
+  // async, so each assertion drains a macrotask first. Guarded because not
+  // every jsdom build ships BroadcastChannel; the store itself degrades to a
+  // silent no-op there (covered by the code path, not skipped logic).
+  const hasChannel = typeof BroadcastChannel !== 'undefined'
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 25))
+
+  it.runIf(hasChannel)('posts saved / deleted / renamed to other subscribers', async () => {
+    const events: LibraryChange[] = []
+    const unsubscribe = subscribeLibraryChanges((change) => events.push(change))
+    try {
+      await saveStoredProject('Pump Sizing.frees', project('a = 1'))
+      await saveStoredProject('draft', project('b = 2'))
+      await renameStoredProject('draft', 'final')
+      await deleteStoredProject('final')
+      await settle()
+      expect(events).toEqual([
+        { kind: 'saved', name: 'Pump Sizing' },
+        { kind: 'saved', name: 'draft' },
+        { kind: 'renamed', name: 'draft', to: 'final' },
+        { kind: 'deleted', name: 'final' },
+      ])
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it.runIf(hasChannel)('unsubscribing stops delivery', async () => {
+    const events: LibraryChange[] = []
+    const unsubscribe = subscribeLibraryChanges((change) => events.push(change))
+    unsubscribe()
+    await saveStoredProject('quiet', project())
+    await settle()
+    expect(events).toEqual([])
   })
 })
 

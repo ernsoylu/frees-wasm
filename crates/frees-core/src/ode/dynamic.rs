@@ -258,6 +258,29 @@ pub struct DynamicSolver<'a> {
     event_bindings: Vec<EventBinding>,
     y0: Vec<f64>,
     warm_start: RefCell<Option<Scope>>,
+    /// Wave G3: [`Self::pin_map`]'s result, materialised once. The pinned
+    /// *names* and every analytic *value* are invariant for this solver's
+    /// lifetime (`analytic_values` is an immutable borrow), so per step only
+    /// the time and state slots change — rewritten in place instead of
+    /// rebuilding a `BTreeMap` with one `String` clone per pin per RHS
+    /// evaluation.
+    pin_template: RefCell<Option<PinTemplate>>,
+}
+
+/// See [`DynamicSolver::pin_template`].
+struct PinTemplate {
+    /// `pin_map`'s entries in its own (sorted) order — the order the first
+    /// call handed the `AlgebraicSolve`, which its prep key remembers.
+    pins: Vec<(String, f64)>,
+    /// Indices in `pins` to overwrite with the current time: the declared
+    /// time variable, plus the reserved `time` alias when `pin_map`'s
+    /// `or_insert` actually inserted it (i.e. it is neither the time
+    /// variable itself nor an analytic value the document defined).
+    time_slots: Vec<usize>,
+    /// Index in `pins` of each state, in `states` order — written *after*
+    /// the time slots, mirroring `pin_map`'s insertion order, so a state
+    /// that shadows the alias wins exactly as it did in the map.
+    state_slots: Vec<usize>,
 }
 
 impl<'a> DynamicSolver<'a> {
@@ -283,6 +306,7 @@ impl<'a> DynamicSolver<'a> {
             event_bindings: Vec::new(),
             y0: Vec::new(),
             warm_start: RefCell::new(None),
+            pin_template: RefCell::new(None),
         }
     }
 
@@ -1356,11 +1380,41 @@ impl<'a> DynamicSolver<'a> {
 
     /// Solve the algebraic block with time and the state vector pinned.
     fn solve_algebraic_at(&self, t: f64, y: &[f64]) -> Result<Scope> {
-        let pinned: Vec<(String, f64)> = self.pin_map(t, y).into_iter().collect();
+        // First call materialises `pin_map` verbatim (names, order and all);
+        // later calls rewrite only the time and state slots. See
+        // [`PinTemplate`] for why that is the identical pin list.
+        let mut template = self.pin_template.borrow_mut();
+        let template = template.get_or_insert_with(|| {
+            let pins: Vec<(String, f64)> = self.pin_map(t, y).into_iter().collect();
+            let slot = |name: &str| pins.iter().position(|(n, _)| n == name);
+            let mut time_slots = Vec::new();
+            time_slots.extend(slot(&self.time_var));
+            if self.time_var != "time" && !self.analytic_values.contains_key("time") {
+                time_slots.extend(slot("time"));
+            }
+            // `pin_map` inserts every state, so the position always exists —
+            // and a silent miss would misalign the zip below, so it is loud.
+            let state_slots = self
+                .states
+                .iter()
+                .map(|state| slot(state).expect("pin_map pins every state"))
+                .collect();
+            PinTemplate {
+                pins,
+                time_slots,
+                state_slots,
+            }
+        });
+        for &i in &template.time_slots {
+            template.pins[i].1 = t;
+        }
+        for (slot, value) in template.state_slots.iter().zip(y) {
+            template.pins[*slot].1 = *value;
+        }
         let outcome = {
             let warm = self.warm_start.borrow();
             let mut algebraic = self.algebraic.borrow_mut();
-            algebraic.solve(&self.algebraic_template, &pinned, warm.as_ref())
+            algebraic.solve(&self.algebraic_template, &template.pins, warm.as_ref())
         };
         match outcome {
             Ok(values) => {

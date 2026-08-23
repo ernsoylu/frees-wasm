@@ -755,6 +755,7 @@ pub fn solve_with_parametric(
         solve_settings,
         &specs,
         ctx,
+        None,
     ) {
         Ok(block_iterations) => stepping_iterations + block_iterations,
         Err(BlockLoopFailure {
@@ -1044,6 +1045,89 @@ struct PinnedPrep {
     seeded: BTreeMap<String, VarSpec>,
     constants: BTreeMap<String, f64>,
     unknowns: Vec<String>,
+    /// Wave G3: the per-block value-independent pieces of [`solve_block`].
+    block_cache: PinnedBlockCache,
+}
+
+/// Wave G3: what [`solve_block`] rebuilds on every call but never needs to —
+/// hoisted per block, the way [`PinnedPrep`] hoisted the subsystem build.
+///
+/// Soundness follows the same rule as the rest of the prep: everything here is
+/// a pure function of the equations' *structure*, the block's variable list
+/// and the seeded specs. The pin values rewritten between calls never reach
+/// any of it — a pin equation's residual is `var − c`, and `c` only ever
+/// enters its derivative as `d(c)/d(var) = 0`, so the cached trees are
+/// byte-identical to what per-call differentiation would rebuild. Measured on
+/// the callgrind profile that motivated this (`hot-transient`, 2 160-step
+/// ode45 cooling block): symbolic differentiation, `Equation::variables` and
+/// the resulting `Expr` drops were ~24 % of the whole run, all of it repeated
+/// per RHS evaluation.
+struct PinnedBlockCache {
+    /// Indexed exactly like the report's `blocks`; the merge rescue's
+    /// synthetic blocks are not here and compute fresh, as before.
+    per_block: Vec<PinnedBlockStruct>,
+}
+
+/// See [`PinnedBlockCache`].
+struct PinnedBlockStruct {
+    /// The Java IterationContext lo/hi arrays for this block's variables.
+    bounds: Vec<(f64, f64)>,
+    /// [`analytic_derivatives`] for this block, computed once. An outer `None`
+    /// is itself a cached answer ("no analytic Jacobian — finite
+    /// differences"), not a cache miss.
+    derivs: Option<Vec<Vec<Option<Expr>>>>,
+    /// [`NewtonProblem::row_dependencies`] for this block, computed once.
+    row_deps: Vec<Vec<usize>>,
+}
+
+/// Build [`PinnedBlockCache`] for a prep's blocking report — the same code
+/// paths [`solve_block`] and `row_dependencies` run per call, executed once.
+fn pinned_block_cache(
+    blocks: &[Block],
+    subsystem: &[Equation],
+    specs: &BTreeMap<String, VarSpec>,
+) -> PinnedBlockCache {
+    let per_block = blocks
+        .iter()
+        .map(|block| {
+            let block_equations: Vec<&Equation> = block
+                .equations
+                .iter()
+                .filter_map(|&i| subsystem.get(i))
+                .collect();
+            let bounds: Vec<(f64, f64)> = block
+                .variables
+                .iter()
+                .map(|name| {
+                    specs
+                        .get(name)
+                        .map(|spec| (spec.lower, spec.upper))
+                        .unwrap_or((f64::NEG_INFINITY, f64::INFINITY))
+                })
+                .collect();
+            let derivs = analytic_derivatives(&block_equations, &block.variables);
+            let mentioned: Vec<BTreeSet<String>> =
+                block_equations.iter().map(|e| e.variables()).collect();
+            let row_deps: Vec<Vec<usize>> = block
+                .variables
+                .iter()
+                .map(|name| {
+                    mentioned
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, vars)| vars.contains(name))
+                        .map(|(i, _)| i)
+                        .collect()
+                })
+                .collect();
+            PinnedBlockStruct {
+                bounds,
+                derivs,
+                row_deps,
+            }
+        })
+        .collect();
+    PinnedBlockCache { per_block }
 }
 
 impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
@@ -1075,6 +1159,7 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             let mut seeded = self.specs.clone();
             seed_property_argument_guesses(&subsystem, &mut seeded, Missing::Create);
             let unknown_names = unknowns(&subsystem, &knowns);
+            let block_cache = pinned_block_cache(&report.blocks, &subsystem, &seeded);
             self.prep = Some(PinnedPrep {
                 template: ordinary.to_vec(),
                 pinned_names: pinned.iter().map(|(name, _)| name.clone()).collect(),
@@ -1083,16 +1168,22 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
                 seeded,
                 constants,
                 unknowns: unknown_names,
+                block_cache,
             });
         }
         let prep = self.prep.as_mut().expect("prep just ensured");
         // Rewrite the pin values (and the value-bearing source text the
-        // failure annotator quotes) into the reserved trailing slots.
+        // failure annotator quotes) into the reserved trailing slots. The
+        // text is rewritten through the string's existing buffer (G3): same
+        // bytes as `format!`, without a fresh allocation per pin per step —
+        // the callgrind profile had 6.4 % of the whole run in this format.
         let base = prep.template.len();
         for (k, (name, value)) in pinned.iter().enumerate() {
             let pin = &mut prep.subsystem[base + k];
             pin.rhs = Expr::num(*value);
-            pin.source_text = format!("{name} = {value}");
+            pin.source_text.clear();
+            use std::fmt::Write as _;
+            let _ = write!(pin.source_text, "{name} = {value}");
         }
         // The value-map build and the Newton drive — the tail of
         // `solve_equation_list`, verbatim.
@@ -1114,6 +1205,7 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             self.settings,
             &prep.seeded,
             self.ctx,
+            Some(&prep.block_cache),
         )
         .map_err(|failure| failure.error)?;
         Ok(values)
@@ -2804,8 +2896,12 @@ struct BlockProblem<'a> {
     /// entries are structural zeros (equation `i` does not mention `var_j`).
     /// The whole field is `None` when any *dependent* entry failed to
     /// differentiate — the Java `analyticalJacobian` returning null, which
-    /// pins the block to finite differences.
-    derivs: Option<Vec<Vec<Option<Expr>>>>,
+    /// pins the block to finite differences. Borrowed since Wave G3, so the
+    /// per-step path can hand in [`PinnedBlockStruct`]'s cached trees instead
+    /// of re-differentiating every call.
+    derivs: Option<&'a Vec<Vec<Option<Expr>>>>,
+    /// Cached [`NewtonProblem::row_dependencies`] result, same provenance.
+    row_deps: Option<&'a Vec<Vec<usize>>>,
     /// The last property/evaluation refusal seen while evaluating residuals,
     /// so a NaN stall still names its physical cause (the Java
     /// `NewtonSolver.lastPropertyError` → `propertyErrorSuffix`). Owned by
@@ -2817,7 +2913,15 @@ struct BlockProblem<'a> {
 impl NewtonProblem for BlockProblem<'_> {
     fn residual(&mut self, x: &[f64], out: &mut [f64]) -> Result<()> {
         for (name, value) in self.names.iter().zip(x) {
-            self.scope.insert(name.clone(), *value);
+            // get_mut-or-insert: after the first iteration the key exists, and
+            // a plain `insert(name.clone(), …)` would clone-and-drop the name
+            // once per variable per residual evaluation (G3 profile).
+            match self.scope.get_mut(name) {
+                Some(slot) => *slot = *value,
+                None => {
+                    self.scope.insert(name.clone(), *value);
+                }
+            }
         }
         residuals_lenient(
             self.equations,
@@ -2832,6 +2936,9 @@ impl NewtonProblem for BlockProblem<'_> {
     /// mentions it, which is the same structural test
     /// [`analytic_derivatives`] uses to decide a structural zero.
     fn row_dependencies(&self) -> Option<Vec<Vec<usize>>> {
+        if let Some(cached) = self.row_deps {
+            return Some(cached.clone());
+        }
         let mentioned: Vec<BTreeSet<String>> =
             self.equations.iter().map(|e| e.variables()).collect();
         Some(
@@ -2854,9 +2961,14 @@ impl NewtonProblem for BlockProblem<'_> {
     /// answers `None`, falling back to finite differences for this iteration
     /// exactly like the Java `catch` → `return null`.
     fn analytic_jacobian(&mut self, x: &[f64]) -> Option<Vec<Vec<f64>>> {
-        let derivs = self.derivs.as_ref()?;
+        let derivs = self.derivs?;
         for (name, value) in self.names.iter().zip(x) {
-            self.scope.insert(name.clone(), *value);
+            match self.scope.get_mut(name) {
+                Some(slot) => *slot = *value,
+                None => {
+                    self.scope.insert(name.clone(), *value);
+                }
+            }
         }
         let n = self.names.len();
         let mut jacobian = vec![vec![0.0f64; n]; n];
@@ -2907,6 +3019,7 @@ fn analytic_derivatives(
 /// Returns the Newton iteration count. This is one rung's worth of work — the
 /// Java `NewtonSolver.solveBlock`; the ladder around it lives in
 /// [`solve_block_with_fallback`].
+#[allow(clippy::too_many_arguments)]
 fn solve_block(
     index: usize,
     block: &Block,
@@ -2915,6 +3028,7 @@ fn solve_block(
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
     ctx: EvalContext<'_>,
+    cache: Option<&PinnedBlockStruct>,
 ) -> Result<usize> {
     let n = block.variables.len();
     if n == 0 {
@@ -2966,34 +3080,56 @@ fn solve_block(
 
     // Per-variable bounds from the specs — the Java IterationContext lo/hi
     // arrays, threaded into all three clamp sites inside `newton_solve`.
-    let bounds: Vec<(f64, f64)> = block
-        .variables
-        .iter()
-        .map(|name| {
-            specs
-                .get(name)
-                .map(|spec| (spec.lower, spec.upper))
-                .unwrap_or((f64::NEG_INFINITY, f64::INFINITY))
-        })
-        .collect();
+    // Borrowed from the per-step cache when the caller has one (G3).
+    let bounds_local: Vec<(f64, f64)>;
+    let bounds: &[(f64, f64)] = match cache {
+        Some(cached) => &cached.bounds,
+        None => {
+            bounds_local = block
+                .variables
+                .iter()
+                .map(|name| {
+                    specs
+                        .get(name)
+                        .map(|spec| (spec.lower, spec.upper))
+                        .unwrap_or((f64::NEG_INFINITY, f64::INFINITY))
+                })
+                .collect();
+            &bounds_local
+        }
+    };
 
     let names = &block.variables;
+    let derivs_local: Option<Vec<Vec<Option<Expr>>>>;
+    let derivs: Option<&Vec<Vec<Option<Expr>>>> = match cache {
+        Some(cached) => cached.derivs.as_ref(),
+        None => {
+            derivs_local = analytic_derivatives(&block_equations, names);
+            derivs_local.as_ref()
+        }
+    };
     let outcome = {
         let problem = BlockProblem {
             names,
             equations: &block_equations,
             scope: &mut *values,
             ctx,
-            derivs: analytic_derivatives(&block_equations, names),
+            derivs,
+            row_deps: cache.map(|cached| &cached.row_deps),
             last_property_error: &mut last_property_error,
         };
-        newton_solve_problem(problem, &mut x, settings, Some(&bounds))
+        newton_solve_problem(problem, &mut x, settings, Some(bounds))
     };
 
     // Write back before propagating: on failure the last iterate is what makes
     // a stall report actionable, and it is what the Java engine leaves behind.
     for (name, value) in names.iter().zip(&x) {
-        values.insert(name.clone(), *value);
+        match values.get_mut(name) {
+            Some(slot) => *slot = *value,
+            None => {
+                values.insert(name.clone(), *value);
+            }
+        }
     }
 
     let report = outcome.map_err(|err| {
@@ -3210,11 +3346,14 @@ fn retry_with_transformed_guesses(
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
     ctx: EvalContext<'_>,
+    cache: Option<&PinnedBlockStruct>,
 ) -> Option<usize> {
     let relaxed = retry_settings(settings);
     for transform in guess_transforms() {
         apply_transform(block, &transform, values, specs);
-        if let Ok(iterations) = solve_block(index, block, equations, values, &relaxed, specs, ctx) {
+        if let Ok(iterations) =
+            solve_block(index, block, equations, values, &relaxed, specs, ctx, cache)
+        {
             return Some(iterations);
         }
     }
@@ -3536,16 +3675,36 @@ fn solve_block_with_fallback(
     specs: &BTreeMap<String, VarSpec>,
     ctx: EvalContext<'_>,
     skip: &mut HashSet<usize>,
+    cache: Option<&PinnedBlockCache>,
 ) -> Result<usize> {
     let block = &blocks[index];
     let mut actual_solved: Option<Block> = None; // None = the original block
     let mut iterations = 0usize;
+    // The cache entry is valid for `blocks[index]` and only that — the merge
+    // rescue's synthetic blocks below compute fresh, as they always did.
+    let block_cache = cache.map(|c| &c.per_block[index]);
 
-    match solve_block(index, block, equations, values, settings, specs, ctx) {
+    match solve_block(
+        index,
+        block,
+        equations,
+        values,
+        settings,
+        specs,
+        ctx,
+        block_cache,
+    ) {
         Ok(count) => iterations += count,
         Err(first_error) => {
             if let Some(count) = retry_with_transformed_guesses(
-                index, block, equations, values, settings, specs, ctx,
+                index,
+                block,
+                equations,
+                values,
+                settings,
+                specs,
+                ctx,
+                block_cache,
             ) {
                 iterations += count;
             } else if let Some(count) =
@@ -3566,8 +3725,9 @@ fn solve_block_with_fallback(
                         // A merge that fails to converge propagates its own
                         // error (Java: the uncaught `config.newton().solveBlock`
                         // inside the catch block).
-                        iterations +=
-                            solve_block(index, &merged, equations, values, settings, specs, ctx)?;
+                        iterations += solve_block(
+                            index, &merged, equations, values, settings, specs, ctx, None,
+                        )?;
                         skip.extend(merged_indices);
                         actual_solved = Some(merged);
                     }
@@ -3579,7 +3739,10 @@ fn solve_block_with_fallback(
 
     // Polish pass — best-effort; the main solution is still valid if it fails.
     let polish = polish_settings(settings);
-    let polished_block = actual_solved.as_ref().unwrap_or(block);
+    let (polished_block, polish_cache) = match actual_solved.as_ref() {
+        Some(merged) => (merged, None),
+        None => (block, block_cache),
+    };
     if let Ok(count) = solve_block(
         index,
         polished_block,
@@ -3588,6 +3751,7 @@ fn solve_block_with_fallback(
         &polish,
         specs,
         ctx,
+        polish_cache,
     ) {
         iterations += count;
     }
@@ -3622,6 +3786,7 @@ struct BlockLoopFailure {
 /// mechanism). The Java `solveEquationList`'s block loop, factored out so the
 /// pinned subsystems the `Integral` stepper solves run through exactly the
 /// same path as the top-level system.
+#[allow(clippy::too_many_arguments)]
 fn run_blocks(
     blocks: &[Block],
     equations: &[Equation],
@@ -3629,6 +3794,7 @@ fn run_blocks(
     settings: &SolverSettings,
     specs: &BTreeMap<String, VarSpec>,
     ctx: EvalContext<'_>,
+    cache: Option<&PinnedBlockCache>,
 ) -> std::result::Result<usize, BlockLoopFailure> {
     let mut iterations = 0usize;
     // Blocks a merge rescue already solved (Java's `skipIndices`).
@@ -3638,7 +3804,7 @@ fn run_blocks(
             continue;
         }
         match solve_block_with_fallback(
-            index, blocks, equations, values, settings, specs, ctx, &mut skip,
+            index, blocks, equations, values, settings, specs, ctx, &mut skip, cache,
         ) {
             Ok(block_iterations) => iterations += block_iterations,
             Err(error) => {
@@ -3697,8 +3863,16 @@ fn solve_equation_list(
         crate::analysis::uncertainty::carry_uncertainty_entries(warm, &mut values);
     }
 
-    let iterations = run_blocks(&report.blocks, equations, &mut values, settings, specs, ctx)
-        .map_err(|failure| failure.error)?;
+    let iterations = run_blocks(
+        &report.blocks,
+        equations,
+        &mut values,
+        settings,
+        specs,
+        ctx,
+        None,
+    )
+    .map_err(|failure| failure.error)?;
     Ok(InnerSolve { values, iterations })
 }
 
@@ -4016,7 +4190,7 @@ pub fn solve_block_newton(
             )
         })
         .collect();
-    solve_block(0, block, equations, values, settings, &specs, ctx)
+    solve_block(0, block, equations, values, settings, &specs, ctx, None)
 }
 
 #[cfg(test)]

@@ -154,28 +154,41 @@ main thread — no worker round-trip, comparable to the native bench's
 end-to-end `solve`. Per document: 3 warmup calls, then single-call samples
 until 2 s or 200 iterations. Same machine as the table above:
 
-| document | wasm median (min, n) | ×native | vs JVM oracle |
-|---|---|---|---|
-| `scalar_two_block` | **1.20 ms** (0.80, 200) | ×8.2 | still ~6.8× faster |
-| `rankine_cycle` | **9.50 ms** (5.50, 181) | ×12.3 | still ~5.2× faster |
-| `component_mvem` | **6.00 ms** (3.60, 200) | ×7.7 | ~1.5× faster |
-| `transient_dyn` | **223.8 ms** (152.9, 9) | ×1.7 | **~0.6× — the JVM wins** |
-| `control_lqr` | **16.3 ms** (11.7, 109) | ×5.5 | ~1.3× faster |
+**CORRECTED the same day — the first run's numbers were contaminated.** The
+original G5 table (1.20 / 9.50 / 6.00 / 223.8 / 16.3 ms, and two "findings"
+drawn from it: a 1.7–12× wasm factor and a transient row that "inverts
+against the JVM") was measured while a full `cargo test --release
+--workspace` was running on the same machine. Re-measured idle, the
+non-transient rows halve to a third and the "inversion" disappears — it was
+machine load, not wasm. What follows is the corrected record; the
+contaminated table is kept only in this paragraph so the correction is
+checkable against the G5 commit message.
 
-Two honest findings and three caveats. Findings: the wasm-vs-native factor
-on real documents is **1.7–12×, not the 2–4× the REPL timings suggested**.
-It is *not* a build-profile artifact: native release and the wasm module are
-built from the same size-first `[profile.release]` (`opt-level = "s"`, LTO,
-one codegen unit — see Cargo.toml's own note), so the factor measures the
-wasm runtime itself, plus `wasm-opt -Oz` on the wasm side only. Second: the
-transient row **inverts in the browser** — native tied the JVM at ~1.0×,
-wasm loses at ~0.6×, so an integrator-bound document is the one shape where
-the server engine is still faster than the tab; the absent network
-round-trip narrows but no longer erases it. Caveats: chromium quantizes
-`performance.now()` to 100 µs (every sample is a multiple of 0.1 ms — fine
-at these magnitudes); samples are single calls, so the median-vs-min spread
-(up to ~1.7×) is page JIT/GC noise, and both are printed; the numbers are
-the shipped artifact's, not wasm's ceiling.
+Corrected, idle machine, same day — Wave G5 corrected + the Wave G3
+per-step-cache delta, both measured with the same spec:
+
+| document | native (criterion) | wasm pre-G3 | wasm post-G3 | ×native |
+|---|---|---|---|---|
+| `scalar_two_block` | 70.8 µs | 0.80 ms (min 0.50) | 0.80 ms (min 0.40) | ~11× — see the boundary note |
+| `rankine_cycle` | 1.41 ms | 3.10 ms (2.70) | 3.00 ms (2.60) | ×2.2 |
+| `component_mvem` | 738 µs | 2.00 ms (1.80) | 2.00 ms (1.70) | ×2.7 |
+| `transient_dyn` | 30.2 → **14.9 ms** (G3, ×2.0) | 60.3 ms (50.7) | **23.9 ms** (22.5) | ×1.6 |
+| `control_lqr` | 3.04 ms | 5.70 ms (5.10) | 7.4–7.6 ms (5.40) | ×1.9 (by min) |
+
+The honest findings, corrected: the wasm-vs-native factor on real documents
+is **~1.9–2.7×** — inside the 2–4× the REPL timings suggested all along.
+`scalar_two_block`'s ~11× is not the engine: the wasm export parses and
+serializes the REST-shaped JSON envelope per call while the native bench
+calls `solve()` directly, and on a 147 µs document that fixed ~0.7 ms
+boundary cost *is* the number. The transient never inverted: even pre-G3 the
+browser's 60.3 ms beat the JVM's ~132 ms. `control_lqr`'s post-G3 median
+wanders 5.7–7.6 ms across runs with the min stable at 5.1–5.4 — compare by
+min. Native baselines are same-day criterion runs, not the table above:
+those 2026-08-05 numbers predate D9 (rustprop made `rankine_cycle` ~1.35×
+dearer — the F7 record) and A5's per-step cache (which took `transient_dyn`
+133 → 30 ms before G3 took it to 14.9). Caveats that stand from the first
+run: chromium quantizes `performance.now()` to 100 µs; single-call samples;
+shipped-artifact numbers, not wasm's ceiling.
 
 ---
 
@@ -266,8 +279,11 @@ gating the new dev-dependencies off the wasm target in the manifest.
 3. **No browser-side benchmark.** Native-vs-JVM only; the wasm factor is
    inferred from Phase 9's REPL timings, not measured on these documents.
    *(Closed 2026-08-23, Wave G5: `web/bench/wasm-bench.spec.ts` measures the
-   five documents in chromium — 1.7–12× over native, and the transient row
-   inverts against the JVM. §3 above has the table and caveats.)*
+   five documents in chromium — corrected the same day after the first run
+   proved load-contaminated: the real factor is ~1.9–2.7× on real documents,
+   a fixed ~0.7 ms JSON-boundary cost dominates the trivial one, and the
+   transient never inverted against the JVM. §3 above has the corrected
+   table, the contamination note, and the Wave G3 delta.)*
 4. **The DAE surface is still un-fuzzed at API level**, and the SUNDIALS
    oracle cannot be regenerated on this machine (not installed) — its
    `ORACLE_*` constants are effectively frozen until someone installs

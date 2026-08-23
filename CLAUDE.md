@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Repository status
 
 **All 13 planned phases (0–12) are implemented — the plan is finished, and
-post-plan work continues as decisions D5–D9 plus lettered Waves.** This
+post-plan work continues as decisions D5–D10 plus lettered Waves.** This
 paragraph describes Phases 0–7; the paragraphs below cover 8–12. The Phase-3
 wasm boundary is wired, Phase 4
 (differentiator, matrix, complex, procedural, tables, integrals, kernels, latex,
@@ -289,7 +289,7 @@ now lives in `Latex.tsx`.
 | [`PLAN.md`](PLAN.md) | The phased plan: architecture, decisions, parity strategy, 13 phases, risks |
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
-| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach — superseded for the browser by D9), D8 (CoolProp-grade accuracy becomes the property path — **implemented and closed**, by rustprop rather than by the `coolprop.wasm` it imagined), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)** |
+| [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach — superseded for the browser by D9), D8 (CoolProp-grade accuracy becomes the property path — **implemented and closed**, by rustprop rather than by the `coolprop.wasm` it imagined), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)**, D10 (the spreadsheet and Univer are removed — Wave H, 2026-08-23: the Tables workbook is a native glide grid, GUI function tables reach the engine on every request via the completed `functionTables` port with the document-wins collision rule, sweep/fit/CSV compose into callable functions, and the dist shrank 15.2 → 9.7 MB — read it before reintroducing any spreadsheet dependency or promising a GUI table can override a document `TABLE` block) |
 | [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (905) and golden fixtures, the pending set (1; the `dyn_accessor_live` cost hold), the decayed-signal measure (Wave G1) for ODE row cells, how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
 
 ## Build and test

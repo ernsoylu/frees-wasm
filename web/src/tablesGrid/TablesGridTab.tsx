@@ -48,6 +48,7 @@ import {
   IconArrowsSort,
   IconChartGridDots,
   IconDownload,
+  IconMathFunction,
   IconPlus,
   IconSparkles,
   IconTable,
@@ -65,6 +66,8 @@ import {
 import { useGlideTheme } from '../DataGridReadOnly'
 import { tablesWorkbookSync } from './tablesWorkbookBridge'
 import { downloadValuesAsCsv } from './csv'
+import { applyFunctionSpecs } from './composeTables'
+import CreateFunctionModal from './CreateFunctionModal'
 import {
   appendRow,
   applyCellEdit,
@@ -126,6 +129,8 @@ export default function TablesGridTab({
   const [widthOverrides, setWidthOverrides] = useState<Record<string, number>>({})
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
+  // Sweep → Function (Wave H): the table id the create-function dialog targets.
+  const [createFnFor, setCreateFnFor] = useState<string | null>(null)
 
   // The synchronous view of the table list. Grid commits update it in the
   // same tick (before React re-renders), which is what lets
@@ -406,6 +411,21 @@ export default function TablesGridTab({
     })
     requestAnimationFrame(() => {
       if (created) onActiveTableIdChange(created.id)
+    })
+  }
+
+  /** Applies produced function specs (replace same-named GUI tables in
+   * place, append the rest — composeTables.applyFunctionSpecs) and focuses
+   * the first one. Same structural-change pattern as addTable. */
+  const handleCreateFunctions = (specs: FunctionTableSpec[]) => {
+    let firstId: string | null = null
+    onTablesChange((prev) => {
+      const applied = applyFunctionSpecs(prev, specs)
+      firstId = applied.ids[0] ?? null
+      return applied.tables
+    })
+    requestAnimationFrame(() => {
+      if (firstId) onActiveTableIdChange(firstId)
     })
   }
 
@@ -694,6 +714,18 @@ export default function TablesGridTab({
                 </Menu.Dropdown>
               </Menu>
             )}
+            {activeParam.vars.length >= 2 && (
+              <Tooltip label="Turn two columns of this table into a Function Table callable in equations">
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<IconMathFunction size={13} />}
+                  onClick={() => setCreateFnFor(activeParam.id)}
+                >
+                  Create function…
+                </Button>
+              </Tooltip>
+            )}
             {activeParam.results.length > 0 && (
               <Button
                 size="xs"
@@ -775,6 +807,19 @@ export default function TablesGridTab({
           )}
         </div>
       </Stack>
+
+      {(() => {
+        const source = tables.find((t) => t.id === createFnFor)
+        if (!source || source.kind !== 'parametric') return null
+        return (
+          <CreateFunctionModal
+            table={source}
+            tables={tables}
+            onCreate={handleCreateFunctions}
+            onClose={() => setCreateFnFor(null)}
+          />
+        )
+      })()}
     </Group>
   )
 }

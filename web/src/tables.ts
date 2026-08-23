@@ -77,7 +77,7 @@ export type TableSpec = ParamTableSpec | FunctionTableSpec
 
 let tableCounter = 1
 
-function newTableId(): string {
+export function newTableId(): string {
   return `table-${Date.now()}-${tableCounter++}`
 }
 
@@ -254,7 +254,11 @@ export function readOnlyCellText(
   return computed !== undefined && Number.isFinite(computed) ? fmt6(computed) : draft
 }
 
-function identifier(raw: string, fallback: string): string {
+/** Sanitizes free text (axis labels, column headers) into an identifier:
+ *  strips `[unit]` suffixes, collapses non-word runs to `_`, and falls back
+ *  when the result does not start with a letter. Shared by the digitizer
+ *  export and the D10 composition features (sweep→function, CSV→function). */
+export function identifier(raw: string, fallback: string): string {
   const cleaned = raw.replace(/\[[^[\]]*\]/g, '').trim().replace(/\W+/g, '_').replace(/^_|_$/g, '')
   return /^[A-Za-z]/.test(cleaned) ? cleaned : fallback
 }

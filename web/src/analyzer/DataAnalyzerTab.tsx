@@ -89,7 +89,7 @@ import {
   type AnalyzerSpec,
   type AnalyzerStrip,
 } from './types'
-import type { TableSpec } from '../tables'
+import type { FunctionTableSpec, TableSpec } from '../tables'
 
 /** Decimation budget per strip (≈2 samples per px at typical tile widths). */
 const MAX_POINTS = 2400
@@ -844,6 +844,9 @@ interface Props {
   onAnalyzersChange: (update: (prev: AnalyzerSpec[]) => AnalyzerSpec[]) => void
   /** Solved document tables offered by the browser's “Import table” menu. */
   tables?: TableSpec[]
+  /** CSV → Function (Wave H): threaded to the signal browser's
+   * “As function table…” action. */
+  onCreateFunctionTable?: (spec: FunctionTableSpec) => void
 }
 
 export default function DataAnalyzerTab({
@@ -851,6 +854,7 @@ export default function DataAnalyzerTab({
   analyzers,
   onAnalyzersChange,
   tables,
+  onCreateFunctionTable,
 }: Readonly<Props>) {
   const spec = analyzers.find((a) => a.id === singleAnalyzerId)
   const dark = useComputedColorScheme('dark') === 'dark'
@@ -1154,6 +1158,7 @@ export default function DataAnalyzerTab({
               updateSpec={updateSpec}
               tables={tables}
               onAfterImport={() => dispatch({ type: 'reset-zoom' })}
+              onCreateFunctionTable={onCreateFunctionTable}
             />
           </Box>
         </Stack>

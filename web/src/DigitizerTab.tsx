@@ -24,6 +24,7 @@ import {
   IconCrosshair,
   IconDownload,
   IconEraser,
+  IconMathFunction,
   IconPhotoUp,
   IconPlus,
   IconTable,
@@ -32,7 +33,12 @@ import {
   IconZoomIn,
   IconZoomOut,
 } from '@tabler/icons-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FunctionTableSpec, TableSpec } from './tables'
+
+// Digitizer → Fit → Function (Wave H): loaded on demand so the fit dialog
+// (and the shared curve-fit pieces) stay out of the digitizer chunk.
+const DigitizerFitModal = lazy(() => import('./DigitizerFitModal'))
 
 // ---------------------------------------------------------------------------
 // Graph Digitizer (Epic 8, Stories 8.1-8.5): turn a chart image into numeric
@@ -559,7 +565,18 @@ function drawMaskRect(ctx: CanvasRenderingContext2D, rect: MaskRect | null, scal
 
 export function DigitizerTab({
   onSendToFunctionTable,
-}: Readonly<{ onSendToFunctionTable?: (data: DigitizedExport) => void }>) {
+  tables,
+  onInsertEquation,
+  onCreateFunctionTable,
+}: Readonly<{
+  onSendToFunctionTable?: (data: DigitizedExport) => void
+  /** For function-name collision checks in the fit dialog (Wave H). */
+  tables?: TableSpec[]
+  /** Insert the fitted analytic form into the editor (Wave H). */
+  onInsertEquation?: (eq: string) => void
+  /** Add a sampled fitted curve as a Function Table (Wave H). */
+  onCreateFunctionTable?: (spec: FunctionTableSpec) => void
+}>) {
   const saved = useMemo(() => loadSaved(), [])
   const [image, setImage] = useState<HTMLImageElement | null>(null)
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(saved?.imageDataUrl ?? null)
@@ -584,6 +601,12 @@ export function DigitizerTab({
   const [showPreview, setShowPreview] = useState(true)
   const [extracting, setExtracting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  // Digitizer → Fit → Function (Wave H): the fit dialog's frozen input —
+  // the active dataset's calibrated values at the moment Fit curve… opened.
+  const [fitTarget, setFitTarget] = useState<{
+    datasetName: string
+    points: { x: number; y: number }[]
+  } | null>(null)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const magRef = useRef<HTMLCanvasElement>(null)
@@ -1045,6 +1068,23 @@ export function DigitizerTab({
     })
   }
 
+  const openFitCurve = () => {
+    if (!resolved) {
+      setNotice('Calibrate all four axis points before fitting a curve.')
+      return
+    }
+    if (!activeDataset) {
+      setNotice('Select a dataset to fit — the fit uses the active dataset’s points.')
+      return
+    }
+    const points = datasetValues(activeDataset)
+    if (points.length < 2) {
+      setNotice(`Digitize at least two points of ${activeDataset.name} first.`)
+      return
+    }
+    setFitTarget({ datasetName: activeDataset.name, points })
+  }
+
   const clearAll = () => {
     setImage(null)
     setImageDataUrl(null)
@@ -1465,6 +1505,20 @@ export function DigitizerTab({
                 Send to Function Table
               </Button>
             )}
+            {(onInsertEquation || onCreateFunctionTable) && (
+              <Tooltip label="Fit a model curve to the active dataset, then insert the equation or send the fit as a Function Table">
+                <Button
+                  size="xs"
+                  fullWidth
+                  mb={6}
+                  variant="default"
+                  leftSection={<IconMathFunction size={14} />}
+                  onClick={openFitCurve}
+                >
+                  Fit curve…
+                </Button>
+              </Tooltip>
+            )}
             {activeDataset && resolved ? (
               <Table withTableBorder striped highlightOnHover stickyHeader>
                 <Table.Thead>
@@ -1535,6 +1589,23 @@ export function DigitizerTab({
         </Stack>
       </ScrollArea>
     </Stack>
+
+    {fitTarget && (
+      <Suspense fallback={null}>
+        <DigitizerFitModal
+          datasetName={fitTarget.datasetName}
+          points={fitTarget.points}
+          xName={calibration.xName}
+          yName={calibration.yName}
+          xLog={calibration.xLog}
+          yLog={calibration.yLog}
+          tables={tables ?? []}
+          onClose={() => setFitTarget(null)}
+          onInsertEquation={onInsertEquation}
+          onCreateFunctionTable={onCreateFunctionTable}
+        />
+      </Suspense>
+    )}
   </Group>
   )
 }

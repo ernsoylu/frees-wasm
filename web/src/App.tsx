@@ -74,6 +74,7 @@ const AlterValuesModal = lazy(() => import('./AlterValuesModal'))
 const TablesTab = lazy(() => import('./TablesTab'))
 import {
   functionTableFromDigitizer,
+  FunctionTableSpec,
   loadTables,
   mergeCodeTables,
   newFunctionTable,
@@ -85,6 +86,7 @@ import {
   toFunctionTableDtos,
   paramTableFromDto,
 } from './tables'
+import { applyFunctionSpecs } from './tablesGrid/composeTables'
 const StatesTab = lazy(() => import('./StatesTab'))
 import type { DigitizedExport } from './DigitizerTab'
 import {
@@ -1091,6 +1093,24 @@ export default function App() {
     requestAnimationFrame(() =>
       dockRef.current?.openInstance(TABLES_WORKBOOK_WINDOW_ID, 'table', 'Tables'),
     )
+  }
+
+  /** Wave-H composition features (sweep→function, digitizer fit→function,
+   * CSV→function): applies produced GUI function tables — replacing a
+   * same-named GUI table in place (the dialogs asked first), never touching
+   * code tables (the document TABLE block keeps winning in the solver, D10) —
+   * then focuses the first one in the Tables workbook. */
+  function addFunctionTables(specs: FunctionTableSpec[]) {
+    let firstId: string | null = null
+    setTables((prev) => {
+      const applied = applyFunctionSpecs(prev, specs)
+      firstId = applied.ids[0] ?? null
+      return applied.tables
+    })
+    requestAnimationFrame(() => {
+      if (firstId) setActiveTableId(firstId)
+      dockRef.current?.openInstance(TABLES_WORKBOOK_WINDOW_ID, 'table', 'Tables')
+    })
   }
 
   const handleStateUnitIdsChange = (
@@ -2110,7 +2130,13 @@ export default function App() {
     digitizer: (
       <div style={{ height: '100%', minHeight: 0 }}>
         <Suspense fallback={lazyTabFallback}>
-          <DigitizerTab key={`digitizer-${workspaceEpoch}`} onSendToFunctionTable={sendDigitizedToFunctionTable} />
+          <DigitizerTab
+            key={`digitizer-${workspaceEpoch}`}
+            onSendToFunctionTable={sendDigitizedToFunctionTable}
+            tables={tables}
+            onInsertEquation={(eq) => applyText(textRef.current.trim() + '\n\n' + eq)}
+            onCreateFunctionTable={(spec) => addFunctionTables([spec])}
+          />
         </Suspense>
       </div>
     ),
@@ -2241,6 +2267,7 @@ export default function App() {
                       setAnalyzers((prev) => prev.map((a) => (a.id === an.id ? mutate(a) : a)))
                     }
                     tables={tables}
+                    onCreateFunctionTable={(spec) => addFunctionTables([spec])}
                   />
                 </Suspense>
               </div>
@@ -2387,6 +2414,7 @@ export default function App() {
             analyzers={analyzers}
             onAnalyzersChange={setAnalyzers}
             tables={tables}
+            onCreateFunctionTable={(spec) => addFunctionTables([spec])}
           />
         </Suspense>
       </div>
@@ -2506,6 +2534,7 @@ export default function App() {
               setActiveTableId(copy.id)
               requestAnimationFrame(() => openTableWindow(copy))
             }}
+            onCreateFunctionTables={addFunctionTables}
           />
         </Suspense>
       </div>

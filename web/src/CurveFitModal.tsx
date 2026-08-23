@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Alert,
   Badge,
   Button,
   Group,
   Modal,
   Stack,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -14,79 +12,9 @@ import {
   SegmentedControl,
 } from '@mantine/core'
 import { curveFit, CurveFitResponse } from './api'
-import { formatValue } from './format'
+import { FIT_TEMPLATES, fittedModelInsertText, MONO_INPUT } from './curveFitShared'
+import { FitResultView } from './FitResultView'
 import { TableSpec } from './tables'
-
-const MONO_INPUT = {
-  input: { fontFamily: 'var(--mantine-font-family-monospace)' },
-}
-
-interface FitTemplate {
-  name: string
-  equation: string
-  yVariable: string
-  xVariable: string
-  parameters: string
-}
-
-const FIT_TEMPLATES: FitTemplate[] = [
-  {
-    name: 'Linear (y = a * x + b)',
-    equation: 'y = a * x + b',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b',
-  },
-  {
-    name: 'Quadratic (y = a * x^2 + b * x + c)',
-    equation: 'y = a * x^2 + b * x + c',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b, c',
-  },
-  {
-    name: 'Cubic (y = a * x^3 + b * x^2 + c * x + d)',
-    equation: 'y = a * x^3 + b * x^2 + c * x + d',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b, c, d',
-  },
-  {
-    name: 'Exponential (y = a * exp(b * x))',
-    equation: 'y = a * exp(b * x)',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b',
-  },
-  {
-    name: 'Exponential with offset (y = a * exp(b * x) + c)',
-    equation: 'y = a * exp(b * x) + c',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b, c',
-  },
-  {
-    name: 'Logarithmic (y = a * ln(x) + b)',
-    equation: 'y = a * ln(x) + b',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b',
-  },
-  {
-    name: 'Power (y = a * x^b)',
-    equation: 'y = a * x^b',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b',
-  },
-  {
-    name: 'Power with offset (y = a * x^b + c)',
-    equation: 'y = a * x^b + c',
-    yVariable: 'y',
-    xVariable: 'x',
-    parameters: 'a, b, c',
-  },
-]
 
 function parseValueAndUnit(str: string): { value: number; unit?: string } | null {
   const trimmed = str.trim()
@@ -167,72 +95,6 @@ function exponentialParamUnit(paramName: string, xUnit: string, xu: string, yUni
   if (paramName === 'b') return xUnit ? `1/${xu}` : ''
   if (paramName === 'c') return yUnit
   return ''
-}
-
-function ResultView({
-  result,
-  parameterUnits,
-  setParameterUnits,
-}: Readonly<{
-  result: CurveFitResponse
-  parameterUnits: Record<string, string>
-  setParameterUnits: (units: Record<string, string>) => void
-}>) {
-  if (!result.success) {
-    return (
-      <Alert color="red" variant="light" p="xs">
-        <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-          {result.error}
-        </Text>
-      </Alert>
-    )
-  }
-  return (
-    <Stack gap="xs">
-      <Group gap="xs">
-        <Badge color="green" variant="light" leftSection="✓">
-          Fit converged
-        </Badge>
-        <Text size="xs" c="dimmed">
-          {result.iterations} iterations · R² = {formatValue(result.rSquared)} · RMSE ={' '}
-          {formatValue(result.rmse)}
-        </Text>
-      </Group>
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th style={{ width: '120px' }}>Parameter</Table.Th>
-            <Table.Th style={{ width: '180px' }}>Fitted value</Table.Th>
-            <Table.Th>Unit (optional)</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {result.parameterNames.map((name, i) => (
-            <Table.Tr key={name}>
-              <Table.Td ff="monospace">{name}</Table.Td>
-              <Table.Td ff="monospace" c="green.4">
-                {formatValue(result.fittedParameters[i])}
-              </Table.Td>
-              <Table.Td>
-                <TextInput
-                  size="xs"
-                  placeholder="e.g. kPa"
-                  value={parameterUnits[name] || ''}
-                  onChange={(e) => {
-                    setParameterUnits({
-                      ...parameterUnits,
-                      [name]: e.currentTarget.value,
-                    })
-                  }}
-                  styles={MONO_INPUT}
-                />
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Stack>
-  )
 }
 
 interface Props {
@@ -477,23 +339,15 @@ export default function CurveFitModal({
 
   function insertToEditor() {
     if (!result || !result.success || !onInsertEquation) return
-
-    const paramEquations = result.parameterNames.map((name, i) => {
-      const val = formatValue(result.fittedParameters[i])
-      const unit = parameterUnits[name]?.trim()
-      const unitStr = unit ? ` [${unit}]` : ''
-      return `${name} = ${val}${unitStr}`
-    })
-
-    const modelEq = model.trim()
-
-    const output = [
-      `{ Fitted Model: ${templateKey === 'custom' ? 'Custom' : templateKey} }`,
-      ...paramEquations,
-      modelEq,
-    ].join('\n')
-
-    onInsertEquation(output)
+    onInsertEquation(
+      fittedModelInsertText(
+        templateKey,
+        model,
+        result.parameterNames,
+        result.fittedParameters,
+        parameterUnits,
+      ),
+    )
     onClose()
   }
 
@@ -711,7 +565,7 @@ export default function CurveFitModal({
         )}
 
         {result && (
-          <ResultView
+          <FitResultView
             result={result}
             parameterUnits={parameterUnits}
             setParameterUnits={setParameterUnits}

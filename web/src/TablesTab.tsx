@@ -1,12 +1,14 @@
 import { Button, Group, Stack, Text, Tooltip } from '@mantine/core'
-import { lazy, Suspense } from 'react'
-import { duplicateAsEditable, TableSpec } from './tables'
+import { lazy, Suspense, useState } from 'react'
+import { duplicateAsEditable, FunctionTableSpec, TableSpec } from './tables'
 import { VariableDraft } from './VariableInfoModal'
 
 // Solver-produced (read-only) tables can be huge; render them through a
 // virtualized canvas grid, code-split so glide-data-grid stays out of the
 // initial bundle and only loads when such a table is opened.
 const DataGridReadOnly = lazy(() => import('./DataGridReadOnly'))
+// Sweep → Function (Wave H): also code-split — it is only needed on demand.
+const CreateFunctionModal = lazy(() => import('./tablesGrid/CreateFunctionModal'))
 
 // ---------------------------------------------------------------------------
 // Read-only table window: code-defined PARAMETRIC tables and solved ODE
@@ -27,11 +29,16 @@ interface Props {
   /** Make an editable GUI copy (decoupled from the editor text); the copy
    * opens in the Tables workbook. */
   onCopyToEditable?: (copy: TableSpec) => void
+  /** Sweep → Function (Wave H): receives the Function Table specs produced
+   * from this table's columns; the host applies replace-vs-add and opens the
+   * Tables workbook. */
+  onCreateFunctionTables?: (specs: FunctionTableSpec[]) => void
 }
 
 export default function TablesTab(props: Readonly<Props>) {
   const { tables, singleTableId } = props
   const active = tables.find((t) => t.id === singleTableId) ?? null
+  const [createFnOpen, setCreateFnOpen] = useState(false)
 
   if (!active) {
     return (
@@ -59,6 +66,13 @@ export default function TablesTab(props: Readonly<Props>) {
             ? 'Solved trajectory from a DYNAMIC (ODE) block — virtualized read-only grid (columns are SI-solver values; drag column edges to resize, click-drag to select/copy).'
             : 'Defined in code (PARAMETRIC … END) — virtualized read-only grid. Run it with Solve Table.'}
         </Text>
+        {props.onCreateFunctionTables && active.vars.length >= 2 && (
+          <Tooltip label="Turn two columns of this table into a Function Table callable in equations">
+            <Button size="compact-xs" variant="default" onClick={() => setCreateFnOpen(true)}>
+              Create function…
+            </Button>
+          </Tooltip>
+        )}
         {props.onCopyToEditable && (
           <Tooltip label="Make an editable copy in the Tables workbook (decoupled from the editor text)">
             <Button
@@ -81,6 +95,16 @@ export default function TablesTab(props: Readonly<Props>) {
           onPlotColumns={props.onPlotColumns}
         />
       </Suspense>
+      {createFnOpen && props.onCreateFunctionTables && (
+        <Suspense fallback={null}>
+          <CreateFunctionModal
+            table={active}
+            tables={tables}
+            onCreate={props.onCreateFunctionTables}
+            onClose={() => setCreateFnOpen(false)}
+          />
+        </Suspense>
+      )}
     </Stack>
   )
 }

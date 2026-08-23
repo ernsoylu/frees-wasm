@@ -32,12 +32,14 @@ import {
   IconAlertTriangle,
   IconFileImport,
   IconFileSearch,
+  IconMathFunction,
   IconPlus,
   IconSearch,
   IconTable,
   IconTrash,
 } from '@tabler/icons-react'
 import { channelStore } from './channelStore'
+import ChannelFunctionModal from './ChannelFunctionModal'
 import {
   importCsvFile,
   type ImportedMeasurement,
@@ -49,7 +51,7 @@ import { checkRelocatedFile } from './relocate'
 import { signalColor } from './palette'
 import { importableTables, tableToMeasurement } from './tableImport'
 import { newStrip, type AnalyzerSpec, type ChannelMeta } from './types'
-import type { TableSpec } from '../tables'
+import type { FunctionTableSpec, TableSpec } from '../tables'
 
 // ---------------------------------------------------------------------------
 // Time-base modal (§2.5c: ambiguous/absent time column → ask, never guess)
@@ -142,6 +144,10 @@ interface Props {
   tables?: TableSpec[]
   /** Fired after a successful import/rebind (the tab resets its zoom). */
   onAfterImport?: () => void
+  /** CSV → Function (Wave H): receives the Function Table spec built from two
+   * channels of a file; the host applies replace-vs-add and opens the Tables
+   * workbook. Absent = the “As function table…” action is hidden. */
+  onCreateFunctionTable?: (spec: FunctionTableSpec) => void
 }
 
 export default function SignalBrowser({
@@ -149,6 +155,7 @@ export default function SignalBrowser({
   updateSpec,
   tables,
   onAfterImport,
+  onCreateFunctionTable,
 }: Readonly<Props>) {
   useSyncExternalStore(channelStore.subscribe, channelStore.version)
   const [search, setSearch] = useState('')
@@ -165,6 +172,8 @@ export default function SignalBrowser({
     mismatches: string[]
   } | null>(null)
   const [memWarning, setMemWarning] = useState(false)
+  // CSV → Function (Wave H): the measurementId the dialog targets.
+  const [fnModalFor, setFnModalFor] = useState<string | null>(null)
 
   useEffect(
     () =>
@@ -400,16 +409,31 @@ export default function SignalBrowser({
                   <Text size="xs" fw={600} truncate title={f.signature.name}>
                     {f.signature.name}
                   </Text>
-                  <Tooltip label="Remove file from this analyzer">
-                    <ActionIcon
-                      size="xs"
-                      variant="subtle"
-                      color="gray"
-                      onClick={() => removeFile(f.measurementId)}
-                    >
-                      <IconTrash size={12} />
-                    </ActionIcon>
-                  </Tooltip>
+                  <Group gap={2} wrap="nowrap">
+                    {onCreateFunctionTable && loaded && (
+                      <Tooltip label="As function table… (two channels become a function callable in equations)">
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color="gray"
+                          aria-label={`Create a function table from ${f.signature.name}`}
+                          onClick={() => setFnModalFor(f.measurementId)}
+                        >
+                          <IconMathFunction size={12} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    <Tooltip label="Remove file from this analyzer">
+                      <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        color="gray"
+                        onClick={() => removeFile(f.measurementId)}
+                      >
+                        <IconTrash size={12} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
                 </Group>
                 {meta !== null && loaded && (
                   <Group gap={6} wrap="nowrap" justify="space-between">
@@ -506,6 +530,23 @@ export default function SignalBrowser({
           })}
         </Stack>
       </ScrollArea>
+
+      {fnModalFor !== null &&
+        onCreateFunctionTable &&
+        (() => {
+          const meta = channelStore.getMeta(fnModalFor)
+          if (!meta || !channelStore.isLoaded(fnModalFor)) return null
+          return (
+            <ChannelFunctionModal
+              fileName={meta.signature.name}
+              measurementId={fnModalFor}
+              channels={meta.channels}
+              tables={tables ?? []}
+              onClose={() => setFnModalFor(null)}
+              onCreate={onCreateFunctionTable}
+            />
+          )
+        })()}
 
       {pendingTime !== null && (
         <TimeColumnModal

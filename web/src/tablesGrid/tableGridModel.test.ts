@@ -454,6 +454,15 @@ describe('stored formula surfacing', () => {
     const back = applyCellEdit(spec, 2, 0, '3')
     expect((back.spec as FunctionTableSpec).formulas).toEqual({ B2: '=A2*10' })
   })
+
+  it('surfaces the stored formula even when the cell value is blank', () => {
+    // Ported from tableBinding.test.ts ("emits overlay cells even when the
+    // cached value is blank"): a legacy formula whose cached result never
+    // materialized must still be visible, not silently invisible.
+    const spec = spec1D({ rows: [{ x: '1', ys: [''] }], formulas: { B2: '=1/0' } })
+    expect(cellViewAt(spec, 1, 1)).toMatchObject({ text: '', formula: '=1/0' })
+    expect(storedFormulaList(spec)).toEqual([{ ref: 'B2', formula: '=1/0' }])
+  })
 })
 
 // ---------------------------------------------------------------------------

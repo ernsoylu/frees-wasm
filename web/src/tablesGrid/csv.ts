@@ -1,5 +1,4 @@
-/** CSV download shared by the Spreadsheet tab and the Tables workbook, so the
- *  quoting rules live exactly once: quote-double `"` and wrap any cell
+/** CSV download for the Tables workbook: quote-double `"` and wrap any cell
  *  containing a comma, quote, or newline. */
 export function downloadValuesAsCsv(values: unknown[][], filename: string): void {
   const csvStr = values

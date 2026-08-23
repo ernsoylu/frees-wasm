@@ -1,4 +1,3 @@
-import { readdirSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -38,160 +37,9 @@ function stripLegacyKatexFontsPlugin() {
   }
 }
 
-// Univer's render engine lazy-loads hyphenation dictionaries (a docs-engine
-// text-layout feature) as one chunk per language — ~80 chunks, ~4.4 MB. A
-// dictionary is only ever *consulted* when `hyphenConfig()` is satisfied, which
-// needs `autoHyphenation` set on the section break config; the sheets preset
-// never sets it, so no cell layout can reach `hyphenate()`. Derive the exact
-// module filenames from the package's own dist listing so this tracks Univer
-// upgrades instead of hardcoding locale names.
-const UNIVER_HYPHENATION_ES_DIR = 'node_modules/@univerjs/engine-render/lib/es'
-
-function univerHyphenationModules(): string[] {
-  const patternNames = new Set(
-    readdirSync(
-      'node_modules/@univerjs/engine-render/lib/types/components/docs/layout/hyphenation/patterns',
-    ).map((f) => f.replace(/\.d\.ts$/, '')),
-  )
-  return readdirSync(UNIVER_HYPHENATION_ES_DIR).filter((f) => {
-    const m = f.match(/^(.*)-[A-Za-z0-9_-]{8}\.js$/)
-    return m !== null && patternNames.has(m[1])
-  })
-}
-
-// Vite names each emitted chunk "<original stem>-<hash>.js".
-//
-// With stripUniverHyphenationPlugin below working, this list matches nothing —
-// no dictionary chunk is emitted to ignore. It is kept as a backstop, and that
-// is not theoretical: an intermediate version of that plugin silently stopped
-// firing (missing `enforce: 'pre'`), the build stayed green, all ~4.4 MB of
-// dictionaries came back into dist — and this list is what kept them out of the
-// precache, holding it at 15020 KiB while dist ballooned to 19.06 MB. Cheap
-// insurance against exactly the failure mode that already happened once.
-function univerHyphenationGlobIgnores(): string[] {
-  return univerHyphenationModules().map((f) => `**/${f.replace(/\.js$/, '')}-*.js`)
-}
-
-// Excluding the dictionaries from the precache stopped them being *downloaded*,
-// but Rollup still emitted all ~80 of them — 4.4 MB of dist that no client can
-// reach and every deploy has to carry. Resolve each one to an empty module so
-// they are never emitted at all.
-//
-// This is safe because of how Univer consumes them: `Hyphen.loadPattern(lang)`
-// awaits the dynamic import and does `loaded?.[snackToPascal(lang)]`, then
-// `if (pattern == null) return` — an empty namespace is the already-handled
-// "no such dictionary" path, not an error.
-//
-// It also fixes a real bug rather than only saving bytes. `Hyphen`'s
-// constructor eagerly calls `loadPattern('en-gb')`, and `DocumentSkeleton`
-// constructs `Hyphen` unconditionally — so every spreadsheet render fetched the
-// 102 kB en-gb chunk, which the precache exclusion above had already told the
-// service worker to ignore. Online that was a wasted download; offline it was a
-// failed one. Now it resolves to the no-op the surrounding code already knows
-// how to handle. `en-us` is unaffected either way: Univer inlines it into its
-// own entry and preloads it synchronously.
-// All ~80 imports are redirected to ONE shared virtual module rather than each
-// being stubbed in place, so Rollup emits a single tiny chunk instead of ~80
-// near-identical ones. (Stubbing in place still cost 77 files — small, but they
-// are exactly the kind of unreachable output this plugin exists to remove.)
-const HYPHENATION_STUB_ID = '\0univer-hyphenation-stub'
-
-function stripUniverHyphenationPlugin() {
-  const stubbed = new Set(univerHyphenationModules())
-  return {
-    name: 'strip-univer-hyphenation',
-    // `pre` is load-bearing: a normal-order plugin's resolveId runs *after*
-    // vite:resolve has already resolved the relative specifier to the real
-    // dictionary file, so the redirect never fires and all ~4.4 MB come back —
-    // silently, with a green build. If this plugin ever stops saving bytes,
-    // check this line first.
-    enforce: 'pre' as const,
-    resolveId(source: string, importer: string | undefined) {
-      if (importer === undefined || !importer.includes('@univerjs/engine-render')) return null
-      const file = source.split('?')[0].split('/').pop()
-      return file !== undefined && stubbed.has(file) ? HYPHENATION_STUB_ID : null
-    },
-    load(id: string) {
-      return id === HYPHENATION_STUB_ID ? 'export default undefined\n' : null
-    },
-  }
-}
-
-// Two more of `@univerjs/engine-render`'s dependencies are reachable only
-// through code paths this app cannot enter, for the same structural reason the
-// hyphenation dictionaries above are. Both are stubbed at resolve time.
-//
-//   franc-min (84 kB) — natural-language detection. Its ONLY call site is
-//   `LanguageDetector.detect()`, whose result is looked up in
-//   `LANG_MAP_TO_HYPHEN_LANG` — i.e. it exists to pick which hyphenation
-//   pattern set to load, the path already established as unreachable (the
-//   sheets preset never sets `autoHyphenation`). The stub returns `"und"`,
-//   which that map sends to `"unknown"`; `Hyphen.loadPattern("unknown")` then
-//   takes the same already-handled "no such dictionary" branch the dictionary
-//   stub relies on. So this degrades to a no-op, not an error.
-//
-//   opentype.js (237 kB) — font-file parsing for glyph shaping. Its only call
-//   site is `shapeChunk`, reached from `textShape`, which opens with
-//   `if (!fontLibrary.isReady) return []`. `isReady` is set only by
-//   `FontLibrary._loadFontsToBook()`, which bails unless BOTH
-//   `checkLocalFontsPermission()` resolves true AND `"queryLocalFonts" in
-//   window`. That is the Local Font Access API: Chromium-only, and gated on a
-//   permission this app never requests (Univer only *queries* the permission,
-//   it never prompts). The second call site is guarded by the same flag.
-//
-// Unlike franc, a stubbed `parse` has no correct no-op — returning a fake font
-// would produce silently wrong glyph metrics. It throws instead, so if the
-// unreachable path is ever entered the failure names itself and points here.
-//
-// cjk-regex / unicode-regex (340 kB together) were assessed at the same time
-// and deliberately LEFT IN. They look like the same kind of docs-layout dead
-// weight but are not: `cjk.letters()/all()/punctuations()` are evaluated at
-// module top level into `hasCJKText`/`hasCJK`/`hasCJKPunctuation`, which have
-// 16 call sites across live line-breaking code. Stubbing them would silently
-// break CJK text layout in cells rather than save bytes.
-const FRANC_STUB_ID = '\0univer-franc-stub'
-const OPENTYPE_STUB_ID = '\0univer-opentype-stub'
-
-function stripUniverDocsTextDepsPlugin() {
-  const stubs: Record<string, string> = {
-    'franc-min': FRANC_STUB_ID,
-    'opentype.js': OPENTYPE_STUB_ID,
-  }
-  return {
-    name: 'strip-univer-docs-text-deps',
-    // `pre`, for the same reason stripUniverHyphenationPlugin needs it: without
-    // it vite:resolve has already resolved the specifier and the redirect never
-    // fires — silently, with a green build.
-    enforce: 'pre' as const,
-    resolveId(source: string, importer: string | undefined) {
-      if (importer === undefined || !importer.includes('@univerjs/engine-render')) return null
-      return stubs[source] ?? null
-    },
-    load(id: string) {
-      if (id === FRANC_STUB_ID) {
-        // "und" is franc's own undetermined-language code, already in Univer's
-        // LANG_MAP_TO_HYPHEN_LANG (→ "unknown").
-        return 'export function franc() { return "und" }\n'
-      }
-      if (id === OPENTYPE_STUB_ID) {
-        return (
-          'export function parse() {\n' +
-          '  throw new Error(\n' +
-          '    "opentype.js is stubbed out of this build (see stripUniverDocsTextDepsPlugin " +\n' +
-          '    "in vite.config.ts). It is reachable only via fontLibrary.isReady, which needs " +\n' +
-          '    "the Local Font Access API and a permission frees never requests."\n' +
-          '  )\n' +
-          '}\n'
-        )
-      }
-      return null
-    },
-  }
-}
-
 // Phase 11: installable PWA + full offline session. The service worker
 // precaches every built asset — including the ~3 MB wasm engine and the large
-// lazy chunks (Plotly, the spreadsheet stack) — because "offline" for an
+// lazy chunks (Plotly, the grids) — because "offline" for an
 // engineering tool means the whole tool, not just the shell that was visited
 // while online. `registerType: 'prompt'` keeps the old precache serving the
 // running tab and surfaces an in-app "update ready" notification (src/pwa.tsx)
@@ -223,12 +71,13 @@ function pwaPlugin() {
       // (stripLegacyKatexFontsPlugin) and no other dependency ships pre-woff2
       // fonts worth caching.
       globPatterns: ['**/*.{js,css,html,wasm,svg,png,woff2,json}'],
-      // Unreachable-by-design chunks stay out of the precache; everything the
-      // app can actually load is still cached up front, so offline is intact.
-      globIgnores: univerHyphenationGlobIgnores(),
-      // The Univer spreadsheet chunk (~5.5 MB) and Plotly are above workbox's
-      // 2 MiB default; the point of this phase is that they work offline too.
-      maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+      // The ~3 MB wasm engine and Plotly are above workbox's 2 MiB default;
+      // the point of the PWA is that they work offline too. 4 MiB (D10 —
+      // down from the 8 MiB the removed 5.1 MB Univer chunk forced): the
+      // wasm module is the largest precached file and a new chunk past this
+      // cap silently falls out of the offline set, which the offline e2e
+      // gate would then catch.
+      maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       navigateFallback: 'index.html',
       // /api/ is the (optional, unwired) remote-fallback adapter's namespace —
       // a navigation there must fail honestly, not serve the app shell.
@@ -243,8 +92,6 @@ export default defineConfig({
     react(),
     buildInfoPlugin(),
     stripLegacyKatexFontsPlugin(),
-    stripUniverHyphenationPlugin(),
-    stripUniverDocsTextDepsPlugin(),
     pwaPlugin(),
     visualizer({ open: false, filename: 'stats.html' }),
   ],

@@ -37,7 +37,6 @@ import {
   IconTemperature,
   IconVariable,
   IconWaveSine,
-  IconGrid4x4,
   IconLink,
   IconPrinter,
   IconDatabase,
@@ -88,19 +87,14 @@ import {
 } from './tables'
 const StatesTab = lazy(() => import('./StatesTab'))
 import type { DigitizedExport } from './DigitizerTab'
-import { loadSpreadsheets, newSpreadsheet, saveSpreadsheets } from './spreadsheet/spreadsheetStorage'
-import { emptySpreadsheetData, type SpreadsheetSpec } from './spreadsheet/types'
 import {
   flushTablesWorkbook,
   isHostedTable,
   TABLES_WORKBOOK_WINDOW_ID,
-} from './spreadsheet/tablesWorkbookBridge'
+} from './tablesGrid/tablesWorkbookBridge'
 import { applyColumnFill } from './tablesGrid/tableGridModel'
-import { buildSnapshotSheet, type SnapshotInput } from './spreadsheet/snapshot'
 import { newAnalyzer, type AnalyzerSpec } from './analyzer/types'
 import { channelStore } from './analyzer/channelStore'
-import { substituteSsheetRefs } from './spreadsheet/ssheetResolver'
-import { group } from './workspaceData'
 
 // The Digitizer tab is a large, self-contained editor that most
 // sessions never open, so they are code-split and only fetched when their tab
@@ -110,7 +104,6 @@ import type { SchematicOffsets } from './schematic/layout'
 const DigitizerTab = lazy(() =>
   import('./DigitizerTab').then((m) => ({ default: m.DigitizerTab })),
 )
-const SpreadsheetTab = lazy(() => import('./spreadsheet/SpreadsheetTab'))
 // The Tables workbook — native glide-data-grid implementation (decision D10;
 // it replaced the Univer-bound-sheets TablesWorkbookTab). Lazy so sessions
 // that never open it don't fetch the grid.
@@ -180,6 +173,7 @@ import {
   readProjectFile,
   saveProject,
   saveProjectLocal,
+  type SpreadsheetSpec,
   writeBridgedKeys,
 } from './project'
 import {
@@ -222,6 +216,18 @@ function loadStopCriteria(): StopCriteria {
 /** Returns a copy of {@code items} with the matching id's name replaced. */
 function renameById<T extends { id: string; name: string }>(items: T[], id: string, name: string): T[] {
   return items.map((x) => (x.id === id ? { ...x, name } : x))
+}
+
+/** One-time D10 compatibility notice for a loaded project that carries
+ *  spreadsheet data: the feature is removed, the data is preserved inert.
+ *  Returns null when the project has no spreadsheets. */
+function spreadsheetNotice(spreadsheets: SpreadsheetSpec[] | undefined): string | null {
+  const n = spreadsheets?.length ?? 0
+  if (n === 0) return null
+  return (
+    `This project contains ${n} spreadsheet${n === 1 ? '' : 's'}; the spreadsheet ` +
+    'feature was removed — the data is preserved in the file but not shown.'
+  )
 }
 
 /** First finite value supplied for each table input column (table-check semantics). */
@@ -571,12 +577,6 @@ export default function App() {
     setActiveTab('equations')
     setTimeout(() => editorRef.current?.insertSnippet(snippet), 50)
   }, [])
-  // Bound-cell input equations (ssheet(...)) are full statements: append each on
-  // its own line so successive binds don't concatenate on one line.
-  const insertEquationLine = useCallback((text: string) => {
-    setActiveTab('equations')
-    setTimeout(() => editorRef.current?.insertStatement(text), 50)
-  }, [])
   // Component Browser/Wizard: append the generated `Type NAME(...)` block on its
   // own line in the equations editor (same path as bound-cell statements).
   // Wiring emits a statement while the user stays on the schematic, so unlike
@@ -634,9 +634,11 @@ export default function App() {
   // Seed for a new X-Y plot opened from a table's column selection (x + y vars),
   // applied as the modal's initial XY config.
   const [plotSeed, setPlotSeed] = useState<{ xVar: string; yVars: string[] } | null>(null)
-  const [spreadsheets, setSpreadsheets] = useState<SpreadsheetSpec[]>(() =>
-    boot?.spreadsheets ?? loadSpreadsheets(),
-  )
+  // D10: the spreadsheet feature is removed. A loaded project's spreadsheets
+  // array is carried INERT — held here, written back on save, never shown and
+  // never destroyed (docs/decisions/0010-remove-spreadsheet.md, compatibility
+  // policy). A one-time notice tells the user the data is preserved.
+  const spreadsheetsRef = useRef<SpreadsheetSpec[]>(boot?.spreadsheets ?? [])
   // Data Analyzer windows: the spec slice (layout + signal assignments +
   // measurement file refs, never bulk data) rides the .frees project file
   // ("template mode", §2.5b); samples live in the module-level ChannelStore
@@ -656,6 +658,14 @@ export default function App() {
     const id = setTimeout(() => setLoadNotice(null), 8000)
     return () => clearTimeout(id)
   }, [loadNotice])
+  // D10: the autosave-restored workspace gets the same one-time notice a
+  // project load does when it carries (inert, preserved) spreadsheet data.
+  useEffect(() => {
+    const notice = spreadsheetNotice(boot?.spreadsheets)
+    if (notice) setLoadNotice(notice)
+    // Boot project only — runs once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [fluids, setFluids] = useState<string[]>([])
   const [stateUnitIds, setStateUnitIds] = useState<Record<string, string>>(() => {
     if (boot) return boot.stateUnitIds ?? {}
@@ -676,11 +686,6 @@ export default function App() {
     saveTables(tables)
   }, [tables])
 
-  useEffect(() => {
-    const id = setTimeout(() => saveSpreadsheets(spreadsheets), 800)
-    return () => clearTimeout(id)
-  }, [spreadsheets])
-
   // Story 10.10: the current App-owned slices of the unified project. Child-owned
   // slices (digitizer, custom components) are read from their localStorage caches
   // by buildProject(), so they are captured without lifting them into App.
@@ -696,7 +701,9 @@ export default function App() {
       stateUnitIds,
       tables,
       plots,
-      spreadsheets,
+      // Inert retention (D10): the loaded project's spreadsheets ride along
+      // unchanged so saving never destroys them.
+      spreadsheets: spreadsheetsRef.current,
       analyzers,
       sliders: pinnedSliders,
       schematic: schematicOffsets,
@@ -704,14 +711,14 @@ export default function App() {
     // `text` stays a dependency so the autosave effect keyed on this callback
     // still refreshes when the (deferred) editor document state lands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [text, varDrafts, stopCriteria, unitSystem, fillMissing, stateUnitIds, tables, plots, spreadsheets, analyzers, pinnedSliders, schematicOffsets],
+    [text, varDrafts, stopCriteria, unitSystem, fillMissing, stateUnitIds, tables, plots, analyzers, pinnedSliders, schematicOffsets],
   )
 
   // Debounced autosave of the entire workspace to a single localStorage key,
   // superseding the scattered per-feature keys as the source of truth on reload.
   // The same document also lands in the IndexedDB mirror (D4): localStorage is
   // what boot reads synchronously, but its ~5 MB quota means this write can
-  // silently stop succeeding once spreadsheets grow — the
+  // silently stop succeeding once the workspace grows — the
   // mirror is the durable copy that keeps updating past that point.
   useEffect(() => {
     const id = setTimeout(() => {
@@ -738,67 +745,6 @@ export default function App() {
     }
   }, [solving, checking])
 
-  // Phase 3.3 Auto-Sync Mode: Sync result bindings back to spreadsheets if autoSync is enabled
-  useEffect(() => {
-    if (!result?.success || !result.variables) return
-
-    setSpreadsheets((prev) => {
-      let changed = false
-      const next = prev.map((ss) => {
-        if (!ss.autoSync || !ss.resultBindings || Object.keys(ss.resultBindings).length === 0) return ss
-
-        let sheetChanged = false
-        const newSheets = [...(ss.sheets as any[])]
-        
-        for (const [varName, refStr] of Object.entries(ss.resultBindings)) {
-          const variable = result.variables.find((v) => v.name.toLowerCase() === varName.toLowerCase())
-          if (!variable || variable.value === undefined) continue
-
-          const refMatch = refStr.match(/^(?:([^!]+)!)?([A-Za-z]+)(\d+)$/)
-          if (!refMatch) continue
-          const sheetName = refMatch[1]
-          const colStr = refMatch[2]
-          const rowStr = refMatch[3]
-
-          let c = 0
-          for (let i = 0; i < colStr.length; i++) c = c * 26 + ((colStr.codePointAt(i) ?? 0) - 64)
-          c -= 1
-          const r = Number.parseInt(rowStr, 10) - 1
-
-          const sheetIndex = newSheets.findIndex((sh) => sh.name && sh.name.toLowerCase() === sheetName.toLowerCase())
-          if (sheetIndex === -1) continue
-
-          const targetSheet = { ...newSheets[sheetIndex] }
-          targetSheet.celldata = [...(targetSheet.celldata || [])]
-
-          const cellIndex = targetSheet.celldata.findIndex((cd: any) => cd.r === r && cd.c === c)
-          if (cellIndex !== -1) {
-            targetSheet.celldata[cellIndex] = { ...targetSheet.celldata[cellIndex], v: { ...targetSheet.celldata[cellIndex].v, v: variable.value, m: String(variable.value) } }
-          } else {
-            targetSheet.celldata.push({ r, c, v: { v: variable.value, m: String(variable.value) } })
-          }
-          
-          newSheets[sheetIndex] = targetSheet
-          sheetChanged = true
-        }
-
-        if (sheetChanged) {
-          changed = true
-          return { ...ss, sheets: newSheets }
-        }
-        return ss
-      })
-
-      return changed ? next : prev
-    })
-  }, [result])
-
-  // Linked Table View (the old one-off parametric<->spreadsheet sync) is
-  // superseded by the Tables workbook, which hosts GUI parametric tables as
-  // bound sheets. `SpreadsheetSpec.linkedTableId` is kept INERT on load and
-  // in saved files (downgrade-safe, contract d of the unification plan) and
-  // is only stripped by an explicit Unlink in the spreadsheet toolbar.
-
   // Mark the project dirty whenever content changes, unless the change came from
   // an explicit load/new/save (suppressDirtyRef lets those operations opt out).
   useEffect(() => {
@@ -809,7 +755,7 @@ export default function App() {
     }
     isDirtyRef.current = true
 
-  }, [text, tables, plots, spreadsheets, analyzers, varDrafts, schematicOffsets])
+  }, [text, tables, plots, analyzers, varDrafts, schematicOffsets])
 
   // Apply an opened/loaded project to every workspace slice. Child-owned slices
   // are written back to their caches and the relevant tabs are remounted (epoch
@@ -825,7 +771,8 @@ export default function App() {
     setStateUnitIds(p.stateUnitIds ?? {})
     setTables(p.tables)
     setPlots(p.plots ?? [])
-    setSpreadsheets(p.spreadsheets ?? [])
+    // Inert retention (D10): keep the array to write back on save, show nothing.
+    spreadsheetsRef.current = p.spreadsheets ?? []
     // Template mode (§2.5b): analyzer layouts load with refs only — the
     // measurement data itself is gone, so each window shows a "Locate file…"
     // banner. Clear any stale samples from a previous project first.
@@ -839,13 +786,10 @@ export default function App() {
         `${awaiting} analyzer window${awaiting === 1 ? '' : 's'} awaiting measurement files — open them and use “Locate file…”.`,
       )
     }
-    // Legacy linked-table views are inert now (superseded by the Tables
-    // workbook); the field is preserved for downgrade safety (contract d).
-    if ((p.spreadsheets ?? []).some((s) => s.linkedTableId)) {
-      notices.push(
-        'This project used a linked table view — parametric tables now live in the Tables window; the old link is inactive (Unlink in the spreadsheet toolbar removes it).',
-      )
-    }
+    // D10 compatibility notice: the spreadsheet feature is removed, but the
+    // data in the file is preserved (inert), never destroyed.
+    const ssNotice = spreadsheetNotice(p.spreadsheets)
+    if (ssNotice) notices.push(ssNotice)
     setLoadNotice(notices.length > 0 ? notices.join(' ') : null)
     setResult(null)
     setCheckResult(null)
@@ -1086,7 +1030,7 @@ export default function App() {
     setStateUnitIds({})
     setTables([])
     setPlots([])
-    setSpreadsheets([])
+    spreadsheetsRef.current = []
     setAnalyzers([])
     setSchematicOffsets({})
     channelStore.clear()
@@ -1108,16 +1052,6 @@ export default function App() {
   const tableVars = activeParam?.vars ?? []
   const paramRows = activeParam?.rows ?? []
   const tableResults = activeParam?.results ?? []
-  const solvedVars = useMemo(() => {
-    const names = new Set<string>()
-    if (result?.variables) {
-      for (const v of result.variables) names.add(v.name)
-    }
-    if (checkResult?.variables) {
-      for (const v of checkResult.variables) names.add(v)
-    }
-    return Array.from(names).sort((a, b) => a.localeCompare(b))
-  }, [result, checkResult])
 
   // The parametric table window that is currently focused in the dock — the
   // TopBar's Check Table / Run Table buttons and status pill track this table.
@@ -1130,7 +1064,7 @@ export default function App() {
   })()
   const tableCheckResult = focusedParam?.checkResult ?? null
   const tableCheckMessage = focusedParam?.checkMessage ?? ''
-  // Function-table wire payloads. When the Univer Tables workbook is mounted,
+  // Function-table wire payloads. When the Tables workbook is mounted,
   // flush its pending sheet→spec sync first (contract b's pre-DTO scrape) and
   // build from the returned fresh specs — React state lands a render later,
   // too late for the calling handler's closure.
@@ -1247,7 +1181,7 @@ export default function App() {
     setStateUnitIds({})
     setTables([])
     setPlots([])
-    setSpreadsheets([])
+    spreadsheetsRef.current = []
     setAnalyzers([])
     setSchematicOffsets({})
     channelStore.clear()
@@ -1288,41 +1222,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** The equations actually solved: editor text plus spreadsheet bindings.
-   *  Reads textRef (not `text`) so a solve fired right after a keystroke sees
-   *  the document before the deferred state sync lands. */
+  /** The equations actually solved. Reads textRef (not `text`) so a solve
+   *  fired right after a keystroke sees the document before the deferred
+   *  state sync lands. (Until D10 this appended spreadsheet input bindings
+   *  and substituted spreadsheet cell references into the document; the
+   *  spreadsheet feature is removed, so a document calling the old cell
+   *  reference function now fails at parse — deliberately, and loudly.) */
   function effectiveText(): string {
-    const lines = [textRef.current]
-
-    for (const ss of spreadsheets) {
-      if (ss.bindings) {
-        for (const [varName, refStr] of Object.entries(ss.bindings)) {
-          lines.push(`${varName} = ssheet('${ss.name}', '${refStr}')`)
-        }
-      }
-    }
-
-    // ssheet() pulls a bare number out of a cell, so an input binding like
-    // `T_1 = ssheet(...)` loses the variable's unit and the solver would read the
-    // value as SI base (150 -> 150 K instead of 150 [C]). Re-attach the unit the
-    // user declared in Variable Information, but ONLY for pure `VAR = ssheet(...)`
-    // bindings resolving to a scalar — hand-written assignments stay untouched.
-    const original = lines.join('\n').split('\n')
-    const substituted = substituteSsheetRefs(lines.join('\n'), spreadsheets).split('\n')
-    const draftFor = (name: string) =>
-      varDrafts[name] ?? varDrafts[Object.keys(varDrafts).find((k) => k.toLowerCase() === name.toLowerCase()) ?? '']
-    return substituted
-      .map((subLine, i) => {
-        const bind = (original[i] ?? '').match(/^\s*([A-Za-z_]\w*)\s*=\s*ssheet\s*\(/i)
-        if (!bind) return subLine
-        const draft = draftFor(bind[1])
-        const unit = draft?.isUnitsUserSet ? draft.units.trim() : ''
-        if (!unit) return subLine
-        // Only a scalar numeric substitution — never a vector/matrix like [1, 2; 3].
-        const scalar = subLine.match(/^(\s*[A-Za-z_]\w*\s*=\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*$/)
-        return scalar ? `${scalar[1]}${scalar[2]} [${unit}]` : subLine
-      })
-      .join('\n')
+    return textRef.current
   }
 
   async function onCheck(): Promise<CheckResponse | null> {
@@ -1852,14 +1759,13 @@ export default function App() {
       // Hosted tables (function + GUI parametric) live as sheets in the
       // single Tables workbook window; no per-table windows (decision 2).
       ...tables.filter((t) => !isHostedTable(t)).map((t) => `table:${t.id}`),
-      ...spreadsheets.map((s) => `spreadsheet:${s.id}`),
       ...analyzers.map((a) => `analyzer:${a.id}`),
       ...(result?.stateTableDefs ?? checkResult?.stateTableDefs ?? []).map((s) => `state:${s.name}`),
     ])
     for (const w of openWindows) {
       if (!valid.has(w.id)) dockRef.current?.close(w.id)
     }
-  }, [mergedPlots, tables, spreadsheets, analyzers, openWindows, result?.stateTableDefs, checkResult?.stateTableDefs])
+  }, [mergedPlots, tables, analyzers, openWindows, result?.stateTableDefs, checkResult?.stateTableDefs])
 
   // Keep dock tab titles in sync with instance names (so renames in the
   // Inspector show on the tabs). Deferred out of the commit cycle so dockview's
@@ -1871,11 +1777,10 @@ export default function App() {
         if (isHostedTable(t)) continue // hosted in the Tables workbook
         dockRef.current?.setTitle(`table:${t.id}`, t.name)
       }
-      for (const s of spreadsheets) dockRef.current?.setTitle(`spreadsheet:${s.id}`, s.name)
       for (const a of analyzers) dockRef.current?.setTitle(`analyzer:${a.id}`, a.name)
     })
     return () => cancelAnimationFrame(raf)
-  }, [mergedPlots, tables, spreadsheets, analyzers])
+  }, [mergedPlots, tables, analyzers])
 
   // Analyzers with an OPEN dock window are protected from the ChannelStore's
   // over-ceiling LRU eviction (§2.5a) — tell the store which ones those are.
@@ -1913,7 +1818,7 @@ export default function App() {
   // Reusable window open/create handlers, shared by the left rail and the
   // command palette so both open real dock windows (not just highlight a tab).
   // Opens the dock window backing a table: function tables live as sheets in
-  // the single Univer Tables workbook (decision 2), everything else keeps its
+  // the single Tables workbook (decision 2), everything else keeps its
   // per-table window.
   const openTableWindow = (t: TableSpec) => {
     if (isHostedTable(t)) {
@@ -1932,16 +1837,6 @@ export default function App() {
     setActiveTableId(t.id)
     requestAnimationFrame(() => openTableWindow(t))
   }
-  const createSpreadsheet = () => {
-    const ss = newSpreadsheet(spreadsheets.length)
-    setSpreadsheets((prev) => [...prev, ss])
-    requestAnimationFrame(() => dockRef.current?.openInstance(`spreadsheet:${ss.id}`, 'spreadsheet', ss.name))
-  }
-  const openLatestOrNewSpreadsheet = () => {
-    const ss = spreadsheets[spreadsheets.length - 1]
-    if (ss) dockRef.current?.openInstance(`spreadsheet:${ss.id}`, 'spreadsheet', ss.name)
-    else createSpreadsheet()
-  }
   const createAnalyzer = () => {
     const a = newAnalyzer(analyzers.length)
     setAnalyzers((prev) => [...prev, a])
@@ -1959,129 +1854,6 @@ export default function App() {
     const a = analyzers.find((x) => x.id === id)
     if (a) for (const f of a.files) channelStore.release(f.measurementId, a.id)
     setAnalyzers((prev) => prev.filter((x) => x.id !== id))
-  }
-  const exportToSpreadsheet = (vars: VariableResult[]) => {
-    const grouped = group(vars)
-    const ss = newSpreadsheet(spreadsheets.length)
-    ss.name = `Export ${new Date().toLocaleTimeString()}`
-
-    const celldata: any[] = []
-    let currentRow = 0
-
-    // Bold formatting for headers
-    const headerStyle = { bl: 1 }
-
-    if (grouped.scalars.length > 0) {
-      celldata.push({ r: currentRow, c: 0, v: { v: 'Variable', m: 'Variable', ...headerStyle } })
-      celldata.push({ r: currentRow, c: 1, v: { v: 'Value', m: 'Value', ...headerStyle } })
-      celldata.push({ r: currentRow, c: 2, v: { v: 'Units', m: 'Units', ...headerStyle } })
-      celldata.push({ r: currentRow, c: 3, v: { v: 'Uncertainty', m: 'Uncertainty', ...headerStyle } })
-      currentRow++
-
-      for (const s of grouped.scalars) {
-        celldata.push({ r: currentRow, c: 0, v: { v: s.name, m: s.name } })
-        celldata.push({ r: currentRow, c: 1, v: { v: String(s.value), m: String(s.value) } })
-        celldata.push({ r: currentRow, c: 2, v: { v: s.units, m: s.units } })
-        if (s.uncertainty != null) {
-          celldata.push({ r: currentRow, c: 3, v: { v: String(s.uncertainty), m: String(s.uncertainty) } })
-        }
-        currentRow++
-      }
-      currentRow++
-    }
-
-    for (const g of grouped.groups) {
-      celldata.push({ r: currentRow, c: 0, v: { v: g.name, m: g.name, ...headerStyle } })
-      if (g.units) {
-        celldata.push({ r: currentRow, c: 1, v: { v: `[${g.units}]`, m: `[${g.units}]` } })
-      }
-      currentRow++
-
-      if (g.is2D) {
-        // Col headers
-        for (let j = 0; j < g.cols.length; j++) {
-          celldata.push({ r: currentRow, c: j + 1, v: { v: String(g.cols[j]), m: String(g.cols[j]), ...headerStyle } })
-        }
-        currentRow++
-        // Row data
-        for (let i = 0; i < g.rows.length; i++) {
-          const rId = g.rows[i]
-          celldata.push({ r: currentRow, c: 0, v: { v: String(rId), m: String(rId), ...headerStyle } })
-          for (let j = 0; j < g.cols.length; j++) {
-            const cId = g.cols[j]
-            const cell = g.cells.get(`${rId},${cId}`)
-            if (cell) {
-              celldata.push({ r: currentRow, c: j + 1, v: { v: String(cell.value), m: String(cell.value) } })
-            }
-          }
-          currentRow++
-        }
-      } else {
-        // Index headers
-        celldata.push({ r: currentRow, c: 0, v: { v: 'Index', m: 'Index', ...headerStyle } })
-        celldata.push({ r: currentRow, c: 1, v: { v: 'Value', m: 'Value', ...headerStyle } })
-        currentRow++
-        for (let i = 0; i < g.rows.length; i++) {
-          const rId = g.rows[i]
-          celldata.push({ r: currentRow, c: 0, v: { v: String(rId), m: String(rId), ...headerStyle } })
-          const cell = g.cells.get(`${rId}`)
-          if (cell) {
-            celldata.push({ r: currentRow, c: 1, v: { v: String(cell.value), m: String(cell.value) } })
-          }
-          currentRow++
-        }
-      }
-      currentRow++
-    }
-
-    const sheetData = emptySpreadsheetData()
-    ;(sheetData[0] as any).celldata = celldata
-    ss.sheets = sheetData
-
-    setSpreadsheets((prev) => [...prev, ss])
-    requestAnimationFrame(() => dockRef.current?.openInstance(`spreadsheet:${ss.id}`, 'spreadsheet', ss.name))
-  }
-  // "Open in Spreadsheet" (Phase 3, contract e): a one-shot, timestamped,
-  // cap-guarded snapshot into a NEW spreadsheet window — deliberately
-  // decoupled from re-solves. Shared by table exports and the states table.
-  const createSnapshotSpreadsheet = (input: SnapshotInput) => {
-    const out = buildSnapshotSheet(input)
-    if (!out.ok) {
-      if (out.reason === 'too-big') setLoadNotice(out.message)
-      return
-    }
-    const ss = newSpreadsheet(spreadsheets.length)
-    ss.name = out.name
-    const sheetData = emptySpreadsheetData()
-    Object.assign(sheetData[0] as object, {
-      celldata: out.sheet.celldata,
-      styles: out.sheet.styles,
-      name: 'Sheet1',
-    })
-    ss.sheets = sheetData
-    setSpreadsheets((prev) => [...prev, ss])
-    requestAnimationFrame(() => dockRef.current?.openInstance(`spreadsheet:${ss.id}`, 'spreadsheet', ss.name))
-  }
-
-  const exportTableToSpreadsheet = (tableId: string) => {
-    const t = tables.find((tbl) => tbl.id === tableId)
-    if (!t || t.kind !== 'parametric') return
-    createSnapshotSpreadsheet({
-      title: `Export ${t.name}`,
-      columns: [
-        { name: 'Run' },
-        ...t.vars.map((v) => ({ name: v, unit: t.columnUnits?.[v] })),
-      ],
-      rows: t.rows.map((row, i) => [
-        t.results[i] && !t.results[i].success ? `${i + 1} ✗` : i + 1,
-        ...t.vars.map((v) => {
-          const draft = row.values[v]
-          if (draft && draft.trim() !== '') return draft
-          const computed = t.results[i]?.success ? t.results[i].values[v] : undefined
-          return computed !== undefined ? computed : ''
-        }),
-      ]),
-    })
   }
   const openLatestOrNewTable = () => {
     const t = tables[tables.length - 1]
@@ -2135,7 +1907,6 @@ export default function App() {
         } },
         { id: 'view-digitizer', label: 'Graph Digitizer', leftSection: <IconChartGridDots size={18} />, onClick: () => dockRef.current?.open('digitizer') },
         { id: 'view-schematic', label: 'Schematic', description: 'Auto-rendered component network', leftSection: <IconSitemap size={18} />, onClick: () => dockRef.current?.open('schematic') },
-        { id: 'view-spreadsheet', label: 'Spreadsheet', description: 'Open the latest spreadsheet (or create one)', leftSection: <IconGrid4x4 size={18} />, onClick: openLatestOrNewSpreadsheet },
         { id: 'view-analyzer', label: 'Data Analyzer', description: 'Open the latest analyzer (or create one)', leftSection: <IconWaveSine size={18} />, onClick: openLatestOrNewAnalyzer },
         { id: 'view-inspector', label: 'Inspector', leftSection: <IconSettings size={18} />, onClick: () => dockRef.current?.open('inspector') },
       ],
@@ -2147,7 +1918,6 @@ export default function App() {
         { id: 'new-xy-plot', label: 'Add graph (X-Y)', leftSection: <IconChartLine size={18} />, onClick: () => setNewPlotKind('xy') },
         { id: 'new-property-plot', label: 'Add property graph', leftSection: <IconTemperature size={18} />, onClick: () => setNewPlotKind('property') },
         { id: 'new-psychro-plot', label: 'Add psychrometric graph', leftSection: <IconTemperature size={18} />, onClick: () => setNewPlotKind('psychro') },
-        { id: 'new-spreadsheet', label: 'Add spreadsheet', description: 'New spreadsheet workbook', leftSection: <IconGrid4x4 size={18} />, onClick: createSpreadsheet },
         { id: 'new-analyzer', label: 'Add data analyzer', description: 'Import and explore measurement data (CSV/TSV)', leftSection: <IconWaveSine size={18} />, onClick: createAnalyzer },
         { id: 'new-state-table', label: 'Add fluid state table', description: 'Insert a STATE TABLE block (fluid-aware circuit) at the caret', leftSection: <IconTemperature size={18} />, onClick: () => insertFunction('STATE TABLE Circuit1(P1, T1, h2)\n  FLUID = Water\nEND\n') },
       ],
@@ -2333,7 +2103,6 @@ export default function App() {
             onFillMissing={() => onSolve(true)}
             solving={solving}
             solvable={solvable}
-            onSnapshot={createSnapshotSpreadsheet}
           />
         </Suspense>
       </div>
@@ -2404,9 +2173,6 @@ export default function App() {
                     <Button size="xs" variant="default" color="gray" onClick={() => updateParamTable(t.id, (pt) => ({ ...pt, results: [] }))}>
                       Clear Results
                     </Button>
-                    <Button size="xs" variant="default" onClick={() => exportTableToSpreadsheet(t.id)}>
-                      Export to Spreadsheet
-                    </Button>
                   </>
                 ) : (
                   <Text size="xs" c="dimmed">Function table — edit values in the table window.</Text>
@@ -2438,33 +2204,6 @@ export default function App() {
               {p && !p.fromCode && (
                 <Button size="xs" variant="light" color="red" onClick={() => handlePlotsChange(plots.filter((x) => x.id !== p.id))}>
                   Delete plot
-                </Button>
-              )}
-            </Stack>
-          </div>
-        )
-      }
-
-      // Spreadsheet: rename + delete
-      if (fw?.kind === 'spreadsheet') {
-        const ss = spreadsheets.find((x) => `spreadsheet:${x.id}` === fw.id)
-        return (
-          <div style={bodyStyle}>
-            <Stack gap="xs">
-              <Text size="sm" fw={600} c="teal.4">Spreadsheet</Text>
-              <TextInput
-                size="xs"
-                label="Name"
-                value={ss?.name ?? ''}
-                disabled={!ss}
-                onChange={(e) => {
-                  const value = e.currentTarget.value
-                  if (ss) setSpreadsheets(spreadsheets.map((x) => (x.id === ss.id ? { ...x, name: value } : x)))
-                }}
-              />
-              {ss && (
-                <Button size="xs" variant="light" color="red" onClick={() => setSpreadsheets(spreadsheets.filter((x) => x.id !== ss.id))}>
-                  Delete spreadsheet
                 </Button>
               )}
             </Stack>
@@ -2549,7 +2288,6 @@ export default function App() {
             components={result?.components}
             diagnostics={result}
             onEdit={() => setShowVariableInfo(true)}
-            onExportSpreadsheet={exportToSpreadsheet}
             onTunePid={openPidTunerFor}
             pinnedNames={pinnedSliderNames}
             pinnableNames={pinnableNames}
@@ -2655,30 +2393,6 @@ export default function App() {
     )
   }
 
-  // Per-instance Spreadsheet windows:
-  for (const ss of spreadsheets) {
-    const winId = `spreadsheet:${ss.id}`
-    panelTitles[winId] = ss.name
-    panelContent[winId] = (
-      <div style={{ height: '100%', minHeight: 0 }}>
-        <Suspense fallback={lazyTabFallback}>
-          <SpreadsheetTab
-            key={`spreadsheet-${ss.id}-${workspaceEpoch}`}
-            singleSpreadsheetId={ss.id}
-            spreadsheets={spreadsheets}
-            onSpreadsheetsChange={setSpreadsheets}
-            availableVariables={solvedVars}
-            onInsertText={insertEquationLine}
-            onCreateTable={(newTable) => {
-              setTables((prev) => [...prev, newTable])
-              requestAnimationFrame(() => dockRef.current?.openInstance(`table:${newTable.id}`, 'table', newTable.name))
-            }}
-          />
-        </Suspense>
-      </div>
-    )
-  }
-
   // Per-instance Plot windows: every plot (X-Y, property diagram, or
   // psychrometric chart) opens as its own dock window ("plot:<id>"). Plot data
   // is global solve output, so these are self-contained. A kind chip
@@ -2710,7 +2424,6 @@ export default function App() {
           tableUnits={activeParam?.columnUnits}
           activePlotId={pl.id}
           onActivePlotIdChange={setActivePlotId}
-          spreadsheets={spreadsheets}
         />
         </Suspense>
       </div>
@@ -2741,13 +2454,12 @@ export default function App() {
           }}
           solving={solving && fillMissingFor === s.name}
           solvable={solvable}
-          onSnapshot={createSnapshotSpreadsheet}
         />
       </div>
     )
   }
 
-  // The single Univer Tables workbook window hosting every editable table
+  // The single Tables workbook window (native glide grid, D10) hosting every editable table
   // (function/lookup + GUI parametric) as a bound sheet (decision 2 of the
   // unification plan). Code PARAMETRIC / ODE tables keep per-table windows.
   {
@@ -2789,7 +2501,6 @@ export default function App() {
             singleTableId={t.id}
             varDrafts={varDrafts}
             onPlotColumns={handlePlotColumns}
-            onExportTable={exportTableToSpreadsheet}
             onCopyToEditable={(copy) => {
               setTables((prev) => [...prev, copy])
               setActiveTableId(copy.id)
@@ -2873,14 +2584,6 @@ export default function App() {
         onSelect={(kind) => dockRef.current?.open(kind)}
         onClose={(kind) => dockRef.current?.close(kind)}
         onApplyLayout={(p) => dockRef.current?.applyPerspective(p)}
-        spreadsheets={spreadsheets.map((ss) => ({ id: ss.id, name: ss.name, deletable: true }))}
-        spreadsheetCount={spreadsheets.length}
-        onOpenSpreadsheet={(id) => {
-          const ss = spreadsheets.find((x) => x.id === id)
-          if (ss) dockRef.current?.openInstance(`spreadsheet:${id}`, 'spreadsheet', ss.name)
-        }}
-        onDeleteSpreadsheet={(id) => setSpreadsheets((prev) => prev.filter((s) => s.id !== id))}
-        onNewSpreadsheet={createSpreadsheet}
         analyzers={analyzers.map((a) => ({ id: a.id, name: a.name, deletable: true }))}
         analyzerCount={analyzers.length}
         onOpenAnalyzer={(id) => {

@@ -88,9 +88,27 @@ dropped.
 Vendored-tree fork: all `src/spreadsheet/*` files were unmodified upstream;
 removal makes them a permanent divergence. `WASM-PORT.md`'s re-sync
 procedure gains a D5-clip-style paragraph (future rsyncs re-delete
-`src/spreadsheet/` and re-apply the Tables routing). Measurements
-(dist/precache/node_modules before → after) are recorded here at the purge
-step. Engine-side, the `functionTables` injection is graded by an
+`src/spreadsheet/` and re-apply the Tables routing).
+
+Measured at the purge step (2026-08-23, both builds on the same tree — the
+"before" with phase 1's native grid merged and Univer still installed for
+`SpreadsheetTab`, so the deltas are the purge's alone):
+
+|  | before | after | delta |
+|---|---|---|---|
+| `dist` total | 15,161,189 B (14.46 MiB), 101 files | 9,696,860 B (9.25 MiB), 97 files | **−5,464,329 B (−36.0 %)** |
+| precache manifest | 104 entries (14,783.79 KiB) | 100 entries (9,447.75 KiB) | −4 entries, **−5,336 KiB (−36.1 %)** |
+| Univer chunk | `SpreadsheetTab-*.js` 5,356,419 B raw / 1,467,526 B gzip + 84,242 B CSS + a 37 B hyphenation stub | none (no dist file matches univer/Spreadsheet; no emitted JS contains `univerjs`) | −5.19 MiB raw / −1.40 MiB on the wire |
+| `node_modules` | 903 MB | 638 MB | **−265 MB** (73 `@univerjs/*` packages + `rxjs` + unique transitives; `package-lock.json` −5,602 lines) |
+| `vite.config.ts` | 323 lines, two Univer strip plugins + hyphenation glob machinery, `maximumFileSizeToCacheInBytes` 8 MiB | 170 lines, `maximumFileSizeToCacheInBytes` 4 MiB (the 3.0 MB wasm is now the largest precached file) | — |
+
+The largest file in the app is now the wasm engine itself. Gates at the purge
+commit: `tsc -b` 0 errors; vitest 38 files / 397 tests green (was 41/442 —
+the three Univer-layer suites left with their subjects, their contract lives
+on in `tablesGrid/tableGridModel.test.ts`, which also gained the one
+blank-cell formula-surfacing case the retargeting had missed); `npm run
+build` green with zero Univer chunks; `vite --help` proves the config still
+evaluates after the uninstall. Engine-side, the `functionTables` injection is graded by an
 equivalence oracle — a table injected via the request must answer bit-
 identically to the same table written as a `TABLE` block — plus wasm-level
 tests in the `solve_table.rs` style. One rule the implementation verified

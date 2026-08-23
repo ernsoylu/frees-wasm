@@ -28,7 +28,6 @@ import {
 } from './types'
 import { defaultUnitId, unitIdsFor } from './units'
 import { StateTableDto } from '../api'
-import { SpreadsheetSpec } from '../spreadsheet/types'
 import { displayVar, varOptions } from '../varDisplay'
 
 interface Props {
@@ -46,7 +45,6 @@ interface Props {
   /** Declared STATE TABLE blocks, so property/psychro plots can overlay one
    * specific circuit's states (and adopt its fluid). */
   stateTables?: StateTableDto[]
-  spreadsheets?: SpreadsheetSpec[]
   onSave: (spec: PlotSpec) => void
   onClose: () => void
 }
@@ -63,61 +61,19 @@ const CHART_TYPE_OPTIONS = [
 function XYSection({
   config,
   tableVars,
-  spreadsheets = [],
   onChange,
 }: Readonly<{
   config: XYConfig
   tableVars: string[]
-  spreadsheets?: SpreadsheetSpec[]
   onChange: (config: XYConfig) => void
 }>) {
   const chartType = config.chartType ?? 'line'
-  const isSpreadsheet = config.xVar?.startsWith('spreadsheet:') ?? false
-  const sourceType = isSpreadsheet ? 'spreadsheet' : 'variables'
   // Options show demangled labels (brg$port$t → brg.port.t) but keep the raw
   // name as the value so the selection still keys into the table data.
   const varOpts = varOptions(tableVars)
 
-  const ssId = isSpreadsheet ? config.xVar!.split('!')[0].replace('spreadsheet:', '') : ''
-  const ssOptions = spreadsheets.map((s) => ({ value: s.id, label: s.name }))
-
-  const getSsProp = (ref: string | null, prop: 'sheet' | 'range') => {
-    if (!ref || !ref.startsWith('spreadsheet:')) return ''
-    const parts = ref.split('!')
-    if (prop === 'sheet') return parts.length > 2 ? parts[1] : 'Sheet1'
-    if (prop === 'range') return parts.pop() || ''
-    return ''
-  }
-
-  const ssSheet = getSsProp(config.xVar, 'sheet') || 'Sheet1'
-  const xRange = getSsProp(config.xVar, 'range')
-  const yRange = config.yVars[0] ? getSsProp(config.yVars[0], 'range') : ''
-
-  const handleSpreadsheetChange = (newSsId: string, newSheet: string, newX: string, newY: string) => {
-    const prefix = `spreadsheet:${newSsId}!${newSheet}!`
-    onChange({
-      ...config,
-      xVar: newX ? prefix + newX : null,
-      yVars: newY ? [prefix + newY] : [],
-      y2Vars: [],
-    })
-  }
-
   return (
     <Stack gap="xs">
-      <SegmentedControl
-        size="xs"
-        data={[
-          { value: 'variables', label: 'Table / Variables' },
-          { value: 'spreadsheet', label: 'Spreadsheet' },
-        ]}
-        value={sourceType}
-        onChange={(v) => {
-          if (v === 'variables') onChange({ ...config, xVar: null, yVars: [], y2Vars: [] })
-          else if (spreadsheets.length > 0) handleSpreadsheetChange(spreadsheets[0].id, 'Sheet1', '', '')
-        }}
-      />
-
       <Group grow>
         <Select
           label="Chart Type"
@@ -133,95 +89,59 @@ function XYSection({
             })
           }}
         />
-        {sourceType === 'variables' ? (
+        <Select
+          label={chartType === 'histogram' ? 'Variable (uses Y-axis)' : 'X-axis variable'}
+          size="xs"
+          data={varOpts}
+          value={config.xVar}
+          onChange={(xVar) => onChange({ ...config, xVar })}
+          searchable
+          disabled={chartType === 'histogram'}
+        />
+      </Group>
+
+      <Group grow>
+        <MultiSelect
+          label={chartType === 'pie' ? 'Value variable (uses first Y)' : 'Y-axis variables'}
+          size="xs"
+          data={varOpts}
+          value={config.yVars}
+          onChange={(yVars) => onChange({ ...config, yVars })}
+          maxValues={chartType === 'pie' ? 1 : undefined}
+          searchable
+        />
+        {chartType === 'surface3d' && (
           <Select
-            label={chartType === 'histogram' ? 'Variable (uses Y-axis)' : 'X-axis variable'}
+            label="Z-axis variable"
             size="xs"
             data={varOpts}
-            value={config.xVar}
-            onChange={(xVar) => onChange({ ...config, xVar })}
+            value={config.zVar ?? null}
+            onChange={(zVar) => onChange({ ...config, zVar })}
             searchable
-            disabled={chartType === 'histogram'}
           />
-        ) : (
+        )}
+        {chartType === 'scatter' && (
           <Select
-            label="Spreadsheet"
+            label="Bubble size variable (optional)"
             size="xs"
-            data={ssOptions}
-            value={ssId}
-            onChange={(id) => id && handleSpreadsheetChange(id, ssSheet, xRange, yRange)}
-            disabled={ssOptions.length === 0}
+            data={varOpts}
+            value={config.sizeVar ?? null}
+            onChange={(sizeVar) => onChange({ ...config, sizeVar })}
+            searchable
+            clearable
           />
         )}
       </Group>
-
-      {sourceType === 'variables' ? (
-        <>
-          <Group grow>
-            <MultiSelect
-              label={chartType === 'pie' ? 'Value variable (uses first Y)' : 'Y-axis variables'}
-              size="xs"
-              data={varOpts}
-              value={config.yVars}
-              onChange={(yVars) => onChange({ ...config, yVars })}
-              maxValues={chartType === 'pie' ? 1 : undefined}
-              searchable
-            />
-            {chartType === 'surface3d' && (
-              <Select
-                label="Z-axis variable"
-                size="xs"
-                data={varOpts}
-                value={config.zVar ?? null}
-                onChange={(zVar) => onChange({ ...config, zVar })}
-                searchable
-              />
-            )}
-            {chartType === 'scatter' && (
-              <Select
-                label="Bubble size variable (optional)"
-                size="xs"
-                data={varOpts}
-                value={config.sizeVar ?? null}
-                onChange={(sizeVar) => onChange({ ...config, sizeVar })}
-                searchable
-                clearable
-              />
-            )}
-          </Group>
-          {(chartType === 'line' || chartType === 'bar' || chartType === 'scatter') && (
-            <MultiSelect
-              label="Right Y-axis variables (optional, dual-Y)"
-              size="xs"
-              data={varOptions(tableVars.filter((v) => !config.yVars.includes(v)))}
-              value={config.y2Vars ?? []}
-              onChange={(y2Vars) => onChange({ ...config, y2Vars })}
-              searchable
-              clearable
-            />
-          )}
-        </>
-      ) : (
-        <Group grow>
-          <TextInput
-            label="Sheet Name"
-            size="xs"
-            value={ssSheet}
-            onChange={(e) => handleSpreadsheetChange(ssId, e.currentTarget.value, xRange, yRange)}
-          />
-          <TextInput
-            label="X Range (e.g. A1:A10)"
-            size="xs"
-            value={xRange}
-            onChange={(e) => handleSpreadsheetChange(ssId, ssSheet, e.currentTarget.value, yRange)}
-          />
-          <TextInput
-            label="Y Range (e.g. B1:B10)"
-            size="xs"
-            value={yRange}
-            onChange={(e) => handleSpreadsheetChange(ssId, ssSheet, xRange, e.currentTarget.value)}
-          />
-        </Group>
+      {(chartType === 'line' || chartType === 'bar' || chartType === 'scatter') && (
+        <MultiSelect
+          label="Right Y-axis variables (optional, dual-Y)"
+          size="xs"
+          data={varOptions(tableVars.filter((v) => !config.yVars.includes(v)))}
+          value={config.y2Vars ?? []}
+          onChange={(y2Vars) => onChange({ ...config, y2Vars })}
+          searchable
+          clearable
+        />
       )}
     </Stack>
   )
@@ -699,7 +619,6 @@ export default function PlotConfigModal({
   initialXy,
   hasStates,
   stateTables = [],
-  spreadsheets = [],
   onSave,
   onClose,
 }: Readonly<Props>) {
@@ -750,7 +669,6 @@ export default function PlotConfigModal({
           <XYSection
             config={draft.xy}
             tableVars={tableVars}
-            spreadsheets={spreadsheets}
             onChange={(xy) => setDraft({ ...draft, xy })}
           />
         )}

@@ -138,13 +138,6 @@ export const MATH_FUNCTIONS: FuncGroup[] = [
       { name: 'RandG(μ, σ)', desc: 'Gaussian random number' },
     ],
   },
-  {
-    title: 'Data Integration',
-    blurb: 'Functions to pull data from external UI sources into the solver.',
-    functions: [
-      { name: 'ssheet(Sheet, Range)', desc: 'Reads data directly from a spreadsheet cell or range into a scalar, vector, or matrix. Sheet name is required.', example: 'data = ssheet(Sheet1, A1:B10)' },
-    ],
-  },
 ];
 
 // ── CALL-able procedures (control systems & linear algebra) ─────────────────

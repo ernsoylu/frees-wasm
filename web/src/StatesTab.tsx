@@ -1,9 +1,8 @@
-import { Badge, Button, Group, Select, Table, Text, Stack, Tooltip } from '@mantine/core'
+import { Badge, Button, Group, Select, Table, Text, Stack } from '@mantine/core'
 import { StateTableDto, VariableResult } from './api'
 import { detectStates, detectStateTables, StateTable } from './plots/stateTable'
 import { PROPERTY_UNITS, resolveUnit, unitIdsFor } from './plots/units'
 import { formatValue } from './format'
-import type { SnapshotInput } from './spreadsheet/snapshot'
 
 const PROPERTY_NAMES: Record<string, string> = {
   T: 'T',
@@ -124,10 +123,6 @@ interface StatesTabProps {
   onFillMissing?: () => void
   solving?: boolean
   solvable?: boolean
-  /** "Open in Spreadsheet": one-shot snapshot of a state grid (converted to
-   * the currently selected display units) into a new spreadsheet window
-   * (Phase 3, contract e of the table-spreadsheet unification plan). */
-  onSnapshot?: (input: SnapshotInput) => void
 }
 
 export default function StatesTab({
@@ -138,37 +133,7 @@ export default function StatesTab({
   onFillMissing,
   solving = false,
   solvable = false,
-  onSnapshot,
 }: Readonly<StatesTabProps>) {
-  // Snapshot rows carry the same display-unit conversion the grid renders.
-  const snapshotOf = (st: StateTable): SnapshotInput => {
-    const unitIdOf = (property: string): string =>
-      unitIds[property] ?? PROPERTY_UNITS[property]?.[0]?.id ?? '-'
-    return {
-      title: `States ${(st as { name?: string }).name ?? ''}`.trim(),
-      columns: [
-        { name: 'State' },
-        ...st.columns.map((p) => ({ name: PROPERTY_NAMES[p] ?? p, unit: unitIdOf(p) })),
-      ],
-      rows: st.indices.map((index) => [
-        index,
-        ...st.columns.map((p) => {
-          const value = st.values[index][p]
-          if (value === undefined) return ''
-          const unit = resolveUnit(p, unitIdOf(p), false)
-          return formatValue(value * unit.scale + unit.offset)
-        }),
-      ]),
-    }
-  }
-  const snapshotButton = (st: StateTable) =>
-    onSnapshot && st.indices.length > 0 ? (
-      <Tooltip label="One-shot snapshot into a new spreadsheet (timestamped; current display units)">
-        <Button size="compact-xs" variant="default" onClick={() => onSnapshot(snapshotOf(st))}>
-          Open in Spreadsheet
-        </Button>
-      </Tooltip>
-    ) : null
   const declared = detectStateTables(solvedVariables, stateTableDefs)
   const implicit = declared.length === 0 ? detectStates(solvedVariables) : null
 
@@ -208,10 +173,7 @@ export default function StatesTab({
 
       <div style={{ overflow: 'auto', flex: 1 }}>
         {implicit ? (
-          <Stack gap={6}>
-            <Group justify="flex-end">{snapshotButton(implicit)}</Group>
-            <StateGrid state={implicit} unitIds={unitIds} onUnitIdsChange={onUnitIdsChange} />
-          </Stack>
+          <StateGrid state={implicit} unitIds={unitIds} onUnitIdsChange={onUnitIdsChange} />
         ) : (
           <Stack gap="lg">
             {declared.map((st) => (
@@ -221,7 +183,6 @@ export default function StatesTab({
                   {st.fluid && (
                     <Badge size="sm" variant="light" color="teal">{st.fluid}</Badge>
                   )}
-                  {snapshotButton(st)}
                 </Group>
                 {st.indices.length === 0 ? (
                   <Text size="xs" c="dimmed">No solved states yet for this table.</Text>

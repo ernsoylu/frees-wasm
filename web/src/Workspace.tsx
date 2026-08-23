@@ -16,7 +16,6 @@ import {
   IconAdjustmentsHorizontal,
   IconChevronRight,
   IconComponents,
-  IconFileExport,
   IconPencil,
   IconSearch,
   IconTable,
@@ -400,7 +399,6 @@ interface Props {
   components?: ComponentResult[]
   /** Opens the Variable Information modal (guesses, bounds, units, uncertainty). */
   onEdit?: () => void
-  onExportSpreadsheet?: (vars: VariableResult[]) => void
   /** Opens the PID Tuner for a selected SigPID component instance. */
   onTunePid?: (c: ComponentGroup) => void
   /** Opens the PID Tuner for a selected SigPID component instance. */
@@ -417,7 +415,7 @@ interface Props {
   sliderStrip?: React.ReactNode
 }
 
-export default function Workspace({ variables, replNames, components: instances, onEdit, onExportSpreadsheet, onTunePid, diagnostics, pinnedNames, pinnableNames, onPin, sliderStrip }: Readonly<Props>) {
+export default function Workspace({ variables, replNames, components: instances, onEdit, onTunePid, diagnostics, pinnedNames, pinnableNames, onPin, sliderStrip }: Readonly<Props>) {
   const [query, setQuery] = useState('')
   // The input stays urgent (every keystroke paints immediately); the heavy
   // filter + regroup below trails behind at transition priority, so typing in
@@ -475,16 +473,6 @@ export default function Workspace({ variables, replNames, components: instances,
             onChange={(e) => setQuery(e.currentTarget.value)}
             aria-label="Filter workspace variables"
           />
-          {onExportSpreadsheet && !empty && (
-            <Button
-              size="xs"
-              variant="default"
-              leftSection={<IconFileExport size={14} />}
-              onClick={() => onExportSpreadsheet(variables)}
-            >
-              Export to Spreadsheet
-            </Button>
-          )}
           {onEdit && (
             <Button
               size="xs"

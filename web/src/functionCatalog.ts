@@ -337,12 +337,6 @@ export const FUNCTION_CATEGORIES: FunctionCategory[] = [
       { label: 'mason (signal-flow graph gain)', snippet: 'CALL mason(G, source, sink : T)', description: "Overall transmittance of a scalar signal-flow graph by Mason's gain formula. G is a square node-gain matrix (G[i,j] = branch gain from node i to node j, 0 = no branch); source and sink are 1-based node numbers.", usage: 'CALL mason(G[1:4,1:4], 1, 4 : T)' },
     ],
   },
-  {
-    category: 'Data Integration',
-    items: [
-      { label: 'ssheet', snippet: "ssheet($1, $0)", description: 'Fetch a scalar, vector, or matrix from a spreadsheet cell range. Requires the sheet name, e.g. ssheet(Sheet1, A1:A10)', usage: 'my_array = ssheet(Sheet1, A1:A10)\ndata = ssheet(Spreadsheet1, Sheet1!A1)' },
-    ],
-  },
 ]
 
 // Block-construct keywords whose catalog snippets are scaffolds, not callable

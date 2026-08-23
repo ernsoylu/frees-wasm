@@ -26,7 +26,7 @@ import { newParamRow, ParamRow, ParamTableSpec, TableSpec } from '../tables'
  * and swamping the solver. Matches the engine-side cap. */
 export const TABLE_MAX_ROWS = 5000
 
-export { isHostedTable } from '../spreadsheet/tablesWorkbookBridge'
+export { isHostedTable } from './tablesWorkbookBridge'
 
 /** Formula error literals (#REF! after a referenced sheet was deleted,
  * #DIV/0!, …). They can no longer be produced in the grid (formulas are not

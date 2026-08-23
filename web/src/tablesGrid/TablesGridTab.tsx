@@ -63,8 +63,8 @@ import {
   TableSpec,
 } from '../tables'
 import { useGlideTheme } from '../DataGridReadOnly'
-import { tablesWorkbookSync } from '../spreadsheet/tablesWorkbookBridge'
-import { downloadValuesAsCsv } from '../spreadsheet/csv'
+import { tablesWorkbookSync } from './tablesWorkbookBridge'
+import { downloadValuesAsCsv } from './csv'
 import {
   appendRow,
   applyCellEdit,

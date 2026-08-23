@@ -11,9 +11,9 @@ const DataGridReadOnly = lazy(() => import('./DataGridReadOnly'))
 // ---------------------------------------------------------------------------
 // Read-only table window: code-defined PARAMETRIC tables and solved ODE
 // trajectories, each in its own dock window ("table:<id>"). Editable tables
-// (GUI parametric + all function/lookup tables) live as bound sheets in the
-// Univer Tables workbook (TablesWorkbookTab) — the Mantine editors this file
-// used to host were retired in Phase 4 of the unification plan.
+// (GUI parametric + all function/lookup tables) live in the Tables workbook
+// (tablesGrid/TablesGridTab) — the Mantine editors this file used to host
+// were retired in Phase 4 of the unification plan.
 // ---------------------------------------------------------------------------
 
 interface Props {
@@ -24,11 +24,8 @@ interface Props {
   /** Open a new X-Y plot from the column selection (x = first column / time,
    * y = the selected columns). */
   onPlotColumns?: (xVar: string, yVars: string[]) => void
-  /** "Open in Spreadsheet": one-shot snapshot into a new spreadsheet window
-   * (Phase 3, contract e). */
-  onExportTable?: (id: string) => void
   /** Make an editable GUI copy (decoupled from the editor text); the copy
-   * opens as a bound sheet in the Tables workbook. */
+   * opens in the Tables workbook. */
   onCopyToEditable?: (copy: TableSpec) => void
 }
 
@@ -70,13 +67,6 @@ export default function TablesTab(props: Readonly<Props>) {
               onClick={() => props.onCopyToEditable?.(duplicateAsEditable(active))}
             >
               Editable copy
-            </Button>
-          </Tooltip>
-        )}
-        {props.onExportTable && (
-          <Tooltip label="One-shot snapshot into a new spreadsheet (timestamped; not linked to re-solves)">
-            <Button size="compact-xs" variant="default" onClick={() => props.onExportTable?.(active.id)}>
-              Open in Spreadsheet
             </Button>
           </Tooltip>
         )}

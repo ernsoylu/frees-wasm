@@ -52,7 +52,6 @@ import {
   IconSearch,
   IconVariable,
   IconWaveSine,
-  IconGrid4x4,
   IconLink,
   IconPrinter,
 } from '@tabler/icons-react'
@@ -85,7 +84,6 @@ const VIEWS = [
     tip: 'Schematic — auto-rendered component network',
     icon: IconSitemap,
   },
-  { value: 'spreadsheet', label: 'Spreadsheet', tip: 'Spreadsheet — formula-capable workbook', icon: IconGrid4x4 },
   { value: 'analyzer', label: 'Analyzer', tip: 'Data Analyzer — explore imported measurement data', icon: IconWaveSine },
   { value: 'terminal', label: 'Terminal', tip: 'Terminal — REPL evaluated against the workspace', icon: IconTerminal2 },
 ]
@@ -110,13 +108,6 @@ interface RailProps {
   onClose?: (view: string) => void
   /** Rebuild the dock as a named layout preset (shows the Layout menu). */
   onApplyLayout?: (perspective: LayoutPerspective) => void
-  /** Spreadsheets available to open as individual windows. */
-  spreadsheets?: { id: string; name: string; deletable?: boolean }[]
-  /** Number of spreadsheet windows currently open. */
-  spreadsheetCount?: number
-  onOpenSpreadsheet?: (id: string) => void
-  onNewSpreadsheet?: () => void
-  onDeleteSpreadsheet?: (id: string) => void
   /** Data Analyzer windows available to open (measurement analysis). */
   analyzers?: { id: string; name: string; deletable?: boolean }[]
   /** Number of analyzer windows currently open. */
@@ -379,11 +370,6 @@ export function Rail({
   onSelect,
   onClose,
   onApplyLayout,
-  spreadsheets,
-  spreadsheetCount = 0,
-  onOpenSpreadsheet,
-  onNewSpreadsheet,
-  onDeleteSpreadsheet,
   analyzers,
   analyzerCount = 0,
   onOpenAnalyzer,
@@ -447,23 +433,7 @@ export function Rail({
           onClick={toggle}
         />
         {VIEWS.map((view) =>
-          view.value === 'spreadsheet' && spreadsheets ? (
-            <InstanceLauncher
-              key={view.value}
-              expanded={expanded}
-              active={active === 'spreadsheet'}
-              count={spreadsheetCount}
-              idPrefix="spreadsheet:"
-              label="Spreadsheet"
-              newActions={[{ label: 'New spreadsheet', onClick: () => onNewSpreadsheet?.() }]}
-              emptyLabel="No spreadsheets yet"
-              icon={<IconGrid4x4 size={iconSize} stroke={1.6} />}
-              items={spreadsheets}
-              openIds={openIdSet}
-              onOpen={onOpenSpreadsheet}
-              onDelete={onDeleteSpreadsheet}
-            />
-          ) : view.value === 'analyzer' && analyzers ? (
+          view.value === 'analyzer' && analyzers ? (
             <InstanceLauncher
               key={view.value}
               expanded={expanded}

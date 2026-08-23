@@ -72,22 +72,46 @@ helpers stay as the wiring seam. When re-syncing from upstream, re-apply the
 clip; when wiring a feature, restore its modal from git history and delete
 this paragraph's entry for it.
 
-## The Tables grid (decision D10, Wave H — phase 1)
+## The Tables grid + the spreadsheet purge (decision D10, Wave H)
 
 The Tables workbook is a **native glide-data-grid implementation**:
 `src/tablesGrid/TablesGridTab.tsx` renders TableSpecs directly and
 `src/tablesGrid/tableGridModel.ts` carries the binding rules retargeted from
-`src/spreadsheet/tableBinding.ts` (computed-cell visibility, the 5000-row
-cap, error-literal sanitization, paste-region clipping, read-only surfacing
-of stored `spec.formulas`). `src/App.tsx` lazy-loads it in place of the
-Univer `TablesWorkbookTab`, and the AlterValuesModal application routes
-through the model's `applyColumnFill`. The dock window id stays
+the old `src/spreadsheet/tableBinding.ts` (computed-cell visibility, the
+5000-row cap, error-literal sanitization, paste-region clipping, read-only
+surfacing of stored `spec.formulas`). `src/App.tsx` lazy-loads it in place
+of the Univer `TablesWorkbookTab`, and the AlterValuesModal application
+routes through the model's `applyColumnFill`. The dock window id stays
 `table:univer-workbook` (persisted in saved layouts; also hardcoded in
-`MobileLayout.tsx`). **The Univer files and packages are still present in
-this phase** — `SpreadsheetTab` still uses them; the purge (dependency
-removal + `src/spreadsheet/` deletion + vite plugin removal, in one commit)
-is the next phase. When re-syncing from upstream, keep `src/tablesGrid/` and
-re-apply the `App.tsx` Tables routing.
+`MobileLayout.tsx`).
+
+**Phase 2 (the purge) removed the spreadsheet feature and Univer entirely.**
+`src/spreadsheet/` is deleted; `tablesWorkbookBridge.ts` and `csv.ts`
+(both Univer-free, needed by the grid) moved into `src/tablesGrid/`; the
+`SpreadsheetSpec` type moved into `src/project.ts`, where the `spreadsheets`
+array of a `.frees` file is still parsed and re-serialized — **inert
+retention**: App carries a loaded project's spreadsheet data through to save
+without ever showing or destroying it, and shows a one-time notice when the
+array is non-empty. `@univerjs/preset-sheets-core`, `@univerjs/presets`,
+`rxjs` and the `lodash-es` override left `package.json` in the same commit
+as `vite.config.ts` lost the two Univer strip plugins and the hyphenation
+glob machinery (that config `readdirSync`s the package at eval time — the
+D10 trap), and `maximumFileSizeToCacheInBytes` dropped 8 → 4 MiB.
+
+Additional forks the purge made (all UI-side removals of the dead feature):
+`src/StatesTab.tsx` and `src/TablesTab.tsx` (the "Open in Spreadsheet"
+snapshot actions), `src/Workspace.tsx` ("Export to Spreadsheet"),
+`src/WorkspaceChrome.tsx` (the rail entry + launcher), `src/PlotTab.tsx`,
+`src/plots/PlotCard.tsx`, `src/plots/PlotConfigModal.tsx` (the
+`spreadsheet:id!Range` plot data source), `src/helpReference.ts` and
+`src/functionCatalog.ts` (the spreadsheet cell-reference function rows —
+documents calling it now fail loudly at parse), and `src/project.ts`.
+
+**Future vendor rsyncs must: re-delete `src/spreadsheet/`, skip the removed
+dependencies (`@univerjs/*`, `rxjs`, the `lodash-es` override), keep
+`src/tablesGrid/` with the `App.tsx` Tables routing, and re-apply the
+forks listed above.** Measurements (−5.19 MiB dist, −265 MB node_modules)
+are in docs/decisions/0010-remove-spreadsheet.md's Consequences.
 
 ## Everything else stays in sync with upstream
 

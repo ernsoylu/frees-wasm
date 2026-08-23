@@ -12,7 +12,6 @@ import type { StopCriteria, UnitSystem } from './api'
 import type { VariableDraft } from './VariableInfoModal'
 import type { TableSpec } from './tables'
 import type { PlotSpec } from './plots/types'
-import type { SpreadsheetSpec } from './spreadsheet/types'
 import type { PinnedSlider } from './sliders'
 import type { AnalyzerSpec } from './analyzer/types'
 import type { SchematicOffsets } from './schematic/layout'
@@ -26,6 +25,33 @@ import type { SchematicOffsets } from './schematic/layout'
 // exactly "nothing dragged yet".
 const PROJECT_VERSION = 3
 const PROJECT_KEY = 'frees.project'
+
+/**
+ * A free-form spreadsheet workbook, as persisted in `.frees` files.
+ *
+ * The spreadsheet FEATURE is removed (decision D10, Wave H) — no UI renders
+ * or edits these any more. The type stays because the data stays: a loaded
+ * project's `spreadsheets` array is carried inert through App and written
+ * back on save, never destroyed (the `linkedTableId` precedent — D10's
+ * compatibility policy). App shows a one-time notice when a loaded project's
+ * array is non-empty.
+ */
+export interface SpreadsheetSpec {
+  id: string
+  name: string
+  /** Sheet data array — opaque JSON. Each entry is `{ name, id, celldata,
+   *  styles, … }` in the legacy `{ r, c, v: { v, m, f? } }` cell shape. */
+  sheets: unknown[]
+  /** Input bindings (variable name → cell ref); inert since D10. */
+  bindings?: Record<string, string>
+  /** Result bindings (variable name → cell ref); inert since D10. */
+  resultBindings?: Record<string, string>
+  /** Whether result bindings auto-synced after a solve; inert since D10. */
+  autoSync?: boolean
+  /** SUPERSEDED even before D10 (the old one-off parametric↔sheet link);
+   * kept parsed for downgrade safety. */
+  linkedTableId?: string
+}
 
 // Child-owned localStorage keys bridged into the project file. These mirror the
 // literals used inside DigitizerTab.tsx and WorkspaceDock.tsx; the project

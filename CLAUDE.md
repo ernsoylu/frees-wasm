@@ -310,6 +310,7 @@ cargo bench -p frees-core --bench solve_bench          # the Phase 12 benchmarks
 cargo test -p frees-core --test props_robustness       # the property-surface fuzz
 cargo test -p frees-core --test component_robustness   # the component-surface fuzz
 cargo test -p frees-core --test cas_control_robustness # the CAS + control fuzz
+cargo test -p frees-core --test dae_robustness         # the DAE API fuzz (Wave G6)
 cargo test -p frees-core --test dynamics_robustness    # the transient + analysis fuzz
                                        # (run this one in DEBUG too — the stack-overflow
                                        #  defect it found only reproduced unoptimised)

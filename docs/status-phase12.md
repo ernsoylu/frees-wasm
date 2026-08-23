@@ -288,6 +288,18 @@ gating the new dev-dependencies off the wasm target in the manifest.
    oracle cannot be regenerated on this machine (not installed) — its
    `ORACLE_*` constants are effectively frozen until someone installs
    SUNDIALS ≥ 6 with KLU.
+   *(Closed 2026-08-23, Wave G6 — both halves. The "not installed" had
+   rotted: Ubuntu 24.04's `libsundials-dev` 6.4.1 with `sunlinsolklu` was
+   already present, and `tools/dae-probe/run.sh` reproduces the committed
+   `fixtures/dae-oracle.json` **bit-identically** against live SUNDIALS
+   IDA + KLU, so the `ORACLE_*` constants are re-measurable and freshly
+   validated. The API-level fuzz is `tests/dae_robustness.rs`: proptest
+   over the raw `IdaDaeSolver` contract — hostile driver sequences,
+   closed-form grading of a linear DAE, consistent-IC repair of an
+   inconsistent algebraic start, root location/direction, a poisoned
+   mid-integration residual, sparse-vs-dense agreement above
+   `SPARSE_THRESHOLD`, and typed misuse refusals. 7 properties, green at a
+   4096-case soak and in debug.)*
 5. **Benchmarks are not a CI gate.** They run locally (`cargo bench`); no
    regression threshold exists. Deliberate for now — criterion noise on
    shared CI runners produces flaky gates — but it means a performance

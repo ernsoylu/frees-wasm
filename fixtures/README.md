@@ -357,6 +357,12 @@ constant.**
 > them the probe writes `"available": false` and exits 0 — the same graceful
 > degradation `SundialsIda.isAvailable()` gives the Java engine — so a machine
 > without SUNDIALS cannot silently mint an empty oracle over a real one.
+>
+> **Re-verified 2026-08-23 (Wave G6):** this machine's `libsundials-dev`
+> 6.4.1 (Ubuntu 24.04, with `sunlinsolklu` + SuiteSparse `libklu.so.2`) runs
+> the probe and reproduces the committed file **bit-identically** — the
+> `ORACLE_*` constants are re-measurable, not frozen. The input space around
+> these fixed cases is fuzzed by `crates/frees-core/tests/dae_robustness.rs`.
 
 ## Growing the corpus
 

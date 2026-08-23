@@ -69,7 +69,10 @@ properties over parser/units/solve/MDF4 — dev-and-native-only, cfg-gated off
 wasm32 because proptest's getrandom refuses that target), the first benchmark
 suite (`benches/solve_bench.rs` + a JVM-oracle comparison: **~1× on the
 transient**, integrator-bound as predicted, up to ~60× on scalar/property
-documents), the first **named** bundle breakdown (twiggy over the pre-bindgen
+documents; the browser column was measured 2026-08-23, Wave G5 —
+`web/bench/wasm-bench.spec.ts`, 1.7–12× over native and the transient row
+*inverts* against the JVM — `docs/status-phase12.md` §3 has the table and
+caveats), the first **named** bundle breakdown (twiggy over the pre-bindgen
 artifact; the property tables and CAS/control confirmed as the two real
 levers), and the worker-death/respawn path finally has tests
 (`web/src/wasm/engineClient.test.ts`). Read

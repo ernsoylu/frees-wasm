@@ -144,6 +144,39 @@ Not measured: the same benches inside the browser. Phase 9's in-browser CAS
 timings (103 ms `Expand` in the shipped REPL vs 27 ms native) suggest a
 2–4× wasm-vs-native factor; measuring it properly is future work.
 
+### Measured 2026-08-23 (Wave G5): the same five documents in chromium
+
+`web/bench/wasm-bench.spec.ts` (own Playwright config,
+`playwright.bench.config.ts` — deliberately outside the CI-run `e2e/` dir,
+for the same reason item 5 below keeps benches out of CI). The page imports
+the wasm-pack output directly and times the boundary's `solve` export on the
+main thread — no worker round-trip, comparable to the native bench's
+end-to-end `solve`. Per document: 3 warmup calls, then single-call samples
+until 2 s or 200 iterations. Same machine as the table above:
+
+| document | wasm median (min, n) | ×native | vs JVM oracle |
+|---|---|---|---|
+| `scalar_two_block` | **1.20 ms** (0.80, 200) | ×8.2 | still ~6.8× faster |
+| `rankine_cycle` | **9.50 ms** (5.50, 181) | ×12.3 | still ~5.2× faster |
+| `component_mvem` | **6.00 ms** (3.60, 200) | ×7.7 | ~1.5× faster |
+| `transient_dyn` | **223.8 ms** (152.9, 9) | ×1.7 | **~0.6× — the JVM wins** |
+| `control_lqr` | **16.3 ms** (11.7, 109) | ×5.5 | ~1.3× faster |
+
+Two honest findings and three caveats. Findings: the wasm-vs-native factor
+on real documents is **1.7–12×, not the 2–4× the REPL timings suggested**.
+It is *not* a build-profile artifact: native release and the wasm module are
+built from the same size-first `[profile.release]` (`opt-level = "s"`, LTO,
+one codegen unit — see Cargo.toml's own note), so the factor measures the
+wasm runtime itself, plus `wasm-opt -Oz` on the wasm side only. Second: the
+transient row **inverts in the browser** — native tied the JVM at ~1.0×,
+wasm loses at ~0.6×, so an integrator-bound document is the one shape where
+the server engine is still faster than the tab; the absent network
+round-trip narrows but no longer erases it. Caveats: chromium quantizes
+`performance.now()` to 100 µs (every sample is a multiple of 0.1 ms — fine
+at these magnitudes); samples are single calls, so the median-vs-min spread
+(up to ~1.7×) is page JIT/GC noise, and both are printed; the numbers are
+the shipped artifact's, not wasm's ceiling.
+
 ---
 
 ## 4. The worker-death path, finally tested
@@ -232,6 +265,9 @@ gating the new dev-dependencies off the wasm target in the manifest.
    item 34.)*
 3. **No browser-side benchmark.** Native-vs-JVM only; the wasm factor is
    inferred from Phase 9's REPL timings, not measured on these documents.
+   *(Closed 2026-08-23, Wave G5: `web/bench/wasm-bench.spec.ts` measures the
+   five documents in chromium — 1.7–12× over native, and the transient row
+   inverts against the JVM. §3 above has the table and caveats.)*
 4. **The DAE surface is still un-fuzzed at API level**, and the SUNDIALS
    oracle cannot be regenerated on this machine (not installed) — its
    `ORACLE_*` constants are effectively frozen until someone installs

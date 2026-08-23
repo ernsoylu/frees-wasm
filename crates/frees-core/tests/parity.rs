@@ -27,8 +27,44 @@
 //!   the equivalent error type). Messages are not compared verbatim.
 //! * `ode_tables` — one entry per `DYNAMIC` block, compared in declaration
 //!   order. `name`/`method`/`columns`/`stopped` and the event `name`s are
-//!   **exact**; `end_time`, every row cell and every event `time` go through
-//!   the same numeric tolerance as `variables`.
+//!   **exact**; `end_time` and every event `time` go through the same numeric
+//!   tolerance as `variables`. Row cells take the same tolerance **plus a
+//!   scale anchor**: a cell also passes when `|a − e| ≤ rel_tol · scale`,
+//!   where `scale` is the max `|expected|` over that signal's own trajectory
+//!   (the `time` column is excluded — sample times are grid structure, not
+//!   integrated state). See "The decayed-signal measure" below.
+//!
+//! # The decayed-signal measure (Wave G1)
+//!
+//! A pointwise relative measure has no denominator on a signal that decays
+//! through zero: `pressure-cooker`'s `steel$port$qdot` falls from 1 497.86 W
+//! to 2.27e-10 W, where a 4.4e-5 W absolute agreement — 2.9e-8 of the
+//! signal — reads as rel 5.7e-3 purely by denominator collapse. The digits a
+//! pointwise measure demands there were never controlled by either engine:
+//! both integrators run error control of the `atol + rtol·|y|` shape (the
+//! IDA path at rtol 1e-6 / atol 1e-8), so the trailing digits of a decayed
+//! tail are integration noise on both sides. Anchoring the tolerance to the
+//! signal's own dynamic range is the same measure the integrators
+//! themselves use, and it changes nothing for a healthy signal (there
+//! `|e| ≈ scale`). The anchor uses the *expected* side's range only, so a
+//! wrongly-huge Rust value cannot widen its own gate; a column whose golden
+//! is all zeros gets `scale = 0` and keeps the pointwise measure (which
+//! `ABS_TOL` already handles).
+//!
+//! Validated the same way the row comparison itself was: perturbing a
+//! decayed-tail cell of `pressure-cooker`'s golden (`steel$port$qdot`,
+//! row 240, −2.2719987170207744e-10 → 0.02) produces
+//!
+//! ```text
+//!   [pressure-cooker] ode_tables[0] `cooker` rows row 240 col `steel$port$qdot` =
+//!   -0.00000000022851085812685354 but Java got 0.02 (rel 1.000000011425543e0,
+//!   scaled 1.3e-5 of column max |e| 1.498e3, tolerance 1.1e-6)
+//! ```
+//!
+//! and the classic `dyn_plain_ode` 47.59… → 47.6 perturbation still goes red
+//! (rel 1.8995734320745376e-4, scaled 9.5e-5 of column max |e| 9.500e1 —
+//! five decades over the default either way). Both were observed in the same
+//! 2/775 run on 2026-08-23, then the goldens were restored.
 //!
 //! # Why the `ode_tables` comparison is not optional
 //!
@@ -62,7 +98,12 @@
 //!
 //! * a fixture named there but **absent** from `fixtures/golden/` fails;
 //! * a fixture named there that **passes at the default** fails, so a tolerance
-//!   that is no longer needed cannot sit in the file pretending it is;
+//!   that is no longer needed cannot sit in the file pretending it is. "Passes
+//!   at the default" is judged over *everything numeric the fixture grades* —
+//!   variables, ODE row cells (under the decayed-signal measure above),
+//!   `end_time` and event times — because a transient fixture's divergence
+//!   usually lives in its table, not its variables, and a guard that only read
+//!   `variables` would kill every transient entry as dead on arrival;
 //! * if the file catalogues its `mechanisms`, every entry must name one that
 //!   exists and every catalogued mechanism must be named by an entry — see
 //!   [`declared_tolerances`].
@@ -358,6 +399,22 @@ struct Failure {
     detail: String,
 }
 
+/// The tolerance a cell would *need* to pass — the smaller of the pointwise
+/// relative error and the scale-anchored error (see the module docs). This is
+/// what feeds the dead-tolerance guard's `worst`, so an entry stays exactly as
+/// alive as the loosest measure that still fails the default.
+fn needed_tol(actual: f64, expected: f64, scale: f64) -> f64 {
+    let rel = rel_diff(actual, expected);
+    if scale <= 0.0 {
+        return rel;
+    }
+    let diff = (actual - expected).abs();
+    if diff <= ABS_TOL {
+        return 0.0;
+    }
+    rel.min(diff / scale)
+}
+
 /// Compare the golden's `ode_tables` array against what the engine integrated.
 ///
 /// A golden dumped before the dumper grew this section has `ode_tables` absent
@@ -366,10 +423,14 @@ struct Failure {
 /// tables". Only the second is a claim, so only the second is checked against a
 /// Rust engine that produced tables — otherwise every pre-Phase-7 fixture in the
 /// corpus would fail the moment a `DYNAMIC` block started working.
+///
+/// `worst` accumulates the largest [`needed_tol`] across every numeric
+/// comparison here, for the dead-tolerance guard in [`replay`].
 fn compare_ode_tables(
     golden: &serde_json::Value,
     actual: &[frees_core::ode::problem::OdeTableResult],
     rel_tol: f64,
+    worst: &mut f64,
     fail: &mut impl FnMut(String),
 ) {
     let Some(expected) = golden.as_array() else {
@@ -440,6 +501,7 @@ fn compare_ode_tables(
             ));
         }
         let want_end = as_f64(&want["end_time"]);
+        *worst = worst.max(rel_diff(got.end_time, want_end));
         if !close(got.end_time, want_end, rel_tol) {
             fail(format!(
                 "{} = {} but Java got {want_end} (rel {:e}, tolerance {rel_tol:e})",
@@ -459,6 +521,23 @@ fn compare_ode_tables(
             ));
             continue;
         }
+        // The per-signal anchor for the decayed-signal measure (module docs):
+        // max |expected| over the column's own trajectory, expected side only.
+        // `time` is grid structure, not integrated state, so it keeps the
+        // pointwise measure via scale 0. NaN cells fall out of the max on
+        // their own (`f64::max` ignores them).
+        let scales: Vec<f64> = (0..want_columns.len())
+            .map(|c| {
+                if want_columns[c] == "time" {
+                    return 0.0;
+                }
+                want_rows
+                    .iter()
+                    .filter_map(|row| row.as_array()?.get(c))
+                    .map(|cell| as_f64(cell).abs())
+                    .fold(0.0f64, f64::max)
+            })
+            .collect();
         for (r, (want_row, got_row)) in want_rows.iter().zip(&got.rows).enumerate() {
             let cells = want_row.as_array().cloned().unwrap_or_default();
             if cells.len() != got_row.len() {
@@ -472,14 +551,29 @@ fn compare_ode_tables(
             }
             for (c, (want_cell, &got_cell)) in cells.iter().zip(got_row).enumerate() {
                 let want_value = as_f64(want_cell);
-                if !close(got_cell, want_value, rel_tol) {
-                    fail(format!(
-                        "{} row {r} col `{}` = {got_cell} but Java got {want_value} \
-                         (rel {:e}, tolerance {rel_tol:e})",
-                        at("rows"),
-                        got.columns.get(c).map(String::as_str).unwrap_or("?"),
-                        rel_diff(got_cell, want_value)
-                    ));
+                let scale = scales.get(c).copied().unwrap_or(0.0);
+                *worst = worst.max(needed_tol(got_cell, want_value, scale));
+                let diff = (got_cell - want_value).abs();
+                let anchored = scale > 0.0 && diff <= rel_tol * scale;
+                if !close(got_cell, want_value, rel_tol) && !anchored {
+                    let col = got.columns.get(c).map(String::as_str).unwrap_or("?");
+                    if scale > 0.0 {
+                        fail(format!(
+                            "{} row {r} col `{col}` = {got_cell} but Java got {want_value} \
+                             (rel {:e}, scaled {:.1e} of column max |e| {scale:.3e}, \
+                             tolerance {rel_tol:e})",
+                            at("rows"),
+                            rel_diff(got_cell, want_value),
+                            diff / scale
+                        ));
+                    } else {
+                        fail(format!(
+                            "{} row {r} col `{col}` = {got_cell} but Java got {want_value} \
+                             (rel {:e}, tolerance {rel_tol:e})",
+                            at("rows"),
+                            rel_diff(got_cell, want_value)
+                        ));
+                    }
                 }
             }
         }
@@ -515,6 +609,7 @@ fn compare_ode_tables(
                 ));
             }
             let want_time = as_f64(&want_hit["time"]);
+            *worst = worst.max(rel_diff(got_hit.time, want_time));
             if !close(got_hit.time, want_time, rel_tol) {
                 fail(format!(
                     "{} hit {e} (`{}`) fired at {} but Java got {want_time} \
@@ -629,17 +724,6 @@ fn replay(
                     }
                 }
             }
-            if tolerances.contains_key(&name) {
-                if worst <= REL_TOL {
-                    fail(format!(
-                        "fixtures/{TOLERANCE_FILE} relaxes this fixture to {rel_tol:e}, but it \
-                         matches the oracle to {worst:e} — at or under the {REL_TOL:e} default. \
-                         Delete the entry rather than leaving a dead tolerance in the file."
-                    ));
-                } else {
-                    used.insert(name.clone());
-                }
-            }
             for var in actual_vars.keys() {
                 if !golden_vars.contains_key(var) {
                     fail(format!("extra variable `{var}` not in the golden fixture"));
@@ -679,8 +763,26 @@ fn replay(
                 &expect["ode_tables"],
                 &solution.ode_tables,
                 rel_tol,
+                &mut worst,
                 &mut fail,
             );
+
+            // The dead-tolerance guard runs LAST, once `worst` has seen every
+            // numeric comparison the fixture grades — variables and ODE
+            // tables. A transient fixture's divergence usually lives in its
+            // table, and a guard that read only `variables` would kill every
+            // transient entry as dead on arrival.
+            if tolerances.contains_key(&name) {
+                if worst <= REL_TOL {
+                    fail(format!(
+                        "fixtures/{TOLERANCE_FILE} relaxes this fixture to {rel_tol:e}, but it \
+                         matches the oracle to {worst:e} — at or under the {REL_TOL:e} default. \
+                         Delete the entry rather than leaving a dead tolerance in the file."
+                    ));
+                } else {
+                    used.insert(name.clone());
+                }
+            }
         }
         Err(err) => {
             if expected_error.is_null() {

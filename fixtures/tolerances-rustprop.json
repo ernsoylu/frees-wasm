@@ -90,7 +90,21 @@
     "    oracle says -- so a future session can tell a golden-side artifact from",
     "    a regression without redoing the investigation.",
     "  * An entry whose fixture passes at the default 1e-9 makes the parity test",
-    "    FAIL. Dead tolerances do not accumulate here."
+    "    FAIL. Dead tolerances do not accumulate here.",
+    "",
+    "== WAVE G1 (2026-08-23): THE FIRST TRANSIENT ENTRIES =====================",
+    "",
+    "The F5 re-baseline's 'ten' above is its own count, at its own date. G1",
+    "promoted the first two TRANSIENT fixtures that need entries, alongside the",
+    "decayed-signal measure in tests/parity.rs (a row cell also passes when",
+    "|a - e| <= relative x the column's own max |expected|, time excluded --",
+    "the same atol + rtol*|y| shape both integrators run error control in).",
+    "For these two entries `measured` is therefore the SCALE-ANCHORED binding",
+    "error -- max over cells of min(pointwise rel, anchored) -- which is exactly",
+    "what the harness's dead-entry guard computes; their pointwise worsts are",
+    "denominator-collapse readings on near-zero samples and are quoted in each",
+    "reason. Reproduce with the entry deleted, as above: every failing cell",
+    "prints both measures."
   ],
   "mechanisms": {
     "oracle-ph-table": [
@@ -150,6 +164,24 @@
       "Probed across four superheated R134a states the same p-residual is 4.06e-9,",
       "7.31e-12, 1.16e-16 and 4.37e-16, so this is a stopping criterion, not a",
       "systematic offset -- which is why exactly one fixture in 707 shows it."
+    ],
+    "ida-adaptive-path": [
+      "THE GOLDEN IS A NATIVE SUNDIALS IDA TRAJECTORY. For `method = ida` the",
+      "Java integrates through the real SUNDIALS library over JNA; this build",
+      "runs the port's IDA transcription (dae/solver.rs) at the same",
+      "rtol = 1e-6 / atol = 1e-8. The explicit-integrator transcriptions",
+      "reproduce the Java's arithmetic bit-for-bit when the RHS does --",
+      "sysdesign-ex01-thermal-network-2, promoted in the same wave with NO",
+      "entry, tracks its ode45 golden to 2.0e-15 over 120 rows -- but an IDA",
+      "RHS is not bit-identical here: rustprop's iterative flashes land within",
+      "~2e-16 of native CoolProp (the F5 witness above), and IDA's Newton",
+      "convergence tests and step-size/order controller turn those ulps into a",
+      "different accepted-step sequence over the integration. The trajectories",
+      "then agree to well within the tolerance BOTH engines were asked for",
+      "(1e-6), but not to machine precision -- an integrator-error-control",
+      "residual, not a property or algebra divergence. A fidelity change on",
+      "either side moves it, and the dead-entry guard now watches ODE cells,",
+      "so an entry this mechanism grades dies loudly if the paths converge."
     ]
   },
   "fixtures": {
@@ -189,11 +221,23 @@
       "mechanism": "oracle-ph-table",
       "reason": "The cleanest demonstration in the corpus, because the true answer is known a priori and needs no oracle at all. Each LiquidSource imposes a temperature and converts it to h with Enthalpy(Water, P, T) -- bit-exact on both sides -- and each wall-HX inverts it with Temperature(Water, P, h), which the Java answers from its table. At the source that states exactly 400 K (LPin TS2, P = 300 kPa), rustprop's round trip returns 400.00000000000004 and the Java returns 400.00067812484809. Running the same round trip through the wheel alone -- Hmass(P,T) then T(P,Hmass) -- gives 399.99999999999375, so the port is if anything the closer of the two to the imposed value, and the gap is the Java's 6.8e-4 K inversion error against a round number. (Under the pre-Wave-2 bisection stand-in rustprop returned 399.99999991478 here; TOMS748 moved that to 4e-14 of the imposed value, and the fixture's measured error barely moved, because the Java's error dominates it by four orders of magnitude.)"
     },
+    "ev-battery-cooling-pid": {
+      "relative": 3.6e-06,
+      "measured": 2.424525e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "A transient whose ODE right-hand side calls Temperature(R134a, P, h) in the evaporator, so the Java's (P,Hmass)->T run-time table is integrated INTO the golden trajectory. Probed at the trajectory's own steady state (P = 350 kPa, h = 440324.7716463559 J/kg): the Java answers 320.7653749901327 -- the golden's ch.ev$t_out at rows 250-399 to the last digit -- rustprop answers 320.765512845656, a 1.379e-4 K gap (4.30e-7), and the (P, x=1) control at the same pressure is bit-identical on both sides (278.17807211793064), which is exactly PhTableRegistry's interception boundary. sh = t_out - tsat (42.59 K) amplifies the leaf 7.5x and q_sh inherits it: the worst column, ch.ev$q_sh, measures 2.4245e-6 scale-anchored (pointwise readings up to 3.3e-5 on plate$q are the same error read against near-zero samples). Signals with no property call in their chain sit at 1e-13 (t_bat 2.2e-13), so the ode23s transcription contributes nothing at this size."
+    },
     "ev-thermal-management": {
       "relative": 7.6e-06,
       "measured": 5.038926e-06,
       "mechanism": "oracle-ph-table",
       "reason": "178x better than the same fixture on the table backend (8.95e-4), because the FRAUX1 glycol grid that dominated it is gone -- rustprop answers INCOMP::MEG exactly, so the Re = 2987 laminar/turbulent blend has nothing left to amplify. What remains is the refrigerant side: cmp.s_in = Entropy(R1234yf, P = 328298.535 Pa, h = 371316.618 J/kg). Asked at the JAVA's own inputs the wheel answers 1624.1967310135703 and the golden says 1624.1963561235248, off 2.31e-7; rustprop sits 1.3e-13 from the wheel at its own. The isentropic outlet carries it to cmp.out.h (4.45e-7) and cmp.w = h_out - h_in amplifies 22x to 5.04e-6, which cop_cool then inherits exactly."
+    },
+    "pressure-cooker": {
+      "relative": 1.1e-06,
+      "measured": 7.443478e-07,
+      "mechanism": "ida-adaptive-path",
+      "reason": "method = ida over 1200 s. The state signals agree to <= 1.1e-9 (cook$utot; t_cv and rho_cv at ~2e-10), and the divergence concentrates on the pressure-relief-valve chain, exactly where an accepted-step difference lands hardest: cook$vent$p reads 3.5e-8, the subtraction dpv = vent$p - p_atm amplifies it, and the valve flow law maps it onto the small vent flows -- cook$vent$mdot measures 7.4435e-7 scale-anchored, the binding cell. The decayed steel$port$qdot (1497.86 W down to 2.27e-10 W) reads 5.7e-3 pointwise purely by denominator collapse and anchors at 2.9e-8. Everything sits two decades inside the rtol = 1e-6 both integrators ran, and the SUNDIALS-oracle cross-check recorded at promotion (fixtures/README.md, 2026-08-21 re-check) bounds the non-decayed signals at 3.5e-8 pointwise."
     },
     "props_realfluid_r134a_states": {
       "relative": 2.7e-06,

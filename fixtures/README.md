@@ -5,9 +5,9 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 772
-fixtures/golden/*.json    what the Java engine produced for each      — 772
-fixtures/corpus-pending/  the staging area: documents not yet promoted — 4
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 775
+fixtures/golden/*.json    what the Java engine produced for each      — 775
+fixtures/corpus-pending/  the staging area: documents not yet promoted — 2
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -106,7 +106,7 @@ unspecified and differ between the JVM and Rust's libm.
 | `display_names` | exact |
 | `block_count` | exact — a different blocking is a real divergence |
 | `error` | `type` exact; `message` **not** compared verbatim (see below) |
-| `ode_tables` | one entry per `DYNAMIC` block, in declaration order. `name`, `method`, `columns`, `stopped` and each event's `name` are **exact**; `end_time`, every row cell and each event `time` take the same numeric tolerance as `variables` |
+| `ode_tables` | one entry per `DYNAMIC` block, in declaration order. `name`, `method`, `columns`, `stopped` and each event's `name` are **exact**; `end_time` and each event `time` take the same numeric tolerance as `variables`. Row cells take that tolerance **plus a scale anchor**: a cell also passes when `\|a − e\| ≤ rel_tol · scale`, where `scale` is the max `\|expected\|` over that signal's own trajectory (`time` excluded) — see *The decayed-signal measure* below |
 
 ### `ode_tables` — why a transient fixture needs it
 
@@ -133,6 +133,32 @@ were observed and then reverted:
 | `method` `ode45` → `ode23` | ``ode_tables[0] `ascent` method = "ode45" but Java got "ode23"`` |
 | a stop event's `time` shifted by 0.5 s | ``ode_tables[0] `ascent` events hit 0 (`apogee`) fired at 156.74… but Java got 157.24… (rel 3.2e-3)`` |
 
+#### The decayed-signal measure (Wave G1, 2026-08-23)
+
+A pointwise relative measure has no denominator on a signal that decays
+through zero: `pressure-cooker`'s `steel$port$qdot` falls from 1 497.86 W to
+2.27e-10 W, where a 4.4e-5 W absolute agreement — 2.9e-8 of the signal — reads
+as rel 5.7e-3 purely by denominator collapse. The digits a pointwise measure
+demands there were never *controlled* by either engine: both integrators run
+error control of the `atol + rtol·|y|` shape (the IDA path at rtol `1e-6` /
+atol `1e-8`), so the trailing digits of a decayed tail are integration noise
+on both sides. Anchoring the tolerance to the signal's own dynamic range —
+a row cell also passes when `|a − e| ≤ rel_tol · max|expected|` over its
+column — is the same measure the integrators themselves use, and changes
+nothing for a healthy signal, where `|e| ≈ scale`. Three deliberate limits:
+the anchor uses the **expected** side's range only, so a wrongly-huge Rust
+value cannot widen its own gate; the `time` column is excluded (sample times
+are grid structure, not integrated state); and a column whose golden is all
+zeros keeps the pointwise measure. This is a *measure correction*, not a
+relaxation — it was validated red the same way the row comparison itself was
+(perturbing the `steel$port$qdot` tail to 0.02 fails at `scaled 1.3e-5` of the
+column range, and the classic `47.59… → 47.6` perturbation above still fails
+at `scaled 9.5e-5`; both observed in one 2/775 run on 2026-08-23, then
+restored). The measure is what promoted `sysdesign-ex01-thermal-network-2`,
+`ev-battery-cooling-pid` and `pressure-cooker` — and with it the dead-entry
+guard now folds ODE cells into "passes at the default", because a transient
+fixture's divergence lives in its table, not its variables.
+
 ### The tolerance files — the one relaxation, and its guards
 
 Decision D1 resolved real-fluid properties from precomputed `(P,h)` tables whose
@@ -143,7 +169,13 @@ the gap is a property of the artifact, not a bug waiting to be found. D1 named
 two honest ways out (a per-fixture tolerance, or shipping CoolProp itself as the
 accuracy path). **Both have now been taken**, and taking the second is what
 shrank the first: under rustprop that whole error class is gone, so thirteen of
-the 23 entries below are dead and the file that grades what ships has ten.
+the 23 entries below are dead and the file that grades what ships had ten.
+*(Twelve since Wave G1, 2026-08-23: the first two **transient** entries —
+`ev-battery-cooling-pid`, whose golden trajectory integrated the Java's
+`(P,Hmass)→T` table into the RHS (the `oracle-ph-table` mechanism, leaf-probed
+at the trajectory's own steady state), and `pressure-cooker`, graded by the
+new `ida-adaptive-path` mechanism. Both `measured` values are scale-anchored
+binding errors; the entries' reasons carry the evidence.)*
 
 A tolerance entry relaxes the *numeric* tolerance for a named fixture and
 nothing else —
@@ -153,7 +185,10 @@ every fixture in the corpus, and every fixture not named there is still held to
 
 * a fixture named there but absent from `fixtures/golden/` **fails the gate**;
 * a fixture named there that **passes at the default** fails too, so a tolerance
-  that is no longer needed cannot sit in the file pretending it is;
+  that is no longer needed cannot sit in the file pretending it is — and since
+  Wave G1 "passes at the default" is judged over everything numeric the fixture
+  grades, ODE row cells (under the decayed-signal measure) included, so a
+  transient entry dies as loudly as a scalar one;
 * if the file catalogues its `mechanisms` — `tolerances-rustprop.json` does,
   since Wave-3 F5 — every entry must name a slug the catalogue defines **and
   every catalogued slug must be named by an entry**. The second direction is the
@@ -536,13 +571,27 @@ classification. If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 5 documents, one of them a property hold
+### What is pending today — 2 documents, one of them a property hold
 
 | Blocker | Count | Documents |
 |---|---:|---|
-| A signal **decaying through zero**, so the relative measure has no denominator | 3 | `sysdesign-ex01-thermal-network-2` (`ode:m$port$qdot`), `ev-battery-cooling-pid` (`ode:pid$e`) — the second *solves and agrees*, at `t_bat` rel 5.0e-13 — and, since 2026-08-21, `pressure-cooker` (`ode:steel$port$qdot`): `method = ida` **is routed now** and the document integrates the full 1200 s, agreeing with the SUNDIALS oracle to ≤ 3.5e-8 on every non-decayed signal, but `steel$port$qdot` decays to microwatts and reads rel up to 5.7e-3 by denominator collapse |
-| **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact) but takes **~12 minutes** against the whole replay's ~82 s | 1 | `dyn_accessor_live` |
+| **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact) but takes **~12 minutes** against the whole replay's ~3.5 min | 1 | `dyn_accessor_live` |
 | **Fluid not linked** — `MolarMass(CarbonDioxide)` needs CO2 in the build's `rustprop-data` features (currently water, r134a, r1234yf, air; a fifth fluid costs native *and wasm* bytes, so it is a bundle decision, not a bug). The other two calls in the document — `MolarMass(C8H18)` and `MolarMass('Al2(SO4)3')` — are formula parses and already answer | 1 | `docs_fluids_materials_03` (from the 2026-08-22 docs harvest below) |
+
+*(The decayed-through-zero row — three documents — left this table on
+2026-08-23, Wave G1, via the decayed-signal measure under **Comparison
+policy** above, not by any engine change: `sysdesign-ex01-thermal-network-2`
+promoted at the corpus default (binding error 2.0e-15 — the ode45
+transcription is bit-tight when the RHS is), `pressure-cooker` at a declared
+1.1e-6 (measured 7.4435e-7 scale-anchored, mechanism `ida-adaptive-path`),
+and `ev-battery-cooling-pid` at a declared 3.6e-6 (measured 2.4245e-6
+scale-anchored, mechanism `oracle-ph-table` — the old claim that it "solves
+and agrees, at `t_bat` rel 5.0e-13" was true of its *variables* only; the
+G1 measurement found its ODE table carries a genuine ~2.4e-6 divergence on
+the R134a evaporator chain, leaf-probed to the Java's `(P,Hmass)→T` table,
+and its entry's reason records the probe). Corpus 772 → 775, pending 5 → 2.
+The promotion costs the replay real time: `ev-battery-cooling-pid` alone
+integrates ~100 s, taking the full release replay from ~82 s to ~200 s.)*
 
 *(Two rows left this table on 2026-08-21. The `CALL eigenvalues` / `eigen`
 row: ledger item 34 closed, the three `eqsys-*` documents promoted, corpus
@@ -554,7 +603,7 @@ largest-component-positive rule — and all six sign-blocked documents promoted
 at the corpus default `1e-9` with no tolerance entry, corpus 722 → 728,
 pending 11 → 5.)*
 
-**One of the five is blocked on a property — and it is a *linkage* hold, not a
+**One of the two is blocked on a property — and it is a *linkage* hold, not a
 backend gap** (the 2026-08-22 docs harvest's `docs_fluids_materials_03`, above:
 rustprop serves CO2 fine, this build just does not link its data). Before that
 harvest the set read "4, none of them a property hold", which D8/D9 earned and
@@ -867,7 +916,7 @@ destructuring fixture either; `multiout-user-function-with-tilde-discard` was
 dropped for exactly this. In `CALL` argument lists `~` remains a
 `ParseException`.)
 
-### Still pending — the four, in detail
+### Still pending — the two, in detail
 
 The summary is the table under *What is pending today*; this is the per-document
 reason. Checked 2026-08-19 (then 14; the three `eqsys-*` and the six sign-hold
@@ -879,10 +928,10 @@ because the oracle refused it.
 |---|---|
 | ~~`linalg-full-svd`~~, ~~`multiout-svd-discard-with-tilde`~~, ~~`ctldesign-balreal-invariants-integration`~~, ~~`ctldesign-bare-matrix-names-into-control-calls-resolve-shapes`~~, ~~`-2`~~, ~~`estimator-gramian-balreal`~~ | **promoted 2026-08-21** — was: `linalg::svd`'s column-sign convention (sign-only `U`/`V`/balancing-basis flips; ledger item 24). The convention proved **not statable as a normalisation** — in `linalg-full-svd`'s golden, V column 2's largest component is *negative*, contradicting any make-positive rule — so `linalg::svd` was replaced with a line-faithful transcription of Commons Math 3.6.1's JAMA-derived `SingularValueDecomposition`, whose Householder reflector signs reproduce the oracle's element-exact. All six grade at the default `1e-9` with no tolerance entry (the machine-zero Gramian off-diagonals pass under `ABS_TOL = 1e-12`). Corpus 722 → 728, pending 11 → 5. |
 | ~~`eqsys-eigen-waits-for-matrix-entries-solved-elsewhere`~~, ~~`eqsys-solves-eigen-decomposition-with-vectors-and-downstream-equations`~~, ~~`eqsys-solves-eigenvalues-of-symmetric-matrix`~~ | **promoted 2026-08-21** — was: `CALL eigenvalues` / `eigen` not wired (ledger item 34). `parser/expand.rs::flatten_eigen` now emits the `eigen$val\|re\|im\|vec$…` synthetics and `linalg::eval_intrinsic` decodes them with the Java kernel's ascending (real, imag) sort and unit-norm/sign-fixed eigenvectors. All three grade at the default `1e-9` with no tolerance entry. Corpus 719 → 722, pending 14 → 11. |
-| `sysdesign-ex01-thermal-network-2` | **Asymptotic FP noise, not promotable by tolerance.** `ode:m$port$qdot` decays through zero, so under the harness's own rule (`\|a−e\| ≤ rel·max(\|a\|,\|e\|)`) the relative deviation is 1.0 — the denominator collapses with the signal. Only a larger `ABS_TOL` could express it, and that would loosen all 719. |
-| `ev-battery-cooling-pid` | **Solves and agrees** since the `seedPropertyArgumentGuesses` port (`t_bat` 302.99999999993497 against the oracle's 303.000000000087, rel 5.0e-13) — held for the same reason as the row above: `ode:pid$e` is the PID error signal decaying to ~8.7e-11, which reads as a relative deviation of 1.9963. Also the slowest document in the set (~41 s), which is its own argument against the gate. |
+| ~~`sysdesign-ex01-thermal-network-2`~~ | **promoted 2026-08-23 (Wave G1)** — was: asymptotic FP noise, `ode:m$port$qdot` decaying through zero with no denominator for the pointwise measure, and "only a larger `ABS_TOL` could express it". That framing missed the third option: the **decayed-signal measure** (see *Comparison policy*) anchors each cell to its own column's range instead of loosening anything globally, and under it this document grades at the corpus default with **no tolerance entry** — binding error 2.0e-15, the wave's proof that the ode45 transcription is bit-tight when the RHS is. Corpus 772 → 775 with the two rows below. |
+| ~~`ev-battery-cooling-pid`~~ | **promoted 2026-08-23 (Wave G1)** at a declared 3.6e-6 (`tolerances-rustprop.json`, mechanism `oracle-ph-table`) — was: held for `ode:pid$e` decaying to ~8.7e-11. The old "solves and agrees (`t_bat` rel 5.0e-13)" was true of its **variables** only: the G1 measurement found the ODE table carries a genuine 2.4245e-6 scale-anchored divergence on the R134a evaporator chain, and the leaf probe pinned it to the Java's `(P,Hmass)→T` run-time table integrated into the golden's RHS (Java 320.7653749901327 vs rustprop 320.765512845656 at the trajectory's own steady state, `(P,x=1)` control bit-identical — the entry's `reason` has the full trail). Also the replay's new slowest promoted document: ~100 s of the full replay's ~200 s. |
 | ~~`module_inside_for_loop`~~ | **promoted 2026-08-21 (Wave A4)** — was: `MODULE` flattening ran before `FOR` unrolling. `parser/expand.rs::flatten_module_call` now transcribes `EquationParser.flattenModuleCall` at the after-unroll position (loop vars bound, `r[i]` outputs resolving to element variables, per-iteration namespaces, `putIfAbsent` display names), with the instance numbering continued from stage 2 via `flatten_calls_counted`. One recorded residue: a top-level MODULE call written after a FOR containing MODULE calls would number differently from Java — no corpus document has that shape. |
-| `pressure-cooker` | Was `method = ida` — **the routing landed 2026-08-21 (Wave A3)**: `ode/dynamic.rs::solve_with_ida` ports `DynamicSolver.solveWithIda` (grid `max(points ?? 200, 2)`, no `maxstep` on this path, rows straight from IDA's state vector, the `calcConsistentIc → reinit` fallback, the root/set-event loop), and wiring the first real document flushed out **two transcription bugs against SUNDIALS v6.7.0's `ida.c`** — `IDARestore` un-scaling all of `phi[1..=kk]` instead of `ns..=kk`, and `IDASetCoeffs`' `alpha0` summed over `alpha[1..=kk]` instead of `alpha[0..kk-1]` (a ~4× inflated error constant at order 5) — which had stalled the run at t ≈ 696 s. Fixed, the document integrates all 1200 s and matches the oracle to ≤ 3.5e-8 on every real signal. **Still held**, but by the decayed-signal rule: `steel$port$qdot` → 0 collapses the relative denominator (rel up to 5.7e-3 on microwatt cells; a blanket tolerance admitting that would assert nothing — same class as the two rows above). |
+| ~~`pressure-cooker`~~ | **promoted 2026-08-23 (Wave G1)** at a declared 1.1e-6 (`tolerances-rustprop.json`, the new `ida-adaptive-path` mechanism: native SUNDIALS in the oracle vs this build's IDA transcription, RHS ulps turned into a different accepted-step sequence, everything two decades inside the rtol 1e-6 both ran; measured 7.4435e-7 scale-anchored at `cook$vent$mdot`). The decayed `steel$port$qdot` that held it anchors at 2.9e-8. History: was `method = ida` — **the routing landed 2026-08-21 (Wave A3)**: `ode/dynamic.rs::solve_with_ida` ports `DynamicSolver.solveWithIda` (grid `max(points ?? 200, 2)`, no `maxstep` on this path, rows straight from IDA's state vector, the `calcConsistentIc → reinit` fallback, the root/set-event loop), and wiring the first real document flushed out **two transcription bugs against SUNDIALS v6.7.0's `ida.c`** — `IDARestore` un-scaling all of `phi[1..=kk]` instead of `ns..=kk`, and `IDASetCoeffs`' `alpha0` summed over `alpha[1..=kk]` instead of `alpha[0..kk-1]` (a ~4× inflated error constant at order 5) — which had stalled the run at t ≈ 696 s. Fixed, the document integrates all 1200 s and matches the oracle to ≤ 3.5e-8 on every real signal. The hold that remained after A3 — `steel$port$qdot` → 0 collapsing the relative denominator (rel up to 5.7e-3 on microwatt cells) — is exactly what the G1 measure closed without asserting nothing: the anchored gate still demands 1.1e-6 of the signal's 1 497.86 W range. |
 | `dyn_accessor_live` | **Nothing missing — cost.** Re-measured 2026-08-21 (Wave A5): with the per-step structural cache (`engine.rs::PreparedPinnedSolver` — the blocking/spec/seeding half of `solve_pinned` hoisted out of the per-step loop) it now **finishes and grades perfectly** — ode_tables rows bit-identical, `dk` at rel 8e-16 — in **~12 minutes**, at the fixture's own `span/100` cap. The cost is structural: the outer Newton's wild iterates (`k` reaches 4.9e7 before bracketing back) each drive explicit ode45 into the 10⁶-step `MAX_STEPS` grind at stiffness ~5e7, exactly as the Java does — the Java is simply ~10× faster per micro-step. Promoting it would multiply the whole replay's wall clock (~82 s) ninefold, so the hold stands on cost alone. The same cache cut the full replay from ~122 s to ~82 s — the transient fixtures' per-step solves all ride it. |
 
 *(Phase 9 promoted eleven documents out of an earlier version of this table on
@@ -908,8 +957,8 @@ triage are in `docs/status-phase12.md`. The 21 new pending rows, by blocker:
 | ~~`sysdesign-ex06-pneumatic`~~, ~~`sysdesign-ex06-pneumatic-2`~~, ~~`sysdesign-ex07-pneumatic-servo`~~ | **promoted 2026-08-18 (Wave-3 F8)** — was: no **state** table for `Air`. [D7](../docs/decisions/0007-auxiliary-property-grids.md) added a `(P,T)` grid carrying air's `viscosity`/`conductivity`/`Cpmass`/`Dmass` — enough for `htc_extair`, not for these, which want `Enthalpy`. **Do not generate an `air.phtab`**: [D8](../docs/decisions/0008-coolprop-wasm.md) supersedes it, and [D9](../docs/decisions/0009-rustprop-backend.md) delivered it — rustprop serves `Air` `Enthalpy` and `Temperature(Air, P, h)` directly, through the pseudo-pure `HSU_P` flash Wave-2 R6/R7 ported. All three grade at the default 1e-9 with no tolerance entry. Corpus 716 → 719, pending 17 → 14. |
 | ~~`sysdesign-ex11-liquid-cooling-loop`~~ | **promoted 2026-08-06** — the same `INCOMP::MEG` grid ([D7](../docs/decisions/0007-auxiliary-property-grids.md)) that unblocked `ev-thermal-management`. Grades an order of magnitude tighter (1.310e-4) because it sits off the laminar↔turbulent blend band. Corpus 703 → 704. |
 | ~~`sysdesign-ex17-ac-expansion-valve`~~, ~~`sysdesign-ex20-zeotropic-blend`~~ | **promoted 2026-08-06** — D1 table-vs-CoolProp accuracy, measured at 7.8874e-8 and 2.8901e-8 and entered in `tolerances.json` at 2e-7 / 1e-7. Both reach R134a saturation states through `(P,x)`, which `PropertyFunctions.java` does *not* intercept, so the goldens are bit-exact CoolProp and the gap is this build's `.phtab` interpolation alone. Corpus 705 → 707. |
-| `sysdesign-ex01-thermal-network-2` | asymptotic FP noise: `ode:m$port$qdot` decays through zero, so the two engines end up a few ULP apart on a value that is essentially machine zero. **Not** promotable by tolerance: measured under `parity.rs`'s own rule (`\|a−e\| ≤ rel·max(\|a\|,\|e\|)`) the relative deviation is **1.0**, because the denominator collapses with the signal. Only a larger `ABS_TOL` could express it, and that would loosen the whole corpus (707 fixtures when this was written, 719 now). |
-| `ev-battery-cooling-pid` | **solves and agrees** since the seeding port (`t_bat` 302.99999999993497 vs 303.000000000087, rel 5.0e-13), but **not** promotable for the same reason as `sysdesign-ex01`: `ode:pid$e` is the PID error signal, which decays to ~8.7e-11, and against `max(\|a\|,\|e\|)` the two engines' residual noise reads as a relative deviation of 1.9963. A tolerance that admitted it would assert nothing. Also the slowest document in the set (~41 s), which is its own argument against the gate. |
+| ~~`sysdesign-ex01-thermal-network-2`~~ | **promoted 2026-08-23 (Wave G1)** at the corpus default, via the decayed-signal measure (see *Comparison policy*) — the "only a larger `ABS_TOL`" framing above missed the per-column anchor. Was: asymptotic FP noise on `ode:m$port$qdot` decaying through zero. |
+| ~~`ev-battery-cooling-pid`~~ | **promoted 2026-08-23 (Wave G1)** at a declared 3.6e-6 (mechanism `oracle-ph-table` — the G1 measurement found real table-integrated property divergence beyond the decayed `pid$e` that held it; details in the *Still pending* table above). |
 
 Two authoring hazards found the hard way, both worth repeating:
 
@@ -956,7 +1005,9 @@ is in how `Z` itself is formed, not in the density), and
 `hx-correlations-fluid`, which drives 38 transport and correlation outputs
 across water, air and both R134a saturation branches. **No entry was added to
 `fixtures/tolerances-rustprop.json`** — nine documents joined the corpus and the
-file still has exactly the ten entries F5 re-baselined.
+file still had exactly the ten entries F5 re-baselined. *(Ten until Wave G1,
+2026-08-23, which added the file's first two transient entries — see the
+pending table.)*
 
 Two findings beyond the nine:
 
@@ -979,7 +1030,10 @@ Two findings beyond the nine:
   `sysdesign-ex01-thermal-network-2` still fails on `ode:m$port$qdot` decaying
   through zero (worst 9.4e-7 on a cell of magnitude 4.8e-6). `dyn_accessor_live`
   and `ev-battery-cooling-pid` were not re-timed — both are recorded as cost /
-  decayed-signal holds, not property holds.
+  decayed-signal holds, not property holds. *(Re-checked 2026-08-23:
+  `module_inside_for_loop` was promoted by Wave A4, `pressure-cooker` routed by
+  A3 and promoted by G1, and the two decayed-signal holds promoted by G1's
+  measure — see the pending table for all three.)*
 
 **Re-check 2026-08-18, Wave-3 F8 — the `Air` state group: 3 staged, 3 promoted,
 corpus 716 → 719, pending 17 → 14.** This closes D8's prediction at twelve for
@@ -1011,8 +1065,8 @@ they are different cells rather than two views of one: `cap$port$p` at 652 kPa
 (absolute gap 2.8e-19 kg/s, well inside it). Both are comfortably under the
 `1e-9` default, and the ODE cells are compared by `parity.rs` either way — F6's
 verdict was right, its measurement just under-reported. Nothing was added to
-`fixtures/tolerances-rustprop.json`; it still carries exactly the ten entries F5
-re-baselined.
+`fixtures/tolerances-rustprop.json`; it still carried exactly the ten entries F5
+re-baselined *(twelve since Wave G1, 2026-08-23 — the two transient entries)*.
 
 > **`Air`'s `(P,h)` failure window is real, and these three are nowhere near
 > it.** Measured at the same time, directly through `rustprop::props_si`, by

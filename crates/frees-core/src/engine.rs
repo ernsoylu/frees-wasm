@@ -1180,6 +1180,21 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
         let base = prep.template.len();
         for (k, (name, value)) in pinned.iter().enumerate() {
             let pin = &mut prep.subsystem[base + k];
+            // G3b: skip bit-identical pins. The analytic pins never change
+            // across an integration, so only the time and state slots pay
+            // the rewrite. Bit comparison, not `==`: −0.0 vs 0.0 Display
+            // differently (so they must rewrite), and a bit-identical NaN's
+            // text is already the "NaN" this write would produce.
+            if let Expr::Num {
+                value: old,
+                unit: None,
+                is_imaginary: false,
+            } = &pin.rhs
+            {
+                if old.to_bits() == value.to_bits() {
+                    continue;
+                }
+            }
             pin.rhs = Expr::num(*value);
             pin.source_text.clear();
             use std::fmt::Write as _;
@@ -2956,12 +2971,16 @@ impl NewtonProblem for BlockProblem<'_> {
         )
     }
 
-    /// Evaluate the pre-differentiated entries at `x` — the evaluation half of
-    /// the Java `NewtonSolver.analyticalJacobian`. Any evaluation failure
-    /// answers `None`, falling back to finite differences for this iteration
-    /// exactly like the Java `catch` → `return null`.
-    fn analytic_jacobian(&mut self, x: &[f64]) -> Option<Vec<Vec<f64>>> {
-        let derivs = self.derivs?;
+    /// Evaluate the pre-differentiated entries at `x`, straight into the
+    /// solver's reused matrix (G3b) — the evaluation half of the Java
+    /// `NewtonSolver.analyticalJacobian`. Any evaluation failure answers
+    /// `false`, falling back to finite differences for this iteration exactly
+    /// like the Java `catch` → `return null` (the solver zero-fills the
+    /// buffer again on that path, so a partial write here is harmless).
+    fn analytic_jacobian_into(&mut self, x: &[f64], out: &mut [Vec<f64>]) -> bool {
+        let Some(derivs) = self.derivs else {
+            return false;
+        };
         for (name, value) in self.names.iter().zip(x) {
             match self.scope.get_mut(name) {
                 Some(slot) => *slot = *value,
@@ -2970,19 +2989,20 @@ impl NewtonProblem for BlockProblem<'_> {
                 }
             }
         }
-        let n = self.names.len();
-        let mut jacobian = vec![vec![0.0f64; n]; n];
+        for row in out.iter_mut() {
+            row.fill(0.0);
+        }
         for (i, row) in derivs.iter().enumerate() {
             for (j, entry) in row.iter().enumerate() {
                 if let Some(expr) = entry {
                     match eval_with(expr, self.scope, self.ctx) {
-                        Ok(value) => jacobian[i][j] = value,
-                        Err(_) => return None,
+                        Ok(value) => out[i][j] = value,
+                        Err(_) => return false,
                     }
                 }
             }
         }
-        Some(jacobian)
+        true
     }
 }
 

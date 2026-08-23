@@ -155,6 +155,31 @@ pub trait NewtonProblem {
         None
     }
 
+    /// Wave G3b: [`Self::analytic_jacobian`] writing into a caller-owned
+    /// `n × n` buffer, so the hot path stops allocating a fresh matrix per
+    /// iteration. Returns `false` to fall back to finite differences for this
+    /// iteration, exactly like `analytic_jacobian` answering `None`.
+    ///
+    /// The default delegates to [`Self::analytic_jacobian`] — including the
+    /// dimension check the solver used to apply to its result — so existing
+    /// implementors keep their exact behaviour; the engine's hot implementor
+    /// overrides this to evaluate straight into `out`.
+    fn analytic_jacobian_into(&mut self, x: &[f64], out: &mut [Vec<f64>]) -> bool {
+        let n = out.len();
+        match self
+            .analytic_jacobian(x)
+            .filter(|j| j.len() == n && j.iter().all(|row| row.len() == n))
+        {
+            Some(j) => {
+                for (slot, row) in out.iter_mut().zip(j) {
+                    slot.copy_from_slice(&row);
+                }
+                true
+            }
+            None => false,
+        }
+    }
+
     /// For each unknown `j`, the equations that actually mention it — the Java
     /// `IterationContext.varToEquations`, built once per block.
     ///
@@ -296,25 +321,43 @@ where
     let mut creep = 0usize;
     // Why the last linear stage failed, for the diagnostic.
     let mut linear_failure: Option<LinearFailure> = None;
+    // G3b: every buffer below is reused across iterations and trials — and
+    // created only when an iteration actually runs, so the warm-started
+    // solves that pass `within_tolerance` at iteration 0 allocate nothing.
+    let mut scratch_store: Option<Scratch> = None;
 
     for iteration in 0..settings.max_iterations {
         if within_tolerance(&f, &scale, settings) {
             return Ok(success(iteration, &f));
         }
+        let scratch = scratch_store.get_or_insert_with(|| Scratch::new(n));
 
         // Java NewtonSolver.computeJacobian: analytical first, numerical
-        // fallback. A source that answers `None` (a derivative expression
+        // fallback. A source that answers `false` (a derivative expression
         // failing to evaluate at this point) falls back for this iteration
         // only, exactly like the Java `analyticalJacobian` returning null
-        // from its catch block. The dimension check is defensive — a
-        // malformed matrix must not panic the elimination.
-        let analytic = problem
-            .analytic_jacobian(x)
-            .filter(|j| j.len() == n && j.iter().all(|row| row.len() == n));
-        let jacobian = match analytic {
-            Some(j) => j,
-            None => numerical_jacobian(&mut problem, x, &f, settings, &lo, &hi)?,
-        };
+        // from its catch block. The dimension guard the solver used to apply
+        // to the returned matrix lives in `analytic_jacobian_into`'s default.
+        if !problem.analytic_jacobian_into(x, &mut scratch.jacobian) {
+            scratch.ensure_numerical(n);
+            let Scratch {
+                jacobian,
+                nj_probe,
+                nj_out,
+                ..
+            } = &mut *scratch;
+            numerical_jacobian_into(
+                &mut problem,
+                x,
+                &f,
+                settings,
+                &lo,
+                &hi,
+                jacobian,
+                nj_probe,
+                nj_out,
+            )?;
+        }
 
         let mut damped = false;
         let accepted: Accepted;
@@ -329,9 +372,10 @@ where
             if creep >= CREEP_WINDOW {
                 return stalled(&f, &scale, settings, iteration, norm, linear_failure);
             }
+            scratch.ensure_rescue(n);
             match damped_rescue(
                 &mut problem,
-                &jacobian,
+                &scratch.jacobian,
                 x,
                 &f,
                 norm,
@@ -339,6 +383,15 @@ where
                 1.0,
                 &lo,
                 &hi,
+                RescueBufs {
+                    jtj: &mut scratch.jtj,
+                    jtr: &mut scratch.jtr,
+                    damped_a: &mut scratch.damped_a,
+                    damped_b: &mut scratch.damped_b,
+                    damped_y: &mut scratch.damped_y,
+                    candidate: &mut scratch.candidate,
+                    candidate_residual: &mut scratch.candidate_residual,
+                },
             )? {
                 None => return stalled(&f, &scale, settings, iteration, norm, linear_failure),
                 Some(rescue) => {
@@ -347,22 +400,51 @@ where
                     } else {
                         rescue.lambda
                     };
-                    creep = if rescue.step.norm > norm * (1.0 - CREEP_REDUCTION) {
+                    creep = if rescue.norm > norm * (1.0 - CREEP_REDUCTION) {
                         creep + 1
                     } else {
                         0
                     };
                     damped = true;
-                    accepted = rescue.step;
+                    accepted = Accepted { norm: rescue.norm };
                 }
             }
         } else {
             let mut taken: Option<Accepted> = None;
-            match solve_linear(&jacobian, &f) {
-                Ok(step) => {
+            let solved = {
+                let Scratch {
+                    jacobian,
+                    lin_d,
+                    lin_scaled,
+                    lin_b,
+                    lin_y,
+                    step,
+                    ..
+                } = &mut *scratch;
+                solve_linear_into(jacobian, &f, lin_d, lin_scaled, lin_b, lin_y, step)
+            };
+            match solved {
+                Ok(()) => {
                     linear_failure = None;
-                    let search =
-                        backtrack_line_search(&mut problem, x, &step, norm, settings, &lo, &hi)?;
+                    let search = {
+                        let Scratch {
+                            step,
+                            candidate,
+                            candidate_residual,
+                            ..
+                        } = &mut *scratch;
+                        backtrack_line_search(
+                            &mut problem,
+                            x,
+                            step,
+                            norm,
+                            settings,
+                            &lo,
+                            &hi,
+                            candidate,
+                            candidate_residual,
+                        )?
+                    };
                     // Transcribed from the Java rescue condition
                     // `!isFinite(candidateNorm) || candidateNorm >= norm`. The
                     // `>=` is deliberate: it is false when `norm` is NaN, so a
@@ -382,7 +464,27 @@ where
                     // the damped mode does from here can only improve on the
                     // stall the undamped iteration already reached; a
                     // descending undamped iteration is never interfered with.
-                    match damped_rescue(&mut problem, &jacobian, x, &f, norm, 0.0, 1.0, &lo, &hi)? {
+                    scratch.ensure_rescue(n);
+                    match damped_rescue(
+                        &mut problem,
+                        &scratch.jacobian,
+                        x,
+                        &f,
+                        norm,
+                        0.0,
+                        1.0,
+                        &lo,
+                        &hi,
+                        RescueBufs {
+                            jtj: &mut scratch.jtj,
+                            jtr: &mut scratch.jtr,
+                            damped_a: &mut scratch.damped_a,
+                            damped_b: &mut scratch.damped_b,
+                            damped_y: &mut scratch.damped_y,
+                            candidate: &mut scratch.candidate,
+                            candidate_residual: &mut scratch.candidate_residual,
+                        },
+                    )? {
                         None => {
                             return stalled(&f, &scale, settings, iteration, norm, linear_failure)
                         }
@@ -390,21 +492,25 @@ where
                             lambda = rescue.lambda;
                             creep = 0;
                             damped = true;
-                            accepted = rescue.step;
+                            accepted = Accepted { norm: rescue.norm };
                         }
                     }
                 }
             }
         }
 
+        // Every path that reaches here left the accepted trial point in
+        // `scratch.candidate`/`candidate_residual` — the line search's
+        // breaking trial, or the rescue's accepted one (a rescue that
+        // overwrote a failed search's buffers is exactly the step taken).
         let mut max_change = 0.0f64;
-        for (slot, &moved_to) in x.iter_mut().zip(accepted.candidate.iter()) {
+        for (slot, &moved_to) in x.iter_mut().zip(scratch.candidate.iter()) {
             max_change = max_change.max((*slot - moved_to).abs());
             *slot = moved_to;
         }
-        f = accepted.residual;
+        f.copy_from_slice(&scratch.candidate_residual);
         norm = accepted.norm;
-        row_scale(&jacobian, x, &mut scale);
+        row_scale(&scratch.jacobian, x, &mut scale);
 
         // Stop criterion: change in variables below the threshold. A damped step
         // is deliberately short, so its size says nothing about convergence —
@@ -630,17 +736,130 @@ fn ulp(v: f64) -> f64 {
 
 /// A candidate point, its residuals and their 2-norm.
 #[derive(Debug, Clone)]
-struct Accepted {
+/// Wave G3b: every buffer one Newton solve reuses across iterations, halvings
+/// and damping trials. Before this, the callgrind profile of the per-step
+/// hostile regime had ~20 % of all instructions in `Vec` allocation inside
+/// `solve_block` — a fresh Jacobian per iteration, five vectors per linear
+/// solve, an accepted-step pair per line search, and a `jtj.clone()` per
+/// damping trial. Reuse changes no arithmetic: every buffer is fully
+/// (re)written before it is read, and the fill orders are the old
+/// constructors' orders.
+struct Scratch {
+    /// The iteration's Jacobian (`n × n`), analytic or finite-difference.
+    jacobian: Vec<Vec<f64>>,
+    /// `solve_linear`: column scales, the equilibrated copy, the gauss
+    /// right-hand side, the unscaled step, and gauss's solution vector.
+    lin_d: Vec<f64>,
+    lin_scaled: Vec<Vec<f64>>,
+    lin_b: Vec<f64>,
+    lin_y: Vec<f64>,
+    step: Vec<f64>,
+    /// The line search's / rescue's current trial point and its residuals.
+    /// On an accepted step the loop copies them into `x` and `f`.
     candidate: Vec<f64>,
-    residual: Vec<f64>,
+    candidate_residual: Vec<f64>,
+    /// `damped_rescue`: the normal equations and the per-trial damped copy.
+    jtj: Vec<Vec<f64>>,
+    jtr: Vec<f64>,
+    damped_a: Vec<Vec<f64>>,
+    damped_b: Vec<f64>,
+    damped_y: Vec<f64>,
+    /// `numerical_jacobian`: the probe point and its residuals.
+    nj_probe: Vec<f64>,
+    nj_out: Vec<f64>,
+}
+
+impl Scratch {
+    /// The hot-path buffers only. The rescue and finite-difference sets stay
+    /// empty until their paths run ([`Self::ensure_rescue`],
+    /// [`Self::ensure_numerical`]): a warm-started per-step solve converges at
+    /// iteration 0 or 1 and must not pay for buffers the failure paths own —
+    /// eagerly allocating all fifteen was measured as a 2× *regression* on
+    /// the stiff stand-in before this split.
+    fn new(n: usize) -> Scratch {
+        Scratch {
+            jacobian: vec![vec![0.0; n]; n],
+            lin_d: vec![0.0; n],
+            lin_scaled: vec![vec![0.0; n]; n],
+            lin_b: vec![0.0; n],
+            lin_y: vec![0.0; n],
+            step: vec![0.0; n],
+            candidate: vec![0.0; n],
+            candidate_residual: vec![0.0; n],
+            jtj: Vec::new(),
+            jtr: Vec::new(),
+            damped_a: Vec::new(),
+            damped_b: Vec::new(),
+            damped_y: Vec::new(),
+            nj_probe: Vec::new(),
+            nj_out: Vec::new(),
+        }
+    }
+
+    /// Size the damped-rescue buffers on first use.
+    fn ensure_rescue(&mut self, n: usize) {
+        if self.jtr.len() != n {
+            self.jtj = vec![vec![0.0; n]; n];
+            self.jtr = vec![0.0; n];
+            self.damped_a = vec![vec![0.0; n]; n];
+            self.damped_b = vec![0.0; n];
+            self.damped_y = vec![0.0; n];
+        }
+    }
+
+    /// Size the finite-difference buffers on first use.
+    fn ensure_numerical(&mut self, n: usize) {
+        if self.nj_probe.len() != n {
+            self.nj_probe = vec![0.0; n];
+            self.nj_out = vec![0.0; n];
+        }
+    }
+}
+
+impl Scratch {
+    /// All of `damped_rescue`'s buffers at once — for tests that call the
+    /// rescue directly (the solver loop builds `RescueBufs` field-by-field
+    /// because it borrows `jacobian` from the same struct).
+    #[cfg(test)]
+    fn rescue_bufs(&mut self) -> RescueBufs<'_> {
+        let n = self.step.len();
+        self.ensure_rescue(n);
+        RescueBufs {
+            jtj: &mut self.jtj,
+            jtr: &mut self.jtr,
+            damped_a: &mut self.damped_a,
+            damped_b: &mut self.damped_b,
+            damped_y: &mut self.damped_y,
+            candidate: &mut self.candidate,
+            candidate_residual: &mut self.candidate_residual,
+        }
+    }
+}
+
+/// An accepted step's norm — its point and residuals sit in
+/// [`Scratch::candidate`] / [`Scratch::candidate_residual`].
+struct Accepted {
     norm: f64,
 }
 
 /// An accepted damped step and the damping value that produced it.
 #[derive(Debug, Clone)]
 struct DampedStep {
-    step: Accepted,
+    norm: f64,
     lambda: f64,
+}
+
+/// The [`Scratch`] buffers `damped_rescue` borrows — a struct rather than
+/// seven parameters, so the call sites stay readable and the split borrows
+/// happen in one place.
+struct RescueBufs<'a> {
+    jtj: &'a mut [Vec<f64>],
+    jtr: &'a mut [f64],
+    damped_a: &'a mut [Vec<f64>],
+    damped_b: &'a mut [f64],
+    damped_y: &'a mut [f64],
+    candidate: &'a mut [f64],
+    candidate_residual: &'a mut [f64],
 }
 
 /// Why a linear stage could not produce a Newton direction.
@@ -675,6 +894,7 @@ impl LinearFailure {
 
 /// `J[i][j] = ∂f_i/∂x_j` by finite differences: one full residual sweep per
 /// unknown, plus retries for columns that come back invalid or cancelling.
+#[cfg(test)]
 fn numerical_jacobian<P>(
     problem: &mut P,
     x: &[f64],
@@ -686,26 +906,59 @@ fn numerical_jacobian<P>(
 where
     P: NewtonProblem + ?Sized,
 {
+    let mut scratch = Scratch::new(x.len());
+    scratch.ensure_numerical(x.len());
+    let Scratch {
+        jacobian,
+        nj_probe,
+        nj_out,
+        ..
+    } = &mut scratch;
+    numerical_jacobian_into(
+        problem, x, base, settings, lo, hi, jacobian, nj_probe, nj_out,
+    )?;
+    Ok(scratch.jacobian)
+}
+
+/// See the test-facing wrapper above: the same sweep into reused buffers
+/// (G3b). `jacobian` is zero-filled here, exactly as the fresh matrix was.
+#[allow(clippy::too_many_arguments)]
+fn numerical_jacobian_into<P>(
+    problem: &mut P,
+    x: &[f64],
+    base: &[f64],
+    settings: &SolverSettings,
+    lo: &[f64],
+    hi: &[f64],
+    jacobian: &mut [Vec<f64>],
+    probe: &mut [f64],
+    out: &mut [f64],
+) -> Result<()>
+where
+    P: NewtonProblem + ?Sized,
+{
     let n = x.len();
-    let mut jacobian = vec![vec![0.0f64; n]; n];
-    let mut probe = x.to_vec();
-    let mut out = vec![f64::NAN; n];
+    for row in jacobian.iter_mut() {
+        row.fill(0.0);
+    }
+    probe.copy_from_slice(x);
+    out.fill(f64::NAN);
     let dependents = problem.row_dependencies();
     for j in 0..n {
         jacobian_column(
             problem,
             x,
             base,
-            &mut jacobian,
-            &mut probe,
-            &mut out,
+            jacobian,
+            probe,
+            out,
             j,
             settings,
             (lo[j], hi[j]),
             dependents.as_ref().map(|rows| rows[j].as_slice()),
         )?;
     }
-    Ok(jacobian)
+    Ok(())
 }
 
 /// One finite-difference column, ported from `computeJacobianColumn`.
@@ -834,16 +1087,43 @@ where
 /// Solves `J·Δ = f` for the Newton step `Δ` (the iterate then moves to
 /// `x - λ·Δ`), with column equilibration around a partial-pivoting Gaussian
 /// elimination.
+#[cfg(test)]
 fn solve_linear(
     jacobian: &[Vec<f64>],
     rhs: &[f64],
 ) -> std::result::Result<Vec<f64>, LinearFailure> {
     let n = rhs.len();
+    let mut scratch = Scratch::new(n);
+    let Scratch {
+        lin_d,
+        lin_scaled,
+        lin_b,
+        lin_y,
+        step,
+        ..
+    } = &mut scratch;
+    solve_linear_into(jacobian, rhs, lin_d, lin_scaled, lin_b, lin_y, step)?;
+    Ok(scratch.step)
+}
+
+/// See [`solve_linear`] (the test-facing wrapper): the same computation into
+/// the caller's reused buffers (G3b), each fully rewritten before use.
+#[allow(clippy::too_many_arguments)]
+fn solve_linear_into(
+    jacobian: &[Vec<f64>],
+    rhs: &[f64],
+    d: &mut [f64],
+    scaled: &mut [Vec<f64>],
+    b: &mut [f64],
+    y: &mut [f64],
+    step: &mut [f64],
+) -> std::result::Result<(), LinearFailure> {
+    let n = rhs.len();
     // Column equilibration (§8.5 automatic scaling): scale each unknown's column
     // to unit norm, then unscale the step (Δx = D·y). A no-op at the root, but
     // it keeps the factorization accurate where the raw Jacobian mixes wildly
     // different magnitudes.
-    let mut d = vec![1.0f64; n];
+    d.fill(1.0);
     for (j, slot) in d.iter_mut().enumerate() {
         let mut c = 0.0f64;
         for row in jacobian.iter().take(n) {
@@ -856,13 +1136,15 @@ fn solve_linear(
             *slot = inv;
         }
     }
-    let scaled: Vec<Vec<f64>> = (0..n)
-        .map(|i| (0..n).map(|j| jacobian[i][j] * d[j]).collect())
-        .collect();
+    for i in 0..n {
+        for j in 0..n {
+            scaled[i][j] = jacobian[i][j] * d[j];
+        }
+    }
+    b.copy_from_slice(rhs);
 
-    let y = gauss_solve(scaled, rhs.to_vec())?;
+    gauss_solve_into(scaled, b, y)?;
 
-    let mut step = vec![0.0f64; n];
     for j in 0..n {
         let v = d[j] * y[j];
         if !v.is_finite() {
@@ -870,22 +1152,37 @@ fn solve_linear(
         }
         step[j] = v;
     }
-    Ok(step)
+    Ok(())
 }
 
 /// Gaussian elimination with partial pivoting. Consumes the matrix and the
-/// right-hand side because both are overwritten in place.
+/// right-hand side because both are overwritten in place. Kept with this
+/// signature for the unit tests below; the solver's hot paths call
+/// [`gauss_solve_into`] with reused buffers (G3b) — same arithmetic, no
+/// allocation.
+#[cfg(test)]
 fn gauss_solve(
     mut a: Vec<Vec<f64>>,
     mut b: Vec<f64>,
 ) -> std::result::Result<Vec<f64>, LinearFailure> {
+    let mut y = vec![0.0f64; b.len()];
+    gauss_solve_into(&mut a, &mut b, &mut y)?;
+    Ok(y)
+}
+
+/// See [`gauss_solve`]: the elimination itself, writing the solution into `y`.
+fn gauss_solve_into(
+    a: &mut [Vec<f64>],
+    b: &mut [f64],
+    y: &mut [f64],
+) -> std::result::Result<(), LinearFailure> {
     let n = b.len();
     if n == 0 {
-        return Ok(Vec::new());
+        return Ok(());
     }
 
     let mut largest = 0.0f64;
-    for row in &a {
+    for row in a.iter() {
         for &v in row {
             if !v.is_finite() {
                 return Err(LinearFailure::NonFinite);
@@ -893,7 +1190,7 @@ fn gauss_solve(
             largest = largest.max(v.abs());
         }
     }
-    for &v in &b {
+    for &v in b.iter() {
         if !v.is_finite() {
             return Err(LinearFailure::NonFinite);
         }
@@ -936,7 +1233,6 @@ fn gauss_solve(
         }
     }
 
-    let mut y = vec![0.0f64; n];
     for i in (0..n).rev() {
         let mut sum = b[i];
         for j in i + 1..n {
@@ -948,7 +1244,7 @@ fn gauss_solve(
         }
         y[i] = v;
     }
-    Ok(y)
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -961,6 +1257,7 @@ fn gauss_solve(
 /// `Math.clamp` site — so a bounded unknown is never evaluated out of range.
 /// Returns the last candidate tried even when none descended — the caller
 /// decides what to do with a non-descending result, exactly as in the Java.
+#[allow(clippy::too_many_arguments)]
 fn backtrack_line_search<P>(
     problem: &mut P,
     x: &[f64],
@@ -969,14 +1266,15 @@ fn backtrack_line_search<P>(
     settings: &SolverSettings,
     lo: &[f64],
     hi: &[f64],
+    candidate: &mut [f64],
+    candidate_residual: &mut [f64],
 ) -> Result<Accepted>
 where
     P: NewtonProblem + ?Sized,
 {
     let n = x.len();
     let mut lambda = 1.0f64;
-    let mut candidate = vec![0.0f64; n];
-    let mut candidate_residual = vec![f64::NAN; n];
+    candidate_residual.fill(f64::NAN);
     let mut candidate_norm = f64::INFINITY;
 
     for _ in 0..=settings.max_step_halvings {
@@ -986,8 +1284,8 @@ where
             finite_point &= candidate[i].is_finite();
         }
         if finite_point {
-            eval_residual(problem, &candidate, &mut candidate_residual)?;
-            candidate_norm = l2_norm(&candidate_residual);
+            eval_residual(problem, candidate, candidate_residual)?;
+            candidate_norm = l2_norm(candidate_residual);
             if candidate_norm.is_finite() && candidate_norm < norm {
                 break;
             }
@@ -1001,8 +1299,6 @@ where
     }
 
     Ok(Accepted {
-        candidate,
-        residual: candidate_residual,
         norm: candidate_norm,
     })
 }
@@ -1030,13 +1326,25 @@ fn damped_rescue<P>(
     accept_factor: f64,
     lo: &[f64],
     hi: &[f64],
+    bufs: RescueBufs<'_>,
 ) -> Result<Option<DampedStep>>
 where
     P: NewtonProblem + ?Sized,
 {
     let n = x.len();
-    let mut jtj = vec![vec![0.0f64; n]; n];
-    let mut jtr = vec![0.0f64; n];
+    let RescueBufs {
+        jtj,
+        jtr,
+        damped_a,
+        damped_b,
+        damped_y,
+        candidate,
+        candidate_residual,
+    } = bufs;
+    for row in jtj.iter_mut() {
+        row.fill(0.0);
+    }
+    jtr.fill(0.0);
     let mut any_row = false;
     for i in 0..n {
         // Rows stuck in an invalid region (non-finite residual or derivative)
@@ -1065,22 +1373,24 @@ where
     }
     let diagonal_floor = 1.0e-12 * max_diagonal; // keeps zero columns damped too
 
-    let mut candidate_residual = vec![f64::NAN; n];
+    candidate_residual.fill(f64::NAN);
     let mut lam = LM_LAMBDA_MIN.max(previous_lambda);
     while lam <= LM_LAMBDA_MAX {
-        let mut damped = jtj.clone();
-        for (j, row) in damped.iter_mut().enumerate() {
+        for (slot, row) in damped_a.iter_mut().zip(jtj.iter()) {
+            slot.copy_from_slice(row);
+        }
+        for (j, row) in damped_a.iter_mut().enumerate() {
             row[j] += lam * jtj[j][j].max(diagonal_floor);
         }
-        let delta = match gauss_solve(damped, jtr.clone()) {
-            Ok(delta) => delta,
+        damped_b.copy_from_slice(jtr);
+        let delta: &[f64] = match gauss_solve_into(damped_a, damped_b, damped_y) {
+            Ok(()) => damped_y,
             Err(_) => {
                 lam *= 10.0; // more damping regularizes further
                 continue;
             }
         };
 
-        let mut candidate = vec![0.0f64; n];
         let mut moved = false;
         let mut finite_point = true;
         for i in 0..n {
@@ -1097,19 +1407,15 @@ where
             continue;
         }
 
-        eval_residual(problem, &candidate, &mut candidate_residual)?;
-        let candidate_norm = l2_norm(&candidate_residual);
+        eval_residual(problem, candidate, candidate_residual)?;
+        let candidate_norm = l2_norm(candidate_residual);
         // A finite norm beats a non-finite one: a damped step that walks the
         // iterate back onto valid ground is progress.
         if candidate_norm.is_finite()
             && (!norm.is_finite() || candidate_norm < norm * accept_factor)
         {
             return Ok(Some(DampedStep {
-                step: Accepted {
-                    candidate,
-                    residual: candidate_residual,
-                    norm: candidate_norm,
-                },
+                norm: candidate_norm,
                 lambda: lam,
             }));
         }
@@ -1390,11 +1696,23 @@ mod tests {
         assert!(full > base, "the full step must not descend");
 
         let (lo, hi) = unbounded(1);
-        let result =
-            backtrack_line_search(&mut f, &x, &step, base.abs(), &settings(), &lo, &hi).unwrap();
+        let mut candidate = [0.0f64];
+        let mut residual = [0.0f64];
+        let result = backtrack_line_search(
+            &mut f,
+            &x,
+            &step,
+            base.abs(),
+            &settings(),
+            &lo,
+            &hi,
+            &mut candidate,
+            &mut residual,
+        )
+        .unwrap();
         assert!(result.norm < base.abs());
         // lambda = 1/2 is the first descending step.
-        assert!((result.candidate[0] - (2.0 - 0.5 * step[0])).abs() < 1e-12);
+        assert!((candidate[0] - (2.0 - 0.5 * step[0])).abs() < 1e-12);
     }
 
     /// `NewtonSolver.backtrackLineSearch` runs `for (halving = 0; halving <
@@ -1415,8 +1733,20 @@ mod tests {
                 Ok(())
             };
             let (lo, hi) = unbounded(1);
-            let result = backtrack_line_search(&mut f, &[10.0], &[10.0], 0.5, &s, &lo, &hi)
-                .expect("no callback error");
+            let mut candidate = [0.0f64];
+            let mut residual = [0.0f64];
+            let result = backtrack_line_search(
+                &mut f,
+                &[10.0],
+                &[10.0],
+                0.5,
+                &s,
+                &lo,
+                &hi,
+                &mut candidate,
+                &mut residual,
+            )
+            .expect("no callback error");
             assert_eq!(
                 lambdas.len(),
                 allowed + 1,
@@ -2183,8 +2513,20 @@ mod tests {
         };
         let jacobian = vec![vec![0.0]];
         let (lo, hi) = unbounded(1);
-        let rescue =
-            damped_rescue(&mut f, &jacobian, &[1.0], &[1.0], 1.0, 0.0, 1.0, &lo, &hi).unwrap();
+        let mut scratch = Scratch::new(1);
+        let rescue = damped_rescue(
+            &mut f,
+            &jacobian,
+            &[1.0],
+            &[1.0],
+            1.0,
+            0.0,
+            1.0,
+            &lo,
+            &hi,
+            scratch.rescue_bufs(),
+        )
+        .unwrap();
         assert!(rescue.is_none());
     }
 
@@ -2198,6 +2540,7 @@ mod tests {
         let base = libm::atan(2.0);
         let jacobian = vec![vec![1.0 / 5.0]];
         let (lo, hi) = unbounded(1);
+        let mut scratch = Scratch::new(1);
         let rescue = damped_rescue(
             &mut f,
             &jacobian,
@@ -2208,10 +2551,11 @@ mod tests {
             1.0,
             &lo,
             &hi,
+            scratch.rescue_bufs(),
         )
         .unwrap()
         .expect("damping must find a descent");
-        assert!(rescue.step.norm < base.abs());
+        assert!(rescue.norm < base.abs());
         assert!(rescue.lambda >= LM_LAMBDA_MIN);
     }
 

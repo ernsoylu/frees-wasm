@@ -172,7 +172,7 @@ per-step-cache delta, both measured with the same spec:
 | `scalar_two_block` | 70.8 µs | 0.80 ms (min 0.50) | 0.80 ms (min 0.40) | ~11× — see the boundary note |
 | `rankine_cycle` | 1.41 ms | 3.10 ms (2.70) | 3.00 ms (2.60) | ×2.2 |
 | `component_mvem` | 738 µs | 2.00 ms (1.80) | 2.00 ms (1.70) | ×2.7 |
-| `transient_dyn` | 30.2 → **14.9 ms** (G3, ×2.0) | 60.3 ms (50.7) | **23.9 ms** (22.5) | ×1.6 |
+| `transient_dyn` | 30.2 → **14.9 ms** (G3, ×2.0; 13.8 after G3b's Newton scratch reuse — a measured ~8 %, and G3b's commit records the negative result behind it) | 60.3 ms (50.7) | **23.9 ms** (22.5) | ×1.6 |
 | `control_lqr` | 3.04 ms | 5.70 ms (5.10) | 7.4–7.6 ms (5.40) | ×1.9 (by min) |
 
 The honest findings, corrected: the wasm-vs-native factor on real documents

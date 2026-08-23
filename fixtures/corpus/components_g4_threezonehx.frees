@@ -1,0 +1,20 @@
+// ThreeZoneHX: three chained counterflow HeatExchanger zones (UA/3 each) as an
+// air-to-air recuperator — 450 K exhaust preheats 300 K charge air, so the
+// cold outlet (~412 K) climbs above the hot outlet (~357 K), the signature of
+// counterflow. Air on both sides is deliberate: with Water the unsolved
+// intermediate enthalpies start at the default guess ~1 J/kg, one J above
+// water's triple-point property cliff, and the 76-equation block stalls Newton
+// after ~95 s of retry ladder; Air's reference state (h = 0 at the ~79 K NBP)
+// leaves a wide valid neighborhood around the same guess and it solves in
+// under a second.
+Source      HOT(fluid$ = Air, mdot = 0.3, P = 110000, T = 450)
+Source      COLD(fluid$ = Air, mdot = 0.25, P = 300000, T = 300)
+ThreeZoneHX HX(UA = 600, hot$ = Air, cold$ = Air, arr$ = counter)
+Sink        HSNK()
+Sink        CSNK()
+connect(HOT.out, HX.hot_in)
+connect(HX.hot_out, HSNK.in)
+connect(COLD.out, HX.cold_in)
+connect(HX.cold_out, CSNK.in)
+t_hot_out  = Temperature(Air, P = 110000, h = HSNK.h)
+t_cold_out = Temperature(Air, P = 300000, h = CSNK.h)

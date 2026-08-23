@@ -1,0 +1,10 @@
+// Combustor: fuel mass addition at eta_b on the LHV with a rated pressure
+// loss. Kerosene-like fuel (43 MJ/kg) at f = 0.02 into a 6 bar air stream.
+Combustor CB(g1, g2, mdot_f = 0.02, LHV = 43e6, eta_b = 0.98, dP = 20000)
+
+g1.P     = 600000
+g1.h     = 550000
+g1.mdot  = 1.0
+h_out    = g2.h
+p_out    = g2.P
+mdot_out = g2.mdot

@@ -1,0 +1,9 @@
+// ZoneCO2 steady: der(c) -> 0 gives c = c_amb + occ*gen_occ/vent
+// = 400 + 2*5/0.025 = 800 ppm (two occupants, 25 L/s of outdoor air).
+// EXPECT c_z = 800 tol 1e-6
+SigConstant VENT(k = 0.025)
+SigConstant OCC(k = 2)
+ZoneCO2     Z(Vz = 75, c_amb = 400, gen_occ = 5, c0 = 400)
+connect(VENT.out, Z.vent)
+connect(OCC.out, Z.occ)
+c_z = Z.out.sig

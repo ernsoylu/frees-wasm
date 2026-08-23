@@ -1,0 +1,28 @@
+{
+  "name": "components_g4_sigleadlag",
+  "source": "// SigLeadLag steady: x -> in, out = x + (T1/T2)*(in - x) = in (DC gain 1).\n// EXPECT y = 2 tol 1e-9\nSigConstant U(k = 2)\nSigLeadLag  LL(T1 = 0.5, T2 = 2, y0 = 0)\nconnect(U.out, LL.in)\ny = LL.out.sig\n",
+  "expect": {
+    "variables": {
+      "ll.in.sig": 2.0,
+      "ll.out.sig": 2.0,
+      "ll.x": 2.0,
+      "u.out.sig": 2.0,
+      "y": 2.0
+    },
+    "display_names": {
+      "ll$in$sig": "ll.in.sig",
+      "ll$out$sig": "ll.out.sig",
+      "ll$x": "ll.x",
+      "u$out$sig": "u.out.sig",
+      "y": "y"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

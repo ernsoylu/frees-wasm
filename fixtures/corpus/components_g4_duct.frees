@@ -1,0 +1,8 @@
+// Duct: Darcy friction drop for a fixed-density air stream (rho, mu given,
+// no property calls). Turbulent: Re ~ 1.2e5 at 0.5 kg/s through D = 0.3 m.
+Duct DU(d1, d2, rho = 1.20, mu = 1.82e-5, L = 12, D = 0.3, rough = 1.5e-4)
+
+d1.P    = 101325
+d1.mdot = 0.5
+dp_duct = d1.P - d2.P
+m_out   = d2.mdot

@@ -1,0 +1,32 @@
+{
+  "name": "components_g4_zoneco2",
+  "source": "// ZoneCO2 steady: der(c) -> 0 gives c = c_amb + occ*gen_occ/vent\n// = 400 + 2*5/0.025 = 800 ppm (two occupants, 25 L/s of outdoor air).\n// EXPECT c_z = 800 tol 1e-6\nSigConstant VENT(k = 0.025)\nSigConstant OCC(k = 2)\nZoneCO2     Z(Vz = 75, c_amb = 400, gen_occ = 5, c0 = 400)\nconnect(VENT.out, Z.vent)\nconnect(OCC.out, Z.occ)\nc_z = Z.out.sig\n",
+  "expect": {
+    "variables": {
+      "c_z": 800.0,
+      "occ.out.sig": 2.0,
+      "vent.out.sig": 0.025,
+      "z.c": 800.0,
+      "z.occ.sig": 2.0,
+      "z.out.sig": 800.0,
+      "z.vent.sig": 0.025
+    },
+    "display_names": {
+      "c_z": "c_z",
+      "occ$out$sig": "occ.out.sig",
+      "vent$out$sig": "vent.out.sig",
+      "z$c": "z.c",
+      "z$occ$sig": "z.occ.sig",
+      "z$out$sig": "z.out.sig",
+      "z$vent$sig": "z.vent.sig"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

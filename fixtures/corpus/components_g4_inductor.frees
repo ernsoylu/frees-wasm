@@ -1,0 +1,11 @@
+// Inductor steady: der(IL) -> 0 forces zero drop across the coil, so the loop
+// current is the resistor's: IL = 10/5 = 2 A.
+// EXPECT il = 2 tol 1e-9
+VoltageSource SRC(E = 10)
+Inductor      L1(L = 0.1, I0 = 0)
+Resistor      R1(R = 5)
+Ground        G()
+connect(SRC.p, L1.p)
+connect(L1.n, R1.a)
+connect(R1.b, SRC.n, G.port)
+il = L1.IL

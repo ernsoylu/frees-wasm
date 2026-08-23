@@ -1,0 +1,67 @@
+{
+  "name": "components_g4_txv",
+  "source": "// TXV: thermostatic expansion valve in its steady limit — der(SH_b)=0 pins the\n// bulb at the sensed superheat (288 K bulb vs Tsat(350 kPa) ~ 278.3 K -> 9.7 K)\n// and der(CdA)=0 relaxes the opening to CdA0 + Kv*(SH_b - SH_set).\nTwoPhasePressureSource HI(fluid$ = R134a, P = 1200000, x = 0)\nTXV                    VLV(fluid$ = R134a, Kv = 2e-7, SH_set = 7, CdA0 = 1e-6, tau_valve = 2, tau_bulb = 8)\nTwoPhasePressureSink   LO(P = 350000)\nThermalSource          BULB(T = 288)\nconnect(HI.out, VLV.in)\nconnect(VLV.out, LO.in)\nconnect(VLV.bulb, BULB.port)\nmdot_v = VLV.in.mdot\ncda    = VLV.CdA\n",
+  "expect": {
+    "variables": {
+      "bulb.port.qdot": 0.0,
+      "bulb.port.t": 288.0,
+      "cda": 1.5643855764138721E-6,
+      "hi.out.h": 265947.2005481485,
+      "hi.out.mdot": 0.06823681230240632,
+      "hi.out.p": 1200000.0,
+      "lo.in.h": 265947.2005481485,
+      "lo.in.mdot": 0.06823681230240632,
+      "lo.in.p": 350000.0,
+      "mdot_v": 0.06823681230240632,
+      "vlv.bulb.qdot": 0.0,
+      "vlv.bulb.t": 288.0,
+      "vlv.cda": 1.5643855764138721E-6,
+      "vlv.cda_t": 1.5643855764138721E-6,
+      "vlv.in.h": 265947.2005481485,
+      "vlv.in.mdot": 0.06823681230240632,
+      "vlv.in.p": 1200000.0,
+      "vlv.out.h": 265947.2005481485,
+      "vlv.out.mdot": 0.06823681230240632,
+      "vlv.out.p": 350000.0,
+      "vlv.rho_in": 1119.1825582464191,
+      "vlv.sh_b": 9.82192788206936,
+      "vlv.sh_sensed": 9.82192788206936,
+      "vlv.tsat": 278.17807211793064
+    },
+    "display_names": {
+      "bulb$port$qdot": "bulb.port.qdot",
+      "bulb$port$t": "bulb.port.t",
+      "cda": "cda",
+      "hi$out$h": "hi.out.h",
+      "hi$out$mdot": "hi.out.mdot",
+      "hi$out$p": "hi.out.p",
+      "lo$in$h": "lo.in.h",
+      "lo$in$mdot": "lo.in.mdot",
+      "lo$in$p": "lo.in.p",
+      "mdot_v": "mdot_v",
+      "r134a": "R134a",
+      "vlv$bulb$qdot": "vlv.bulb.qdot",
+      "vlv$bulb$t": "vlv.bulb.t",
+      "vlv$cda": "vlv.cda",
+      "vlv$cda_t": "vlv.cda_t",
+      "vlv$in$h": "vlv.in.h",
+      "vlv$in$mdot": "vlv.in.mdot",
+      "vlv$in$p": "vlv.in.p",
+      "vlv$out$h": "vlv.out.h",
+      "vlv$out$mdot": "vlv.out.mdot",
+      "vlv$out$p": "vlv.out.p",
+      "vlv$rho_in": "vlv.rho_in",
+      "vlv$sh_b": "vlv.sh_b",
+      "vlv$sh_sensed": "vlv.sh_sensed",
+      "vlv$tsat": "vlv.tsat"
+    },
+    "block_count": 24,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

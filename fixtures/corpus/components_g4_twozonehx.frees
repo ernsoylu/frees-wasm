@@ -1,0 +1,12 @@
+// TwoZoneHX: the hierarchical two-cell counterflow exchanger (two nested
+// HeatExchangers at UA/2 each, counter-plumbed). Air on both sides — the
+// wide (P,h) surface keeps the 49-equation inner block Newton-stable.
+Source    HS(h1, fluid$ = Air, mdot = 0.4, P = 110000, T = 450)
+Source    CS(c1, fluid$ = Air, mdot = 0.5, P = 200000, T = 300)
+TwoZoneHX HX(h1, h2, c1, c2, UA = 300, hot$ = Air, cold$ = Air, arr$ = counterflow)
+Sink      SKH(h2)
+Sink      SKC(c2)
+
+th_out = SKH.h
+tc_out = SKC.h
+q_hot  = 0.4 * (h1.h - h2.h)

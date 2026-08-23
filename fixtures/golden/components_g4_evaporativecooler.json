@@ -1,0 +1,66 @@
+{
+  "name": "components_g4_evaporativecooler",
+  "source": "// Adiabatic (swamp) cooler on hot dry air: 308.15 K, W = 0.008, effectiveness\n// 0.85 toward the adiabatic-saturation state. Constant enthalpy; the outlet\n// humidity moves 85% of the way to W_sat(h, P).\nMoistAirSource OA(P=101325, T=308.15, W=0.008, mdot=1)\nEvaporativeCooler EC(eff=0.85)\nMoistAirSink   SNK()\nconnect(OA.out, EC.in)\nconnect(EC.out, SNK.in)\nw_out = SNK.W\nt_out = Temperature(AirH2O, h=SNK.h, P=SNK.P, W=SNK.W)\ndw    = SNK.W - 0.008\n",
+  "expect": {
+    "variables": {
+      "dw": 0.0053225796091352865,
+      "ec.in.h": 55736.069784939486,
+      "ec.in.mdot": 1.0,
+      "ec.in.p": 101325.0,
+      "ec.in.w": 0.008,
+      "ec.out.h": 55736.069784939486,
+      "ec.out.mdot": 1.0,
+      "ec.out.p": 101325.0,
+      "ec.out.w": 0.013322579609135287,
+      "ec.w_sat": 0.014261858363688573,
+      "oa.out.h": 55736.069784939486,
+      "oa.out.mdot": 1.0,
+      "oa.out.p": 101325.0,
+      "oa.out.w": 0.008,
+      "snk.h": 55736.069784939486,
+      "snk.in.h": 55736.069784939486,
+      "snk.in.mdot": 1.0,
+      "snk.in.p": 101325.0,
+      "snk.in.w": 0.013322579609135287,
+      "snk.mdot": 1.0,
+      "snk.p": 101325.0,
+      "snk.w": 0.013322579609135287,
+      "t_out": 294.91748903418534,
+      "w_out": 0.013322579609135287
+    },
+    "display_names": {
+      "dw": "dw",
+      "ec$in$h": "ec.in.h",
+      "ec$in$mdot": "ec.in.mdot",
+      "ec$in$p": "ec.in.p",
+      "ec$in$w": "ec.in.w",
+      "ec$out$h": "ec.out.h",
+      "ec$out$mdot": "ec.out.mdot",
+      "ec$out$p": "ec.out.p",
+      "ec$out$w": "ec.out.w",
+      "ec$w_sat": "ec.w_sat",
+      "oa$out$h": "oa.out.h",
+      "oa$out$mdot": "oa.out.mdot",
+      "oa$out$p": "oa.out.p",
+      "oa$out$w": "oa.out.w",
+      "snk$h": "snk.h",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "snk$in$w": "snk.in.w",
+      "snk$mdot": "snk.mdot",
+      "snk$p": "snk.p",
+      "snk$w": "snk.w",
+      "t_out": "t_out",
+      "w_out": "w_out"
+    },
+    "block_count": 24,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

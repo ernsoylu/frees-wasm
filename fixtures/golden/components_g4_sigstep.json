@@ -1,0 +1,24 @@
+{
+  "name": "components_g4_sigstep",
+  "source": "// SigStep: smooth 0 -> 10 step at t0 = 0.5 s, sampled 10 edge-widths past the\n// edge, so tanh(10) leaves y within 5e-9 of the after level.\n// EXPECT y = 10 tol 1e-6\nSigStep ST(t0 = 0.5, before = 0, after = 10, eps = 0.05)\ntime = 1.0\ny = ST.out.sig\n",
+  "expect": {
+    "variables": {
+      "st.out.sig": 9.999999979388463,
+      "time": 1.0,
+      "y": 9.999999979388463
+    },
+    "display_names": {
+      "st$out$sig": "st.out.sig",
+      "time": "time",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

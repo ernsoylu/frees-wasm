@@ -1,0 +1,44 @@
+{
+  "name": "components_g4_supercapacitor",
+  "source": "// Supercapacitor steady across an ideal 2.5 V source: der(Vc) -> 0 forces\n// p.I = 0, so the ESR drops nothing and Vc sits at the source voltage.\n// EXPECT vc = 2.5 tol 1e-9\nSupercapacitor SC(C = 100, R_esr = 0.01, V0 = 0)\nVoltageSource  SRC(E = 2.5)\nGround         G()\nconnect(SRC.p, SC.p)\nconnect(SC.n, SRC.n, G.port)\nvc = SC.Vc\ni = SC.p.I\n",
+  "expect": {
+    "variables": {
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "i": 0.0,
+      "sc.n.i": 0.0,
+      "sc.n.v": 0.0,
+      "sc.p.i": 0.0,
+      "sc.p.v": 2.5,
+      "sc.vc": 2.5,
+      "src.n.i": 0.0,
+      "src.n.v": 0.0,
+      "src.p.i": 0.0,
+      "src.p.v": 2.5,
+      "vc": 2.5
+    },
+    "display_names": {
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "i": "i",
+      "sc$n$i": "sc.n.i",
+      "sc$n$v": "sc.n.v",
+      "sc$p$i": "sc.p.i",
+      "sc$p$v": "sc.p.v",
+      "sc$vc": "sc.vc",
+      "src$n$i": "src.n.i",
+      "src$n$v": "src.n.v",
+      "src$p$i": "src.p.i",
+      "src$p$v": "src.p.v",
+      "vc": "vc"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

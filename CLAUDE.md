@@ -181,8 +181,9 @@ budget was raised **3072 → 4096 KiB** — owner-authorized, sanctioned by the
 CI header's own rule since D9 paid debt (1); the header's dated entry has
 the full lever-by-lever justification. Current headroom ≈ 1031 KiB.)* Thirteen of the 23 entries in `fixtures/tolerances.json` are
 retired: the rustprop configuration is graded by
-`fixtures/tolerances-rustprop.json` and its **twelve** entries (ten scalar
-since Wave-3 F5, plus Wave G1's two transient entries, 2026-08-23), one file per
+`fixtures/tolerances-rustprop.json` and its **twenty-three** entries (ten
+scalar since Wave-3 F5, Wave G1's two transient entries, and Wave G4's eleven
+component-harvest entries — all 2026-08-23), one file per
 backend, chosen by the same `rustprop-backend` cfg that chooses the backend.
 `HAPropsSI` answers. `Air` left the property-diagram picker with the
 `air.fraux` grid it was the only backing for — *and came back at
@@ -289,14 +290,14 @@ now lives in `Latex.tsx`.
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
 | [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach — superseded for the browser by D9), D8 (CoolProp-grade accuracy becomes the property path — **implemented and closed**, by rustprop rather than by the `coolprop.wasm` it imagined), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)** |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (776) and golden fixtures, the pending set (1; the `dyn_accessor_live` cost hold), the decayed-signal measure (Wave G1) for ODE row cells, how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
+| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (905) and golden fixtures, the pending set (1; the `dyn_accessor_live` cost hold), the decayed-signal measure (Wave G1) for ODE row cells, how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
 
 ## Build and test
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 776 documents)
+                                       # (--release: the replay solves 905 documents)
 cargo test --workspace --test parity   # golden-corpus parity only — what CI runs
 cargo test -p frees-core --features rustprop-backend --test parity   # same, single package
                                        # NOT `cargo test -p frees-core --test parity`:

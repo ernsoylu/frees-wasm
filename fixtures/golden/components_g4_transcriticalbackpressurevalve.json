@@ -1,0 +1,51 @@
+{
+  "name": "components_g4_transcriticalbackpressurevalve",
+  "source": "// TranscriticalBackPressureValve: signal-commanded odd-symmetric square-law\n// valve between fixed 1.2 MPa / 400 kPa rails at half opening (u.sig = 0.5).\n// R744 is not in this build; the commanded-area law itself is fluid-agnostic.\nTwoPhasePressureSource         HI(fluid$ = R134a, P = 1200000, x = 0)\nTranscriticalBackPressureValve BPV(fluid$ = R134a, CdA_max = 2e-6)\nSigConstant                    CMD(k = 0.5)\nTwoPhasePressureSink           LO(P = 400000)\nconnect(HI.out, BPV.in)\nconnect(BPV.out, LO.in)\nconnect(CMD.out, BPV.u)\nmdot_v = BPV.in.mdot\n",
+  "expect": {
+    "variables": {
+      "bpv.in.h": 265947.2005481485,
+      "bpv.in.mdot": 0.04231656996017365,
+      "bpv.in.p": 1200000.0,
+      "bpv.out.h": 265947.2005481485,
+      "bpv.out.mdot": 0.04231656996017365,
+      "bpv.out.p": 400000.0,
+      "bpv.rho": 1119.1825582464191,
+      "bpv.u.sig": 0.5,
+      "cmd.out.sig": 0.5,
+      "hi.out.h": 265947.2005481485,
+      "hi.out.mdot": 0.04231656996017365,
+      "hi.out.p": 1200000.0,
+      "lo.in.h": 265947.2005481485,
+      "lo.in.mdot": 0.04231656996017365,
+      "lo.in.p": 400000.0,
+      "mdot_v": 0.04231656996017365
+    },
+    "display_names": {
+      "bpv$in$h": "bpv.in.h",
+      "bpv$in$mdot": "bpv.in.mdot",
+      "bpv$in$p": "bpv.in.p",
+      "bpv$out$h": "bpv.out.h",
+      "bpv$out$mdot": "bpv.out.mdot",
+      "bpv$out$p": "bpv.out.p",
+      "bpv$rho": "bpv.rho",
+      "bpv$u$sig": "bpv.u.sig",
+      "cmd$out$sig": "cmd.out.sig",
+      "hi$out$h": "hi.out.h",
+      "hi$out$mdot": "hi.out.mdot",
+      "hi$out$p": "hi.out.p",
+      "lo$in$h": "lo.in.h",
+      "lo$in$mdot": "lo.in.mdot",
+      "lo$in$p": "lo.in.p",
+      "mdot_v": "mdot_v",
+      "r134a": "R134a"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

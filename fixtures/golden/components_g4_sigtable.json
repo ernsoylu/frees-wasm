@@ -1,0 +1,25 @@
+{
+  "name": "components_g4_sigtable",
+  "source": "// SigTable: tabulated source sig = map$(time), sampled between knots of a\n// linear table -> interpolant 6 at t = 1.5.\n// EXPECT y = 6 tol 1e-9\nTABLE spd(t)\n  0   0\n  1   4\n  2   8\nEND\nSigTable TB(map$ = spd)\ntime = 1.5\ny = TB.out.sig\n",
+  "expect": {
+    "variables": {
+      "tb.out.sig": 6.0,
+      "time": 1.5,
+      "y": 6.0
+    },
+    "display_names": {
+      "spd": "spd",
+      "tb$out$sig": "tb.out.sig",
+      "time": "time",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

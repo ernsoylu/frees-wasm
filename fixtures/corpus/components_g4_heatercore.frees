@@ -1,0 +1,13 @@
+// HeaterCore: the cabin-heating radiator — 85 C engine coolant warms a cold
+// ventilation air stream (278 K, W = 0.003) through the shared wall node.
+LiquidSource   CLNT(fluid$ = Water, mdot = 0.15, P = 250000, T = 358)
+MoistAirSource AIR(P = 101325, T = 278, W = 0.003, mdot = 0.12)
+HeaterCore     HC(cool$ = Water, UA_cool = 300, eps_air = 0.75)
+LiquidSink     CSNK()
+MoistAirSink   ASNK()
+connect(CLNT.out, HC.cool_in)
+connect(HC.cool_out, CSNK.in)
+connect(AIR.out, HC.air_in)
+connect(HC.air_out, ASNK.in)
+t_cool_out = Temperature(Water, P = 250000, h = CSNK.h)
+t_air_out  = Temperature(AirH2O, h = ASNK.h, P = 101325, W = ASNK.W)

@@ -1,0 +1,60 @@
+{
+  "name": "components_g4_pmsm",
+  "source": "// PMSM on a 48 V bus against a 0.05 N.m.s/rad damper: Kt = 1.5*4*0.1 = 0.6,\n// I = 48/(0.5 + 0.6^2/0.05) = 6.23377 A, w = 12*I = 74.8052 rad/s.\n// EXPECT w_shaft = 74.8052 tol 1e-3\nPMSM             M(Rs = 0.5, lambda_pm = 0.1, poles = 4)\nVoltageSource    SRC(E = 48)\nRotationalDamper DP(c = 0.05)\nMechGround       MG()\nGround           G()\nconnect(SRC.p, M.p)\nconnect(M.n, SRC.n, G.port)\nconnect(M.shaft, DP.a)\nconnect(DP.b, MG.port)\nw_shaft = M.shaft.w\ni = M.p.I\n",
+  "expect": {
+    "variables": {
+      "dp.a.tau": 3.7402597402597397,
+      "dp.a.w": 74.80519480519479,
+      "dp.b.tau": -3.7402597402597397,
+      "dp.b.w": 0.0,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "i": 6.233766233766232,
+      "m.kt": 0.6000000000000001,
+      "m.n.i": -6.233766233766232,
+      "m.n.v": 0.0,
+      "m.p.i": 6.233766233766232,
+      "m.p.v": 48.0,
+      "m.shaft.tau": -3.7402597402597397,
+      "m.shaft.w": 74.80519480519479,
+      "mg.port.tau": 3.7402597402597397,
+      "mg.port.w": 0.0,
+      "src.n.i": 6.233766233766232,
+      "src.n.v": 0.0,
+      "src.p.i": -6.233766233766232,
+      "src.p.v": 48.0,
+      "w_shaft": 74.80519480519479
+    },
+    "display_names": {
+      "dp$a$tau": "dp.a.tau",
+      "dp$a$w": "dp.a.w",
+      "dp$b$tau": "dp.b.tau",
+      "dp$b$w": "dp.b.w",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "i": "i",
+      "m$kt": "m.kt",
+      "m$n$i": "m.n.i",
+      "m$n$v": "m.n.v",
+      "m$p$i": "m.p.i",
+      "m$p$v": "m.p.v",
+      "m$shaft$tau": "m.shaft.tau",
+      "m$shaft$w": "m.shaft.w",
+      "mg$port$tau": "mg.port.tau",
+      "mg$port$w": "mg.port.w",
+      "src$n$i": "src.n.i",
+      "src$n$v": "src.n.v",
+      "src$p$i": "src.p.i",
+      "src$p$v": "src.p.v",
+      "w_shaft": "w_shaft"
+    },
+    "block_count": 17,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,6 @@
+// SigLeadLag steady: x -> in, out = x + (T1/T2)*(in - x) = in (DC gain 1).
+// EXPECT y = 2 tol 1e-9
+SigConstant U(k = 2)
+SigLeadLag  LL(T1 = 0.5, T2 = 2, y0 = 0)
+connect(U.out, LL.in)
+y = LL.out.sig

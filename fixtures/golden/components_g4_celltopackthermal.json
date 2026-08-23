@@ -1,0 +1,52 @@
+{
+  "name": "components_g4_celltopackthermal",
+  "source": "// Cell-to-cold-plate interface at steady state: a 320 K cell conducts through\n// Rcc = 0.5 K/W into the plate node, which convects (htc*A = 2 W/K) to a\n// 293.15 K coolant boundary. Steady: (320 - Tp)/0.5 = 2*(Tp - 293.15)\n// -> Tp = 306.575 K, Q = 26.85 W.\nThermalSource CELL(T=320)\nCellToPackThermal CTP(Rcc=0.5, Cpl=1500, T0=300)\nConvection    CVP(htc=20, area=0.1)\nThermalSource COOL(T=293.15)\nconnect(CELL.port, CTP.cell)\nconnect(CTP.plate, CVP.a)\nconnect(CVP.b, COOL.port)\nt_plate = CTP.Tp\nq_cell  = CTP.Q\n",
+  "expect": {
+    "variables": {
+      "cell.port.qdot": -26.850000000000023,
+      "cell.port.t": 320.0,
+      "cool.port.qdot": 26.850000000000023,
+      "cool.port.t": 293.15,
+      "ctp.cell.qdot": 26.850000000000023,
+      "ctp.cell.t": 320.0,
+      "ctp.plate.qdot": -26.850000000000023,
+      "ctp.plate.t": 306.575,
+      "ctp.q": 26.850000000000023,
+      "ctp.tp": 306.575,
+      "cvp.a.qdot": 26.850000000000023,
+      "cvp.a.t": 306.575,
+      "cvp.b.qdot": -26.850000000000023,
+      "cvp.b.t": 293.15,
+      "cvp.q": 26.850000000000023,
+      "q_cell": 26.850000000000023,
+      "t_plate": 306.575
+    },
+    "display_names": {
+      "cell$port$qdot": "cell.port.qdot",
+      "cell$port$t": "cell.port.t",
+      "cool$port$qdot": "cool.port.qdot",
+      "cool$port$t": "cool.port.t",
+      "ctp$cell$qdot": "ctp.cell.qdot",
+      "ctp$cell$t": "ctp.cell.t",
+      "ctp$plate$qdot": "ctp.plate.qdot",
+      "ctp$plate$t": "ctp.plate.t",
+      "ctp$q": "ctp.q",
+      "ctp$tp": "ctp.tp",
+      "cvp$a$qdot": "cvp.a.qdot",
+      "cvp$a$t": "cvp.a.t",
+      "cvp$b$qdot": "cvp.b.qdot",
+      "cvp$b$t": "cvp.b.t",
+      "cvp$q": "cvp.q",
+      "q_cell": "q_cell",
+      "t_plate": "t_plate"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

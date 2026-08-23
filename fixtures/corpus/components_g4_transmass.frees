@@ -1,0 +1,12 @@
+// TransMass steady: der(vel) -> 0 means the mass carries no force, so the
+// 10 N source is taken entirely by the 2 N.s/m damper: v = 5 m/s.
+// EXPECT v_m = 5 tol 1e-9
+ForceSource FS(F = 10)
+TransDamper TD(c = 2)
+TransMass   MS(m = 5, v0 = 0)
+TransGround G1()
+TransGround G2()
+connect(FS.a, TD.a, MS.port)
+connect(FS.b, G1.port)
+connect(TD.b, G2.port)
+v_m = MS.port.vel

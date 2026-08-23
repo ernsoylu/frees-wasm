@@ -1,0 +1,47 @@
+{
+  "name": "components_g4_hydraulicpilotcheckvalve",
+  "source": "// Pilot-operated check valve held open against reverse dP (the load-holding\n// case): line pressure 5 bar, load side 20 bar, pilot at 15 bar with ratio 3.\n// dPe = (5-20)e5 + 3*(15-5)e5 = +15e5 > 0 -> poppet open, flow REVERSE:\n// mdot = -CdA*sqrt(2*rho*15e5) = -2e-6*sqrt(2*870*1.5e6) = -0.10219 kg/s.\nHydraulicPilotCheckValve PCV(o1, o2, op, CdA=2e-6, rho=870, rp=3, eps=50000)\no1.P = 500000\no1.h = 0\no2.P = 2000000\nop.P = 1500000\nop.h = 0\nq_rev  = PCV.in.mdot\nx_gate = PCV.g\n",
+  "expect": {
+    "variables": {
+      "o1.h": 0.0,
+      "o1.mdot": -0.1021763181955584,
+      "o1.p": 500000.0,
+      "o2.h": 0.0,
+      "o2.mdot": -0.1021763181955584,
+      "o2.p": 2000000.0,
+      "op.h": 0.0,
+      "op.mdot": 0.0,
+      "op.p": 1500000.0,
+      "pcv.dpe": 1500000.0,
+      "pcv.g": 1.0,
+      "q_rev": -0.1021763181955584,
+      "x_gate": 1.0
+    },
+    "display_names": {
+      "o1": "o1",
+      "o1$h": "o1.h",
+      "o1$mdot": "o1.mdot",
+      "o1$p": "o1.p",
+      "o2": "o2",
+      "o2$h": "o2.h",
+      "o2$mdot": "o2.mdot",
+      "o2$p": "o2.p",
+      "op": "op",
+      "op$h": "op.h",
+      "op$mdot": "op.mdot",
+      "op$p": "op.p",
+      "pcv$dpe": "pcv.dpe",
+      "pcv$g": "pcv.g",
+      "q_rev": "q_rev",
+      "x_gate": "x_gate"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "components_g4_atmospheresource",
+  "source": "// AtmosphereSource: the ISA 1976 state at 5 km as a flow boundary —\n// P = isa_P(5000) ~ 54 kPa, h = Enthalpy(Air) at the ISA temperature.\nAtmosphereSource ATM(a1, alt = 5000, mdot = 1.0)\nSink             SK(a1)\n\np_amb = SK.P\nh_amb = SK.h\nm     = SK.mdot\n",
+  "expect": {
+    "variables": {
+      "a1.h": 381836.7045459697,
+      "a1.mdot": 1.0,
+      "a1.p": 54020.49540145998,
+      "h_amb": 381836.7045459697,
+      "m": 1.0,
+      "p_amb": 54020.49540145998,
+      "sk.h": 381836.7045459697,
+      "sk.mdot": 1.0,
+      "sk.p": 54020.49540145998
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$h": "a1.h",
+      "a1$mdot": "a1.mdot",
+      "a1$p": "a1.p",
+      "h_amb": "h_amb",
+      "m": "m",
+      "p_amb": "p_amb",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

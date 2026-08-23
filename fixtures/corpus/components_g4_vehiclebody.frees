@@ -1,0 +1,12 @@
+// Longitudinal vehicle body cruising at a held 30 m/s (der(vel) -> 0): the
+// drive force equals the resistance stack, aero + tanh-signed rolling.
+// F = 0.5*1.2*0.32*2.2*30^2 + 1500*9.80665*0.012 = 380.16 + 176.52 = 556.68 N.
+COMPONENT VelSource(port)
+  PARAM v
+  port.vel = v
+END
+VelSource   CRUISE(v=30)
+VehicleBody VB(m=1500, Cd=0.32, Af=2.2, rhoA=1.2, Crr=0.012, grade=0, v0=30)
+connect(CRUISE.port, VB.port)
+f_drive = VB.port.f
+f_check = VB.F_res

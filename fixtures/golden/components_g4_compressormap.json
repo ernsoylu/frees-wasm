@@ -1,0 +1,54 @@
+{
+  "name": "components_g4_compressormap",
+  "source": "// CompressorMap, default `eta` variant: isentropic efficiency off a 1-D map\n// vs pressure ratio. PR = 2.5 interpolates eta = 0.76 between the rows.\nTABLE etamap(pr)\n  1    0.82\n  4    0.70\nEND\n\nSource        SRC(a1, fluid$ = Air, mdot = 0.15, P = 100000, T = 300)\nCompressorMap CM(a1, a2, fluid$ = Air, map_eta$ = etamap)\nSink          SK(a2)\n\na2.P     = 250000\nw_c      = CM.W\neta_used = CM.eta\n",
+  "expect": {
+    "variables": {
+      "a1.h": 426300.77587390563,
+      "a1.mdot": 0.15,
+      "a1.p": 100000.0,
+      "a2.h": 544965.4923986103,
+      "a2.mdot": 0.15,
+      "a2.p": 250000.0,
+      "cm.eta": 0.76,
+      "cm.h_s": 516485.96043268126,
+      "cm.pr": 2.5,
+      "cm.s_in": 3890.5014021915044,
+      "cm.w": 17799.707478705706,
+      "eta_used": 0.76,
+      "sk.h": 544965.4923986103,
+      "sk.mdot": 0.15,
+      "sk.p": 250000.0,
+      "w_c": 17799.707478705706
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$h": "a1.h",
+      "a1$mdot": "a1.mdot",
+      "a1$p": "a1.p",
+      "a2": "a2",
+      "a2$h": "a2.h",
+      "a2$mdot": "a2.mdot",
+      "a2$p": "a2.p",
+      "air": "Air",
+      "cm$eta": "cm.eta",
+      "cm$h_s": "cm.h_s",
+      "cm$pr": "cm.pr",
+      "cm$s_in": "cm.s_in",
+      "cm$w": "cm.w",
+      "eta_used": "eta_used",
+      "etamap": "etamap",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "w_c": "w_c"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

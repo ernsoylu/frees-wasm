@@ -1,0 +1,6 @@
+// SigRamp: slope-2 ramp from t0 = 1 s sampled at t = 3 s -> slope*dt = 4
+// (the C1 hinge of width 1e-3 adds ~1.25e-7).
+// EXPECT y = 4 tol 1e-5
+SigRamp RA(t0 = 1, slope = 2, eps = 1e-3)
+time = 3
+y = RA.out.sig

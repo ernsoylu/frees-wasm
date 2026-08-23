@@ -1,0 +1,23 @@
+// Charge heating of a dead-ended receiver (the component's natural transient):
+// 6 bar, 320 K supply fills the 10 L tank through an ISO 6358 orifice while
+// the wall convects (10 * 0.05 W/K) to a 293.15 K casing. Mass and temperature
+// are states; pressure follows the ideal-gas law m*R*T/V.
+COMPONENT GasCap(port)
+  PARAM domain$ = gas
+  port.mdot = 0
+END
+PneumaticSupply        SUP(fluid$=Air, P=600000, T=320)
+PneumaticOrifice       OIN(fluid$=Air, C=1e-8, b=0.3)
+PneumaticThermalVolume TNK(fluid$=Air, V=0.01, R=287, cv=718, cp=1005, m0=0.012, T0=300)
+GasCap                 CAP()
+Convection             SHELL(htc=10, area=0.05)
+ThermalSource          CASE(T=293.15)
+connect(SUP.out, OIN.in)
+connect(OIN.out, TNK.in)
+connect(TNK.out, CAP.port)
+connect(TNK.wall, SHELL.a)
+connect(SHELL.b, CASE.port)
+DYNAMIC fill(method = ode23s, time = 0 .. 12, points = 21)
+END
+p_end = FinalValue('tnk.in.p')
+t_end = FinalValue('tnk.t')

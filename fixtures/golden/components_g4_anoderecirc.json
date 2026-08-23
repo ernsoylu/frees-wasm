@@ -1,0 +1,63 @@
+{
+  "name": "components_g4_anoderecirc",
+  "source": "// Anode recirculation ejector (gas bond exercised with Air, the served fluid):\n// 3 bar fresh supply entrains ER = 1.2 times its own flow from the 1.6 bar,\n// 330 K stack return; the mixed stream feeds the 1.5 bar stack inlet with the\n// flow-weighted enthalpy.\nPneumaticSupply     FRESH(fluid$=Air, P=300000, T=310)\nPneumaticSupply     RET(fluid$=Air, P=160000, T=330)\nAnodeRecirc         AR(fluid$=Air, C=1.5e-8, b=0.3, ER=1.2)\nPneumaticAtmosphere STACK(P=150000)\nconnect(FRESH.out, AR.sup_in)\nconnect(RET.out, AR.ret_in)\nconnect(AR.out, STACK.port)\nm_fresh = AR.sup_in.mdot\nm_ret   = AR.ret_in.mdot\nm_mix   = AR.out.mdot\n",
+  "expect": {
+    "variables": {
+      "ar.out.h": 447102.55418495653,
+      "ar.out.mdot": 0.010932660558258082,
+      "ar.out.p": 150000.0,
+      "ar.ret_in.h": 456400.92880791647,
+      "ar.ret_in.mdot": 0.005963269395413499,
+      "ar.ret_in.p": 160000.0,
+      "ar.sup_in.h": 435944.5046374046,
+      "ar.sup_in.mdot": 0.0049693911628445825,
+      "ar.sup_in.p": 300000.0,
+      "ar.t_s": 309.9999999999934,
+      "fresh.out.h": 435944.5046374046,
+      "fresh.out.mdot": 0.0049693911628445825,
+      "fresh.out.p": 300000.0,
+      "m_fresh": 0.0049693911628445825,
+      "m_mix": 0.010932660558258082,
+      "m_ret": 0.005963269395413499,
+      "ret.out.h": 456400.92880791647,
+      "ret.out.mdot": 0.005963269395413499,
+      "ret.out.p": 160000.0,
+      "stack.port.h": 447102.55418495653,
+      "stack.port.mdot": 0.010932660558258082,
+      "stack.port.p": 150000.0
+    },
+    "display_names": {
+      "air": "Air",
+      "ar$out$h": "ar.out.h",
+      "ar$out$mdot": "ar.out.mdot",
+      "ar$out$p": "ar.out.p",
+      "ar$ret_in$h": "ar.ret_in.h",
+      "ar$ret_in$mdot": "ar.ret_in.mdot",
+      "ar$ret_in$p": "ar.ret_in.p",
+      "ar$sup_in$h": "ar.sup_in.h",
+      "ar$sup_in$mdot": "ar.sup_in.mdot",
+      "ar$sup_in$p": "ar.sup_in.p",
+      "ar$t_s": "ar.t_s",
+      "fresh$out$h": "fresh.out.h",
+      "fresh$out$mdot": "fresh.out.mdot",
+      "fresh$out$p": "fresh.out.p",
+      "m_fresh": "m_fresh",
+      "m_mix": "m_mix",
+      "m_ret": "m_ret",
+      "ret$out$h": "ret.out.h",
+      "ret$out$mdot": "ret.out.mdot",
+      "ret$out$p": "ret.out.p",
+      "stack$port$h": "stack.port.h",
+      "stack$port$mdot": "stack.port.mdot",
+      "stack$port$p": "stack.port.p"
+    },
+    "block_count": 22,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

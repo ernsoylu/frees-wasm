@@ -1,0 +1,9 @@
+// TwoPhaseEvaporator: lumped non-isobaric evaporator — two-phase R134a in at
+// 360 kPa leaves 10 kPa lower with a set 5 K exit superheat; Q is an output.
+TwoPhaseSourcePH   SRC(mdot = 0.03, P = 360000, h = 260000)
+TwoPhaseEvaporator EV(fluid$ = R134a, SH_set = 5, dP = 10000)
+TwoPhaseSink       SNK()
+connect(SRC.out, EV.in)
+connect(EV.out, SNK.in)
+q     = EV.Q
+h_out = SNK.h

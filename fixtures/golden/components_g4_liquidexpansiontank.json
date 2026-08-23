@@ -1,0 +1,42 @@
+{
+  "name": "components_g4_liquidexpansiontank",
+  "source": "// LiquidExpansionTank pinning the loop pressure datum at a heater inlet;\n// the boundary supplies flow and enthalpy, the tank supplies P.\nLiquidExpansionTank ET(t1, P = 150000)\nLiquidColdPlate     HTR(t1, t2, Q = 3000)\nLiquidSink          SK(t2)\n\nt1.mdot = 0.25\nt1.h    = 112000\np_ref   = SK.P\nh_out   = SK.h\n",
+  "expect": {
+    "variables": {
+      "h_out": 124000.0,
+      "p_ref": 150000.0,
+      "sk.h": 124000.0,
+      "sk.mdot": 0.25,
+      "sk.p": 150000.0,
+      "t1.h": 112000.0,
+      "t1.mdot": 0.25,
+      "t1.p": 150000.0,
+      "t2.h": 124000.0,
+      "t2.mdot": 0.25,
+      "t2.p": 150000.0
+    },
+    "display_names": {
+      "h_out": "h_out",
+      "p_ref": "p_ref",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "t1": "t1",
+      "t1$h": "t1.h",
+      "t1$mdot": "t1.mdot",
+      "t1$p": "t1.p",
+      "t2": "t2",
+      "t2$h": "t2.h",
+      "t2$mdot": "t2.mdot",
+      "t2$p": "t2.p"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

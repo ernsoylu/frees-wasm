@@ -1,0 +1,26 @@
+{
+  "name": "components_g4_sigramp",
+  "source": "// SigRamp: slope-2 ramp from t0 = 1 s sampled at t = 3 s -> slope*dt = 4\n// (the C1 hinge of width 1e-3 adds ~1.25e-7).\n// EXPECT y = 4 tol 1e-5\nSigRamp RA(t0 = 1, slope = 2, eps = 1e-3)\ntime = 3\ny = RA.out.sig\n",
+  "expect": {
+    "variables": {
+      "ra.dt": 2.0,
+      "ra.out.sig": 4.000000249999984,
+      "time": 3.0,
+      "y": 4.000000249999984
+    },
+    "display_names": {
+      "ra$dt": "ra.dt",
+      "ra$out$sig": "ra.out.sig",
+      "time": "time",
+      "y": "y"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "components_g4_multizonewall",
+  "source": "// Two-zone partition wall at steady state, zone temperatures read directly\n// (the ports are resistive by design): films h_a = h_b = 8 W/m2K, U = 2.5,\n// A = 12 m2. R_tot = 1/96 + 1/30 + 1/96 = 0.0541667 K/W,\n// Q = (298.15 - 283.15)/R_tot = 276.92 W.\nThermalSource ZONEA(T=298.15)\nMultiZoneWall WALL(h_a=8, h_b=8, U=2.5, A=12, C1=200000, C2=200000, T10=296, T20=288)\nThermalSource ZONEB(T=283.15)\nconnect(ZONEA.port, WALL.a)\nconnect(WALL.b, ZONEB.port)\nq_zone  = WALL.qa\nt_face1 = WALL.T1\nt_face2 = WALL.T2\n",
+  "expect": {
+    "variables": {
+      "q_zone": 276.92307692307986,
+      "t_face1": 295.26538461538456,
+      "t_face2": 286.0346153846154,
+      "wall.a.qdot": 276.92307692307986,
+      "wall.a.t": 298.15,
+      "wall.b.qdot": -276.92307692307986,
+      "wall.b.t": 283.15,
+      "wall.q": 276.9230769230751,
+      "wall.qa": 276.92307692307986,
+      "wall.qb": 276.92307692307986,
+      "wall.t1": 295.26538461538456,
+      "wall.t2": 286.0346153846154,
+      "zonea.port.qdot": -276.92307692307986,
+      "zonea.port.t": 298.15,
+      "zoneb.port.qdot": 276.92307692307986,
+      "zoneb.port.t": 283.15
+    },
+    "display_names": {
+      "q_zone": "q_zone",
+      "t_face1": "t_face1",
+      "t_face2": "t_face2",
+      "wall$a$qdot": "wall.a.qdot",
+      "wall$a$t": "wall.a.t",
+      "wall$b$qdot": "wall.b.qdot",
+      "wall$b$t": "wall.b.t",
+      "wall$q": "wall.q",
+      "wall$qa": "wall.qa",
+      "wall$qb": "wall.qb",
+      "wall$t1": "wall.t1",
+      "wall$t2": "wall.t2",
+      "zonea$port$qdot": "zonea.port.qdot",
+      "zonea$port$t": "zonea.port.t",
+      "zoneb$port$qdot": "zoneb.port.qdot",
+      "zoneb$port$t": "zoneb.port.t"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "components_g4_fancurve",
+  "source": "// FanCurve: the enthalpy-free fan quadratic dP = dP0*(1 - (Q/Q0)^2) at a\n// fixed density. Q = 1.5 of Q0 = 3 m^3/s puts it mid-curve: dP = 300 Pa.\nFanCurve FC(f1, f2, rho = 1.2, dP0 = 400, Q0 = 3.0)\n\nf1.P    = 101325\nf1.mdot = 1.8\ndp_fan  = f2.P - f1.P\nm_out   = f2.mdot\n",
+  "expect": {
+    "variables": {
+      "dp_fan": 300.0,
+      "f1.mdot": 1.8,
+      "f1.p": 101325.0,
+      "f2.mdot": 1.8,
+      "f2.p": 101625.0,
+      "fc.dp": 300.0,
+      "fc.q": 1.5,
+      "m_out": 1.8
+    },
+    "display_names": {
+      "dp_fan": "dp_fan",
+      "f1": "f1",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "fc$dp": "fc.dp",
+      "fc$q": "fc.q",
+      "m_out": "m_out"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

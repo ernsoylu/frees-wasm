@@ -1,0 +1,9 @@
+// GravityDrain: Torricelli square law through Cd*A = 6.2e-5 m^2 under
+// ~1.9 m of water head (dP = 18.7 kPa) -> mdot ~ 0.38 kg/s.
+GravityDrain GD(g1, g2, Cd = 0.62, A_d = 1e-4, rho = 998)
+
+g1.P  = 120000
+g1.h  = 100000
+g2.P  = 101325
+m     = GD.out.mdot
+h_out = g2.h

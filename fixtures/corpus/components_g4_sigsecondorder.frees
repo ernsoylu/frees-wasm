@@ -1,0 +1,7 @@
+// SigSecondOrder steady: der(y) -> 0 gives v = 0, der(v) -> 0 gives y = in
+// (unit DC gain of the tracking filter).
+// EXPECT y = 1.5 tol 1e-9
+SigConstant    U(k = 1.5)
+SigSecondOrder SO(wn = 4, zeta = 0.7, y0 = 0, v0 = 0)
+connect(U.out, SO.in)
+y = SO.out.sig

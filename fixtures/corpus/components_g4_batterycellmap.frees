@@ -1,0 +1,24 @@
+// BatteryCellMap (static variant): OCV(SOC) and dU/dT maps, Arrhenius R0,
+// a 2 A discharge for 10 s from SOC0 = 0.8, heat convected to 298 K ambient.
+// SOC and T are states, so the document is a short transient.
+TABLE ocv(soc)
+  0     3.0
+  0.5   3.6
+  1     4.1
+END
+TABLE dudt(soc)
+  0    -0.0001
+  1     0.0001
+END
+BatteryCellMap B(ocv$ = ocv, dudt$ = dudt, R0ref = 0.01, Tref = 298, Ea = 20000, Q0 = 5, C_th = 50, SOC0 = 0.8, T0 = 298)
+CurrentSource  CS(I = -2)
+Ground         G()
+Convection     CV(htc = 5, area = 0.1)
+ThermalSource  AMB(T = 298)
+connect(B.p, CS.p)
+connect(CS.n, B.n, G.port)
+connect(B.heat, CV.a)
+connect(CV.b, AMB.port)
+
+DYNAMIC discharge (method = ode45, time = 0 .. 10, points = 6)
+END

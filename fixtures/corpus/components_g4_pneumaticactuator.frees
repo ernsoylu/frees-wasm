@@ -1,0 +1,13 @@
+// Single-acting pneumatic actuator at its steady extension speed: 6 bar shop
+// air on a 50 cm2 piston against a 50 kN.s/m damper.
+// F = (6e5 - 1e5)*0.005 = 2500 N -> vel = 0.05 m/s; the chamber feed flow is
+// rho(P,h) * area * vel with rho from the real-gas backend.
+PneumaticSupply   SUP(fluid$=Air, P=600000, T=300)
+PneumaticActuator ACT(fluid$=Air, area=0.005, Patm=100000)
+TransDamper       DMP(c=50000)
+TransGround       GND()
+connect(SUP.out, ACT.in)
+connect(ACT.rod, DMP.a)
+connect(DMP.b, GND.port)
+v_rod = ACT.rod.vel
+m_in  = ACT.in.mdot

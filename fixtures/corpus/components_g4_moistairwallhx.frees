@@ -1,0 +1,15 @@
+// Wet cooling coil as a moist-air-side HX half (eps_t variant): warm humid air
+// (305.15 K, W = 0.012) approaches a 283.15 K wall with effectiveness 0.8.
+// The outlet W is smooth-clamped at saturation, so the coil dehumidifies and
+// the wall receives sensible + latent duty (wall.Qdot = -Q).
+MoistAirSource SRC(P=101325, T=305.15, W=0.012, mdot=1)
+MoistAirWallHX COIL(eps=0.8)
+MoistAirSink   SNK()
+ThermalSource  WALLT(T=283.15)
+connect(SRC.out, COIL.in)
+connect(COIL.out, SNK.in)
+connect(COIL.wall, WALLT.port)
+q_total = COIL.Q
+q_lat   = COIL.Q_lat
+t_out   = COIL.T_out
+w_out   = SNK.W

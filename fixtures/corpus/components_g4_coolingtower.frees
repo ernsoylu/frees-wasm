@@ -1,0 +1,10 @@
+// CoolingTower (Merkel-lite): heat rejection on the saturated-enthalpy
+// potential between the 310 K water inlet and a 295 K wet-bulb signal.
+// eps_t = 0.4 with 2 kg/s design air keeps the approach above the wet-bulb.
+LiquidSource LS(w1, fluid$ = Water, mdot = 2.0, P = 150000, T = 310)
+CoolingTower CT(w1, w2, wb1, fluid$ = Water, eps_t = 0.4, mdot_a = 2.0, Patm = 101325)
+SigConstant  WB(wb1, k = 295)
+LiquidSink   SK(w2)
+
+q_rej = CT.Q
+h_out = SK.h

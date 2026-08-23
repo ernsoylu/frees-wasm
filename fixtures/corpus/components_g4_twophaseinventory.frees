@@ -1,0 +1,9 @@
+// TwoPhaseInventory: pass-through charge accounting with the Zivi void model —
+// 1.5 L of two-phase R134a at x = 0.4 is far lighter than a no-slip average.
+TwoPhaseSource    SRC(fluid$ = R134a, mdot = 0.05, P = 400000, x = 0.4)
+TwoPhaseInventory INV(fluid$ = R134a, V = 0.0015)
+TwoPhaseSink      SNK()
+connect(SRC.out, INV.in)
+connect(INV.out, SNK.in)
+m_charge = INV.m
+a_void   = INV.alpha

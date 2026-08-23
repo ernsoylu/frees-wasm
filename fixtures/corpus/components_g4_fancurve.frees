@@ -1,0 +1,8 @@
+// FanCurve: the enthalpy-free fan quadratic dP = dP0*(1 - (Q/Q0)^2) at a
+// fixed density. Q = 1.5 of Q0 = 3 m^3/s puts it mid-curve: dP = 300 Pa.
+FanCurve FC(f1, f2, rho = 1.2, dP0 = 400, Q0 = 3.0)
+
+f1.P    = 101325
+f1.mdot = 1.8
+dp_fan  = f2.P - f1.P
+m_out   = f2.mdot

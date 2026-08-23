@@ -1,0 +1,11 @@
+// SigTable: tabulated source sig = map$(time), sampled between knots of a
+// linear table -> interpolant 6 at t = 1.5.
+// EXPECT y = 6 tol 1e-9
+TABLE spd(t)
+  0   0
+  1   4
+  2   8
+END
+SigTable TB(map$ = spd)
+time = 1.5
+y = TB.out.sig

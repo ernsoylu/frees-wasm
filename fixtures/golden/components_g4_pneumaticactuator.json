@@ -1,0 +1,53 @@
+{
+  "name": "components_g4_pneumaticactuator",
+  "source": "// Single-acting pneumatic actuator at its steady extension speed: 6 bar shop\n// air on a 50 cm2 piston against a 50 kN.s/m damper.\n// F = (6e5 - 1e5)*0.005 = 2500 N -> vel = 0.05 m/s; the chamber feed flow is\n// rho(P,h) * area * vel with rho from the real-gas backend.\nPneumaticSupply   SUP(fluid$=Air, P=600000, T=300)\nPneumaticActuator ACT(fluid$=Air, area=0.005, Patm=100000)\nTransDamper       DMP(c=50000)\nTransGround       GND()\nconnect(SUP.out, ACT.in)\nconnect(ACT.rod, DMP.a)\nconnect(DMP.b, GND.port)\nv_rod = ACT.rod.vel\nm_in  = ACT.in.mdot\n",
+  "expect": {
+    "variables": {
+      "act.in.h": 425173.9514504108,
+      "act.in.mdot": 0.0017449463105905243,
+      "act.in.p": 600000.0,
+      "act.rho": 6.979785242362097,
+      "act.rod.f": -2500.0,
+      "act.rod.vel": 0.049999999999999996,
+      "dmp.a.f": 2500.0,
+      "dmp.a.vel": 0.049999999999999996,
+      "dmp.b.f": -2500.0,
+      "dmp.b.vel": 0.0,
+      "gnd.port.f": 2500.0,
+      "gnd.port.vel": 0.0,
+      "m_in": 0.0017449463105905243,
+      "sup.out.h": 425173.9514504108,
+      "sup.out.mdot": 0.0017449463105905243,
+      "sup.out.p": 600000.0,
+      "v_rod": 0.049999999999999996
+    },
+    "display_names": {
+      "act$in$h": "act.in.h",
+      "act$in$mdot": "act.in.mdot",
+      "act$in$p": "act.in.p",
+      "act$rho": "act.rho",
+      "act$rod$f": "act.rod.f",
+      "act$rod$vel": "act.rod.vel",
+      "air": "Air",
+      "dmp$a$f": "dmp.a.f",
+      "dmp$a$vel": "dmp.a.vel",
+      "dmp$b$f": "dmp.b.f",
+      "dmp$b$vel": "dmp.b.vel",
+      "gnd$port$f": "gnd.port.f",
+      "gnd$port$vel": "gnd.port.vel",
+      "m_in": "m_in",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "v_rod": "v_rod"
+    },
+    "block_count": 17,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

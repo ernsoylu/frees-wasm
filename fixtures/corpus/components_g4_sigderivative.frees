@@ -1,0 +1,7 @@
+// SigDerivative steady: the filter state settles on the constant input, so the
+// realizable derivative reads exactly zero.
+// EXPECT yd = 0 tol 1e-9
+SigConstant   U(k = 4)
+SigDerivative DV(tau = 0.1, y0 = 0)
+connect(U.out, DV.in)
+yd = DV.out.sig

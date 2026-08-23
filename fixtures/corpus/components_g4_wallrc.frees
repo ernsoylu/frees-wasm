@@ -1,0 +1,16 @@
+// Two-node RC wall between convective films at steady state: series resistance
+// 1/(25*2) + 0.05 + 1/(10*2) = 0.12 K/W, so Q = (380 - 293.15)/0.12 = 723.75 W.
+// The WallRC faces are states (never T-pinned); the films decouple them from
+// the temperature boundaries. der -> 0 without a DYNAMIC block.
+ThermalSource HOT(T=380)
+Convection    CVA(htc=25, area=2)
+WallRC        WALL(C1=50000, C2=50000, R=0.05, T10=320, T20=310)
+Convection    CVB(htc=10, area=2)
+ThermalSource AMB(T=293.15)
+connect(HOT.port, CVA.a)
+connect(CVA.b, WALL.a)
+connect(WALL.b, CVB.a)
+connect(CVB.b, AMB.port)
+t_face_hot  = WALL.T1
+t_face_cold = WALL.T2
+q_wall      = (WALL.T1 - WALL.T2) / 0.05

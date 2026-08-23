@@ -1,0 +1,38 @@
+{
+  "name": "components_g4_contactresistance",
+  "source": "// Bolted-joint contact resistance between a 350 K chip base and a 300 K sink:\n// Q = (350 - 300) / 0.02 = 2500 W. Steady.\nThermalSource CHIP(T=350)\nContactResistance CR(Rth=0.02)\nThermalSource SINKP(T=300)\nconnect(CHIP.port, CR.a)\nconnect(CR.b, SINKP.port)\nq_joint = CR.Q\n",
+  "expect": {
+    "variables": {
+      "chip.port.qdot": -2500.0,
+      "chip.port.t": 350.0,
+      "cr.a.qdot": 2500.0,
+      "cr.a.t": 350.0,
+      "cr.b.qdot": -2500.0,
+      "cr.b.t": 300.0,
+      "cr.q": 2500.0,
+      "q_joint": 2500.0,
+      "sinkp.port.qdot": 2500.0,
+      "sinkp.port.t": 300.0
+    },
+    "display_names": {
+      "chip$port$qdot": "chip.port.qdot",
+      "chip$port$t": "chip.port.t",
+      "cr$a$qdot": "cr.a.qdot",
+      "cr$a$t": "cr.a.t",
+      "cr$b$qdot": "cr.b.qdot",
+      "cr$b$t": "cr.b.t",
+      "cr$q": "cr.q",
+      "q_joint": "q_joint",
+      "sinkp$port$qdot": "sinkp.port.qdot",
+      "sinkp$port$t": "sinkp.port.t"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

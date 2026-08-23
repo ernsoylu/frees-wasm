@@ -1,0 +1,11 @@
+// BatteryRC steady: der(Vrc) -> 0 gives Vrc = R1*I_dis, so the cell presents
+// R0+R1 in series. 3.7 V over 0.05+0.03+0.66 ohm -> 5 A, terminal 3.3 V.
+// EXPECT vt = 3.3 tol 1e-6
+// EXPECT vrc = 0.15 tol 1e-6
+BatteryRC B(Voc = 3.7, R0 = 0.05, R1 = 0.03, C1 = 2000, Vrc0 = 0)
+Resistor  RL(R = 0.66)
+Ground    G()
+connect(B.p, RL.a)
+connect(RL.b, B.n, G.port)
+vt = B.p.V - B.n.V
+vrc = B.Vrc

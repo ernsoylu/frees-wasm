@@ -1,0 +1,18 @@
+// Propeller on flat Ct/Cp advance-ratio maps: 2 m prop at 20 rev/s
+// (w = 40*pi), 30 m/s flight speed -> J = 0.75, inside the 0..2 map span.
+// Shaft speed and vehicle velocity are pinned directly on the streams.
+TABLE ctmap(j)
+  0    0.12
+  2    0.12
+END
+TABLE cpmap(j)
+  0    0.05
+  2    0.05
+END
+
+Propeller PR(sh1, vh1, Dp = 2.0, rhoA = 1.225, ct$ = ctmap, cpw$ = cpmap, epsn = 1e-6)
+
+sh1.w   = 125.66370614359172
+vh1.vel = 30
+thrust  = -vh1.f
+tau_in  = sh1.tau

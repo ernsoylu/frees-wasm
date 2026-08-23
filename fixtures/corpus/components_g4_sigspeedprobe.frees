@@ -1,0 +1,8 @@
+// SigSpeedProbe: torque-free shaft-speed pickup on a node driven at 7 rad/s.
+// EXPECT y = 7 tol 1e-9
+SpeedSource   SS(w = 7)
+MechGround    G1()
+SigSpeedProbe PR()
+connect(SS.a, PR.shaft)
+connect(SS.b, G1.port)
+y = PR.out.sig

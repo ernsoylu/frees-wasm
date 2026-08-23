@@ -1,0 +1,19 @@
+// TwoPhasePipe: Lockhart-Martinelli two-phase drop with the phase properties
+// given as parameters (R134a-like values at 400 kPa, x = 0.3). Two library
+// quirks worth knowing: fluid$ is declared but unused by the equations (it
+// still must be passed — no default), and the component declares NO
+// domain$ = twophase, so its ports sit on the UNTAGGED 'fluid' bond and refuse
+// TwoPhase* terminators; the untagged FluidBoundary/Sink idiom closes it.
+COMPONENT FluidBoundary(out)
+  PARAM P, h, mdot
+  out.P    = P
+  out.h    = h
+  out.mdot = mdot
+END
+FluidBoundary SRC(P = 400000, h = 300000, mdot = 0.05)
+TwoPhasePipe  PIPE(fluid$ = R134a, L = 5, D = 0.01, rough = 1.5e-6, x = 0.3, rho_l = 1147, rho_g = 19.5, mu_l = 2.2e-4, mu_g = 1.1e-5)
+Sink          SNK()
+connect(SRC.out, PIPE.in)
+connect(PIPE.out, SNK.in)
+dp    = 400000 - SNK.P
+p_out = SNK.P

@@ -1,0 +1,48 @@
+{
+  "name": "components_g4_hydraulicvalvecmd",
+  "source": "// Signal-commanded proportional valve at 70% spool: square-law flow through\n// u.sig * CdA_max between a 100 bar supply and a 1 bar tank.\n// mdot = 0.7*3e-5 * sqrt(2*870*9.9e6) = 2.7566 kg/s.\nSigConstant      CMD(k=0.7)\nHydraulicSupply  SUP(P=10000000)\nHydraulicValveCmd VLV(CdA_max=3e-5, rho=870)\nHydraulicTank    TNK(P=100000)\nconnect(SUP.out, VLV.in)\nconnect(VLV.out, TNK.port)\nconnect(CMD.out, VLV.u)\nq_v = VLV.in.mdot\n",
+  "expect": {
+    "variables": {
+      "cmd.out.sig": 0.7,
+      "q_v": 2.756204999632647,
+      "sup.out.h": 0.0,
+      "sup.out.mdot": 2.756204999632647,
+      "sup.out.p": 1.0E7,
+      "tnk.port.h": 0.0,
+      "tnk.port.mdot": 2.756204999632647,
+      "tnk.port.p": 100000.0,
+      "vlv.in.h": 0.0,
+      "vlv.in.mdot": 2.756204999632647,
+      "vlv.in.p": 1.0E7,
+      "vlv.out.h": 0.0,
+      "vlv.out.mdot": 2.756204999632647,
+      "vlv.out.p": 100000.0,
+      "vlv.u.sig": 0.7
+    },
+    "display_names": {
+      "cmd$out$sig": "cmd.out.sig",
+      "q_v": "q_v",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "tnk$port$h": "tnk.port.h",
+      "tnk$port$mdot": "tnk.port.mdot",
+      "tnk$port$p": "tnk.port.p",
+      "vlv$in$h": "vlv.in.h",
+      "vlv$in$mdot": "vlv.in.mdot",
+      "vlv$in$p": "vlv.in.p",
+      "vlv$out$h": "vlv.out.h",
+      "vlv$out$mdot": "vlv.out.mdot",
+      "vlv$out$p": "vlv.out.p",
+      "vlv$u$sig": "vlv.u.sig"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

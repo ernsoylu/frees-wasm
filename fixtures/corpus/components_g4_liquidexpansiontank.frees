@@ -1,0 +1,10 @@
+// LiquidExpansionTank pinning the loop pressure datum at a heater inlet;
+// the boundary supplies flow and enthalpy, the tank supplies P.
+LiquidExpansionTank ET(t1, P = 150000)
+LiquidColdPlate     HTR(t1, t2, Q = 3000)
+LiquidSink          SK(t2)
+
+t1.mdot = 0.25
+t1.h    = 112000
+p_ref   = SK.P
+h_out   = SK.h

@@ -1,0 +1,10 @@
+// HeatedDuct: single-stream eps-NTU pickup from a 450 K wall node
+// (eps = 1 - exp(-UA/(mdot*cp)) ~ 0.52 at UA = 150, mdot = 0.2 of Air).
+// The wall port shares stream wl with the ThermalSource positionally.
+Source        SRC(a1, fluid$ = Air, mdot = 0.2, P = 101325, T = 300)
+HeatedDuct    HD(a1, a2, wl, fluid$ = Air, UA = 150)
+ThermalSource WALL(wl, T = 450)
+Sink          SK(a2)
+
+q     = HD.Q
+h_out = SK.h

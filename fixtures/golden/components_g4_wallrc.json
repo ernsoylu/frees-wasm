@@ -1,0 +1,64 @@
+{
+  "name": "components_g4_wallrc",
+  "source": "// Two-node RC wall between convective films at steady state: series resistance\n// 1/(25*2) + 0.05 + 1/(10*2) = 0.12 K/W, so Q = (380 - 293.15)/0.12 = 723.75 W.\n// The WallRC faces are states (never T-pinned); the films decouple them from\n// the temperature boundaries. der -> 0 without a DYNAMIC block.\nThermalSource HOT(T=380)\nConvection    CVA(htc=25, area=2)\nWallRC        WALL(C1=50000, C2=50000, R=0.05, T10=320, T20=310)\nConvection    CVB(htc=10, area=2)\nThermalSource AMB(T=293.15)\nconnect(HOT.port, CVA.a)\nconnect(CVA.b, WALL.a)\nconnect(WALL.b, CVB.a)\nconnect(CVB.b, AMB.port)\nt_face_hot  = WALL.T1\nt_face_cold = WALL.T2\nq_wall      = (WALL.T1 - WALL.T2) / 0.05\n",
+  "expect": {
+    "variables": {
+      "amb.port.qdot": 723.7500000000001,
+      "amb.port.t": 293.15,
+      "cva.a.qdot": 723.7500000000009,
+      "cva.a.t": 380.0,
+      "cva.b.qdot": -723.7500000000009,
+      "cva.b.t": 365.525,
+      "cva.q": 723.7500000000009,
+      "cvb.a.qdot": 723.7500000000001,
+      "cvb.a.t": 329.3375,
+      "cvb.b.qdot": -723.7500000000001,
+      "cvb.b.t": 293.15,
+      "cvb.q": 723.7500000000001,
+      "hot.port.qdot": -723.7500000000009,
+      "hot.port.t": 380.0,
+      "q_wall": 723.75,
+      "t_face_cold": 329.3375,
+      "t_face_hot": 365.525,
+      "wall.a.qdot": 723.7500000000009,
+      "wall.a.t": 365.525,
+      "wall.b.qdot": -723.7500000000001,
+      "wall.b.t": 329.3375,
+      "wall.t1": 365.525,
+      "wall.t2": 329.3375
+    },
+    "display_names": {
+      "amb$port$qdot": "amb.port.qdot",
+      "amb$port$t": "amb.port.t",
+      "cva$a$qdot": "cva.a.qdot",
+      "cva$a$t": "cva.a.t",
+      "cva$b$qdot": "cva.b.qdot",
+      "cva$b$t": "cva.b.t",
+      "cva$q": "cva.q",
+      "cvb$a$qdot": "cvb.a.qdot",
+      "cvb$a$t": "cvb.a.t",
+      "cvb$b$qdot": "cvb.b.qdot",
+      "cvb$b$t": "cvb.b.t",
+      "cvb$q": "cvb.q",
+      "hot$port$qdot": "hot.port.qdot",
+      "hot$port$t": "hot.port.t",
+      "q_wall": "q_wall",
+      "t_face_cold": "t_face_cold",
+      "t_face_hot": "t_face_hot",
+      "wall$a$qdot": "wall.a.qdot",
+      "wall$a$t": "wall.a.t",
+      "wall$b$qdot": "wall.b.qdot",
+      "wall$b$t": "wall.b.t",
+      "wall$t1": "wall.t1",
+      "wall$t2": "wall.t2"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

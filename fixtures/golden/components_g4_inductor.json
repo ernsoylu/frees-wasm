@@ -1,0 +1,50 @@
+{
+  "name": "components_g4_inductor",
+  "source": "// Inductor steady: der(IL) -> 0 forces zero drop across the coil, so the loop\n// current is the resistor's: IL = 10/5 = 2 A.\n// EXPECT il = 2 tol 1e-9\nVoltageSource SRC(E = 10)\nInductor      L1(L = 0.1, I0 = 0)\nResistor      R1(R = 5)\nGround        G()\nconnect(SRC.p, L1.p)\nconnect(L1.n, R1.a)\nconnect(R1.b, SRC.n, G.port)\nil = L1.IL\n",
+  "expect": {
+    "variables": {
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "il": 2.0,
+      "l1.il": 2.0,
+      "l1.n.i": -2.0,
+      "l1.n.v": 10.0,
+      "l1.p.i": 2.0,
+      "l1.p.v": 10.0,
+      "r1.a.i": 2.0,
+      "r1.a.v": 10.0,
+      "r1.b.i": -2.0,
+      "r1.b.v": 0.0,
+      "src.n.i": 2.0,
+      "src.n.v": 0.0,
+      "src.p.i": -2.0,
+      "src.p.v": 10.0
+    },
+    "display_names": {
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "il": "il",
+      "l1$il": "l1.il",
+      "l1$n$i": "l1.n.i",
+      "l1$n$v": "l1.n.v",
+      "l1$p$i": "l1.p.i",
+      "l1$p$v": "l1.p.v",
+      "r1$a$i": "r1.a.i",
+      "r1$a$v": "r1.a.v",
+      "r1$b$i": "r1.b.i",
+      "r1$b$v": "r1.b.v",
+      "src$n$i": "src.n.i",
+      "src$n$v": "src.n.v",
+      "src$p$i": "src.p.i",
+      "src$p$v": "src.p.v"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

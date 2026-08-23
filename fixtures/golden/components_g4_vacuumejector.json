@@ -1,0 +1,63 @@
+{
+  "name": "components_g4_vacuumejector",
+  "source": "// Vacuum ejector picking a load: 7 bar motive air (choked ISO 6358) entrains\n// ER = 0.6 times its mass flow from a 0.6 bar suction vessel; mass and energy\n// mix exactly at the 1 bar exhaust.\nPneumaticSupply     SUP(fluid$=Air, P=700000, T=300)\nPneumaticSupply     VAC(fluid$=Air, P=60000, T=295)\nVacuumEjector       EJ(fluid$=Air, C=2e-8, b=0.3, ER=0.6)\nPneumaticAtmosphere ATM(P=100000)\nconnect(SUP.out, EJ.sup_in)\nconnect(VAC.out, EJ.suc_in)\nconnect(EJ.exh_out, ATM.port)\nm_mot = EJ.sup_in.mdot\nm_suc = EJ.suc_in.mdot\nm_exh = EJ.exh_out.mdot\n",
+  "expect": {
+    "variables": {
+      "atm.port.h": 423604.97793321055,
+      "atm.port.mdot": 0.02623920608798974,
+      "atm.port.p": 100000.0,
+      "ej.exh_out.h": 423604.97793321055,
+      "ej.exh_out.mdot": 0.02623920608798974,
+      "ej.exh_out.p": 100000.0,
+      "ej.suc_in.h": 421363.3184541931,
+      "ej.suc_in.mdot": 0.009839702282996153,
+      "ej.suc_in.p": 60000.0,
+      "ej.sup_in.h": 424949.973620621,
+      "ej.sup_in.mdot": 0.01639950380499359,
+      "ej.sup_in.p": 700000.0,
+      "ej.t_s": 300.0000000000009,
+      "m_exh": 0.02623920608798974,
+      "m_mot": 0.01639950380499359,
+      "m_suc": 0.009839702282996153,
+      "sup.out.h": 424949.973620621,
+      "sup.out.mdot": 0.01639950380499359,
+      "sup.out.p": 700000.0,
+      "vac.out.h": 421363.3184541931,
+      "vac.out.mdot": 0.009839702282996153,
+      "vac.out.p": 60000.0
+    },
+    "display_names": {
+      "air": "Air",
+      "atm$port$h": "atm.port.h",
+      "atm$port$mdot": "atm.port.mdot",
+      "atm$port$p": "atm.port.p",
+      "ej$exh_out$h": "ej.exh_out.h",
+      "ej$exh_out$mdot": "ej.exh_out.mdot",
+      "ej$exh_out$p": "ej.exh_out.p",
+      "ej$suc_in$h": "ej.suc_in.h",
+      "ej$suc_in$mdot": "ej.suc_in.mdot",
+      "ej$suc_in$p": "ej.suc_in.p",
+      "ej$sup_in$h": "ej.sup_in.h",
+      "ej$sup_in$mdot": "ej.sup_in.mdot",
+      "ej$sup_in$p": "ej.sup_in.p",
+      "ej$t_s": "ej.t_s",
+      "m_exh": "m_exh",
+      "m_mot": "m_mot",
+      "m_suc": "m_suc",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "vac$out$h": "vac.out.h",
+      "vac$out$mdot": "vac.out.mdot",
+      "vac$out$p": "vac.out.p"
+    },
+    "block_count": 22,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

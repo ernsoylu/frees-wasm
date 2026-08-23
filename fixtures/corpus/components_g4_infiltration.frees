@@ -1,0 +1,10 @@
+// Envelope infiltration: power-law crack flow (n = 0.65) across a 50 Pa
+// stack/wind pressure difference between outdoors (101375 Pa, cold dry air)
+// and the zone (101325 Pa). mdot ~ C_inf * dP^n = 0.004 * 50^0.65 = 0.0508 kg/s.
+Infiltration INF(z1, z2, C_inf=0.004, n_exp=0.65, eps=1)
+z1.P = 101375
+z1.W = 0.004
+z1.h = Enthalpy(AirH2O, T=278.15, P=101375, W=0.004)
+z2.P = 101325
+m_leak = INF.in.mdot
+w_leak = INF.out.W

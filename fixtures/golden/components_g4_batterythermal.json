@@ -1,0 +1,56 @@
+{
+  "name": "components_g4_batterythermal",
+  "source": "// BatteryThermal: 12 V / 0.05 ohm cell into a 1.15 ohm load -> 10 A discharge,\n// I^2*R0 = 5 W pushed out of the heat port into a 300 K node.\n// EXPECT q = 5 tol 1e-6\n// EXPECT v = 11.5 tol 1e-6\nBatteryThermal B(Voc = 12, R0 = 0.05)\nResistor       RL(R = 1.15)\nGround         G()\nThermalSource  TS(T = 300)\nconnect(B.p, RL.a)\nconnect(RL.b, B.n, G.port)\nconnect(B.heat, TS.port)\nq = B.Q\nv = B.p.V - B.n.V\nw_out = B.W\n",
+  "expect": {
+    "variables": {
+      "b.heat.qdot": -5.0,
+      "b.heat.t": 300.0,
+      "b.n.i": 10.0,
+      "b.n.v": 0.0,
+      "b.p.i": -10.0,
+      "b.p.v": 11.5,
+      "b.q": 5.0,
+      "b.w": 115.0,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "q": 5.0,
+      "rl.a.i": 10.0,
+      "rl.a.v": 11.5,
+      "rl.b.i": -10.0,
+      "rl.b.v": 0.0,
+      "ts.port.qdot": 5.0,
+      "ts.port.t": 300.0,
+      "v": 11.5,
+      "w_out": 115.0
+    },
+    "display_names": {
+      "b$heat$qdot": "b.heat.qdot",
+      "b$heat$t": "b.heat.t",
+      "b$n$i": "b.n.i",
+      "b$n$v": "b.n.v",
+      "b$p$i": "b.p.i",
+      "b$p$v": "b.p.v",
+      "b$q": "b.q",
+      "b$w": "b.w",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "q": "q",
+      "rl$a$i": "rl.a.i",
+      "rl$a$v": "rl.a.v",
+      "rl$b$i": "rl.b.i",
+      "rl$b$v": "rl.b.v",
+      "ts$port$qdot": "ts.port.qdot",
+      "ts$port$t": "ts.port.t",
+      "v": "v",
+      "w_out": "w_out"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

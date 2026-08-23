@@ -1,0 +1,12 @@
+// HeatExchanger: eps-NTU counterflow, water-to-water, UA = 2500 W/K.
+// Cmin is the hot side (1.0 kg/s), so eps and Q follow the Cr ~ 0.67 curve.
+Source        HS(h1, fluid$ = Water, mdot = 1.0, P = 200000, T = 360)
+Source        CS(c1, fluid$ = Water, mdot = 1.5, P = 150000, T = 300)
+HeatExchanger HX(h1, h2, c1, c2, UA = 2500, hot$ = Water, cold$ = Water, arr$ = counterflow)
+Sink          SKH(h2)
+Sink          SKC(c2)
+
+q      = HX.Q
+eps_hx = HX.eps
+th_out = SKH.h
+tc_out = SKC.h

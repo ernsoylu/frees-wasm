@@ -1,0 +1,40 @@
+{
+  "name": "components_g4_duct",
+  "source": "// Duct: Darcy friction drop for a fixed-density air stream (rho, mu given,\n// no property calls). Turbulent: Re ~ 1.2e5 at 0.5 kg/s through D = 0.3 m.\nDuct DU(d1, d2, rho = 1.20, mu = 1.82e-5, L = 12, D = 0.3, rough = 1.5e-4)\n\nd1.P    = 101325\nd1.mdot = 0.5\ndp_duct = d1.P - d2.P\nm_out   = d2.mdot\n",
+  "expect": {
+    "variables": {
+      "d1.mdot": 0.5,
+      "d1.p": 101325.0,
+      "d2.mdot": 0.5,
+      "d2.p": 101308.37505805134,
+      "dp_duct": 16.62494194865576,
+      "du.a": 0.07068583470577035,
+      "du.f": 0.01993591442725367,
+      "du.re_d": 116597.02790615044,
+      "du.v": 5.894627521922049,
+      "m_out": 0.5
+    },
+    "display_names": {
+      "d1": "d1",
+      "d1$mdot": "d1.mdot",
+      "d1$p": "d1.p",
+      "d2": "d2",
+      "d2$mdot": "d2.mdot",
+      "d2$p": "d2.p",
+      "dp_duct": "dp_duct",
+      "du$a": "du.a",
+      "du$f": "du.f",
+      "du$re_d": "du.re_d",
+      "du$v": "du.v",
+      "m_out": "m_out"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

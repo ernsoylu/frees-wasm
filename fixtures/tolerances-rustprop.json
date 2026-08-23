@@ -92,6 +92,17 @@
     "  * An entry whose fixture passes at the default 1e-9 makes the parity test",
     "    FAIL. Dead tolerances do not accumulate here.",
     "",
+    "== WAVE G4 (2026-08-23): THE COMPONENT-HARVEST ENTRIES ===================",
+    "",
+    "Eleven components_g4_* entries, all oracle-ph-table: the component-library",
+    "sweep's twophase/ac slice runs on R134a (P,Hmass) states, exactly the shape",
+    "PhTableRegistry intercepts, so the goldens carry the Java's run-time table",
+    "error at 4e-7..4.6e-5 while this port's values are the wheel's (two of the",
+    "entries share the bit-identical Density 1119.1830119806907 the",
+    "ev-battery-cooling-pid entry already traced). Measured x1.5 as always; the",
+    "fewcellcondenser entry's measured value is scale-anchored (a settle",
+    "transient, same as the G1 pair below).",
+    "",
     "== WAVE G1 (2026-08-23): THE FIRST TRANSIENT ENTRIES =====================",
     "",
     "The F5 re-baseline's 'ten' above is its own count, at its own date. G1",
@@ -202,6 +213,72 @@
       "measured": 1.616389e-05,
       "mechanism": "oracle-ph-table",
       "reason": "SEN reads Temperature(R134a, P = 900 kPa, h = 450 kJ/kg): the wheel and rustprop both give 339.69624956356972 EXACTLY, the golden gives 339.69574815743835, off by 1.48e-6. sen.tsat at the same pressure is a (P,Q) call, bit-exact on both sides, so sen.sh = T - Tsat subtracts a tabulated temperature from an exact one and the Java's 0.0005 K error lands undiluted on a 31.02 K superheat -- 1.62e-5, which is 10.9x the leaf."
+    },
+    "components_g4_aircoil": {
+      "relative": 8.0e-06,
+      "measured": 5.357429e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "Wave G4 harvest (2026-08-23). The coil's moving-boundary evaporator reads Temperature(R134a, P, h) along the superheated tail — the (P,Hmass)->T shape PhTableRegistry intercepts. Worst is coil.ev.q_sh = U_sh*A*(dT with a tabulated T inside): ours 173.22931540022424, golden 173.23024346891418. The document was re-tuned during promotion (mdot 0.02 -> 0.012) so ev.sh sits at 15.85 K instead of ~0, where the same table error read as rel 1.0 by denominator collapse."
+    },
+    "components_g4_ejectormomentum": {
+      "relative": 4.6e-06,
+      "measured": 3.063600e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The ejector chain is Enthalpy/Entropy/Density(R134a, P, h) leaf calls feeding a momentum balance; the golden integrates the Java's (P,Hmass) table values through it. Worst is p_lift = out.P - suction P: ours 134434.16318442672 vs golden 134433.75133696082 — a pressure difference amplifying the mixed-state density/velocity taint (v_m rel 1.25e-6) exactly as the capillary-tube entries' dp_eff does."
+    },
+    "components_g4_fewcellcondenser": {
+      "relative": 9.1e-07,
+      "measured": 6.096600e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "A method = ida settle transient whose RHS reads Temperature/Density(R134a, P, h) per cell, so the Java's table is integrated into the golden trajectory exactly as in ev-battery-cooling-pid. The binding cells are the middle cell's heat flows (cnd$q2 / w2$qdot family) at 6.10e-7 scale-anchored; near-zero early-row cells read rel 1.0 by denominator collapse and anchor within this entry."
+    },
+    "components_g4_fewcellevaporator": {
+      "relative": 8.4e-07,
+      "measured": 5.603300e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "The steady few-cell evaporator's per-cell states are Density/Temperature(R134a, P, h) — the intercepted shape. Worst is ev.rho2, the middle-cell density: ours 26.68366211229295, golden 26.6836770638306 (5.60e-7), the same Dmass-table signature components_family_ac documents with a wheel probe at another state."
+    },
+    "components_g4_radiator": {
+      "relative": 1.8e-06,
+      "measured": 1.204200e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The wet-coil branch evaluates the moist-air/refrigerant coupling with a tabulated refrigerant-side temperature; the divergence lands on rad.ar.q_lat, a near-zero latent flow (ours 8.6468454438271e-6 W vs golden 8.646855856331293e-6 W): a microwatt-scale difference of the same tabulated-T origin, 1.20e-6 relative on the small denominator and the fixture's only diverging variable."
+    },
+    "components_g4_transcriticalbackpressurevalve": {
+      "relative": 6.1e-07,
+      "measured": 4.054200e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "bpv.rho = Density(R134a, P = 1.2 MPa, h) — the intercepted (P,Hmass)->Dmass shape, and the VALUE pins the mechanism: ours 1119.1830119806907 is bit-identical to the exv$rho_in this file's ev-battery-cooling-pid entry already traced through the wheel at the same tabulated state; the golden says 1119.1825582464191, off 4.05e-7. The valve law divides by sqrt(rho) and nothing amplifies further."
+    },
+    "components_g4_twophasechamber": {
+      "relative": 8.7e-07,
+      "measured": 5.783800e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "The chamber's steady branch closes mass from Density(R134a, P, h_cv): ch.m = rho*V inherits the Dmass table undiluted — ours 0.07785111269595883 kg vs golden 0.0778511577232294 kg (5.78e-7), with the enthalpy chain agreeing tighter. Same leaf class as the fewcellevaporator entry above."
+    },
+    "components_g4_twophasecondenserua": {
+      "relative": 4.1e-06,
+      "measured": 2.731800e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The UA condenser's duty cnd.q integrates zone dT terms whose refrigerant temperatures are Temperature(R134a, P, h) — tabulated on the golden side: ours 5197.570004888293 W vs golden 5197.584203689982 W (2.73e-6). A 0.014 W-per-watt gap of tabulated-T origin spread across three zones, the subtraction-amplification pattern the capillary-tube entries document."
+    },
+    "components_g4_twophaseenthalpysource": {
+      "relative": 6.9e-05,
+      "measured": 4.600800e-05,
+      "mechanism": "oracle-ph-table",
+      "reason": "This rig drives the library's SensibleEvaporator (SEN) from an enthalpy source, and the worst variable is sen.sh = T - Tsat with T from the intercepted Temperature(R134a, P, h) and Tsat from an exact (P,Q) call — literally the same component and amplification the components_family_twophase entry probed against the wheel (there 0.0005 K on a 31 K superheat = 1.6e-5; here the smaller 5.21 K superheat amplifies the same table error to 4.60e-5)."
+    },
+    "components_g4_twophaseinternalhx": {
+      "relative": 2.6e-06,
+      "measured": 1.713100e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The internal HX duty ihx.q couples liquid-line and suction-line streams through Temperature(R134a, P, h) on both sides: ours 552.0704568596386 W vs golden 552.0695111004962 W (1.71e-6) — two tabulated temperatures subtracted, the by-now-standard amplification."
+    },
+    "components_g4_txv": {
+      "relative": 6.1e-07,
+      "measured": 4.054200e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "vlv.rho_in = Density(R134a, 1.2 MPa liquid line): ours is the same bit-identical 1119.1830119806907 as the transcritical valve entry above (one shared operating point, deliberately, so the pair cross-checks), golden 1119.1825582464191 — the Dmass table, undiluted, 4.05e-7."
     },
     "components_wave2_capillary_tube": {
       "relative": 4.4e-05,

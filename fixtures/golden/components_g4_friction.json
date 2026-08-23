@@ -1,0 +1,46 @@
+{
+  "name": "components_g4_friction",
+  "source": "// Friction (Stribeck + viscous) at a driven 0.1 rad/s slip:\n// tau = (Fc + (Fs-Fc)*exp(-(dw/vs)^2))*tanh(dw/eps) + bv*dw\n//     = (10 + 5*exp(-4))*1 + 0.05 = 10.1416 N.m.\n// EXPECT tau_f = 10.1416 tol 1e-3\nFriction    FR(Fc = 10, Fs = 15, vs = 0.05, bv = 0.5, eps = 0.001)\nSpeedSource SS(w = 0.1)\nMechGround  G1()\nMechGround  G2()\nconnect(SS.a, FR.a)\nconnect(SS.b, G1.port)\nconnect(FR.b, G2.port)\ntau_f = FR.a.tau\n",
+  "expect": {
+    "variables": {
+      "fr.a.tau": 10.141578194443671,
+      "fr.a.w": 0.1,
+      "fr.b.tau": -10.141578194443671,
+      "fr.b.w": 0.0,
+      "fr.dw": 0.1,
+      "g1.port.tau": -10.141578194443671,
+      "g1.port.w": 0.0,
+      "g2.port.tau": 10.141578194443671,
+      "g2.port.w": 0.0,
+      "ss.a.tau": -10.141578194443671,
+      "ss.a.w": 0.1,
+      "ss.b.tau": 10.141578194443671,
+      "ss.b.w": 0.0,
+      "tau_f": 10.141578194443671
+    },
+    "display_names": {
+      "fr$a$tau": "fr.a.tau",
+      "fr$a$w": "fr.a.w",
+      "fr$b$tau": "fr.b.tau",
+      "fr$b$w": "fr.b.w",
+      "fr$dw": "fr.dw",
+      "g1$port$tau": "g1.port.tau",
+      "g1$port$w": "g1.port.w",
+      "g2$port$tau": "g2.port.tau",
+      "g2$port$w": "g2.port.w",
+      "ss$a$tau": "ss.a.tau",
+      "ss$a$w": "ss.a.w",
+      "ss$b$tau": "ss.b.tau",
+      "ss$b$w": "ss.b.w",
+      "tau_f": "tau_f"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

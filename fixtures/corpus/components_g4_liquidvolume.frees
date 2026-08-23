@@ -1,0 +1,9 @@
+// LiquidVolume with no DYNAMIC block: der(in.P) takes the steady branch,
+// recovering in.mdot = out.mdot through the compliance node.
+LiquidSource LS(l1, fluid$ = Water, mdot = 0.5, P = 250000, T = 300)
+LiquidVolume LV(l1, l2, C = 1e-8, P0 = 250000)
+LiquidSink   SK(l2)
+
+l2.P  = 250000
+m_out = SK.mdot
+h_out = SK.h

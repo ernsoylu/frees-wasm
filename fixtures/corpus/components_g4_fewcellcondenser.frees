@@ -1,0 +1,20 @@
+// FewCellCondenser: the mirrored 3-cell C-R chain at the high side — saturated
+// R134a vapor at 1.22 MPa condenses against three 305 K wall nodes (Tsat ~
+// 319.6 K). Integrated on ida from in-dome initial states (the steady limit of
+// this block stalls Newton on the high-pressure (P,h) flash; the transient is
+// the component's intended C-R-C usage anyway). Pressure chain settles in
+// ~Cc/Kv = 25 ms, the enthalpy states in a few seconds.
+TwoPhasePressureSource SUP(fluid$ = R134a, P = 1220000, x = 1)
+FewCellCondenser       CND(fluid$ = R134a, V = 0.001, Cc = 1e-7, UA = 30, Kv = 4e-6, P0 = 1210000, h0 = 400000)
+ThermalSource          W1(T = 305)
+ThermalSource          W2(T = 305)
+ThermalSource          W3(T = 305)
+TwoPhasePressureSink   RET(P = 1200000)
+connect(SUP.out, CND.in)
+connect(CND.out, RET.in)
+connect(CND.w1, W1.port)
+connect(CND.w2, W2.port)
+connect(CND.w3, W3.port)
+
+DYNAMIC settle (method = ida, time = 0 .. 30, points = 61, rtol = 1e-6, atol = 1e-2)
+END

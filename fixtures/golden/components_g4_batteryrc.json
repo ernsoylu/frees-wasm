@@ -1,0 +1,44 @@
+{
+  "name": "components_g4_batteryrc",
+  "source": "// BatteryRC steady: der(Vrc) -> 0 gives Vrc = R1*I_dis, so the cell presents\n// R0+R1 in series. 3.7 V over 0.05+0.03+0.66 ohm -> 5 A, terminal 3.3 V.\n// EXPECT vt = 3.3 tol 1e-6\n// EXPECT vrc = 0.15 tol 1e-6\nBatteryRC B(Voc = 3.7, R0 = 0.05, R1 = 0.03, C1 = 2000, Vrc0 = 0)\nResistor  RL(R = 0.66)\nGround    G()\nconnect(B.p, RL.a)\nconnect(RL.b, B.n, G.port)\nvt = B.p.V - B.n.V\nvrc = B.Vrc\n",
+  "expect": {
+    "variables": {
+      "b.n.i": 5.0,
+      "b.n.v": 0.0,
+      "b.p.i": -5.0,
+      "b.p.v": 3.3000000000000003,
+      "b.vrc": 0.15,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "rl.a.i": 5.0,
+      "rl.a.v": 3.3000000000000003,
+      "rl.b.i": -5.0,
+      "rl.b.v": 0.0,
+      "vrc": 0.15,
+      "vt": 3.3000000000000003
+    },
+    "display_names": {
+      "b$n$i": "b.n.i",
+      "b$n$v": "b.n.v",
+      "b$p$i": "b.p.i",
+      "b$p$v": "b.p.v",
+      "b$vrc": "b.vrc",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "rl$a$i": "rl.a.i",
+      "rl$a$v": "rl.a.v",
+      "rl$b$i": "rl.b.i",
+      "rl$b$v": "rl.b.v",
+      "vrc": "vrc",
+      "vt": "vt"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

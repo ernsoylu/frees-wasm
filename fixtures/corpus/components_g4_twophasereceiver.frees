@@ -1,0 +1,11 @@
+// TwoPhaseReceiver: saturated vessel that delivers saturated liquid; the
+// liquid level LL is a free DOF, pinned here at 40% to report the buffered
+// charge of a 4 L receiver on the 1.0 MPa liquid line.
+TwoPhaseSource   SRC(fluid$ = R134a, mdot = 0.05, P = 1000000, x = 0.1)
+TwoPhaseReceiver RCV(fluid$ = R134a, V = 0.004)
+TwoPhaseSink     SNK()
+connect(SRC.out, RCV.in)
+connect(RCV.out, SNK.in)
+RCV.LL = 0.4
+m_charge = RCV.m
+h_out    = SNK.h

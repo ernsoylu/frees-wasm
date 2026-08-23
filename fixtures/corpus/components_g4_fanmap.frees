@@ -1,0 +1,13 @@
+// FanMap: pressure rise from a tabulated curve dP = map$(Q). The 1-D TABLE
+// slopes 800 Pa at shutoff to 0 at 4 m^3/s; Q = 1.5 lands mid-span (500 Pa).
+TABLE fdp(q)
+  0    800
+  4    0
+END
+
+FanMap FM(f1, f2, rho = 1.2, map$ = fdp)
+
+f1.P    = 101325
+f1.mdot = 1.8
+dp_fan  = f2.P - f1.P
+m_out   = f2.mdot

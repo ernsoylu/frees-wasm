@@ -1,0 +1,15 @@
+// AirCoil: hierarchical evaporator coil — a twophase moving-boundary half and
+// a moist-air wet-coil half coupled through the shared wall node. R134a boils
+// at 350 kPa (Tsat ~ 278 K) against 300 K / W = 0.010 supply air.
+TwoPhaseSource REF(fluid$ = R134a, mdot = 0.012, P = 350000, x = 0.25)
+MoistAirSource AIR(P = 101325, T = 300, W = 0.010, mdot = 0.25)
+AirCoil        COIL(ref$ = R134a, U_tp = 2000, U_sh = 500, D = 0.01, L = 6, eps_zone = 0.05, eps_air = 0.7)
+TwoPhaseSink   RSNK()
+MoistAirSink   ASNK()
+connect(REF.out, COIL.ref_in)
+connect(COIL.ref_out, RSNK.in)
+connect(AIR.out, COIL.air_in)
+connect(COIL.air_out, ASNK.in)
+h_ref_out = RSNK.h
+w_out     = ASNK.W
+h_air_out = ASNK.h

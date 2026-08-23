@@ -1,0 +1,20 @@
+// 5/2 directional valve at u = 0.7 between two work reservoirs: A (5 bar) is
+// fed through 0.7 C and bled through 0.3 C; B (2.5 bar) is fed through 0.3 C
+// and bled through 0.7 C — four ISO 6358 paths with complementary commands,
+// each work port carrying its net flow.
+SigConstant         CMD(k=0.7)
+PneumaticSupply     SUP(fluid$=Air, P=700000, T=300)
+PneumaticValve52    V52(fluid$=Air, C=1e-8, b=0.3)
+PneumaticAtmosphere WA(P=500000)
+PneumaticAtmosphere WB(P=250000)
+PneumaticAtmosphere EXA(P=100000)
+PneumaticAtmosphere EXB(P=100000)
+connect(SUP.out, V52.sup_in)
+connect(V52.wa, WA.port)
+connect(V52.wb, WB.port)
+connect(V52.ea_out, EXA.port)
+connect(V52.eb_out, EXB.port)
+connect(CMD.out, V52.u)
+m_sup = V52.sup_in.mdot
+m_a   = V52.wa.mdot
+m_b   = V52.wb.mdot

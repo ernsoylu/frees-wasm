@@ -1,0 +1,11 @@
+// RotationalSpring steady: der(theta) -> 0 locks both ends (b grounded), and
+// the 12 N.m source winds the 400 N.m/rad spring to theta = 0.03 rad.
+// EXPECT th = 0.03 tol 1e-9
+TorqueSource     TQ(T = 12)
+RotationalSpring SP(k = 400, theta0 = 0)
+MechGround       G1()
+MechGround       G2()
+connect(TQ.a, SP.a)
+connect(TQ.b, G1.port)
+connect(SP.b, G2.port)
+th = SP.theta

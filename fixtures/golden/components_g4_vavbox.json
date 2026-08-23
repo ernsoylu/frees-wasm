@@ -1,0 +1,44 @@
+{
+  "name": "components_g4_vavbox",
+  "source": "// VAV terminal box: the damper command sets the supply flow directly\n// (u = 0.6 of mdot_max = 0.5 kg/s -> 0.3 kg/s) and the reheat command adds\n// 30% of Qr_max = 2000 W. Flow-determining: the inlet stream's mdot comes\n// from the box, so the plenum boundary pins only P, W, h.\nVAVBox VAV(z1, z2, u1, r1, mdot_max=0.5, Qr_max=2000)\nu1.sig = 0.6\nr1.sig = 0.3\nz1.P = 101325\nz1.W = 0.008\nz1.h = Enthalpy(AirH2O, T=290.15, P=101325, W=0.008)\nm_sup = VAV.out.mdot\nh_rise = VAV.out.h - z1.h\n",
+  "expect": {
+    "variables": {
+      "h_rise": 2000.0,
+      "m_sup": 0.3,
+      "r1.sig": 0.3,
+      "u1.sig": 0.6,
+      "z1.h": 37350.978686151466,
+      "z1.mdot": 0.3,
+      "z1.p": 101325.0,
+      "z1.w": 0.008,
+      "z2.h": 39350.978686151466,
+      "z2.mdot": 0.3,
+      "z2.w": 0.008
+    },
+    "display_names": {
+      "h_rise": "h_rise",
+      "m_sup": "m_sup",
+      "r1": "r1",
+      "r1$sig": "r1.sig",
+      "u1": "u1",
+      "u1$sig": "u1.sig",
+      "z1": "z1",
+      "z1$h": "z1.h",
+      "z1$mdot": "z1.mdot",
+      "z1$p": "z1.p",
+      "z1$w": "z1.w",
+      "z2": "z2",
+      "z2$h": "z2.h",
+      "z2$mdot": "z2.mdot",
+      "z2$w": "z2.w"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

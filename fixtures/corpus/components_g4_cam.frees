@@ -1,0 +1,20 @@
+// Cam: a linear 5 mm/rad lift profile spun at 10 rad/s against a 100 N.s/m
+// damped rod -> constant rod velocity slope*w = 0.05 m/s; theta integrates
+// 0 -> 10 rad inside the table's 0..12 span. Inherently DYNAMIC (theta is
+// free in a steady solve).
+TABLE prof(th)
+  0    0
+  12   0.06
+END
+SpeedSource SS(w = 10)
+MechGround  MG()
+Cam         CAM(prof$ = prof, theta0 = 0)
+TransDamper TD(c = 100)
+TransGround TG()
+connect(SS.a, CAM.shaft)
+connect(SS.b, MG.port)
+connect(CAM.rod, TD.a)
+connect(TD.b, TG.port)
+
+DYNAMIC spin (method = ode45, time = 0 .. 1, points = 6)
+END

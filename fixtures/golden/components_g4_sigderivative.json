@@ -1,0 +1,28 @@
+{
+  "name": "components_g4_sigderivative",
+  "source": "// SigDerivative steady: the filter state settles on the constant input, so the\n// realizable derivative reads exactly zero.\n// EXPECT yd = 0 tol 1e-9\nSigConstant   U(k = 4)\nSigDerivative DV(tau = 0.1, y0 = 0)\nconnect(U.out, DV.in)\nyd = DV.out.sig\n",
+  "expect": {
+    "variables": {
+      "dv.in.sig": 4.0,
+      "dv.out.sig": 0.0,
+      "dv.y": 4.0,
+      "u.out.sig": 4.0,
+      "yd": 0.0
+    },
+    "display_names": {
+      "dv$in$sig": "dv.in.sig",
+      "dv$out$sig": "dv.out.sig",
+      "dv$y": "dv.y",
+      "u$out$sig": "u.out.sig",
+      "yd": "yd"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

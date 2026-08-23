@@ -1,0 +1,33 @@
+{
+  "name": "components_g4_vehiclebody",
+  "source": "// Longitudinal vehicle body cruising at a held 30 m/s (der(vel) -> 0): the\n// drive force equals the resistance stack, aero + tanh-signed rolling.\n// F = 0.5*1.2*0.32*2.2*30^2 + 1500*9.80665*0.012 = 380.16 + 176.52 = 556.68 N.\nCOMPONENT VelSource(port)\n  PARAM v\n  port.vel = v\nEND\nVelSource   CRUISE(v=30)\nVehicleBody VB(m=1500, Cd=0.32, Af=2.2, rhoA=1.2, Crr=0.012, grade=0, v0=30)\nconnect(CRUISE.port, VB.port)\nf_drive = VB.port.f\nf_check = VB.F_res\n",
+  "expect": {
+    "variables": {
+      "cruise.port.f": -556.6797000000001,
+      "cruise.port.vel": 30.0,
+      "f_check": 556.6797000000001,
+      "f_drive": 556.6797000000001,
+      "vb.f_res": 556.6797000000001,
+      "vb.port.f": 556.6797000000001,
+      "vb.port.vel": 30.0
+    },
+    "display_names": {
+      "cruise$port$f": "cruise.port.f",
+      "cruise$port$vel": "cruise.port.vel",
+      "f_check": "f_check",
+      "f_drive": "f_drive",
+      "v": "v",
+      "vb$f_res": "vb.f_res",
+      "vb$port$f": "vb.port.f",
+      "vb$port$vel": "vb.port.vel"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

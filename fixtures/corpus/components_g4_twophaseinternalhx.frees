@@ -1,0 +1,14 @@
+// TwoPhaseInternalHX: suction-line heat exchanger — the 1.2 MPa liquid line
+// subcools against the 350 kPa suction vapor at eps = 0.6 on the vapor side.
+TwoPhaseSourcePH   LIQ(mdot = 0.03, P = 1200000, h = 260000)
+TwoPhaseSourcePH   VAP(mdot = 0.03, P = 350000, h = 405000)
+TwoPhaseInternalHX IHX(fluid$ = R134a, eps = 0.6)
+TwoPhaseSink       LSNK()
+TwoPhaseSink       VSNK()
+connect(LIQ.out, IHX.liq_in)
+connect(IHX.liq_out, LSNK.in)
+connect(VAP.out, IHX.vap_in)
+connect(IHX.vap_out, VSNK.in)
+q         = IHX.Q
+h_liq_out = LSNK.h
+h_vap_out = VSNK.h

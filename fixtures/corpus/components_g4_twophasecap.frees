@@ -1,0 +1,7 @@
+// TwoPhaseCap: dead-end cap on a pressure reservoir — zero through-flow.
+TwoPhasePressureSource PS(fluid$ = R134a, P = 500000, x = 0.2)
+TwoPhaseCap            CAP()
+connect(PS.out, CAP.in)
+m_dead = CAP.in.mdot
+p_dead = CAP.in.P
+h_dead = CAP.in.h

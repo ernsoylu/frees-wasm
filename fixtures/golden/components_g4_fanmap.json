@@ -1,0 +1,37 @@
+{
+  "name": "components_g4_fanmap",
+  "source": "// FanMap: pressure rise from a tabulated curve dP = map$(Q). The 1-D TABLE\n// slopes 800 Pa at shutoff to 0 at 4 m^3/s; Q = 1.5 lands mid-span (500 Pa).\nTABLE fdp(q)\n  0    800\n  4    0\nEND\n\nFanMap FM(f1, f2, rho = 1.2, map$ = fdp)\n\nf1.P    = 101325\nf1.mdot = 1.8\ndp_fan  = f2.P - f1.P\nm_out   = f2.mdot\n",
+  "expect": {
+    "variables": {
+      "dp_fan": 500.0,
+      "f1.mdot": 1.8,
+      "f1.p": 101325.0,
+      "f2.mdot": 1.8,
+      "f2.p": 101825.0,
+      "fm.dp": 500.0,
+      "fm.q": 1.5,
+      "m_out": 1.8
+    },
+    "display_names": {
+      "dp_fan": "dp_fan",
+      "f1": "f1",
+      "f1$mdot": "f1.mdot",
+      "f1$p": "f1.p",
+      "f2": "f2",
+      "f2$mdot": "f2.mdot",
+      "f2$p": "f2.p",
+      "fdp": "fdp",
+      "fm$dp": "fm.dp",
+      "fm$q": "fm.q",
+      "m_out": "m_out"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

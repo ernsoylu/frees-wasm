@@ -1,0 +1,38 @@
+{
+  "name": "components_g4_radiation",
+  "source": "// Radiation between a 600 K furnace wall and a 300 K ambient surface:\n// Q = emis * sigma * area * (Ta^4 - Tb^4) = 0.8 * 5.670374419e-8 * 0.5 * (600^4 - 300^4)\n//   = 2755.79 W. Steady.\nThermalSource HOT(T=600)\nRadiation     RAD(emis=0.8, area=0.5)\nThermalSource AMB(T=300)\nconnect(HOT.port, RAD.a)\nconnect(RAD.b, AMB.port)\nq_rad = RAD.Q\n",
+  "expect": {
+    "variables": {
+      "amb.port.qdot": 2755.801967634,
+      "amb.port.t": 300.0,
+      "hot.port.qdot": -2755.801967634,
+      "hot.port.t": 600.0,
+      "q_rad": 2755.801967634,
+      "rad.a.qdot": 2755.801967634,
+      "rad.a.t": 600.0,
+      "rad.b.qdot": -2755.801967634,
+      "rad.b.t": 300.0,
+      "rad.q": 2755.801967634
+    },
+    "display_names": {
+      "amb$port$qdot": "amb.port.qdot",
+      "amb$port$t": "amb.port.t",
+      "hot$port$qdot": "hot.port.qdot",
+      "hot$port$t": "hot.port.t",
+      "q_rad": "q_rad",
+      "rad$a$qdot": "rad.a.qdot",
+      "rad$a$t": "rad.a.t",
+      "rad$b$qdot": "rad.b.qdot",
+      "rad$b$t": "rad.b.t",
+      "rad$q": "rad.q"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

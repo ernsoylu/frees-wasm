@@ -1,0 +1,9 @@
+// TwoPhaseFlowRes: Friedel two-phase frictional drop on a 5 m / 8 mm R134a
+// suction line at x = 0.3. Adiabatic, so the drop glides Tsat downstream.
+TwoPhaseSource  SRC(fluid$ = R134a, mdot = 0.05, P = 400000, x = 0.3)
+TwoPhaseFlowRes RES(fluid$ = R134a, L = 5, D = 0.008)
+TwoPhaseSink    SNK()
+connect(SRC.out, RES.in)
+connect(RES.out, SNK.in)
+dp    = 400000 - SNK.P
+p_out = SNK.P

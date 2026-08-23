@@ -1,0 +1,13 @@
+// PumpMap: head-curve pump, dP = rho*g*map$(Q). Water-like density; the
+// head map droops 25 m -> 15 m over 0..0.02 m^3/s, Q = 0.01 gives 20 m.
+TABLE hmap(q)
+  0      25
+  0.02   15
+END
+
+PumpMap PM(w1, w2, rho = 998, map$ = hmap)
+
+w1.P    = 150000
+w1.mdot = 9.98
+dp_pump = w2.P - w1.P
+m_out   = w2.mdot

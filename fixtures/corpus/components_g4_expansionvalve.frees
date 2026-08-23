@@ -1,0 +1,10 @@
+// ExpansionValve: isenthalpic square-law orifice sized by CdA at a fixed
+// inlet density (liquid refrigerant, ~1200 kg/m^3). dP = 2.5 bar gives
+// mdot = CdA*sqrt(2*rho*dP) ~ 0.049 kg/s.
+ExpansionValve EV(e1, e2, CdA = 2e-6, rho_in = 1200)
+
+e1.P  = 400000
+e1.h  = 250000
+e2.P  = 150000
+m     = EV.out.mdot
+h_out = e2.h

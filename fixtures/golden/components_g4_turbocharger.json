@@ -1,0 +1,62 @@
+{
+  "name": "components_g4_turbocharger",
+  "source": "// Turbocharger: power-matched turbine + compressor on the (P, T, mdot) gas\n// bond. Both inlets pinned, turbine back-pressure set; Wt = Wc closes the\n// compressor discharge pressure (~2.7 bar).\nTurbocharger TC(t1, t2, c1, c2, cp = 1005, eta_t = 0.7, eta_c = 0.75, gam = 1.4)\n\nt1.P    = 250000\nt1.T    = 900\nt1.mdot = 0.12\nc1.P    = 100000\nc1.T    = 300\nc1.mdot = 0.12\nt2.P    = 110000\n\nw_turb  = TC.Wt\npr_comp = TC.PRc\np_boost = c2.P\nt_boost = c2.T\n",
+  "expect": {
+    "variables": {
+      "c1.mdot": 0.12,
+      "c1.p": 100000.0,
+      "c1.t": 300.0,
+      "c2.mdot": 0.12,
+      "c2.p": 270827.16670313105,
+      "c2.t": 431.72409616977393,
+      "p_boost": 270827.16670313105,
+      "pr_comp": 2.7082716670313105,
+      "t1.mdot": 0.12,
+      "t1.p": 250000.0,
+      "t1.t": 900.0,
+      "t2.mdot": 0.12,
+      "t2.p": 110000.0,
+      "t2.t": 768.2759038302261,
+      "t_boost": 431.72409616977393,
+      "tc.prc": 2.7082716670313105,
+      "tc.prt": 2.272727272727273,
+      "tc.wc": 15885.925998074736,
+      "tc.wt": 15885.925998074736,
+      "w_turb": 15885.925998074736
+    },
+    "display_names": {
+      "c1": "c1",
+      "c1$mdot": "c1.mdot",
+      "c1$p": "c1.p",
+      "c1$t": "c1.t",
+      "c2": "c2",
+      "c2$mdot": "c2.mdot",
+      "c2$p": "c2.p",
+      "c2$t": "c2.t",
+      "p_boost": "p_boost",
+      "pr_comp": "pr_comp",
+      "t1": "t1",
+      "t1$mdot": "t1.mdot",
+      "t1$p": "t1.p",
+      "t1$t": "t1.t",
+      "t2": "t2",
+      "t2$mdot": "t2.mdot",
+      "t2$p": "t2.p",
+      "t2$t": "t2.t",
+      "t_boost": "t_boost",
+      "tc$prc": "tc.prc",
+      "tc$prt": "tc.prt",
+      "tc$wc": "tc.wc",
+      "tc$wt": "tc.wt",
+      "w_turb": "w_turb"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

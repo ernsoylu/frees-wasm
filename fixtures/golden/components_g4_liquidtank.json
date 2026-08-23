@@ -1,0 +1,54 @@
+{
+  "name": "components_g4_liquidtank",
+  "source": "// LiquidTank at its steady point: 0.3 kg/s of 350 K water through a mixed\n// 25 kg tank losing UA = 40 W/K to a 290 K wall; der(Tt) = 0 pins Tt just\n// under the feed temperature.\nLiquidSource  LS(l1, fluid$ = Water, mdot = 0.3, P = 200000, T = 350)\nLiquidTank    TK(l1, l2, wl, fluid$ = Water, m = 25, UA = 40, T0 = 330)\nThermalSource AMB(wl, T = 290)\nLiquidSink    SK(l2)\n\nt_tank = TK.Tt\nh_out  = SK.h\n",
+  "expect": {
+    "variables": {
+      "h_out": 314164.8739779885,
+      "l1.h": 321918.3569311111,
+      "l1.mdot": 0.3,
+      "l1.p": 200000.0,
+      "l2.h": 314164.8739779885,
+      "l2.mdot": 0.3,
+      "l2.p": 200000.0,
+      "sk.h": 314164.8739779885,
+      "sk.mdot": 0.3,
+      "sk.p": 200000.0,
+      "t_tank": 348.1511221484192,
+      "tk.cp_t": 4192.988842027505,
+      "tk.q": -2326.044885936749,
+      "tk.tt": 348.1511221484192,
+      "wl.qdot": -2326.044885936749,
+      "wl.t": 290.0
+    },
+    "display_names": {
+      "h_out": "h_out",
+      "l1": "l1",
+      "l1$h": "l1.h",
+      "l1$mdot": "l1.mdot",
+      "l1$p": "l1.p",
+      "l2": "l2",
+      "l2$h": "l2.h",
+      "l2$mdot": "l2.mdot",
+      "l2$p": "l2.p",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "t_tank": "t_tank",
+      "tk$cp_t": "tk.cp_t",
+      "tk$q": "tk.q",
+      "tk$tt": "tk.tt",
+      "water": "Water",
+      "wl": "wl",
+      "wl$qdot": "wl.qdot",
+      "wl$t": "wl.t"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "components_g4_cam",
+  "source": "// Cam: a linear 5 mm/rad lift profile spun at 10 rad/s against a 100 N.s/m\n// damped rod -> constant rod velocity slope*w = 0.05 m/s; theta integrates\n// 0 -> 10 rad inside the table's 0..12 span. Inherently DYNAMIC (theta is\n// free in a steady solve).\nTABLE prof(th)\n  0    0\n  12   0.06\nEND\nSpeedSource SS(w = 10)\nMechGround  MG()\nCam         CAM(prof$ = prof, theta0 = 0)\nTransDamper TD(c = 100)\nTransGround TG()\nconnect(SS.a, CAM.shaft)\nconnect(SS.b, MG.port)\nconnect(CAM.rod, TD.a)\nconnect(TD.b, TG.port)\n\nDYNAMIC spin (method = ode45, time = 0 .. 1, points = 6)\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "cam$lift": "cam.lift",
+      "cam$rod$f": "cam.rod.f",
+      "cam$rod$vel": "cam.rod.vel",
+      "cam$shaft$tau": "cam.shaft.tau",
+      "cam$shaft$w": "cam.shaft.w",
+      "cam$slope": "cam.slope",
+      "cam$theta": "cam.theta",
+      "mg$port$tau": "mg.port.tau",
+      "mg$port$w": "mg.port.w",
+      "prof": "prof",
+      "ss$a$tau": "ss.a.tau",
+      "ss$a$w": "ss.a.w",
+      "ss$b$tau": "ss.b.tau",
+      "ss$b$w": "ss.b.w",
+      "td$a$f": "td.a.f",
+      "td$a$vel": "td.a.vel",
+      "td$b$f": "td.b.f",
+      "td$b$vel": "td.b.vel",
+      "tg$port$f": "tg.port.f",
+      "tg$port$vel": "tg.port.vel"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "spin",
+        "method": "ode45",
+        "stopped": false,
+        "end_time": 1.0,
+        "columns": ["time", "cam$theta", "mg$port$w", "cam$slope", "cam$lift", "cam$rod$vel", "cam$shaft$tau", "td$a$f", "tg$port$vel", "ss$a$w", "ss$b$w", "td$b$vel", "cam$shaft$w", "ss$a$tau", "ss$b$tau", "cam$rod$f", "td$a$vel", "td$b$f", "mg$port$tau", "tg$port$f"],
+        "rows": [
+          [0.0, 0.0, 0.0, 0.005, 0.0, 0.05, -0.025, 5.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.025, -0.025, -5.0, 0.05, -5.0, 0.025, 5.0],
+          [0.2, 2.0000000000000004, 0.0, 0.005, 0.010000000000000002, 0.05, -0.025, 5.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.025, -0.025, -5.0, 0.05, -5.0, 0.025, 5.0],
+          [0.4, 4.000000000000001, 0.0, 0.005, 0.020000000000000004, 0.05, -0.025, 5.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.025, -0.025, -5.0, 0.05, -5.0, 0.025, 5.0],
+          [0.6, 5.999999999999992, 0.0, 0.005, 0.029999999999999957, 0.05, -0.025, 5.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.025, -0.025, -5.0, 0.05, -5.0, 0.025, 5.0],
+          [0.8, 7.999999999999985, 0.0, 0.005, 0.039999999999999925, 0.05, -0.025, 5.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.025, -0.025, -5.0, 0.05, -5.0, 0.025, 5.0],
+          [1.0, 9.999999999999975, 0.0, 0.005, 0.04999999999999987, 0.05, -0.025, 5.0, 0.0, 10.0, 0.0, 0.0, 10.0, 0.025, -0.025, -5.0, 0.05, -5.0, 0.025, 5.0]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "components_g4_sigratelimiter",
+  "source": "// SigRateLimiter steady: der -> 0 zeroes the tanh argument, the tracker sits\n// on its input. rate*tau = 2 keeps the tanh well-scaled for Newton.\n// EXPECT y = 3 tol 1e-6\nSigConstant    U(k = 3)\nSigRateLimiter RL(rate = 2, tau = 1, y0 = 0)\nconnect(U.out, RL.in)\ny = RL.out.sig\n",
+  "expect": {
+    "variables": {
+      "rl.in.sig": 3.0,
+      "rl.out.sig": 3.0,
+      "rl.y": 3.0,
+      "u.out.sig": 3.0,
+      "y": 3.0
+    },
+    "display_names": {
+      "rl$in$sig": "rl.in.sig",
+      "rl$out$sig": "rl.out.sig",
+      "rl$y": "rl.y",
+      "u$out$sig": "u.out.sig",
+      "y": "y"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

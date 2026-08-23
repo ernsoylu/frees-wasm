@@ -1,0 +1,11 @@
+// TwoPhaseEnthalpySource: fixes mdot and h but leaves P FREE — here the
+// downstream pressure sink sets the line at 1.0 MPa and the sensor reads the
+// resulting superheat of the sourced vapor.
+TwoPhaseEnthalpySource ES(mdot = 0.04, h = 425000)
+TwoPhaseSensor         SEN(fluid$ = R134a)
+TwoPhasePressureSink   PSNK(P = 1000000)
+connect(ES.out, SEN.in)
+connect(SEN.out, PSNK.in)
+t_line = SEN.T
+sh     = SEN.SH
+p_line = ES.out.P

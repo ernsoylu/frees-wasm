@@ -1,0 +1,8 @@
+// Bolted-joint contact resistance between a 350 K chip base and a 300 K sink:
+// Q = (350 - 300) / 0.02 = 2500 W. Steady.
+ThermalSource CHIP(T=350)
+ContactResistance CR(Rth=0.02)
+ThermalSource SINKP(T=300)
+connect(CHIP.port, CR.a)
+connect(CR.b, SINKP.port)
+q_joint = CR.Q

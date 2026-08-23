@@ -1,0 +1,7 @@
+// SigRateLimiter steady: der -> 0 zeroes the tanh argument, the tracker sits
+// on its input. rate*tau = 2 keeps the tanh well-scaled for Newton.
+// EXPECT y = 3 tol 1e-6
+SigConstant    U(k = 3)
+SigRateLimiter RL(rate = 2, tau = 1, y0 = 0)
+connect(U.out, RL.in)
+y = RL.out.sig

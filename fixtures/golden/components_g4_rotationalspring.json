@@ -1,0 +1,46 @@
+{
+  "name": "components_g4_rotationalspring",
+  "source": "// RotationalSpring steady: der(theta) -> 0 locks both ends (b grounded), and\n// the 12 N.m source winds the 400 N.m/rad spring to theta = 0.03 rad.\n// EXPECT th = 0.03 tol 1e-9\nTorqueSource     TQ(T = 12)\nRotationalSpring SP(k = 400, theta0 = 0)\nMechGround       G1()\nMechGround       G2()\nconnect(TQ.a, SP.a)\nconnect(TQ.b, G1.port)\nconnect(SP.b, G2.port)\nth = SP.theta\n",
+  "expect": {
+    "variables": {
+      "g1.port.tau": -12.0,
+      "g1.port.w": 0.0,
+      "g2.port.tau": 12.0,
+      "g2.port.w": 0.0,
+      "sp.a.tau": 12.0,
+      "sp.a.w": 0.0,
+      "sp.b.tau": -12.0,
+      "sp.b.w": 0.0,
+      "sp.theta": 0.03,
+      "th": 0.03,
+      "tq.a.tau": -12.0,
+      "tq.a.w": 0.0,
+      "tq.b.tau": 12.0,
+      "tq.b.w": 0.0
+    },
+    "display_names": {
+      "g1$port$tau": "g1.port.tau",
+      "g1$port$w": "g1.port.w",
+      "g2$port$tau": "g2.port.tau",
+      "g2$port$w": "g2.port.w",
+      "sp$a$tau": "sp.a.tau",
+      "sp$a$w": "sp.a.w",
+      "sp$b$tau": "sp.b.tau",
+      "sp$b$w": "sp.b.w",
+      "sp$theta": "sp.theta",
+      "th": "th",
+      "tq$a$tau": "tq.a.tau",
+      "tq$a$w": "tq.a.w",
+      "tq$b$tau": "tq.b.tau",
+      "tq$b$w": "tq.b.w"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

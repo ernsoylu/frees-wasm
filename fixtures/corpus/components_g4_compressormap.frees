@@ -1,0 +1,14 @@
+// CompressorMap, default `eta` variant: isentropic efficiency off a 1-D map
+// vs pressure ratio. PR = 2.5 interpolates eta = 0.76 between the rows.
+TABLE etamap(pr)
+  1    0.82
+  4    0.70
+END
+
+Source        SRC(a1, fluid$ = Air, mdot = 0.15, P = 100000, T = 300)
+CompressorMap CM(a1, a2, fluid$ = Air, map_eta$ = etamap)
+Sink          SK(a2)
+
+a2.P     = 250000
+w_c      = CM.W
+eta_used = CM.eta

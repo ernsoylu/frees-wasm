@@ -1,0 +1,14 @@
+// PMSM on a 48 V bus against a 0.05 N.m.s/rad damper: Kt = 1.5*4*0.1 = 0.6,
+// I = 48/(0.5 + 0.6^2/0.05) = 6.23377 A, w = 12*I = 74.8052 rad/s.
+// EXPECT w_shaft = 74.8052 tol 1e-3
+PMSM             M(Rs = 0.5, lambda_pm = 0.1, poles = 4)
+VoltageSource    SRC(E = 48)
+RotationalDamper DP(c = 0.05)
+MechGround       MG()
+Ground           G()
+connect(SRC.p, M.p)
+connect(M.n, SRC.n, G.port)
+connect(M.shaft, DP.a)
+connect(DP.b, MG.port)
+w_shaft = M.shaft.w
+i = M.p.I

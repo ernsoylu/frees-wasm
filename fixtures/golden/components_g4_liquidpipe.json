@@ -1,0 +1,57 @@
+{
+  "name": "components_g4_liquidpipe",
+  "source": "// LiquidPipe: Darcy drop with properties off the fluid (rho, mu from Water\n// at the inlet state). 1 kg/s through 8 m of DN20: V ~ 3.2 m/s, Re ~ 7e4.\nLiquidSource LS(l1, fluid$ = Water, mdot = 1.0, P = 300000, T = 300)\nLiquidPipe   LP(l1, l2, fluid$ = Water, L = 8, D = 0.02, rough = 1.5e-5)\nLiquidSink   SK(l2)\n\ndp_pipe = l1.P - l2.P\np_out   = SK.P\nh_out   = SK.h\n",
+  "expect": {
+    "variables": {
+      "dp_pipe": 44833.41711718502,
+      "h_out": 112837.8113292397,
+      "l1.h": 112837.8113292397,
+      "l1.mdot": 1.0,
+      "l1.p": 300000.0,
+      "l2.h": 112837.8113292397,
+      "l2.mdot": 1.0,
+      "l2.p": 255166.58288281498,
+      "lp.a": 3.141592653589793E-4,
+      "lp.f": 0.022050201816902888,
+      "lp.mu": 8.537245570665356E-4,
+      "lp.re_d": 74569.69195721121,
+      "lp.rho": 996.6461141257324,
+      "lp.v": 3.1938105378860095,
+      "p_out": 255166.58288281498,
+      "sk.h": 112837.8113292397,
+      "sk.mdot": 1.0,
+      "sk.p": 255166.58288281498
+    },
+    "display_names": {
+      "dp_pipe": "dp_pipe",
+      "h_out": "h_out",
+      "l1": "l1",
+      "l1$h": "l1.h",
+      "l1$mdot": "l1.mdot",
+      "l1$p": "l1.p",
+      "l2": "l2",
+      "l2$h": "l2.h",
+      "l2$mdot": "l2.mdot",
+      "l2$p": "l2.p",
+      "lp$a": "lp.a",
+      "lp$f": "lp.f",
+      "lp$mu": "lp.mu",
+      "lp$re_d": "lp.re_d",
+      "lp$rho": "lp.rho",
+      "lp$v": "lp.v",
+      "p_out": "p_out",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "water": "Water"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

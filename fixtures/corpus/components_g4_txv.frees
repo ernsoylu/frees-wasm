@@ -1,0 +1,12 @@
+// TXV: thermostatic expansion valve in its steady limit — der(SH_b)=0 pins the
+// bulb at the sensed superheat (288 K bulb vs Tsat(350 kPa) ~ 278.3 K -> 9.7 K)
+// and der(CdA)=0 relaxes the opening to CdA0 + Kv*(SH_b - SH_set).
+TwoPhasePressureSource HI(fluid$ = R134a, P = 1200000, x = 0)
+TXV                    VLV(fluid$ = R134a, Kv = 2e-7, SH_set = 7, CdA0 = 1e-6, tau_valve = 2, tau_bulb = 8)
+TwoPhasePressureSink   LO(P = 350000)
+ThermalSource          BULB(T = 288)
+connect(HI.out, VLV.in)
+connect(VLV.out, LO.in)
+connect(VLV.bulb, BULB.port)
+mdot_v = VLV.in.mdot
+cda    = VLV.CdA

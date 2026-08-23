@@ -1,0 +1,24 @@
+{
+  "name": "components_g4_sigtime",
+  "source": "// SigTime: the clock source read at a pinned steady instant (time is an\n// ordinary global in a steady solve).\n// EXPECT y = 2.5 tol 1e-12\nSigTime CLK()\ntime = 2.5\ny = CLK.out.sig\n",
+  "expect": {
+    "variables": {
+      "clk.out.sig": 2.5,
+      "time": 2.5,
+      "y": 2.5
+    },
+    "display_names": {
+      "clk$out$sig": "clk.out.sig",
+      "time": "time",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

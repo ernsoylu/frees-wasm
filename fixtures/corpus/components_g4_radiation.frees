@@ -1,0 +1,9 @@
+// Radiation between a 600 K furnace wall and a 300 K ambient surface:
+// Q = emis * sigma * area * (Ta^4 - Tb^4) = 0.8 * 5.670374419e-8 * 0.5 * (600^4 - 300^4)
+//   = 2755.79 W. Steady.
+ThermalSource HOT(T=600)
+Radiation     RAD(emis=0.8, area=0.5)
+ThermalSource AMB(T=300)
+connect(HOT.port, RAD.a)
+connect(RAD.b, AMB.port)
+q_rad = RAD.Q

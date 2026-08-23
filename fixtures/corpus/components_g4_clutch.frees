@@ -1,0 +1,11 @@
+// Clutch at 60 % engagement slipping 5 rad/s: far into the tanh, the carried
+// torque is eng*Tmax = 60 N.m.
+// EXPECT tau_c = 60 tol 1e-6
+Clutch      CL(Tmax = 100, eng = 0.6, eps = 0.01)
+SpeedSource SS(w = 5)
+MechGround  G1()
+MechGround  G2()
+connect(SS.a, CL.a)
+connect(SS.b, G1.port)
+connect(CL.b, G2.port)
+tau_c = CL.a.tau

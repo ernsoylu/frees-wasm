@@ -1,0 +1,11 @@
+// BlendSensor: glide-aware pass-through sensor with the composition rider z.
+// R134a is a pure fluid, so the reported glide (dew - bubble) must be ~0 and
+// z rides through unchanged.
+BlendSource SRC(fluid$ = R134a, mdot = 0.05, P = 500000, x = 0.5, z = 0.5)
+BlendSensor SEN(fluid$ = R134a)
+BlendSink   SNK()
+connect(SRC.out, SEN.in)
+connect(SEN.out, SNK.in)
+x_loc = SEN.x
+glide = SEN.glide
+z_out = SNK.z

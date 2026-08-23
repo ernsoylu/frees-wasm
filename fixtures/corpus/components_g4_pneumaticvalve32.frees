@@ -1,0 +1,15 @@
+// 3/2 directional valve at u = 0.6 metering into a 4 bar work reservoir:
+// supply->work carries 0.6 C of ISO 6358 flow, work->exhaust bleeds 0.4 C,
+// and the work port delivers the net (m_in - m_out) at the reservoir pressure.
+SigConstant         CMD(k=0.6)
+PneumaticSupply     SUP(fluid$=Air, P=700000, T=300)
+PneumaticValve32    V32(fluid$=Air, C=1e-8, b=0.3)
+PneumaticAtmosphere WRK(P=400000)
+PneumaticAtmosphere ATM(P=100000)
+connect(SUP.out, V32.sup_in)
+connect(V32.work, WRK.port)
+connect(V32.exh_out, ATM.port)
+connect(CMD.out, V32.u)
+m_sup  = V32.sup_in.mdot
+m_net  = V32.work.mdot
+m_exh  = V32.exh_out.mdot

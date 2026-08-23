@@ -1,0 +1,28 @@
+{
+  "name": "components_g4_sigfirstorder",
+  "source": "// SigFirstOrder steady: der -> 0 pins the lag state onto its input (DC gain 1).\n// EXPECT y = 3 tol 1e-9\nSigConstant   U(k = 3)\nSigFirstOrder F1(tau = 0.5, y0 = 0)\nconnect(U.out, F1.in)\ny = F1.out.sig\n",
+  "expect": {
+    "variables": {
+      "f1.in.sig": 3.0,
+      "f1.out.sig": 3.0,
+      "f1.y": 3.0,
+      "u.out.sig": 3.0,
+      "y": 3.0
+    },
+    "display_names": {
+      "f1$in$sig": "f1.in.sig",
+      "f1$out$sig": "f1.out.sig",
+      "f1$y": "f1.y",
+      "u$out$sig": "u.out.sig",
+      "y": "y"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

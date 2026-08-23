@@ -1,0 +1,54 @@
+{
+  "name": "components_g4_servovalvedynamic",
+  "source": "// Servo valve with 2nd-order spool dynamics at its settled point (der -> 0\n// gives vs = 0 and xs = u.sig): 50% command on CdA_max = 4e-6 across\n// 100 -> 1 bar. mdot = 0.5*4e-6*sqrt(2*870*9.9e6) = 0.26254 kg/s.\nSigConstant       CMD(k=0.5)\nHydraulicSupply   SUP(P=10000000)\nServoValveDynamic SV(CdA_max=4e-6, rho=870, wn=300, zeta=0.8, xs0=0)\nHydraulicTank     TNK(P=100000)\nconnect(SUP.out, SV.in)\nconnect(SV.out, TNK.port)\nconnect(CMD.out, SV.u)\nx_spool = SV.xs\nq_sv    = SV.in.mdot\n",
+  "expect": {
+    "variables": {
+      "cmd.out.sig": 0.5,
+      "q_sv": 0.2624957142507283,
+      "sup.out.h": 0.0,
+      "sup.out.mdot": 0.2624957142507283,
+      "sup.out.p": 1.0E7,
+      "sv.in.h": 0.0,
+      "sv.in.mdot": 0.2624957142507283,
+      "sv.in.p": 1.0E7,
+      "sv.out.h": 0.0,
+      "sv.out.mdot": 0.2624957142507283,
+      "sv.out.p": 100000.0,
+      "sv.u.sig": 0.5,
+      "sv.vs": 0.0,
+      "sv.xs": 0.5,
+      "tnk.port.h": 0.0,
+      "tnk.port.mdot": 0.2624957142507283,
+      "tnk.port.p": 100000.0,
+      "x_spool": 0.5
+    },
+    "display_names": {
+      "cmd$out$sig": "cmd.out.sig",
+      "q_sv": "q_sv",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "sv$in$h": "sv.in.h",
+      "sv$in$mdot": "sv.in.mdot",
+      "sv$in$p": "sv.in.p",
+      "sv$out$h": "sv.out.h",
+      "sv$out$mdot": "sv.out.mdot",
+      "sv$out$p": "sv.out.p",
+      "sv$u$sig": "sv.u.sig",
+      "sv$vs": "sv.vs",
+      "sv$xs": "sv.xs",
+      "tnk$port$h": "tnk.port.h",
+      "tnk$port$mdot": "tnk.port.mdot",
+      "tnk$port$p": "tnk.port.p",
+      "x_spool": "x_spool"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

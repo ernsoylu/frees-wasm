@@ -1,0 +1,6 @@
+// SigFirstOrder steady: der -> 0 pins the lag state onto its input (DC gain 1).
+// EXPECT y = 3 tol 1e-9
+SigConstant   U(k = 3)
+SigFirstOrder F1(tau = 0.5, y0 = 0)
+connect(U.out, F1.in)
+y = F1.out.sig

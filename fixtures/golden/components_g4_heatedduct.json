@@ -1,0 +1,56 @@
+{
+  "name": "components_g4_heatedduct",
+  "source": "// HeatedDuct: single-stream eps-NTU pickup from a 450 K wall node\n// (eps = 1 - exp(-UA/(mdot*cp)) ~ 0.52 at UA = 150, mdot = 0.2 of Air).\n// The wall port shares stream wl with the ThermalSource positionally.\nSource        SRC(a1, fluid$ = Air, mdot = 0.2, P = 101325, T = 300)\nHeatedDuct    HD(a1, a2, wl, fluid$ = Air, UA = 150)\nThermalSource WALL(wl, T = 450)\nSink          SK(a2)\n\nq     = HD.Q\nh_out = SK.h\n",
+  "expect": {
+    "variables": {
+      "a1.h": 426297.7743916913,
+      "a1.mdot": 0.2,
+      "a1.p": 101325.0,
+      "a2.h": 505607.73141755647,
+      "a2.mdot": 0.2,
+      "a2.p": 101325.0,
+      "h_out": 505607.73141755647,
+      "hd.cp_d": 1006.3739076641021,
+      "hd.epsd": 0.5253842958491313,
+      "hd.q": 15861.991405173034,
+      "hd.t_in": 299.9999999999835,
+      "q": 15861.991405173034,
+      "sk.h": 505607.73141755647,
+      "sk.mdot": 0.2,
+      "sk.p": 101325.0,
+      "wl.qdot": 15861.991405173034,
+      "wl.t": 450.0
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$h": "a1.h",
+      "a1$mdot": "a1.mdot",
+      "a1$p": "a1.p",
+      "a2": "a2",
+      "a2$h": "a2.h",
+      "a2$mdot": "a2.mdot",
+      "a2$p": "a2.p",
+      "air": "Air",
+      "h_out": "h_out",
+      "hd$cp_d": "hd.cp_d",
+      "hd$epsd": "hd.epsd",
+      "hd$q": "hd.q",
+      "hd$t_in": "hd.t_in",
+      "q": "q",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "wl": "wl",
+      "wl$qdot": "wl.qdot",
+      "wl$t": "wl.t"
+    },
+    "block_count": 17,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

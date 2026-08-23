@@ -1,0 +1,59 @@
+{
+  "name": "components_g4_steamreliefvalve",
+  "source": "// SteamReliefValve: saturated steam at 250 kPa relieving to atmosphere through\n// a 1 cm^2 orifice, well above the 2 atm crack pressure. P_out/P_in = 0.41 is\n// below the critical ratio (~0.58 at k = 1.14), so the vent is CHOKED.\nTwoPhasePressureSource DRUM(fluid$ = Water, P = 250000, x = 1)\nSteamReliefValve       SRV(fluid$ = Water, A = 1e-4, Pset = 202650, Cd = 0.9, kgas = 1.14, Rgas = 461.5, eps = 2000)\nTwoPhasePressureSink   ATM(P = 101325)\nconnect(DRUM.out, SRV.in)\nconnect(SRV.out, ATM.in)\nmdot_vent = SRV.in.mdot\nlift      = SRV.opening\n",
+  "expect": {
+    "variables": {
+      "atm.in.h": 2716489.5489695254,
+      "atm.in.mdot": 0.033314900788194164,
+      "atm.in.p": 101325.0,
+      "drum.out.h": 2716489.5489695254,
+      "drum.out.mdot": 0.033314900788194164,
+      "drum.out.p": 250000.0,
+      "lift": 1.0,
+      "mdot_vent": 0.033314900788194164,
+      "srv.efact": 1.0,
+      "srv.in.h": 2716489.5489695254,
+      "srv.in.mdot": 0.033314900788194164,
+      "srv.in.p": 250000.0,
+      "srv.mdot_ch": 0.033314900788194164,
+      "srv.opening": 1.0,
+      "srv.out.h": 2716489.5489695254,
+      "srv.out.mdot": 0.033314900788194164,
+      "srv.out.p": 101325.0,
+      "srv.prc": 0.576410782156074,
+      "srv.ratio": 0.0,
+      "srv.t0v": 400.5614064737879
+    },
+    "display_names": {
+      "atm$in$h": "atm.in.h",
+      "atm$in$mdot": "atm.in.mdot",
+      "atm$in$p": "atm.in.p",
+      "drum$out$h": "drum.out.h",
+      "drum$out$mdot": "drum.out.mdot",
+      "drum$out$p": "drum.out.p",
+      "lift": "lift",
+      "mdot_vent": "mdot_vent",
+      "srv$efact": "srv.efact",
+      "srv$in$h": "srv.in.h",
+      "srv$in$mdot": "srv.in.mdot",
+      "srv$in$p": "srv.in.p",
+      "srv$mdot_ch": "srv.mdot_ch",
+      "srv$opening": "srv.opening",
+      "srv$out$h": "srv.out.h",
+      "srv$out$mdot": "srv.out.mdot",
+      "srv$out$p": "srv.out.p",
+      "srv$prc": "srv.prc",
+      "srv$ratio": "srv.ratio",
+      "srv$t0v": "srv.t0v",
+      "water": "Water"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

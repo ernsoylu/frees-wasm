@@ -1,0 +1,67 @@
+{
+  "name": "components_g4_twophasecondenserua",
+  "source": "// TwoPhaseCondenserUA: the condensing pressure is FREE (high-side tear) — the\n// inlet fixes only mdot and h, and pinning 5 K of subcooling closes the DOF.\n// Q = UA*(Tcond - Tamb) = mdot*(h_in - h_out) then sets Tcond ~ 318 K.\nTwoPhaseEnthalpySource ES(mdot = 0.03, h = 430000)\nTwoPhaseCondenserUA    CND(fluid$ = R134a, UA = 500, T_amb = 308, V = 0.004)\nTwoPhaseSink           SNK()\nconnect(ES.out, CND.in)\nconnect(CND.out, SNK.in)\nCND.SC = 5\np_cond   = CND.in.P\nm_charge = CND.m\nq        = CND.Q\n",
+  "expect": {
+    "variables": {
+      "cnd.in.h": 430000.0,
+      "cnd.in.mdot": 0.03,
+      "cnd.in.p": 1167321.3109563296,
+      "cnd.m": 2.4039466444893054,
+      "cnd.out.h": 256747.19321033393,
+      "cnd.out.mdot": 0.03,
+      "cnd.out.p": 1167321.3109563296,
+      "cnd.q": 5197.584203689982,
+      "cnd.rho_in": 55.060455772960644,
+      "cnd.rho_out": 1146.912866471692,
+      "cnd.sc": 5.0,
+      "cnd.tcond": 318.39516840737997,
+      "es.out.h": 430000.0,
+      "es.out.mdot": 0.03,
+      "es.out.p": 1167321.3109563296,
+      "m_charge": 2.4039466444893054,
+      "p_cond": 1167321.3109563296,
+      "q": 5197.584203689982,
+      "snk.h": 256747.19321033393,
+      "snk.in.h": 256747.19321033393,
+      "snk.in.mdot": 0.03,
+      "snk.in.p": 1167321.3109563296,
+      "snk.mdot": 0.03,
+      "snk.p": 1167321.3109563296
+    },
+    "display_names": {
+      "cnd$in$h": "cnd.in.h",
+      "cnd$in$mdot": "cnd.in.mdot",
+      "cnd$in$p": "cnd.in.p",
+      "cnd$m": "cnd.m",
+      "cnd$out$h": "cnd.out.h",
+      "cnd$out$mdot": "cnd.out.mdot",
+      "cnd$out$p": "cnd.out.p",
+      "cnd$q": "cnd.q",
+      "cnd$rho_in": "cnd.rho_in",
+      "cnd$rho_out": "cnd.rho_out",
+      "cnd$sc": "cnd.sc",
+      "cnd$tcond": "cnd.tcond",
+      "es$out$h": "es.out.h",
+      "es$out$mdot": "es.out.mdot",
+      "es$out$p": "es.out.p",
+      "m_charge": "m_charge",
+      "p_cond": "p_cond",
+      "q": "q",
+      "r134a": "R134a",
+      "snk$h": "snk.h",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "snk$mdot": "snk.mdot",
+      "snk$p": "snk.p"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

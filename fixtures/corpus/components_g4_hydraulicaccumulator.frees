@@ -1,0 +1,8 @@
+// Gas-charged accumulator riding a 150 bar line at steady state (der(Vg) -> 0
+// so port.mdot = 0): precharged to 90 bar over V0 = 10 L, the polytropic gas
+// (gamma = 1.4) compresses to Vg = V0*(P0/P)^(1/gamma) = 6.944 L.
+HydraulicSupply      SUP(P=15000000)
+HydraulicAccumulator ACC(P0=9000000, V0=0.01, gamma=1.4, rho=870, Vg0=0.01)
+connect(SUP.out, ACC.port)
+v_gas = ACC.Vg
+q_acc = ACC.port.mdot

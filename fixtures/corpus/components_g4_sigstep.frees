@@ -1,0 +1,6 @@
+// SigStep: smooth 0 -> 10 step at t0 = 0.5 s, sampled 10 edge-widths past the
+// edge, so tanh(10) leaves y within 5e-9 of the after level.
+// EXPECT y = 10 tol 1e-6
+SigStep ST(t0 = 0.5, before = 0, after = 10, eps = 0.05)
+time = 1.0
+y = ST.out.sig

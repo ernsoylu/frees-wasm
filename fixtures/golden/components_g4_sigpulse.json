@@ -1,0 +1,24 @@
+{
+  "name": "components_g4_sigpulse",
+  "source": "// SigPulse: 1 -> 5 pulse from t0 = 1 s for 2 s, sampled mid-pulse at t = 2 s\n// (both tanh edges are 20 widths away).\n// EXPECT y = 5 tol 1e-9\nSigPulse PU(t0 = 1, width = 2, high = 5, low = 1, eps = 0.05)\ntime = 2\ny = PU.out.sig\n",
+  "expect": {
+    "variables": {
+      "pu.out.sig": 5.0,
+      "time": 2.0,
+      "y": 5.0
+    },
+    "display_names": {
+      "pu$out$sig": "pu.out.sig",
+      "time": "time",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,17 @@
+// Turbocharger: power-matched turbine + compressor on the (P, T, mdot) gas
+// bond. Both inlets pinned, turbine back-pressure set; Wt = Wc closes the
+// compressor discharge pressure (~2.7 bar).
+Turbocharger TC(t1, t2, c1, c2, cp = 1005, eta_t = 0.7, eta_c = 0.75, gam = 1.4)
+
+t1.P    = 250000
+t1.T    = 900
+t1.mdot = 0.12
+c1.P    = 100000
+c1.T    = 300
+c1.mdot = 0.12
+t2.P    = 110000
+
+w_turb  = TC.Wt
+pr_comp = TC.PRc
+p_boost = c2.P
+t_boost = c2.T

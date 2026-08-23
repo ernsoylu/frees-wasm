@@ -1,0 +1,6 @@
+// SigPulse: 1 -> 5 pulse from t0 = 1 s for 2 s, sampled mid-pulse at t = 2 s
+// (both tanh edges are 20 widths away).
+// EXPECT y = 5 tol 1e-9
+SigPulse PU(t0 = 1, width = 2, high = 5, low = 1, eps = 0.05)
+time = 2
+y = PU.out.sig

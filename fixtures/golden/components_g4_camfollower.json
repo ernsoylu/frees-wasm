@@ -1,0 +1,54 @@
+{
+  "name": "components_g4_camfollower",
+  "source": "// CamFollower steady: a 50 N preload on the rod node compresses the internal\n// 5000 N/m return spring by 0.01 m; mass and node settle at zero velocity.\n// EXPECT v_rod = 0 tol 1e-9\nForceSource FS(F = 50)\nTransGround G()\nCamFollower CF(m = 2, kspring = 5000, x0 = 0, v0 = 0)\nconnect(FS.a, CF.rod)\nconnect(FS.b, G.port)\nv_rod = CF.rod.vel\n",
+  "expect": {
+    "variables": {
+      "cf.g.port.f": -50.0,
+      "cf.g.port.vel": 0.0,
+      "cf.m.port.f": 0.0,
+      "cf.m.port.vel": 0.0,
+      "cf.rod.f": 50.0,
+      "cf.rod.vel": 0.0,
+      "cf.s.a.f": -50.0,
+      "cf.s.a.vel": 0.0,
+      "cf.s.b.f": 50.0,
+      "cf.s.b.vel": 0.0,
+      "cf.s.x": -0.01,
+      "fs.a.f": -50.0,
+      "fs.a.vel": 0.0,
+      "fs.b.f": 50.0,
+      "fs.b.vel": 0.0,
+      "g.port.f": -50.0,
+      "g.port.vel": 0.0,
+      "v_rod": 0.0
+    },
+    "display_names": {
+      "cf$rod$f": "cf.rod.f",
+      "cf$rod$vel": "cf.rod.vel",
+      "cf.g$port$f": "cf.g.port.f",
+      "cf.g$port$vel": "cf.g.port.vel",
+      "cf.m$port$f": "cf.m.port.f",
+      "cf.m$port$vel": "cf.m.port.vel",
+      "cf.s$a$f": "cf.s.a.f",
+      "cf.s$a$vel": "cf.s.a.vel",
+      "cf.s$b$f": "cf.s.b.f",
+      "cf.s$b$vel": "cf.s.b.vel",
+      "cf.s$x": "cf.s.x",
+      "fs$a$f": "fs.a.f",
+      "fs$a$vel": "fs.a.vel",
+      "fs$b$f": "fs.b.f",
+      "fs$b$vel": "fs.b.vel",
+      "g$port$f": "g.port.f",
+      "g$port$vel": "g.port.vel",
+      "v_rod": "v_rod"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

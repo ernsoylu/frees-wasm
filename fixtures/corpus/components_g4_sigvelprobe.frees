@@ -1,0 +1,12 @@
+// SigVelProbe: force-free velocity pickup. 10 N through a 2 N.s/m damper to
+// ground -> the probed node moves at 5 m/s and the probe draws no force.
+// EXPECT y = 5 tol 1e-9
+ForceSource FS(F = 10)
+TransDamper TD(c = 2)
+TransGround G1()
+TransGround G2()
+SigVelProbe PR()
+connect(FS.a, TD.a, PR.port)
+connect(FS.b, G1.port)
+connect(TD.b, G2.port)
+y = PR.out.sig

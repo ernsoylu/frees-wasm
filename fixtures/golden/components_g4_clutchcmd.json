@@ -1,0 +1,50 @@
+{
+  "name": "components_g4_clutchcmd",
+  "source": "// ClutchCmd: engagement 0.5 commanded over the signal port, slipping 3 rad/s\n// -> carried torque u*Tmax = 40 N.m.\n// EXPECT tau_c = 40 tol 1e-6\nClutchCmd   CL(Tmax = 80, eps = 0.01)\nSigConstant U(k = 0.5)\nSpeedSource SS(w = 3)\nMechGround  G1()\nMechGround  G2()\nconnect(SS.a, CL.a)\nconnect(SS.b, G1.port)\nconnect(CL.b, G2.port)\nconnect(U.out, CL.u)\ntau_c = CL.a.tau\n",
+  "expect": {
+    "variables": {
+      "cl.a.tau": 40.0,
+      "cl.a.w": 3.0,
+      "cl.b.tau": -40.0,
+      "cl.b.w": 0.0,
+      "cl.dw": 3.0,
+      "cl.u.sig": 0.5,
+      "g1.port.tau": -40.0,
+      "g1.port.w": 0.0,
+      "g2.port.tau": 40.0,
+      "g2.port.w": 0.0,
+      "ss.a.tau": -40.0,
+      "ss.a.w": 3.0,
+      "ss.b.tau": 40.0,
+      "ss.b.w": 0.0,
+      "tau_c": 40.0,
+      "u.out.sig": 0.5
+    },
+    "display_names": {
+      "cl$a$tau": "cl.a.tau",
+      "cl$a$w": "cl.a.w",
+      "cl$b$tau": "cl.b.tau",
+      "cl$b$w": "cl.b.w",
+      "cl$dw": "cl.dw",
+      "cl$u$sig": "cl.u.sig",
+      "g1$port$tau": "g1.port.tau",
+      "g1$port$w": "g1.port.w",
+      "g2$port$tau": "g2.port.tau",
+      "g2$port$w": "g2.port.w",
+      "ss$a$tau": "ss.a.tau",
+      "ss$a$w": "ss.a.w",
+      "ss$b$tau": "ss.b.tau",
+      "ss$b$w": "ss.b.w",
+      "tau_c": "tau_c",
+      "u$out$sig": "u.out.sig"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

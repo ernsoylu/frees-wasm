@@ -1,0 +1,21 @@
+// Planetary (ring/sun ratio g = 2), sun at 100 and ring at 40 rad/s:
+// carrier w = (100 + 2*40)/3 = 60; its 0.2 N.m.s damper takes 12 N.m, which
+// splits 4 N.m to the sun and 8 N.m to the ring (ring.tau = g*sun.tau).
+// EXPECT wc = 60 tol 1e-6
+// EXPECT tau_s = 4 tol 1e-6
+Planetary        PL(g = 2)
+SpeedSource      S1(w = 100)
+SpeedSource      S2(w = 40)
+RotationalDamper DP(c = 0.2)
+MechGround       G1()
+MechGround       G2()
+MechGround       G3()
+connect(S1.a, PL.sun)
+connect(S1.b, G1.port)
+connect(S2.a, PL.ring)
+connect(S2.b, G2.port)
+connect(PL.carrier, DP.a)
+connect(DP.b, G3.port)
+wc = PL.carrier.w
+tau_s = PL.sun.tau
+tau_r = PL.ring.tau

@@ -1,0 +1,51 @@
+{
+  "name": "components_g4_pneumaticcheckvalve",
+  "source": "// Pneumatic check valve in its forward (conducting) direction: 7 bar supply\n// into a 1 bar exhaust, well past the eps = 1 kPa gate width, so the tanh\n// gate is fully open and the ISO 6358 law carries the whole flow.\nPneumaticSupply     SUP(fluid$=Air, P=700000, T=300)\nPneumaticCheckValve CHK(fluid$=Air, C=1e-8, b=0.3, eps=1000)\nPneumaticAtmosphere ATM(P=100000)\nconnect(SUP.out, CHK.in)\nconnect(CHK.out, ATM.port)\nm_fwd  = CHK.in.mdot\ng_gate = CHK.g\n",
+  "expect": {
+    "variables": {
+      "atm.port.h": 424949.973620621,
+      "atm.port.mdot": 0.008199751902496794,
+      "atm.port.p": 100000.0,
+      "chk.g": 1.0,
+      "chk.in.h": 424949.973620621,
+      "chk.in.mdot": 0.008199751902496794,
+      "chk.in.p": 700000.0,
+      "chk.out.h": 424949.973620621,
+      "chk.out.mdot": 0.008199751902496794,
+      "chk.out.p": 100000.0,
+      "chk.t_in": 300.0000000000009,
+      "g_gate": 1.0,
+      "m_fwd": 0.008199751902496794,
+      "sup.out.h": 424949.973620621,
+      "sup.out.mdot": 0.008199751902496794,
+      "sup.out.p": 700000.0
+    },
+    "display_names": {
+      "air": "Air",
+      "atm$port$h": "atm.port.h",
+      "atm$port$mdot": "atm.port.mdot",
+      "atm$port$p": "atm.port.p",
+      "chk$g": "chk.g",
+      "chk$in$h": "chk.in.h",
+      "chk$in$mdot": "chk.in.mdot",
+      "chk$in$p": "chk.in.p",
+      "chk$out$h": "chk.out.h",
+      "chk$out$mdot": "chk.out.mdot",
+      "chk$out$p": "chk.out.p",
+      "chk$t_in": "chk.t_in",
+      "g_gate": "g_gate",
+      "m_fwd": "m_fwd",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

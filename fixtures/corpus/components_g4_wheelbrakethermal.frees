@@ -1,0 +1,16 @@
+// WheelBrakeThermal steady: 50 rad/s slip at u = 0.4 (Tmax 300) with hA = 15
+// to 300 K lands exactly on the fade midpoint: fade = 0.75, Tr = 600 K,
+// tau_b = 90 N.m, and Pf = 4500 W = hA*(Tr - T_amb) closes the balance.
+// EXPECT tr = 600 tol 1e-6
+// EXPECT taub = 90 tol 1e-6
+SpeedSource       SS(w = 50)
+MechGround        G1()
+MechGround        G2()
+SigConstant       U(k = 0.4)
+WheelBrakeThermal WB(Tmax = 300, eps = 0.01, C = 10, hA = 15, T_amb = 300, T_fade = 600, k_fade = 0.5, eps_f = 30, T0 = 300)
+connect(SS.a, WB.a)
+connect(SS.b, G1.port)
+connect(WB.b, G2.port)
+connect(U.out, WB.u)
+tr = WB.Tr
+taub = WB.tau_b

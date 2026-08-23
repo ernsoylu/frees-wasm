@@ -1,0 +1,14 @@
+// BatteryThermal: 12 V / 0.05 ohm cell into a 1.15 ohm load -> 10 A discharge,
+// I^2*R0 = 5 W pushed out of the heat port into a 300 K node.
+// EXPECT q = 5 tol 1e-6
+// EXPECT v = 11.5 tol 1e-6
+BatteryThermal B(Voc = 12, R0 = 0.05)
+Resistor       RL(R = 1.15)
+Ground         G()
+ThermalSource  TS(T = 300)
+connect(B.p, RL.a)
+connect(RL.b, B.n, G.port)
+connect(B.heat, TS.port)
+q = B.Q
+v = B.p.V - B.n.V
+w_out = B.W

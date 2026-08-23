@@ -1,0 +1,49 @@
+{
+  "name": "components_g4_compressor",
+  "source": "// Compressor, default isentropic variant: Air from ambient to 2.5 bar at\n// eta = 0.8. Steady; the source pins the inlet, the outlet pressure is the\n// one boundary value.\nSource     SRC(a1, fluid$ = Air, mdot = 0.1, P = 100000, T = 300)\nCompressor CMP(a1, a2, fluid$ = Air, eta = 0.8)\nSink       SK(a2)\n\na2.P  = 250000\nw_c   = CMP.W\nh_out = SK.h\n",
+  "expect": {
+    "variables": {
+      "a1.h": 426300.77587390563,
+      "a1.mdot": 0.1,
+      "a1.p": 100000.0,
+      "a2.h": 539032.2565723752,
+      "a2.mdot": 0.1,
+      "a2.p": 250000.0,
+      "cmp.h_s": 516485.96043268126,
+      "cmp.s_in": 3890.5014021915044,
+      "cmp.w": 11273.148069846957,
+      "h_out": 539032.2565723752,
+      "sk.h": 539032.2565723752,
+      "sk.mdot": 0.1,
+      "sk.p": 250000.0,
+      "w_c": 11273.148069846957
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$h": "a1.h",
+      "a1$mdot": "a1.mdot",
+      "a1$p": "a1.p",
+      "a2": "a2",
+      "a2$h": "a2.h",
+      "a2$mdot": "a2.mdot",
+      "a2$p": "a2.p",
+      "air": "Air",
+      "cmp$h_s": "cmp.h_s",
+      "cmp$s_in": "cmp.s_in",
+      "cmp$w": "cmp.w",
+      "h_out": "h_out",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "w_c": "w_c"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,14 @@
+// Radiator: hierarchical liquid/moist-air bridge — 95 C water coolant rejects
+// ~24 kW to ambient air through the shared wall node (UA_cool on the coolant
+// side, eps_t effectiveness on the air side).
+LiquidSource   CLNT(fluid$ = Water, mdot = 0.4, P = 200000, T = 368)
+MoistAirSource AIR(P = 101325, T = 305, W = 0.008, mdot = 1.2)
+Radiator       RAD(cool$ = Water, UA_cool = 800, eps_air = 0.6)
+LiquidSink     CSNK()
+MoistAirSink   ASNK()
+connect(CLNT.out, RAD.cool_in)
+connect(RAD.cool_out, CSNK.in)
+connect(AIR.out, RAD.air_in)
+connect(RAD.air_out, ASNK.in)
+t_cool_out = Temperature(Water, P = 200000, h = CSNK.h)
+h_air_out  = ASNK.h

@@ -1,0 +1,54 @@
+{
+  "name": "components_g4_loadsensingpump",
+  "source": "// Load-sensing pump feeding a metering orifice into a 60 bar load: the\n// compensator settles (der(dfrac) -> 0) exactly when out.P = ls.P + dP_margin,\n// holding 20 bar across the orifice regardless of the load.\n// mdot = 2e-6*sqrt(2*870*2e6) = 0.11798 kg/s.\nHydraulicSupply  RES(h1, P=100000)\nLoadSensingPump  PMP(h1, h2, hls, rho=870, Dv=6e-5, w_p=150, dP_margin=2000000, tau=0.05, d0=0.5)\nHydraulicOrifice MTR(h2, h3, CdA=2e-6, rho=870)\nHydraulicTank    LOAD(h3, P=6000000)\nhls.P = 6000000\np_pump  = PMP.out.P\nq_pump  = PMP.out.mdot\nd_frac  = PMP.dfrac\n",
+  "expect": {
+    "variables": {
+      "d_frac": 0.2177702635558472,
+      "h1.h": 0.0,
+      "h1.mdot": 0.11798304963002101,
+      "h1.p": 100000.0,
+      "h2.h": 0.0,
+      "h2.mdot": 0.11798304963002101,
+      "h2.p": 8000000.0,
+      "h3.h": 0.0,
+      "h3.mdot": 0.11798304963002101,
+      "h3.p": 6000000.0,
+      "hls.mdot": 0.0,
+      "hls.p": 6000000.0,
+      "p_pump": 8000000.0,
+      "pmp.deff": 0.09467552540633307,
+      "pmp.dfrac": 0.2177702635558472,
+      "q_pump": 0.11798304963002101
+    },
+    "display_names": {
+      "d_frac": "d_frac",
+      "h1": "h1",
+      "h1$h": "h1.h",
+      "h1$mdot": "h1.mdot",
+      "h1$p": "h1.p",
+      "h2": "h2",
+      "h2$h": "h2.h",
+      "h2$mdot": "h2.mdot",
+      "h2$p": "h2.p",
+      "h3": "h3",
+      "h3$h": "h3.h",
+      "h3$mdot": "h3.mdot",
+      "h3$p": "h3.p",
+      "hls": "hls",
+      "hls$mdot": "hls.mdot",
+      "hls$p": "hls.p",
+      "p_pump": "p_pump",
+      "pmp$deff": "pmp.deff",
+      "pmp$dfrac": "pmp.dfrac",
+      "q_pump": "q_pump"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

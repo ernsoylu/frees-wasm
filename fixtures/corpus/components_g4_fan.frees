@@ -1,0 +1,8 @@
+// Fan on its quadratic curve dP = dP0*(1 - (Q/Q0)^2), Air stream, with the
+// inefficiency heating the flow (out.h = in.h + dP/(rho*eta)).
+Source SRC(a1, fluid$ = Air, mdot = 1.2, P = 101325, T = 300)
+Fan    FN(a1, a2, fluid$ = Air, dP0 = 500, Q0 = 2.0, eta = 0.6)
+Sink   SK(a2)
+
+dp_fan = a2.P - a1.P
+h_out  = SK.h

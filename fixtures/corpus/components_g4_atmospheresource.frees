@@ -1,0 +1,8 @@
+// AtmosphereSource: the ISA 1976 state at 5 km as a flow boundary —
+// P = isa_P(5000) ~ 54 kPa, h = Enthalpy(Air) at the ISA temperature.
+AtmosphereSource ATM(a1, alt = 5000, mdot = 1.0)
+Sink             SK(a1)
+
+p_amb = SK.P
+h_amb = SK.h
+m     = SK.mdot

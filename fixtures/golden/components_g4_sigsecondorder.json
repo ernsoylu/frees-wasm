@@ -1,0 +1,30 @@
+{
+  "name": "components_g4_sigsecondorder",
+  "source": "// SigSecondOrder steady: der(y) -> 0 gives v = 0, der(v) -> 0 gives y = in\n// (unit DC gain of the tracking filter).\n// EXPECT y = 1.5 tol 1e-9\nSigConstant    U(k = 1.5)\nSigSecondOrder SO(wn = 4, zeta = 0.7, y0 = 0, v0 = 0)\nconnect(U.out, SO.in)\ny = SO.out.sig\n",
+  "expect": {
+    "variables": {
+      "so.in.sig": 1.5,
+      "so.out.sig": 1.5,
+      "so.v": 0.0,
+      "so.y": 1.5,
+      "u.out.sig": 1.5,
+      "y": 1.5
+    },
+    "display_names": {
+      "so$in$sig": "so.in.sig",
+      "so$out$sig": "so.out.sig",
+      "so$v": "so.v",
+      "so$y": "so.y",
+      "u$out$sig": "u.out.sig",
+      "y": "y"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

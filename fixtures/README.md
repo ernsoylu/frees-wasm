@@ -5,8 +5,8 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 776
-fixtures/golden/*.json    what the Java engine produced for each      — 776
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 905
+fixtures/golden/*.json    what the Java engine produced for each      — 905
 fixtures/corpus-pending/  the staging area: documents not yet promoted — 1
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
@@ -404,10 +404,31 @@ Extend it further from, in rough order of value:
    tests that pass extra `solve(...)` arguments (complex mode, `ProcDef`
    function tables), `String.format` templates, and cross-file constants
 4. `../frEES/backend/core/src/main/resources/components/*.frees` — all 295
-   library components. The component expander landed in Phase 6, so the blocker
-   this line named is gone; what exists instead is the 46-document
-   `components_*` group below, hand-authored and harvested rather than swept.
-   The 295 have never been swept as documents
+   library components. **Swept 2026-08-23 (Wave G4).** A coverage inventory
+   found 165 of the 295 component types already exercised by the corpus and
+   130 not; four parallel authoring agents (one per domain slice: twophase+ac,
+   fluid+liquid, signal+electrical+mechanical, moistair+hydraulic+pneumatic+
+   heat+powertrain) wrote one minimal physically-meaningful document per
+   uncovered type — 130/130 authored and solving on this engine, most with
+   hand-computed anchors in comments. The Java oracle solved 129;
+   **129 promoted** (`components_g4_*`): 118 at the corpus default with no
+   tolerance entry, **11 at declared `oracle-ph-table` entries** (the R134a
+   `(P,Hmass)` table again — worst 4.6e-5 on a superheat subtraction,
+   `components_g4_twophaseenthalpysource`, the same SEN amplification the
+   `components_family_twophase` entry probed; `tolerances-rustprop.json` has
+   the per-fixture evidence). One authoring re-tune during promotion:
+   `components_g4_aircoil`'s refrigerant flow was lowered so its superheat
+   sits at 15.85 K instead of ~0, where the table error read rel 1.0 by
+   denominator collapse. One drop: `CabinZone` — the ORACLE stalls at its
+   default guesses (its humidity-ratio unknown seeds into `HAPropsSI`'s NaN
+   region; this port solves the document) and no in-document guess syntax
+   exists to steer it, so the component stays uncovered rather than pinning
+   an oracle guess-landscape artifact as a golden. **Component coverage is
+   now 294 of 295.** Corpus 776 → 905. The agents' authoring insights
+   (all-or-none port binding, one-connect-per-electrical-node, the der→0
+   steady branch carrying most stateful components, `time` pinning for
+   steady signal rigs) are recorded in the G4 commit message — the batch
+   `NOTES.md` files lived in a session scratchpad and are not preserved
 
 Add the document to `corpus/`, rerun `run.sh`, and commit both the source and
 the generated golden file. **Review the generated fixture before committing** —
@@ -415,10 +436,12 @@ it encodes whatever the Java engine does, including any bug.
 
 ### The `components_*` group (Phase 6)
 
-46 fixtures whose stem starts with `components_`, in three provenance classes:
+175 fixtures whose stem starts with `components_` (46 until Wave G4,
+2026-08-23), in four provenance classes:
 
 | Prefix | Count | Where it came from |
 |---|---|---|
+| `components_g4_<type>` | 129 | **The Wave G4 library sweep** (growth-source item 4 above): one minimal document per previously-uncovered built-in, authored by four parallel agents, oracle-solved and promoted under the standard rule — 118 at the corpus default, 11 with `oracle-ph-table` entries. Raised `component_families.rs`'s measured group-coverage floor 120 → 262 of 295. |
 | `components_family_<domain>` | 12 | **Hand-authored here**, one per domain family (`ac`, `electrical`, `fluid`, `heat`, `hydraulic`, `liquid`, `mechanical`, `moistair`, `pneumatic`, `powertrain`, `signal`, `twophase`). `control.frees` ships one component, `PIThermostat`, which rides the heat bond and is exercised from `components_family_heat`. |
 | `components_<wave>_<name>` | 31 | **Harvested** from `../frEES/backend/core/src/test/resources/component-fixtures/`, renamed `<directory>_<stem>`. Only documents that reproduce the Java answer are here; the reference set's transient (`DYNAMIC`) documents are not, because the ODE engine is Phase 7/8. |
 | `components_definition_*`, `components_user_defined_type` | 3 | Edge cases: a template that is never instantiated (empty document, and beside an unrelated scalar), and a user-declared `COMPONENT` shadowing nothing. |

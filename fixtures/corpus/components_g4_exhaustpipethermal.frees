@@ -1,0 +1,19 @@
+// Exhaust pipe with thermal wall (hierarchical: HeatedDuct + WallRC +
+// Convection) at steady soak: 0.05 kg/s of 750 K exhaust gas heats the
+// two-node RC wall, whose outer face convects (hA = 8 W/K) to a 300 K
+// underhood ambient. The wall faces are states, so the ambient side is a
+// plain temperature source behind the built-in convective link.
+COMPONENT ExhaustSource(out)
+  PARAM P, T, mdot
+  out.P    = P
+  out.mdot = mdot
+  out.h    = Enthalpy(Air, P=P, T=T)
+END
+ExhaustSource     EXH(P=101325, T=750, mdot=0.05)
+ExhaustPipeThermal PIPE(fluid$=Air, UA=15, hA=8, C1=4000, C2=4000, R=0.08, T10=400, T20=350)
+Sink              TAIL()
+ThermalSource     AMB(T=300)
+connect(EXH.out, PIPE.in)
+connect(PIPE.out, TAIL.in)
+connect(PIPE.amb, AMB.port)
+t_gas_out = Temperature(Air, P=TAIL.P, h=TAIL.h)

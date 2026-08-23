@@ -1,0 +1,11 @@
+// TranscriticalBackPressureValve: signal-commanded odd-symmetric square-law
+// valve between fixed 1.2 MPa / 400 kPa rails at half opening (u.sig = 0.5).
+// R744 is not in this build; the commanded-area law itself is fluid-agnostic.
+TwoPhasePressureSource         HI(fluid$ = R134a, P = 1200000, x = 0)
+TranscriticalBackPressureValve BPV(fluid$ = R134a, CdA_max = 2e-6)
+SigConstant                    CMD(k = 0.5)
+TwoPhasePressureSink           LO(P = 400000)
+connect(HI.out, BPV.in)
+connect(BPV.out, LO.in)
+connect(CMD.out, BPV.u)
+mdot_v = BPV.in.mdot

@@ -1,0 +1,64 @@
+{
+  "name": "components_g4_hydraulicdoubleactingcylinder",
+  "source": "// Double-acting cylinder at its steady extension speed: cap side on an 80 bar\n// supply (Aa = 20 cm2), rod side vented to a 2 bar tank (Ab = 12 cm2), rod on\n// a 50 kN.s/m damper. F = 8e6*0.002 - 2e5*0.0012 = 15760 N -> vel = 0.3152 m/s;\n// der(P) -> 0 gives the chamber flows rho*A*vel.\nHydraulicSupply SUP(P=8000000)\nHydraulicSupply RODLN(P=200000)\nHydraulicDoubleActingCylinder CYL(Aa=0.002, Ab=0.0012, rho=870, beta=1.4e9, Va0=0.001, Vb0=0.0006, Pa0=8000000, Pb0=200000)\nTransDamper     DMP(c=50000)\nTransGround     GND()\nconnect(SUP.out, CYL.a)\nconnect(RODLN.out, CYL.b)\nconnect(CYL.rod, DMP.a)\nconnect(DMP.b, GND.port)\nv_ext = CYL.rod.vel\nq_cap = CYL.a.mdot\nq_rod = CYL.b.mdot\n",
+  "expect": {
+    "variables": {
+      "cyl.a.h": 0.0,
+      "cyl.a.mdot": 0.5484479999999999,
+      "cyl.a.p": 8000000.0,
+      "cyl.b.h": 0.0,
+      "cyl.b.mdot": -0.32906879999999994,
+      "cyl.b.p": 200000.0,
+      "cyl.rod.f": -15760.0,
+      "cyl.rod.vel": 0.3152,
+      "dmp.a.f": 15760.0,
+      "dmp.a.vel": 0.3152,
+      "dmp.b.f": -15760.0,
+      "dmp.b.vel": 0.0,
+      "gnd.port.f": 15760.0,
+      "gnd.port.vel": 0.0,
+      "q_cap": 0.5484479999999999,
+      "q_rod": -0.32906879999999994,
+      "rodln.out.h": 0.0,
+      "rodln.out.mdot": -0.32906879999999994,
+      "rodln.out.p": 200000.0,
+      "sup.out.h": 0.0,
+      "sup.out.mdot": 0.5484479999999999,
+      "sup.out.p": 8000000.0,
+      "v_ext": 0.3152
+    },
+    "display_names": {
+      "cyl$a$h": "cyl.a.h",
+      "cyl$a$mdot": "cyl.a.mdot",
+      "cyl$a$p": "cyl.a.p",
+      "cyl$b$h": "cyl.b.h",
+      "cyl$b$mdot": "cyl.b.mdot",
+      "cyl$b$p": "cyl.b.p",
+      "cyl$rod$f": "cyl.rod.f",
+      "cyl$rod$vel": "cyl.rod.vel",
+      "dmp$a$f": "dmp.a.f",
+      "dmp$a$vel": "dmp.a.vel",
+      "dmp$b$f": "dmp.b.f",
+      "dmp$b$vel": "dmp.b.vel",
+      "gnd$port$f": "gnd.port.f",
+      "gnd$port$vel": "gnd.port.vel",
+      "q_cap": "q_cap",
+      "q_rod": "q_rod",
+      "rodln$out$h": "rodln.out.h",
+      "rodln$out$mdot": "rodln.out.mdot",
+      "rodln$out$p": "rodln.out.p",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "v_ext": "v_ext"
+    },
+    "block_count": 23,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

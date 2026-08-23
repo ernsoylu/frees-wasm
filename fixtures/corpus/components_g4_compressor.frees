@@ -1,0 +1,10 @@
+// Compressor, default isentropic variant: Air from ambient to 2.5 bar at
+// eta = 0.8. Steady; the source pins the inlet, the outlet pressure is the
+// one boundary value.
+Source     SRC(a1, fluid$ = Air, mdot = 0.1, P = 100000, T = 300)
+Compressor CMP(a1, a2, fluid$ = Air, eta = 0.8)
+Sink       SK(a2)
+
+a2.P  = 250000
+w_c   = CMP.W
+h_out = SK.h

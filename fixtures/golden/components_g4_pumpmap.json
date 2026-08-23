@@ -1,0 +1,37 @@
+{
+  "name": "components_g4_pumpmap",
+  "source": "// PumpMap: head-curve pump, dP = rho*g*map$(Q). Water-like density; the\n// head map droops 25 m -> 15 m over 0..0.02 m^3/s, Q = 0.01 gives 20 m.\nTABLE hmap(q)\n  0      25\n  0.02   15\nEND\n\nPumpMap PM(w1, w2, rho = 998, map$ = hmap)\n\nw1.P    = 150000\nw1.mdot = 9.98\ndp_pump = w2.P - w1.P\nm_out   = w2.mdot\n",
+  "expect": {
+    "variables": {
+      "dp_pump": 195740.73399999994,
+      "m_out": 9.98,
+      "pm.head": 20.0,
+      "pm.q": 0.01,
+      "w1.mdot": 9.98,
+      "w1.p": 150000.0,
+      "w2.mdot": 9.98,
+      "w2.p": 345740.73399999994
+    },
+    "display_names": {
+      "dp_pump": "dp_pump",
+      "hmap": "hmap",
+      "m_out": "m_out",
+      "pm$head": "pm.head",
+      "pm$q": "pm.q",
+      "w1": "w1",
+      "w1$mdot": "w1.mdot",
+      "w1$p": "w1.p",
+      "w2": "w2",
+      "w2$mdot": "w2.mdot",
+      "w2$p": "w2.p"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

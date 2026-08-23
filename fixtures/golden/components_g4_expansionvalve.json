@@ -1,0 +1,36 @@
+{
+  "name": "components_g4_expansionvalve",
+  "source": "// ExpansionValve: isenthalpic square-law orifice sized by CdA at a fixed\n// inlet density (liquid refrigerant, ~1200 kg/m^3). dP = 2.5 bar gives\n// mdot = CdA*sqrt(2*rho*dP) ~ 0.049 kg/s.\nExpansionValve EV(e1, e2, CdA = 2e-6, rho_in = 1200)\n\ne1.P  = 400000\ne1.h  = 250000\ne2.P  = 150000\nm     = EV.out.mdot\nh_out = e2.h\n",
+  "expect": {
+    "variables": {
+      "e1.h": 250000.0,
+      "e1.mdot": 0.04898979485566356,
+      "e1.p": 400000.0,
+      "e2.h": 250000.0,
+      "e2.mdot": 0.04898979485566356,
+      "e2.p": 150000.0,
+      "h_out": 250000.0,
+      "m": 0.04898979485566356
+    },
+    "display_names": {
+      "e1": "e1",
+      "e1$h": "e1.h",
+      "e1$mdot": "e1.mdot",
+      "e1$p": "e1.p",
+      "e2": "e2",
+      "e2$h": "e2.h",
+      "e2$mdot": "e2.mdot",
+      "e2$p": "e2.p",
+      "h_out": "h_out",
+      "m": "m"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

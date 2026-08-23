@@ -1,0 +1,10 @@
+// TwoPhaseVolume: adiabatic capacitive C-node in its steady limit (no DYNAMIC
+// block, so der(P) = 0 forces in.mdot = out.mdot); reports the void-weighted
+// charge of 2 L of R134a at x = 0.5.
+TwoPhaseSource SRC(fluid$ = R134a, mdot = 0.04, P = 400000, x = 0.5)
+TwoPhaseVolume VOL(fluid$ = R134a, V = 0.002, C = 1e-7, P0 = 400000)
+TwoPhaseSink   SNK()
+connect(SRC.out, VOL.in)
+connect(VOL.out, SNK.in)
+m_charge = VOL.m
+a_void   = VOL.alpha

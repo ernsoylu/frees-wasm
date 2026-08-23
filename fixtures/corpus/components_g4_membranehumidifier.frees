@@ -1,0 +1,16 @@
+// Fuel-cell membrane humidifier: cathode exhaust (330.15 K, W = 0.05) wets the
+// dry supply (300.15 K, W = 0.002) with effectiveness 0.75 on moisture and
+// 0.7 on enthalpy. Water and energy close exactly on the dry-air basis:
+// wet-side losses mirror the dry-side gains scaled by mdot_dry/mdot_wet.
+MoistAirSource DRY(P=101325, T=300.15, W=0.002, mdot=0.02)
+MoistAirSource WET(P=101325, T=330.15, W=0.05, mdot=0.025)
+MembraneHumidifier MH(eff_h=0.7, eff_w=0.75)
+MoistAirSink   DOUT()
+MoistAirSink   WOUT()
+connect(DRY.out, MH.dry_in)
+connect(MH.dry_out, DOUT.in)
+connect(WET.out, MH.wet_in)
+connect(MH.wet_out, WOUT.in)
+w_dry_out = DOUT.W
+w_wet_out = WOUT.W
+w_balance = 0.02 * (DOUT.W - 0.002) - 0.025 * (0.05 - WOUT.W)

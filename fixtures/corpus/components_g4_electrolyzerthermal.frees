@@ -1,0 +1,15 @@
+// ElectrolyzerThermal: the wave3 10-cell electrolyzer clamped to a 19.84 V
+// bus (V_cell ~ 1.984 -> i ~ 2000 A/m2, ~20 A, ~100 W of heat), the jacket
+// heat carried away by a 0.05 kg/s water loop at 325 K through a UA = 200
+// wall.
+ElectrolyzerThermal EL(ncells = 10, area = 0.01, i0 = 10, Rohm = 1e-4, E0 = 1.48, alpha = 0.5, Eth = 1.48, T = 333, fluid$ = Water, UA = 200)
+VoltageSource BUS(E = 19.84)
+Ground        G()
+LiquidSource  SRC(fluid$ = Water, mdot = 0.05, P = 150000, T = 325)
+LiquidSink    SNK()
+connect(EL.p, BUS.p)
+connect(BUS.n, EL.n, G.port)
+connect(SRC.out, EL.cool_in)
+connect(EL.cool_out, SNK.in)
+i_stack = EL.p.I
+h_out = SNK.h

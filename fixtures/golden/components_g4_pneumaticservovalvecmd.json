@@ -1,0 +1,51 @@
+{
+  "name": "components_g4_pneumaticservovalvecmd",
+  "source": "// Signal-commanded pneumatic servo valve at 60% spool: ISO 6358 flow with the\n// sonic conductance scaled to 0.6 * Cmax, blowing 7 bar supply down to\n// atmosphere (choked: P_atm/P_sup = 0.143 < b = 0.3).\nSigConstant           CMD(k=0.6)\nPneumaticSupply       SUP(fluid$=Air, P=700000, T=300)\nPneumaticServoValveCmd SVC(fluid$=Air, Cmax=1e-8, b=0.3)\nPneumaticAtmosphere   ATM(P=100000)\nconnect(SUP.out, SVC.in)\nconnect(SVC.out, ATM.port)\nconnect(CMD.out, SVC.u)\nm_valve = SVC.in.mdot\n",
+  "expect": {
+    "variables": {
+      "atm.port.h": 424949.973620621,
+      "atm.port.mdot": 0.004919851141498077,
+      "atm.port.p": 100000.0,
+      "cmd.out.sig": 0.6,
+      "m_valve": 0.004919851141498077,
+      "sup.out.h": 424949.973620621,
+      "sup.out.mdot": 0.004919851141498077,
+      "sup.out.p": 700000.0,
+      "svc.in.h": 424949.973620621,
+      "svc.in.mdot": 0.004919851141498077,
+      "svc.in.p": 700000.0,
+      "svc.out.h": 424949.973620621,
+      "svc.out.mdot": 0.004919851141498077,
+      "svc.out.p": 100000.0,
+      "svc.t_in": 300.0000000000009,
+      "svc.u.sig": 0.6
+    },
+    "display_names": {
+      "air": "Air",
+      "atm$port$h": "atm.port.h",
+      "atm$port$mdot": "atm.port.mdot",
+      "atm$port$p": "atm.port.p",
+      "cmd$out$sig": "cmd.out.sig",
+      "m_valve": "m_valve",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "svc$in$h": "svc.in.h",
+      "svc$in$mdot": "svc.in.mdot",
+      "svc$in$p": "svc.in.p",
+      "svc$out$h": "svc.out.h",
+      "svc$out$mdot": "svc.out.mdot",
+      "svc$out$p": "svc.out.p",
+      "svc$t_in": "svc.t_in",
+      "svc$u$sig": "svc.u.sig"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

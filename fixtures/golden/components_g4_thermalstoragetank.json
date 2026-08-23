@@ -1,0 +1,55 @@
+{
+  "name": "components_g4_thermalstoragetank",
+  "source": "// ThermalStorageTank charging at steady state: 340 K water into the top\n// node, three-node stratification with kmix = 20 W/K mixing and small\n// shell losses to 293 K ambient; der(Ti) = 0 solves the 3x3 node balance.\nLiquidSource       LS(l1, fluid$ = Water, mdot = 0.2, P = 150000, T = 340)\nThermalStorageTank TST(l1, l2, fluid$ = Water, m_node = 50, cp_f = 4180, UA_loss = 5, T_amb = 293, kmix = 20, T10 = 320, T20 = 310, T30 = 300)\nLiquidSink         SK(l2)\n\nt_top    = TST.T1\nt_mid    = TST.T2\nt_bottom = TST.T3\nh_out    = SK.h\n",
+  "expect": {
+    "variables": {
+      "h_out": 276477.2399686414,
+      "l1.h": 279966.8047241076,
+      "l1.mdot": 0.2,
+      "l1.p": 150000.0,
+      "l2.h": 276477.2399686414,
+      "l2.mdot": 0.2,
+      "l2.p": 150000.0,
+      "sk.h": 276477.2399686414,
+      "sk.mdot": 0.2,
+      "sk.p": 150000.0,
+      "t_bottom": 339.166763379735,
+      "t_mid": 339.4364290536821,
+      "t_top": 339.71397047745234,
+      "tst.t1": 339.71397047745234,
+      "tst.t2": 339.4364290536821,
+      "tst.t3": 339.166763379735,
+      "tst.t_in": 340.00000000001535
+    },
+    "display_names": {
+      "h_out": "h_out",
+      "l1": "l1",
+      "l1$h": "l1.h",
+      "l1$mdot": "l1.mdot",
+      "l1$p": "l1.p",
+      "l2": "l2",
+      "l2$h": "l2.h",
+      "l2$mdot": "l2.mdot",
+      "l2$p": "l2.p",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "t_bottom": "t_bottom",
+      "t_mid": "t_mid",
+      "t_top": "t_top",
+      "tst$t1": "tst.t1",
+      "tst$t2": "tst.t2",
+      "tst$t3": "tst.t3",
+      "tst$t_in": "tst.t_in",
+      "water": "Water"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

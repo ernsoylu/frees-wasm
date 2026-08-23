@@ -1,0 +1,12 @@
+// Load-sensing pump feeding a metering orifice into a 60 bar load: the
+// compensator settles (der(dfrac) -> 0) exactly when out.P = ls.P + dP_margin,
+// holding 20 bar across the orifice regardless of the load.
+// mdot = 2e-6*sqrt(2*870*2e6) = 0.11798 kg/s.
+HydraulicSupply  RES(h1, P=100000)
+LoadSensingPump  PMP(h1, h2, hls, rho=870, Dv=6e-5, w_p=150, dP_margin=2000000, tau=0.05, d0=0.5)
+HydraulicOrifice MTR(h2, h3, CdA=2e-6, rho=870)
+HydraulicTank    LOAD(h3, P=6000000)
+hls.P = 6000000
+p_pump  = PMP.out.P
+q_pump  = PMP.out.mdot
+d_frac  = PMP.dfrac

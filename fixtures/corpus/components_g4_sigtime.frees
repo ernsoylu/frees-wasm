@@ -1,0 +1,6 @@
+// SigTime: the clock source read at a pinned steady instant (time is an
+// ordinary global in a steady solve).
+// EXPECT y = 2.5 tol 1e-12
+SigTime CLK()
+time = 2.5
+y = CLK.out.sig

@@ -1,0 +1,67 @@
+{
+  "name": "components_g4_twophaseenthalpysource",
+  "source": "// TwoPhaseEnthalpySource: fixes mdot and h but leaves P FREE — here the\n// downstream pressure sink sets the line at 1.0 MPa and the sensor reads the\n// resulting superheat of the sourced vapor.\nTwoPhaseEnthalpySource ES(mdot = 0.04, h = 425000)\nTwoPhaseSensor         SEN(fluid$ = R134a)\nTwoPhasePressureSink   PSNK(P = 1000000)\nconnect(ES.out, SEN.in)\nconnect(SEN.out, PSNK.in)\nt_line = SEN.T\nsh     = SEN.SH\np_line = ES.out.P\n",
+  "expect": {
+    "variables": {
+      "es.out.h": 425000.0,
+      "es.out.mdot": 0.04,
+      "es.out.p": 1000000.0,
+      "p_line": 1000000.0,
+      "psnk.in.h": 425000.0,
+      "psnk.in.mdot": 0.04,
+      "psnk.in.p": 1000000.0,
+      "sen.alpha": 1.0,
+      "sen.hf": 255495.85605985517,
+      "sen.hg": 419161.80226456013,
+      "sen.in.h": 425000.0,
+      "sen.in.mdot": 0.04,
+      "sen.in.p": 1000000.0,
+      "sen.out.h": 425000.0,
+      "sen.out.mdot": 0.04,
+      "sen.out.p": 1000000.0,
+      "sen.rho_g": 49.22218398011516,
+      "sen.rho_l": 1149.3292287178106,
+      "sen.sh": 5.213595387631585,
+      "sen.t": 317.75122672866706,
+      "sen.tsat": 312.5376313410355,
+      "sen.x": 1.0356714262852076,
+      "sh": 5.213595387631585,
+      "t_line": 317.75122672866706
+    },
+    "display_names": {
+      "es$out$h": "es.out.h",
+      "es$out$mdot": "es.out.mdot",
+      "es$out$p": "es.out.p",
+      "p_line": "p_line",
+      "psnk$in$h": "psnk.in.h",
+      "psnk$in$mdot": "psnk.in.mdot",
+      "psnk$in$p": "psnk.in.p",
+      "r134a": "R134a",
+      "sen$alpha": "sen.alpha",
+      "sen$hf": "sen.hf",
+      "sen$hg": "sen.hg",
+      "sen$in$h": "sen.in.h",
+      "sen$in$mdot": "sen.in.mdot",
+      "sen$in$p": "sen.in.p",
+      "sen$out$h": "sen.out.h",
+      "sen$out$mdot": "sen.out.mdot",
+      "sen$out$p": "sen.out.p",
+      "sen$rho_g": "sen.rho_g",
+      "sen$rho_l": "sen.rho_l",
+      "sen$sh": "sen.sh",
+      "sen$t": "sen.t",
+      "sen$tsat": "sen.tsat",
+      "sen$x": "sen.x",
+      "sh": "sh",
+      "t_line": "t_line"
+    },
+    "block_count": 24,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

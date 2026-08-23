@@ -1,0 +1,46 @@
+{
+  "name": "components_g4_transspring",
+  "source": "// TransSpring steady: der(x) -> 0 locks both ends (b grounded), and the 50 N\n// source compresses the 2000 N/m spring to x = 0.025 m.\n// EXPECT x_s = 0.025 tol 1e-9\nForceSource FS(F = 50)\nTransSpring SP(k = 2000, x0 = 0)\nTransGround G1()\nTransGround G2()\nconnect(FS.a, SP.a)\nconnect(FS.b, G1.port)\nconnect(SP.b, G2.port)\nx_s = SP.x\n",
+  "expect": {
+    "variables": {
+      "fs.a.f": -50.0,
+      "fs.a.vel": 0.0,
+      "fs.b.f": 50.0,
+      "fs.b.vel": 0.0,
+      "g1.port.f": -50.0,
+      "g1.port.vel": 0.0,
+      "g2.port.f": 50.0,
+      "g2.port.vel": 0.0,
+      "sp.a.f": 50.0,
+      "sp.a.vel": 0.0,
+      "sp.b.f": -50.0,
+      "sp.b.vel": 0.0,
+      "sp.x": 0.025,
+      "x_s": 0.025
+    },
+    "display_names": {
+      "fs$a$f": "fs.a.f",
+      "fs$a$vel": "fs.a.vel",
+      "fs$b$f": "fs.b.f",
+      "fs$b$vel": "fs.b.vel",
+      "g1$port$f": "g1.port.f",
+      "g1$port$vel": "g1.port.vel",
+      "g2$port$f": "g2.port.f",
+      "g2$port$vel": "g2.port.vel",
+      "sp$a$f": "sp.a.f",
+      "sp$a$vel": "sp.a.vel",
+      "sp$b$f": "sp.b.f",
+      "sp$b$vel": "sp.b.vel",
+      "sp$x": "sp.x",
+      "x_s": "x_s"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

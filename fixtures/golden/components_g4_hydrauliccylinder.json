@@ -1,0 +1,50 @@
+{
+  "name": "components_g4_hydrauliccylinder",
+  "source": "// Single-acting cylinder extending against a viscous load at steady state\n// (der(P) -> 0 pins mdot = rho * area * vel): 50 bar supply on a 20 cm2\n// piston drives 9800 N into a 20 kN.s/m damper -> vel = 0.49 m/s,\n// mdot = 870 * 0.002 * 0.49 = 0.8526 kg/s.\nHydraulicSupply   SUP(P=5000000)\nHydraulicCylinder CYL(rho=870, beta=1.5e9, V0=0.0005, area=0.002, Patm=100000, P0=5000000)\nTransDamper       DMP(c=20000)\nTransGround       GND()\nconnect(SUP.out, CYL.in)\nconnect(CYL.rod, DMP.a)\nconnect(DMP.b, GND.port)\nv_rod = CYL.rod.vel\nq_in  = CYL.in.mdot\n",
+  "expect": {
+    "variables": {
+      "cyl.in.h": 0.0,
+      "cyl.in.mdot": 0.8526,
+      "cyl.in.p": 5000000.0,
+      "cyl.rod.f": -9800.0,
+      "cyl.rod.vel": 0.49,
+      "dmp.a.f": 9800.0,
+      "dmp.a.vel": 0.49,
+      "dmp.b.f": -9800.0,
+      "dmp.b.vel": 0.0,
+      "gnd.port.f": 9800.0,
+      "gnd.port.vel": 0.0,
+      "q_in": 0.8526,
+      "sup.out.h": 0.0,
+      "sup.out.mdot": 0.8526,
+      "sup.out.p": 5000000.0,
+      "v_rod": 0.49
+    },
+    "display_names": {
+      "cyl$in$h": "cyl.in.h",
+      "cyl$in$mdot": "cyl.in.mdot",
+      "cyl$in$p": "cyl.in.p",
+      "cyl$rod$f": "cyl.rod.f",
+      "cyl$rod$vel": "cyl.rod.vel",
+      "dmp$a$f": "dmp.a.f",
+      "dmp$a$vel": "dmp.a.vel",
+      "dmp$b$f": "dmp.b.f",
+      "dmp$b$vel": "dmp.b.vel",
+      "gnd$port$f": "gnd.port.f",
+      "gnd$port$vel": "gnd.port.vel",
+      "q_in": "q_in",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "v_rod": "v_rod"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

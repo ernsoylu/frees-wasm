@@ -1,0 +1,38 @@
+{
+  "name": "components_g4_propeller",
+  "source": "// Propeller on flat Ct/Cp advance-ratio maps: 2 m prop at 20 rev/s\n// (w = 40*pi), 30 m/s flight speed -> J = 0.75, inside the 0..2 map span.\n// Shaft speed and vehicle velocity are pinned directly on the streams.\nTABLE ctmap(j)\n  0    0.12\n  2    0.12\nEND\nTABLE cpmap(j)\n  0    0.05\n  2    0.05\nEND\n\nPropeller PR(sh1, vh1, Dp = 2.0, rhoA = 1.225, ct$ = ctmap, cpw$ = cpmap, epsn = 1e-6)\n\nsh1.w   = 125.66370614359172\nvh1.vel = 30\nthrust  = -vh1.f\ntau_in  = sh1.tau\n",
+  "expect": {
+    "variables": {
+      "pr.j": 0.7499999812500006,
+      "pr.n": 20.0,
+      "sh1.tau": 124.77747538404597,
+      "sh1.w": 125.66370614359172,
+      "tau_in": 124.77747538404597,
+      "thrust": 940.8,
+      "vh1.f": -940.8,
+      "vh1.vel": 30.0
+    },
+    "display_names": {
+      "cpmap": "cpmap",
+      "ctmap": "ctmap",
+      "pr$j": "pr.j",
+      "pr$n": "pr.n",
+      "sh1": "sh1",
+      "sh1$tau": "sh1.tau",
+      "sh1$w": "sh1.w",
+      "tau_in": "tau_in",
+      "thrust": "thrust",
+      "vh1": "vh1",
+      "vh1$f": "vh1.f",
+      "vh1$vel": "vh1.vel"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

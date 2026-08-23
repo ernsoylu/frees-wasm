@@ -1,0 +1,44 @@
+{
+  "name": "components_g4_opentank",
+  "source": "// OpenTank at steady throughflow: the free surface sees P0, the outlet the\n// gravity head, and der(lvl) = 0 equalises the flows; the pinned outlet\n// pressure sizes the level (~1.02 m of water).\nOpenTank TK(o1, o2, A_t = 0.5, P0 = 101325, rho = 998, L0 = 1.0)\nLiquidSink SK(o2)\n\no1.mdot = 1.0\no1.h    = 105000\no2.P    = 111325\nlevel   = TK.lvl\nm_out   = SK.mdot\n",
+  "expect": {
+    "variables": {
+      "level": 1.0217597324428143,
+      "m_out": 1.0,
+      "o1.h": 105000.0,
+      "o1.mdot": 1.0,
+      "o1.p": 101325.0,
+      "o2.h": 105000.0,
+      "o2.mdot": 1.0,
+      "o2.p": 111325.0,
+      "sk.h": 105000.0,
+      "sk.mdot": 1.0,
+      "sk.p": 111325.0,
+      "tk.lvl": 1.0217597324428143
+    },
+    "display_names": {
+      "level": "level",
+      "m_out": "m_out",
+      "o1": "o1",
+      "o1$h": "o1.h",
+      "o1$mdot": "o1.mdot",
+      "o1$p": "o1.p",
+      "o2": "o2",
+      "o2$h": "o2.h",
+      "o2$mdot": "o2.mdot",
+      "o2$p": "o2.p",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p",
+      "tk$lvl": "tk.lvl"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,12 @@
+// MovingBoundaryCondenser: superheated R134a vapor at 1.2 MPa condenses and
+// subcools against a 298 K cold wall; the condensing-zone length is solved.
+TwoPhaseSourcePH        SRC(mdot = 0.03, P = 1200000, h = 440000)
+MovingBoundaryCondenser CND(fluid$ = R134a, U_cond = 2500, U_sc = 600, D = 0.012, L = 8, eps_zone = 0.05)
+ThermalSource           WALL(T = 298)
+TwoPhaseSink            SNK()
+connect(SRC.out, CND.in)
+connect(CND.wall, WALL.port)
+connect(CND.out, SNK.in)
+q     = CND.Q
+sc    = CND.SC
+h_out = SNK.h

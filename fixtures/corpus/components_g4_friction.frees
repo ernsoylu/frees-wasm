@@ -1,0 +1,12 @@
+// Friction (Stribeck + viscous) at a driven 0.1 rad/s slip:
+// tau = (Fc + (Fs-Fc)*exp(-(dw/vs)^2))*tanh(dw/eps) + bv*dw
+//     = (10 + 5*exp(-4))*1 + 0.05 = 10.1416 N.m.
+// EXPECT tau_f = 10.1416 tol 1e-3
+Friction    FR(Fc = 10, Fs = 15, vs = 0.05, bv = 0.5, eps = 0.001)
+SpeedSource SS(w = 0.1)
+MechGround  G1()
+MechGround  G2()
+connect(SS.a, FR.a)
+connect(SS.b, G1.port)
+connect(FR.b, G2.port)
+tau_f = FR.a.tau

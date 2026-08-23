@@ -209,7 +209,11 @@ fn corpus_component_coverage_is_measured_not_assumed() {
 
     // Measured floor — the number this corpus actually reaches today. Raise it
     // when the corpus genuinely grows; never lower it to make a change pass.
-    const FLOOR: usize = 120;
+    // Re-measured 2026-08-23 (Wave G4, the 129-document components_g4_* sweep):
+    // 262 of 295 from this group alone; the 33 it does not see here are types
+    // instantiated only by non-`components_*` documents, plus CabinZone — the
+    // sweep's one drop (fixtures/README.md item 4 has why).
+    const FLOOR: usize = 262;
     assert!(
         used.len() >= FLOOR,
         "the component corpus now instantiates only {} of {COMPONENT_COUNT} built-ins, \

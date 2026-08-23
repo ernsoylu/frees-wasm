@@ -1,0 +1,24 @@
+{
+  "name": "components_g4_sigsine",
+  "source": "// SigSine: bias + amp*sin(2*pi*freq*t) at t = 0.125 s of a 1 Hz wave\n// -> 1 + 2*sin(pi/4) = 1 + sqrt(2).\n// EXPECT y = 2.414213562 tol 1e-8\nSigSine SN(amp = 2, freq = 1, phase = 0, bias = 1)\ntime = 0.125\ny = SN.out.sig\n",
+  "expect": {
+    "variables": {
+      "sn.out.sig": 2.414213562373095,
+      "time": 0.125,
+      "y": 2.414213562373095
+    },
+    "display_names": {
+      "sn$out$sig": "sn.out.sig",
+      "time": "time",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

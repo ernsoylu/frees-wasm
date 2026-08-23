@@ -1,0 +1,42 @@
+{
+  "name": "components_g4_infiltration",
+  "source": "// Envelope infiltration: power-law crack flow (n = 0.65) across a 50 Pa\n// stack/wind pressure difference between outdoors (101375 Pa, cold dry air)\n// and the zone (101325 Pa). mdot ~ C_inf * dP^n = 0.004 * 50^0.65 = 0.0508 kg/s.\nInfiltration INF(z1, z2, C_inf=0.004, n_exp=0.65, eps=1)\nz1.P = 101375\nz1.W = 0.004\nz1.h = Enthalpy(AirH2O, T=278.15, P=101375, W=0.004)\nz2.P = 101325\nm_leak = INF.in.mdot\nw_leak = INF.out.W\n",
+  "expect": {
+    "variables": {
+      "inf.dp": 50.0,
+      "m_leak": 0.05085809627719309,
+      "w_leak": 0.004,
+      "z1.h": 15065.519301052385,
+      "z1.mdot": 0.05085809627719309,
+      "z1.p": 101375.0,
+      "z1.w": 0.004,
+      "z2.h": 15065.519301052385,
+      "z2.mdot": 0.05085809627719309,
+      "z2.p": 101325.0,
+      "z2.w": 0.004
+    },
+    "display_names": {
+      "inf$dp": "inf.dp",
+      "m_leak": "m_leak",
+      "w_leak": "w_leak",
+      "z1": "z1",
+      "z1$h": "z1.h",
+      "z1$mdot": "z1.mdot",
+      "z1$p": "z1.p",
+      "z1$w": "z1.w",
+      "z2": "z2",
+      "z2$h": "z2.h",
+      "z2$mdot": "z2.mdot",
+      "z2$p": "z2.p",
+      "z2$w": "z2.w"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

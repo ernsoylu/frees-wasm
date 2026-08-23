@@ -1,0 +1,11 @@
+// Nozzle: converging-diverging, supersonic branch of the area-Mach relation
+// at A_exit/A_throat = 2 (M ~ 2.2). High-altitude ambient so the thrust term
+// stays positive.
+Nozzle NZ(n1, n2, k = 1.4, R = 287, A_throat = 0.01, A_exit = 0.02, P_amb = 45000, T0 = 600)
+
+n1.P    = 500000
+n1.h    = 605000
+n1.mdot = 1.0
+thrust  = NZ.thrust
+p_exit  = n2.P
+h_exit  = n2.h

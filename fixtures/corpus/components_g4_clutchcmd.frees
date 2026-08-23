@@ -1,0 +1,13 @@
+// ClutchCmd: engagement 0.5 commanded over the signal port, slipping 3 rad/s
+// -> carried torque u*Tmax = 40 N.m.
+// EXPECT tau_c = 40 tol 1e-6
+ClutchCmd   CL(Tmax = 80, eps = 0.01)
+SigConstant U(k = 0.5)
+SpeedSource SS(w = 3)
+MechGround  G1()
+MechGround  G2()
+connect(SS.a, CL.a)
+connect(SS.b, G1.port)
+connect(CL.b, G2.port)
+connect(U.out, CL.u)
+tau_c = CL.a.tau

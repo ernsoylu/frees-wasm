@@ -1,0 +1,11 @@
+// Forward-biased Diode (on-conductance 10 S, tanh gate width 0.02 V) feeding a
+// 10 ohm resistor from 5 V: vd settles near 0.0497 V, i near 0.495 A.
+Diode         D(Gon = 10, eps = 0.02)
+VoltageSource SRC(E = 5)
+Resistor      R1(R = 10)
+Ground        G()
+connect(SRC.p, D.p)
+connect(D.n, R1.a)
+connect(R1.b, SRC.n, G.port)
+i = R1.a.I
+vd = D.vd

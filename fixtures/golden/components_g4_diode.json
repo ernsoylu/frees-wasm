@@ -1,0 +1,52 @@
+{
+  "name": "components_g4_diode",
+  "source": "// Forward-biased Diode (on-conductance 10 S, tanh gate width 0.02 V) feeding a\n// 10 ohm resistor from 5 V: vd settles near 0.0497 V, i near 0.495 A.\nDiode         D(Gon = 10, eps = 0.02)\nVoltageSource SRC(E = 5)\nResistor      R1(R = 10)\nGround        G()\nconnect(SRC.p, D.p)\nconnect(D.n, R1.a)\nconnect(R1.b, SRC.n, G.port)\ni = R1.a.I\nvd = D.vd\n",
+  "expect": {
+    "variables": {
+      "d.n.i": -0.49501595031365575,
+      "d.n.v": 4.9501595031365575,
+      "d.p.i": 0.49501595031365575,
+      "d.p.v": 5.0,
+      "d.vd": 0.04984049686344233,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "i": 0.49501595031365575,
+      "r1.a.i": 0.49501595031365575,
+      "r1.a.v": 4.9501595031365575,
+      "r1.b.i": -0.49501595031365575,
+      "r1.b.v": 0.0,
+      "src.n.i": 0.49501595031365575,
+      "src.n.v": 0.0,
+      "src.p.i": -0.49501595031365575,
+      "src.p.v": 5.0,
+      "vd": 0.04984049686344233
+    },
+    "display_names": {
+      "d$n$i": "d.n.i",
+      "d$n$v": "d.n.v",
+      "d$p$i": "d.p.i",
+      "d$p$v": "d.p.v",
+      "d$vd": "d.vd",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "i": "i",
+      "r1$a$i": "r1.a.i",
+      "r1$a$v": "r1.a.v",
+      "r1$b$i": "r1.b.i",
+      "r1$b$v": "r1.b.v",
+      "src$n$i": "src.n.i",
+      "src$n$v": "src.n.v",
+      "src$p$i": "src.p.i",
+      "src$p$v": "src.p.v",
+      "vd": "vd"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

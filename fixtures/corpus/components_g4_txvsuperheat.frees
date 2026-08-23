@@ -1,0 +1,12 @@
+// TXVSuperheat: quasi-static TXV law mdot = Kv*(SH - SH_set) between fixed
+// high/low pressure rails, the bulb strapped to a 288 K node (SH ~ 9.7 K at
+// 350 kPa, so the valve meters ~0.047 kg/s).
+TwoPhasePressureSource HI(fluid$ = R134a, P = 1200000, x = 0)
+TXVSuperheat           VLV(fluid$ = R134a, Kv = 0.01, SH_set = 5)
+TwoPhasePressureSink   LO(P = 350000)
+ThermalSource          BULB(T = 288)
+connect(HI.out, VLV.in)
+connect(VLV.out, LO.in)
+connect(VLV.bulb, BULB.port)
+mdot_v = VLV.in.mdot
+sh     = VLV.SH

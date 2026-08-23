@@ -1,0 +1,12 @@
+// TwoPhaseCondenserUA: the condensing pressure is FREE (high-side tear) — the
+// inlet fixes only mdot and h, and pinning 5 K of subcooling closes the DOF.
+// Q = UA*(Tcond - Tamb) = mdot*(h_in - h_out) then sets Tcond ~ 318 K.
+TwoPhaseEnthalpySource ES(mdot = 0.03, h = 430000)
+TwoPhaseCondenserUA    CND(fluid$ = R134a, UA = 500, T_amb = 308, V = 0.004)
+TwoPhaseSink           SNK()
+connect(ES.out, CND.in)
+connect(CND.out, SNK.in)
+CND.SC = 5
+p_cond   = CND.in.P
+m_charge = CND.m
+q        = CND.Q

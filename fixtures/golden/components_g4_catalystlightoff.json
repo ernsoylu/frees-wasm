@@ -1,0 +1,68 @@
+{
+  "name": "components_g4_catalystlightoff",
+  "source": "// Catalyst brick past light-off at steady state: 0.05 kg/s of 700 K exhaust\n// (Air properties), UA = 40 W/K brick link, light-off at 550 K with a 25 K\n// sigmoid, 50 kJ/kg feed exotherm. Steady: UA*(T_g - Tb) + eta*mdot*q_exo = 0\n// with eta -> 1, so Tb = 700 + 0.05*5e4/40 = 762.5 K and the gas picks up the\n// exotherm through the (negative) UA link.\nCOMPONENT ExhaustSource(out)\n  PARAM P, T, mdot\n  out.P    = P\n  out.mdot = mdot\n  out.h    = Enthalpy(Air, P=P, T=T)\nEND\nExhaustSource   EXH(P=101325, T=700, mdot=0.05)\nCatalystLightOff CAT(fluid$=Air, C=15000, UA=40, T50=550, k=25, q_exo=50000, T0=300)\nSink            TAIL()\nconnect(EXH.out, CAT.in)\nconnect(CAT.out, TAIL.in)\nt_brick = CAT.Tb\neta_cnv = CAT.eta\nt_gas_out = Temperature(Air, P=TAIL.P, h=TAIL.h)\n",
+  "expect": {
+    "variables": {
+      "cat.eta": 0.999999958600616,
+      "cat.in.h": 839715.8702248519,
+      "cat.in.mdot": 0.05,
+      "cat.in.p": 101325.0,
+      "cat.out.h": 889715.8681548827,
+      "cat.out.mdot": 0.05,
+      "cat.out.p": 101325.0,
+      "cat.q": -2499.99989650154,
+      "cat.qexo": 2499.99989650154,
+      "cat.t_g": 699.9999999999914,
+      "cat.tb": 762.4999974125299,
+      "eta_cnv": 0.999999958600616,
+      "exh.out.h": 839715.8702248519,
+      "exh.out.mdot": 0.05,
+      "exh.out.p": 101325.0,
+      "t_brick": 762.4999974125299,
+      "t_gas_out": 746.2736847641208,
+      "tail.h": 889715.8681548827,
+      "tail.in.h": 889715.8681548827,
+      "tail.in.mdot": 0.05,
+      "tail.in.p": 101325.0,
+      "tail.mdot": 0.05,
+      "tail.p": 101325.0
+    },
+    "display_names": {
+      "air": "Air",
+      "cat$eta": "cat.eta",
+      "cat$in$h": "cat.in.h",
+      "cat$in$mdot": "cat.in.mdot",
+      "cat$in$p": "cat.in.p",
+      "cat$out$h": "cat.out.h",
+      "cat$out$mdot": "cat.out.mdot",
+      "cat$out$p": "cat.out.p",
+      "cat$q": "cat.q",
+      "cat$qexo": "cat.qexo",
+      "cat$t_g": "cat.t_g",
+      "cat$tb": "cat.tb",
+      "eta_cnv": "eta_cnv",
+      "exh$out$h": "exh.out.h",
+      "exh$out$mdot": "exh.out.mdot",
+      "exh$out$p": "exh.out.p",
+      "mdot": "mdot",
+      "p": "P",
+      "t": "T",
+      "t_brick": "t_brick",
+      "t_gas_out": "t_gas_out",
+      "tail$h": "tail.h",
+      "tail$in$h": "tail.in.h",
+      "tail$in$mdot": "tail.in.mdot",
+      "tail$in$p": "tail.in.p",
+      "tail$mdot": "tail.mdot",
+      "tail$p": "tail.p"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

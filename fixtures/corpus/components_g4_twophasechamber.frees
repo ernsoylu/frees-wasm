@@ -1,0 +1,13 @@
+// TwoPhaseChamber: heated capacitive control volume in its steady limit —
+// der(P)=0 gives mass balance, der(hcv)=0 gives the energy balance
+// hcv = h_in + UA*(Twall - Tcv)/mdot, an evaporating chamber at 350 kPa.
+TwoPhaseSourcePH SRC(mdot = 0.02, P = 350000, h = 280000)
+TwoPhaseChamber  CH(fluid$ = R134a, V = 0.003, C = 1e-7, UA = 50, P0 = 350000, h0 = 320000)
+ThermalSource    WALL(T = 300)
+TwoPhaseSink     SNK()
+connect(SRC.out, CH.in)
+connect(CH.wall, WALL.port)
+connect(CH.out, SNK.in)
+q     = CH.Q
+h_out = SNK.h
+t_cv  = CH.Tcv

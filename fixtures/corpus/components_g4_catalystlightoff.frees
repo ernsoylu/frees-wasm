@@ -1,0 +1,19 @@
+// Catalyst brick past light-off at steady state: 0.05 kg/s of 700 K exhaust
+// (Air properties), UA = 40 W/K brick link, light-off at 550 K with a 25 K
+// sigmoid, 50 kJ/kg feed exotherm. Steady: UA*(T_g - Tb) + eta*mdot*q_exo = 0
+// with eta -> 1, so Tb = 700 + 0.05*5e4/40 = 762.5 K and the gas picks up the
+// exotherm through the (negative) UA link.
+COMPONENT ExhaustSource(out)
+  PARAM P, T, mdot
+  out.P    = P
+  out.mdot = mdot
+  out.h    = Enthalpy(Air, P=P, T=T)
+END
+ExhaustSource   EXH(P=101325, T=700, mdot=0.05)
+CatalystLightOff CAT(fluid$=Air, C=15000, UA=40, T50=550, k=25, q_exo=50000, T0=300)
+Sink            TAIL()
+connect(EXH.out, CAT.in)
+connect(CAT.out, TAIL.in)
+t_brick = CAT.Tb
+eta_cnv = CAT.eta
+t_gas_out = Temperature(Air, P=TAIL.P, h=TAIL.h)

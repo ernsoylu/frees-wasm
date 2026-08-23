@@ -1,0 +1,46 @@
+{
+  "name": "components_g4_nozzle",
+  "source": "// Nozzle: converging-diverging, supersonic branch of the area-Mach relation\n// at A_exit/A_throat = 2 (M ~ 2.2). High-altitude ambient so the thrust term\n// stays positive.\nNozzle NZ(n1, n2, k = 1.4, R = 287, A_throat = 0.01, A_exit = 0.02, P_amb = 45000, T0 = 600)\n\nn1.P    = 500000\nn1.h    = 605000\nn1.mdot = 1.0\nthrust  = NZ.thrust\np_exit  = n2.P\nh_exit  = n2.h\n",
+  "expect": {
+    "variables": {
+      "h_exit": 308933.9285578983,
+      "n1.h": 605000.0,
+      "n1.mdot": 1.0,
+      "n1.p": 500000.0,
+      "n2.h": 308933.9285578983,
+      "n2.mdot": 1.0,
+      "n2.p": 46966.322866402166,
+      "nz.m_exit": 2.1971981216524625,
+      "nz.t_exit": 305.26025739960016,
+      "nz.thrust": 808.8276872713121,
+      "nz.v_exit": 769.5012299432688,
+      "p_exit": 46966.322866402166,
+      "thrust": 808.8276872713121
+    },
+    "display_names": {
+      "h_exit": "h_exit",
+      "n1": "n1",
+      "n1$h": "n1.h",
+      "n1$mdot": "n1.mdot",
+      "n1$p": "n1.p",
+      "n2": "n2",
+      "n2$h": "n2.h",
+      "n2$mdot": "n2.mdot",
+      "n2$p": "n2.p",
+      "nz$m_exit": "nz.m_exit",
+      "nz$t_exit": "nz.t_exit",
+      "nz$thrust": "nz.thrust",
+      "nz$v_exit": "nz.v_exit",
+      "p_exit": "p_exit",
+      "thrust": "thrust"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

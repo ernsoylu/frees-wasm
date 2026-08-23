@@ -1,0 +1,22 @@
+// Thermal-hydraulic oil node (stiff variant) in a warm-up loop at steady
+// state: 0.5 kg/s of 330 K oil (h = cp_o*T = 1900*330) flows through the
+// volume, whose wall convects (hA = 50 W/K) to a 300 K casing. Steady:
+// 0.5*1900*(330 - Tm) + 50*(300 - Tm) = 0 -> Tm = 328.5 K. The node pressure
+// floats to the downstream orifice's requirement.
+COMPONENT WarmOilSource(out)
+  PARAM mdot, h, domain$ = oil
+  out.mdot = mdot
+  out.h    = h
+END
+WarmOilSource        SRC(mdot=0.5, h=627000)
+HydraulicThermalVolume HTV(V=0.004, rho=870, cp_o=1900, beta=1.4e9, hA=50, P0=1000000, T0=300)
+HydraulicOrifice     ORF(CdA=1e-5, rho=870)
+HydraulicTank        TNK(P=100000)
+ThermalSource        CASE(T=300)
+connect(SRC.out, HTV.in)
+connect(HTV.out, ORF.in)
+connect(ORF.out, TNK.port)
+connect(HTV.wall, CASE.port)
+t_oil  = HTV.Tm
+p_node = HTV.Pm
+q_wall = HTV.wall.Qdot

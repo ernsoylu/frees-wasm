@@ -1,0 +1,10 @@
+// SteamReliefValve: saturated steam at 250 kPa relieving to atmosphere through
+// a 1 cm^2 orifice, well above the 2 atm crack pressure. P_out/P_in = 0.41 is
+// below the critical ratio (~0.58 at k = 1.14), so the vent is CHOKED.
+TwoPhasePressureSource DRUM(fluid$ = Water, P = 250000, x = 1)
+SteamReliefValve       SRV(fluid$ = Water, A = 1e-4, Pset = 202650, Cd = 0.9, kgas = 1.14, Rgas = 461.5, eps = 2000)
+TwoPhasePressureSink   ATM(P = 101325)
+connect(DRUM.out, SRV.in)
+connect(SRV.out, ATM.in)
+mdot_vent = SRV.in.mdot
+lift      = SRV.opening

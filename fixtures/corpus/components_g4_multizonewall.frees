@@ -1,0 +1,12 @@
+// Two-zone partition wall at steady state, zone temperatures read directly
+// (the ports are resistive by design): films h_a = h_b = 8 W/m2K, U = 2.5,
+// A = 12 m2. R_tot = 1/96 + 1/30 + 1/96 = 0.0541667 K/W,
+// Q = (298.15 - 283.15)/R_tot = 276.92 W.
+ThermalSource ZONEA(T=298.15)
+MultiZoneWall WALL(h_a=8, h_b=8, U=2.5, A=12, C1=200000, C2=200000, T10=296, T20=288)
+ThermalSource ZONEB(T=283.15)
+connect(ZONEA.port, WALL.a)
+connect(WALL.b, ZONEB.port)
+q_zone  = WALL.qa
+t_face1 = WALL.T1
+t_face2 = WALL.T2

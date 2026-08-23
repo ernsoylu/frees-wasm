@@ -1,0 +1,49 @@
+{
+  "name": "components_g4_fan",
+  "source": "// Fan on its quadratic curve dP = dP0*(1 - (Q/Q0)^2), Air stream, with the\n// inefficiency heating the flow (out.h = in.h + dP/(rho*eta)).\nSource SRC(a1, fluid$ = Air, mdot = 1.2, P = 101325, T = 300)\nFan    FN(a1, a2, fluid$ = Air, dP0 = 500, Q0 = 2.0, eta = 0.6)\nSink   SK(a2)\n\ndp_fan = a2.P - a1.P\nh_out  = SK.h\n",
+  "expect": {
+    "variables": {
+      "a1.h": 426297.7743916913,
+      "a1.mdot": 1.2,
+      "a1.p": 101325.0,
+      "a2.h": 426821.8007002318,
+      "a2.mdot": 1.2,
+      "a2.p": 101695.06599201077,
+      "dp_fan": 370.0659920107719,
+      "fn.dp": 370.0659920107739,
+      "fn.q": 1.0195450278991156,
+      "fn.rho": 1.176995588387824,
+      "h_out": 426821.8007002318,
+      "sk.h": 426821.8007002318,
+      "sk.mdot": 1.2,
+      "sk.p": 101695.06599201077
+    },
+    "display_names": {
+      "a1": "a1",
+      "a1$h": "a1.h",
+      "a1$mdot": "a1.mdot",
+      "a1$p": "a1.p",
+      "a2": "a2",
+      "a2$h": "a2.h",
+      "a2$mdot": "a2.mdot",
+      "a2$p": "a2.p",
+      "air": "Air",
+      "dp_fan": "dp_fan",
+      "fn$dp": "fn.dp",
+      "fn$q": "fn.q",
+      "fn$rho": "fn.rho",
+      "h_out": "h_out",
+      "sk$h": "sk.h",
+      "sk$mdot": "sk.mdot",
+      "sk$p": "sk.p"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

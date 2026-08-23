@@ -1,0 +1,9 @@
+// Accumulator with no DYNAMIC block: der(in.P) takes the steady branch,
+// which recovers in.mdot = out.mdot; the node passes P and h through.
+Accumulator AC(a1, a2, C = 1e-6, P0 = 300000)
+
+a1.P    = 300000
+a1.h    = 120000
+a1.mdot = 0.25
+p_out   = a2.P
+m_out   = a2.mdot

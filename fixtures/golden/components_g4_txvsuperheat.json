@@ -1,0 +1,59 @@
+{
+  "name": "components_g4_txvsuperheat",
+  "source": "// TXVSuperheat: quasi-static TXV law mdot = Kv*(SH - SH_set) between fixed\n// high/low pressure rails, the bulb strapped to a 288 K node (SH ~ 9.7 K at\n// 350 kPa, so the valve meters ~0.047 kg/s).\nTwoPhasePressureSource HI(fluid$ = R134a, P = 1200000, x = 0)\nTXVSuperheat           VLV(fluid$ = R134a, Kv = 0.01, SH_set = 5)\nTwoPhasePressureSink   LO(P = 350000)\nThermalSource          BULB(T = 288)\nconnect(HI.out, VLV.in)\nconnect(VLV.out, LO.in)\nconnect(VLV.bulb, BULB.port)\nmdot_v = VLV.in.mdot\nsh     = VLV.SH\n",
+  "expect": {
+    "variables": {
+      "bulb.port.qdot": 0.0,
+      "bulb.port.t": 288.0,
+      "hi.out.h": 265947.2005481485,
+      "hi.out.mdot": 0.0482192788206936,
+      "hi.out.p": 1200000.0,
+      "lo.in.h": 265947.2005481485,
+      "lo.in.mdot": 0.0482192788206936,
+      "lo.in.p": 350000.0,
+      "mdot_v": 0.0482192788206936,
+      "sh": 9.82192788206936,
+      "vlv.bulb.qdot": 0.0,
+      "vlv.bulb.t": 288.0,
+      "vlv.in.h": 265947.2005481485,
+      "vlv.in.mdot": 0.0482192788206936,
+      "vlv.in.p": 1200000.0,
+      "vlv.out.h": 265947.2005481485,
+      "vlv.out.mdot": 0.0482192788206936,
+      "vlv.out.p": 350000.0,
+      "vlv.sh": 9.82192788206936,
+      "vlv.t_sat": 278.17807211793064
+    },
+    "display_names": {
+      "bulb$port$qdot": "bulb.port.qdot",
+      "bulb$port$t": "bulb.port.t",
+      "hi$out$h": "hi.out.h",
+      "hi$out$mdot": "hi.out.mdot",
+      "hi$out$p": "hi.out.p",
+      "lo$in$h": "lo.in.h",
+      "lo$in$mdot": "lo.in.mdot",
+      "lo$in$p": "lo.in.p",
+      "mdot_v": "mdot_v",
+      "r134a": "R134a",
+      "sh": "sh",
+      "vlv$bulb$qdot": "vlv.bulb.qdot",
+      "vlv$bulb$t": "vlv.bulb.t",
+      "vlv$in$h": "vlv.in.h",
+      "vlv$in$mdot": "vlv.in.mdot",
+      "vlv$in$p": "vlv.in.p",
+      "vlv$out$h": "vlv.out.h",
+      "vlv$out$mdot": "vlv.out.mdot",
+      "vlv$out$p": "vlv.out.p",
+      "vlv$sh": "vlv.sh",
+      "vlv$t_sat": "vlv.t_sat"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

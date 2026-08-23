@@ -1,0 +1,37 @@
+{
+  "name": "components_g4_twophasecap",
+  "source": "// TwoPhaseCap: dead-end cap on a pressure reservoir — zero through-flow.\nTwoPhasePressureSource PS(fluid$ = R134a, P = 500000, x = 0.2)\nTwoPhaseCap            CAP()\nconnect(PS.out, CAP.in)\nm_dead = CAP.in.mdot\np_dead = CAP.in.P\nh_dead = CAP.in.h\n",
+  "expect": {
+    "variables": {
+      "cap.in.h": 258695.60815836722,
+      "cap.in.mdot": 0.0,
+      "cap.in.p": 500000.0,
+      "h_dead": 258695.60815836722,
+      "m_dead": 0.0,
+      "p_dead": 500000.0,
+      "ps.out.h": 258695.60815836722,
+      "ps.out.mdot": 0.0,
+      "ps.out.p": 500000.0
+    },
+    "display_names": {
+      "cap$in$h": "cap.in.h",
+      "cap$in$mdot": "cap.in.mdot",
+      "cap$in$p": "cap.in.p",
+      "h_dead": "h_dead",
+      "m_dead": "m_dead",
+      "p_dead": "p_dead",
+      "ps$out$h": "ps.out.h",
+      "ps$out$mdot": "ps.out.mdot",
+      "ps$out$p": "ps.out.p",
+      "r134a": "R134a"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

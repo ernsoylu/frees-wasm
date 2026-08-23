@@ -1,0 +1,16 @@
+// Rotary enthalpy wheel in summer recovery: hot humid outdoor supply
+// (305.15 K, W = 0.016) exchanges with cool dry building exhaust (297.15 K,
+// W = 0.009) at eff_h = 0.75, eff_w = 0.7. Balanced 1 kg/s streams; moisture
+// and energy close exactly on the dry-air basis.
+MoistAirSource OA(P=101325, T=305.15, W=0.016, mdot=1)
+MoistAirSource EX(P=101325, T=297.15, W=0.009, mdot=1)
+EnthalpyWheel  WHL(eff_h=0.75, eff_w=0.7)
+MoistAirSink   SUP()
+MoistAirSink   REJ()
+connect(OA.out, WHL.sup_in)
+connect(WHL.sup_out, SUP.in)
+connect(EX.out, WHL.exh_in)
+connect(WHL.exh_out, REJ.in)
+w_sup = SUP.W
+h_sup = SUP.h
+w_bal = 1 * (0.016 - SUP.W) - 1 * (REJ.W - 0.009)

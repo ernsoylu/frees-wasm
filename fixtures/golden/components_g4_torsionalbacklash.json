@@ -1,0 +1,50 @@
+{
+  "name": "components_g4_torsionalbacklash",
+  "source": "// TorsionalBacklash steady: 15 N.m winds the 1000 N.m/rad spring past the\n// +-0.01 rad lash, so th = half + T/k = 0.025 rad (hinge width 1e-4).\n// EXPECT th_b = 0.025 tol 1e-4\nTorqueSource      TQ(T = 15)\nTorsionalBacklash BL(k = 1000, half = 0.01, eps = 1e-4, theta0 = 0)\nMechGround        G1()\nMechGround        G2()\nconnect(TQ.a, BL.a)\nconnect(TQ.b, G1.port)\nconnect(BL.b, G2.port)\nth_b = BL.th\n",
+  "expect": {
+    "variables": {
+      "bl.a.tau": 15.0,
+      "bl.a.w": 0.0,
+      "bl.b.tau": -15.0,
+      "bl.b.w": 0.0,
+      "bl.dn": 0.034999904762746996,
+      "bl.th": 0.024999904762746994,
+      "bl.up": 0.014999904762746995,
+      "g1.port.tau": -15.0,
+      "g1.port.w": 0.0,
+      "g2.port.tau": 15.0,
+      "g2.port.w": 0.0,
+      "th_b": 0.024999904762746994,
+      "tq.a.tau": -15.0,
+      "tq.a.w": 0.0,
+      "tq.b.tau": 15.0,
+      "tq.b.w": 0.0
+    },
+    "display_names": {
+      "bl$a$tau": "bl.a.tau",
+      "bl$a$w": "bl.a.w",
+      "bl$b$tau": "bl.b.tau",
+      "bl$b$w": "bl.b.w",
+      "bl$dn": "bl.dn",
+      "bl$th": "bl.th",
+      "bl$up": "bl.up",
+      "g1$port$tau": "g1.port.tau",
+      "g1$port$w": "g1.port.w",
+      "g2$port$tau": "g2.port.tau",
+      "g2$port$w": "g2.port.w",
+      "th_b": "th_b",
+      "tq$a$tau": "tq.a.tau",
+      "tq$a$w": "tq.a.w",
+      "tq$b$tau": "tq.b.tau",
+      "tq$b$w": "tq.b.w"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

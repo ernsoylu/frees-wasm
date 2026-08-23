@@ -72,6 +72,23 @@ helpers stay as the wiring seam. When re-syncing from upstream, re-apply the
 clip; when wiring a feature, restore its modal from git history and delete
 this paragraph's entry for it.
 
+## The Tables grid (decision D10, Wave H — phase 1)
+
+The Tables workbook is a **native glide-data-grid implementation**:
+`src/tablesGrid/TablesGridTab.tsx` renders TableSpecs directly and
+`src/tablesGrid/tableGridModel.ts` carries the binding rules retargeted from
+`src/spreadsheet/tableBinding.ts` (computed-cell visibility, the 5000-row
+cap, error-literal sanitization, paste-region clipping, read-only surfacing
+of stored `spec.formulas`). `src/App.tsx` lazy-loads it in place of the
+Univer `TablesWorkbookTab`, and the AlterValuesModal application routes
+through the model's `applyColumnFill`. The dock window id stays
+`table:univer-workbook` (persisted in saved layouts; also hardcoded in
+`MobileLayout.tsx`). **The Univer files and packages are still present in
+this phase** — `SpreadsheetTab` still uses them; the purge (dependency
+removal + `src/spreadsheet/` deletion + vite plugin removal, in one commit)
+is the next phase. When re-syncing from upstream, keep `src/tablesGrid/` and
+re-apply the `App.tsx` Tables routing.
+
 ## Everything else stays in sync with upstream
 
 Do not fork other files. When upstream `../frEES/frontend` changes, re-run the

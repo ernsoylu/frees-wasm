@@ -95,6 +95,7 @@ import {
   isHostedTable,
   TABLES_WORKBOOK_WINDOW_ID,
 } from './spreadsheet/tablesWorkbookBridge'
+import { applyColumnFill } from './tablesGrid/tableGridModel'
 import { buildSnapshotSheet, type SnapshotInput } from './spreadsheet/snapshot'
 import { newAnalyzer, type AnalyzerSpec } from './analyzer/types'
 import { channelStore } from './analyzer/channelStore'
@@ -110,10 +111,10 @@ const DigitizerTab = lazy(() =>
   import('./DigitizerTab').then((m) => ({ default: m.DigitizerTab })),
 )
 const SpreadsheetTab = lazy(() => import('./spreadsheet/SpreadsheetTab'))
-// The Univer Tables workbook (function/lookup tables as bound sheets) shares
-// the Univer chunk with SpreadsheetTab; lazy so tables-only sessions without
-// it opened never fetch the engine.
-const TablesWorkbookTab = lazy(() => import('./spreadsheet/TablesWorkbookTab'))
+// The Tables workbook — native glide-data-grid implementation (decision D10;
+// it replaced the Univer-bound-sheets TablesWorkbookTab). Lazy so sessions
+// that never open it don't fetch the grid.
+const TablesWorkbookTab = lazy(() => import('./tablesGrid/TablesGridTab'))
 // The Data Analyzer (uPlot + papaparse) is code-split so the measurement
 // tooling is only fetched when an analyzer window opens.
 const DataAnalyzerTab = lazy(() => import('./analyzer/DataAnalyzerTab'))
@@ -3220,15 +3221,7 @@ export default function App() {
           initialFirst={paramRows[0]?.values[alterColumn] ?? ''}
           initialLast={paramRows[paramRows.length - 1]?.values[alterColumn] ?? ''}
           onApply={(values) => {
-            updateActiveParam((t) =>
-              invalidateActiveParam({
-                ...t,
-                rows: t.rows.map((row, i) => ({
-                  ...row,
-                  values: { ...row.values, [alterColumn]: String(values[i]) },
-                })),
-              }),
-            )
+            updateActiveParam((t) => applyColumnFill(t, alterColumn, values))
             setAlterColumn(null)
           }}
           onClose={() => setAlterColumn(null)}

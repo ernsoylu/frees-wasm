@@ -85,6 +85,14 @@ env:
   # chunk split, can shrink it structurally. That stays the pay-down path if
   # this ceiling is ever approached again; do not raise past 4096 without
   # doing it.
+  #
+  # 2026-08-23, Wave G2: 3092.6 KiB raw / 1266.5 KiB gzipped — +25.5 raw /
+  # +19.5 gzipped for the `carbondioxide` rustprop-data feature, linked so
+  # `MolarMass(CarbonDioxide)` answers (docs_fluids_materials_03, the pending
+  # set's last property-linkage hold, promoted bit-exact). Measured per this
+  # gate's own method: baseline 3 140 655 bytes, with CO2 3 166 815. 75.5 % of
+  # the ceiling, 1 003 KiB headroom. `served_fluids` (the diagram picker) is
+  # deliberately unchanged. Debt (2) untouched and unneeded.
   WASM_BUDGET_KB: 4096
 
 jobs:

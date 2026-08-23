@@ -39,6 +39,12 @@ rustprop-data = { git = "https://github.com/ernsoylu/RustProp", tag = "v0.1.0", 
     "r134a",
     "r1234yf",
     "air",
+    # Wave G2 (2026-08-23): CO2, for `MolarMass(CarbonDioxide)` — the last
+    # property-linkage hold in the pending set (docs_fluids_materials_03).
+    # Measured cost on the wire: +25.5 KiB raw / +19.5 KiB gzipped (ci.yml
+    # header's dated entry has the full numbers). Deliberately NOT added to
+    # `served_fluids` — the diagram picker is a separate, deliberate list.
+    "carbondioxide",
 ], optional = true }
 # rustprop-core carries the shared parameter types. The warm adapter
 # (`props/rustprop_warm.rs`) drives rustprop's LOW-LEVEL `PtFlash` API, and

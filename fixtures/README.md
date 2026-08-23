@@ -5,9 +5,9 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 775
-fixtures/golden/*.json    what the Java engine produced for each      — 775
-fixtures/corpus-pending/  the staging area: documents not yet promoted — 2
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 776
+fixtures/golden/*.json    what the Java engine produced for each      — 776
+fixtures/corpus-pending/  the staging area: documents not yet promoted — 1
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -452,10 +452,13 @@ every one of them named the missing capability in its error.
 > transport directly, so several of those twenty limits no longer exist — the
 > analogous held documents in `corpus-pending/` all cleared (Wave-3 F6/F8,
 > twelve for twelve). `CO2` and `Hydrogen` are the exception and are a
-> different kind of question: rustprop has both, but this build enables four
+> different kind of question: rustprop has both, but this build enabled four
 > per-fluid Cargo features (`water`, `r134a`, `r1234yf`, `air`), so adding one
 > is a bundle decision, not a porting one — ~26 KB of wasm per fluid by
-> rustprop's own all-130-fluids measurement, unverified from here.
+> rustprop's own all-130-fluids measurement, unverified from here. *(Verified
+> 2026-08-23, Wave G2: linking `carbondioxide` cost exactly +25.5 KiB raw —
+> rustprop's per-fluid estimate holds on this build's toolchain. Five features
+> now; `Hydrogen` remains unlinked and unasked-for.)*
 > These twenty documents are not in `corpus-pending/`, so re-checking them
 > means harvesting them first; nobody has, so the number that would come out is
 > unknown.
@@ -571,12 +574,21 @@ classification. If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 2 documents, one of them a property hold
+### What is pending today — 1 document, a cost hold
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact) but takes **~12 minutes** against the whole replay's ~3.5 min | 1 | `dyn_accessor_live` |
-| **Fluid not linked** — `MolarMass(CarbonDioxide)` needs CO2 in the build's `rustprop-data` features (currently water, r134a, r1234yf, air; a fifth fluid costs native *and wasm* bytes, so it is a bundle decision, not a bug). The other two calls in the document — `MolarMass(C8H18)` and `MolarMass('Al2(SO4)3')` — are formula parses and already answer | 1 | `docs_fluids_materials_03` (from the 2026-08-22 docs harvest below) |
+
+*(The fluid-linkage row left this table on 2026-08-23, Wave G2: the
+`carbondioxide` feature joined `rustprop-data`'s list in
+`crates/frees-core/Cargo.toml` — measured at +25.5 KiB raw / +19.5 KiB
+gzipped on the wire, 3092.6 of the 4096 KiB budget, the ci.yml header's
+dated entry — and `docs_fluids_materials_03` promoted **bit-exact** on all
+three variables at the corpus default with no tolerance entry.
+`served_fluids`, the diagram picker, is deliberately unchanged: linking a
+fluid's data and listing it in the picker are separate decisions. Corpus
+775 → 776, pending 2 → 1.)*
 
 *(The decayed-through-zero row — three documents — left this table on
 2026-08-23, Wave G1, via the decayed-signal measure under **Comparison
@@ -603,11 +615,12 @@ largest-component-positive rule — and all six sign-blocked documents promoted
 at the corpus default `1e-9` with no tolerance entry, corpus 722 → 728,
 pending 11 → 5.)*
 
-**One of the two is blocked on a property — and it is a *linkage* hold, not a
-backend gap** (the 2026-08-22 docs harvest's `docs_fluids_materials_03`, above:
-rustprop serves CO2 fine, this build just does not link its data). Before that
-harvest the set read "4, none of them a property hold", which D8/D9 earned and
-the history below records. *(The pipeline-ordering row left 2026-08-21, Wave A4: MODULE instantiation moved to the expansion stage — after the unroller, at Java's own position — and `module_inside_for_loop` promoted exactly, display names and `block_count` included. Corpus 728 → 729.)* That is what
+**No pending document is a property hold** — true again since Wave G2 linked
+CO2 (2026-08-23). The 2026-08-22 docs harvest had briefly broken that: its
+`docs_fluids_materials_03` was a *linkage* hold, not a backend gap (rustprop
+served CO2 fine, this build just did not link its data), and closing it took
+one Cargo feature. D8/D9 earned the property-hold-free set and the history
+below records how. *(The pipeline-ordering row left 2026-08-21, Wave A4: MODULE instantiation moved to the expansion stage — after the unroller, at Java's own position — and `module_inside_for_loop` promoted exactly, display names and `block_count` included. Corpus 728 → 729.)* That is what
 [D8](../docs/decisions/0008-coolprop-wasm.md) bought: it predicted twelve of the
 then-26 would clear under a real CoolProp, and twelve of twelve did — Wave-3 F6
 took nine and F8 the last three, corpus 707 → 719, pending 26 → 14, and

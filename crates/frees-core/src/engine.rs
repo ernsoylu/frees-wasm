@@ -480,7 +480,29 @@ pub fn solve_with(
     settings: &SolverSettings,
     overrides: &[VariableOverride],
 ) -> std::result::Result<Solution, SolveFailure> {
-    solve_with_parametric(source, settings, overrides, None)
+    solve_with_parametric_tables(source, settings, overrides, None, &[])
+}
+
+/// [`solve_with`] with externally supplied Function Table definitions — the
+/// request's `functionTables`, which the Java threads through every solving
+/// endpoint as `SolveDtos.functionDefsOf(request.functionTables())` into
+/// `EquationSystemSolver.solve(text, settings, specs, extraDefs)`.
+///
+/// The merge is [`crate::parser::defs::Definitions::merge_extra_tables`] —
+/// the Java `withExtraDefs` rule (**source definitions win** on a name
+/// collision) — applied at the Java position: *after* the parse/expand
+/// pipeline (`parseResult` in the Java runs component expansion and CALL
+/// flattening before the extras exist), *before* residual evaluation, the
+/// Integral pass and the transient path, all of which see the merged map.
+/// `extra_tables` must carry lowercase canonical names, as the boundary's
+/// DTO conversion produces. An empty slice is byte-for-byte [`solve_with`].
+pub fn solve_with_tables(
+    source: &str,
+    settings: &SolverSettings,
+    overrides: &[VariableOverride],
+    extra_tables: &[crate::parser::defs::FunctionTableDef],
+) -> std::result::Result<Solution, SolveFailure> {
+    solve_with_parametric_tables(source, settings, overrides, None, extra_tables)
 }
 
 /// [`solve_with`] with the parametric-accessor channel installed — the
@@ -495,6 +517,21 @@ pub fn solve_with_parametric(
     settings: &SolverSettings,
     overrides: &[VariableOverride],
     parametric: Option<&crate::analysis::parametric::ParametricAccessors>,
+) -> std::result::Result<Solution, SolveFailure> {
+    solve_with_parametric_tables(source, settings, overrides, parametric, &[])
+}
+
+/// [`solve_with_parametric`] plus the [`solve_with_tables`] channel — the
+/// per-row solve of a Tables-workbook sweep whose request carried GUI
+/// Function Tables (the Java `SolveController.computeSolveTable` threads
+/// `TableRowContext.functionDefs` into every row's solve, chunked re-dispatch
+/// included).
+pub fn solve_with_parametric_tables(
+    source: &str,
+    settings: &SolverSettings,
+    overrides: &[VariableOverride],
+    parametric: Option<&crate::analysis::parametric::ParametricAccessors>,
+    extra_tables: &[crate::parser::defs::FunctionTableDef],
 ) -> std::result::Result<Solution, SolveFailure> {
     crate::props::tables::install_builtin_once();
     let mut doc = parse_document(source)?;
@@ -532,6 +569,13 @@ pub fn solve_with_parametric(
     // (`R$ = 'R134a'`) are compile-time constants — substitute their values
     // and drop the definition equations from the numeric system.
     let equations = crate::parser::string_variables::resolve(equations, &doc.display_names)?;
+    // The request's GUI Function Tables, at the Java `withExtraDefs` position:
+    // `EquationSystemSolver.solve` merges the extras into the *finished*
+    // `parseResult` — so they were invisible to the component layer and the
+    // CALL flattener above, and source definitions win on a name collision.
+    // Everything from here on (residual evaluation, the Integral pass, the
+    // transient path) sees the merged map, exactly as the Java does.
+    doc.defs.merge_extra_tables(extra_tables);
     let defs = &doc.defs;
     // The document context every residual evaluation runs under. The `ode`
     // channel starts empty; the accessor pass below installs the ODE bridge
@@ -1475,6 +1519,23 @@ pub fn check(source: &str) -> Result<CheckReport> {
 /// guesses. They are still *validated*, so a caller preparing a solve gets the
 /// same early `Err` surface from both entry points.
 pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckReport> {
+    check_with_tables(source, overrides, &[])
+}
+
+/// [`check_with`] with externally supplied Function Table definitions — the
+/// `POST /api/check` body's `functionTables`, which the Java threads as
+/// `solver.check(parsed, complexMode, SolveDtos.functionDefsOf(...))`
+/// (`CheckController`). Same merge and same position as
+/// [`solve_with_tables`]: `withExtraDefs` semantics (source wins), applied
+/// after the expansion pipeline, so the structural analysis and the Integral
+/// pass see the merged map while the unit checker — which the Java feeds the
+/// plain `parsed` — never does. An empty slice is byte-for-byte
+/// [`check_with`].
+pub fn check_with_tables(
+    source: &str,
+    overrides: &[VariableOverride],
+    extra_tables: &[crate::parser::defs::FunctionTableDef],
+) -> Result<CheckReport> {
     crate::props::tables::install_builtin_once();
     for o in overrides {
         override_spec(o)?;
@@ -1525,6 +1586,11 @@ pub fn check_with(source: &str, overrides: &[VariableOverride]) -> Result<CheckR
         // String variables leave the numeric system here too, so `check`
         // reports the same equation/variable balance the solve path sees.
         let equations = crate::parser::string_variables::resolve(equations, &parsed_names)?;
+        // The request's GUI Function Tables, at the Java position (see
+        // `solve_with_parametric_tables`): merged into this closure's clone
+        // only, so `find_integrals` below sees them while the unit paths
+        // outside — which the Java feeds the plain `parsed` — do not.
+        doc.defs.merge_extra_tables(extra_tables);
         // The Integral pass, as in `solve_with` — but `check` builds the
         // *structural view* instead of driving the quadrature: a constant-limit
         // integral contributes a `resultVar = 0` placeholder, a variable-limit

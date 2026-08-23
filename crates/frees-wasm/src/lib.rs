@@ -86,9 +86,9 @@ pub fn version() -> String {
 
 /// `{variableInfo: [...], stopCriteria: {...}}` — the request body
 /// `POST /api/solve` and `POST /api/check` receive (`SolveController.SolveRequest`),
-/// minus the fields whose machinery is not ported yet (`functionTables`,
-/// `overrides`, `findAllSolutions`, …). Unknown fields are ignored, so the
-/// frontend can keep sending its full request unchanged.
+/// minus the fields whose machinery is not ported yet (`overrides`,
+/// `findAllSolutions`, …). Unknown fields are ignored, so the frontend can
+/// keep sending its full request unchanged.
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct SolveRequest {
@@ -103,6 +103,123 @@ struct SolveRequest {
     /// `SolveController.resolveFillMissing`, which is the *only* producer of
     /// `cyclePath`.
     fill_missing: Option<bool>,
+    /// The GUI's Function Tables (Tables workbook, Graph Digitizer), injected
+    /// into the definition map exactly as the Java does
+    /// (`SolveDtos.functionDefsOf` at `SolveController` line 217 and
+    /// `CheckController` line 142) — wired by Wave H (decision D10).
+    function_tables: Option<Vec<FunctionTableDto>>,
+}
+
+/// `SolveDtos.FunctionTableDto` — one GUI Function Table in solver wire
+/// format: the name is callable from equations, `argNames` the column names
+/// (lookup argument first, then the family parameter, if any). Every field is
+/// nullable because the Java record's are; `functionDefsOf` below carries the
+/// tolerance.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub(crate) struct FunctionTableDto {
+    name: Option<String>,
+    arg_names: Option<Vec<String>>,
+    x_log: Option<bool>,
+    y_log: Option<bool>,
+    curves: Option<Vec<FunctionCurveDto>>,
+}
+
+/// `SolveDtos.FunctionCurveDto`: family-parameter value (`null` for a lone
+/// curve) and `[x, y]` sample pairs, each pair and each member nullable.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub(crate) struct FunctionCurveDto {
+    param: Option<f64>,
+    points: Option<Vec<Option<Vec<Option<f64>>>>>,
+}
+
+/// `SolveDtos.functionDefsOf`, transcribed: convert the request's Function
+/// Table DTOs into solver definitions keyed by the case-insensitive
+/// (lowercased) function name.
+///
+/// The Java's tolerance, exactly:
+///
+/// * a `null`/absent list, or an empty one, contributes nothing;
+/// * a table with a `null`/blank name or `null` curves is skipped;
+/// * per curve, `null` points mean none; a point is kept only when it is
+///   non-null, has at least two members and its first two are non-null
+///   (later members are ignored); kept points sort ascending by x (stable,
+///   `Double.compare` order — JSON cannot carry `NaN`, so `total_cmp`
+///   agrees on everything reachable, `-0.0 < 0.0` included);
+/// * a curve with no kept points is skipped; a table whose curves all
+///   vanish is skipped (its name stays undefined, so a call to it fails
+///   with the ordinary "unknown function", as on the Java side);
+/// * the last table of a name wins (`HashMap.put`).
+///
+/// `outputUnit`/`argUnits` do not exist on the wire; the defs carry `None`,
+/// the Java's 5-argument `FunctionTableDef` constructor.
+pub(crate) fn function_table_defs_of(
+    tables: &Option<Vec<FunctionTableDto>>,
+) -> Vec<frees_core::parser::defs::FunctionTableDef> {
+    let Some(tables) = tables else {
+        return Vec::new();
+    };
+    let mut defs: Vec<frees_core::parser::defs::FunctionTableDef> = Vec::new();
+    for table in tables {
+        let Some(name) = table.name.as_deref() else {
+            continue;
+        };
+        let name = name.trim();
+        if name.is_empty() || table.curves.is_none() {
+            continue;
+        }
+        let name = name.to_ascii_lowercase();
+        let curves = curves_of(table);
+        if curves.is_empty() {
+            continue;
+        }
+        let def = frees_core::parser::defs::FunctionTableDef {
+            name: name.clone(),
+            arg_names: table.arg_names.clone().unwrap_or_default(),
+            x_log: table.x_log == Some(true),
+            y_log: table.y_log == Some(true),
+            curves,
+            output_unit: None,
+            arg_units: None,
+        };
+        if let Some(existing) = defs.iter_mut().find(|d| d.name == name) {
+            *existing = def;
+        } else {
+            defs.push(def);
+        }
+    }
+    defs
+}
+
+/// `SolveDtos.curvesOf`: the sorted, validated curves of one table DTO.
+fn curves_of(table: &FunctionTableDto) -> Vec<frees_core::parser::defs::Curve> {
+    let mut curves = Vec::new();
+    for curve in table.curves.as_deref().unwrap_or_default() {
+        let mut valid: Vec<(f64, f64)> = curve
+            .points
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|point| {
+                let point = point.as_ref()?;
+                if point.len() < 2 {
+                    return None;
+                }
+                Some((point[0]?, point[1]?))
+            })
+            .collect();
+        valid.sort_by(|a, b| a.0.total_cmp(&b.0));
+        if valid.is_empty() {
+            continue;
+        }
+        curves.push(frees_core::parser::defs::Curve {
+            param: curve.param,
+            xs: valid.iter().map(|p| p.0).collect(),
+            ys: valid.iter().map(|p| p.1).collect(),
+        });
+    }
+    curves
 }
 
 /// One row of the Variable Information window
@@ -316,13 +433,16 @@ pub fn solve(source: &str, request_json: &str) -> String {
 
     let system = unit_system_of(&request);
     let explicit_units = explicit_units_of(&request);
+    // `SolveDtos.functionDefsOf(request.functionTables())` — converted once,
+    // used by the solve *and* cached for the REPL below, as in `computeSolve`.
+    let extra_tables = function_table_defs_of(&request.function_tables);
 
     // Wave C1: bound the transient path's wall clock for this request; the
     // guard clears the thread-local on every exit path.
     let _deadline = install_transient_deadline(&request);
 
     let started = now_ms();
-    match frees_core::solve_with(source, &settings, &overrides) {
+    match frees_core::solve_with_tables(source, &settings, &overrides, &extra_tables) {
         Ok(mut solution) => {
             // `SolveController.resolveFillMissing`, at the Java position:
             // *before* the variable DTOs are built, so the injected state
@@ -333,8 +453,9 @@ pub fn solve(source: &str, request_json: &str) -> String {
             // `SolveContextCache.put` — the REPL evaluates against the last
             // successful solve, so the workspace is refreshed here and nowhere
             // else. A failed solve leaves the previous workspace in place,
-            // exactly as the Java cache does.
-            repl::store_session(source, &solution, system, &explicit_units);
+            // exactly as the Java cache does. The request's Function Tables
+            // ride along, the Java's `replDefs.putAll(functionDefs)`.
+            repl::store_session(source, &solution, system, &explicit_units, &extra_tables);
             solve_success(
                 &solution,
                 &cycle_path,
@@ -881,8 +1002,11 @@ pub fn check(source: &str, request_json: &str) -> String {
         Err(message) => return check_failure(message),
     };
     let overrides = overrides_of(&request);
+    // `CheckController.check`: `solver.check(parsed, complexMode,
+    // SolveDtos.functionDefsOf(request.functionTables()))`.
+    let extra_tables = function_table_defs_of(&request.function_tables);
 
-    match frees_core::check_with(source, &overrides) {
+    match frees_core::check_with_tables(source, &overrides, &extra_tables) {
         Ok(report) => check_response(&report),
         // Only non-document problems (an invalid override row) surface as Err;
         // shaped like the Java 500-with-body, which api.ts reads the same way.

@@ -148,4 +148,42 @@ impl Definitions {
     pub fn table(&self, lowercase_name: &str) -> Option<&FunctionTableDef> {
         self.tables.iter().find(|t| t.name == lowercase_name)
     }
+
+    /// Merge externally supplied Function Tables — the GUI's `functionTables`,
+    /// already converted to defs and lowercased by the boundary — into this
+    /// document's definitions, with the Java rule
+    /// (`EquationSystemSolver.withExtraDefs`): **source definitions win on a
+    /// name collision.** The Java builds `new HashMap<>(extraDefs)` and then
+    /// `putAll(parsed.defs())`, so an extra table whose name any in-document
+    /// `FUNCTION`/`PROCEDURE`/`MODULE`/`TABLE` already uses is dropped — the
+    /// merge also cannot create the cross-kind duplicates
+    /// [`crate::eval`]'s dispatch comment promises never exist.
+    ///
+    /// Among the extras themselves a **later** name wins, the `HashMap.put`
+    /// in `SolveDtos.functionDefsOf` (the boundary dedupes already; keeping
+    /// the rule here keeps it honest for direct core callers).
+    pub fn merge_extra_tables(&mut self, extra: &[FunctionTableDef]) {
+        if extra.is_empty() {
+            return;
+        }
+        let mut deduped: Vec<&FunctionTableDef> = Vec::with_capacity(extra.len());
+        for table in extra {
+            if let Some(slot) = deduped.iter_mut().find(|t| t.name == table.name) {
+                *slot = table;
+            } else {
+                deduped.push(table);
+            }
+        }
+        for table in deduped {
+            let name = table.name.as_str();
+            if self.function(name).is_some()
+                || self.procedure(name).is_some()
+                || self.module(name).is_some()
+                || self.table(name).is_some()
+            {
+                continue;
+            }
+            self.tables.push(table.clone());
+        }
+    }
 }

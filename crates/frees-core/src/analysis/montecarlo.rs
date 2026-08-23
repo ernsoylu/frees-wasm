@@ -54,7 +54,8 @@ use std::collections::BTreeMap;
 
 use crate::analysis::uncertainty::UncertaintySpec;
 use crate::diag::{FreesError, Result};
-use crate::engine::{solve_with, VariableOverride};
+use crate::engine::{solve_with_tables, VariableOverride};
+use crate::parser::defs::FunctionTableDef;
 use crate::solver::SolverSettings;
 
 /// How many samples [`run`] pre-reserves room for, however many are requested.
@@ -124,12 +125,43 @@ pub fn run<F>(
     first_order_sigma: &BTreeMap<String, f64>,
     sample_count: usize,
     seed: i64,
-    mut expired: F,
+    expired: F,
 ) -> Result<Outcome>
 where
     F: FnMut() -> bool,
 {
-    let base = solve_with(text, settings, &overrides_from(specs)).map_err(|e| e.error)?;
+    run_with_tables(
+        text,
+        settings,
+        specs,
+        first_order_sigma,
+        sample_count,
+        seed,
+        expired,
+        &[],
+    )
+}
+
+/// [`run`] with externally supplied Function Table definitions — the request's
+/// `functionTables`, which the Java `SolveController.computeMonteCarlo`
+/// converts once and `MonteCarlo.run` threads into the base solve *and* every
+/// per-sample `solvePermissive`. An empty slice is byte-for-byte [`run`].
+#[allow(clippy::too_many_arguments)]
+pub fn run_with_tables<F>(
+    text: &str,
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, UncertaintySpec>,
+    first_order_sigma: &BTreeMap<String, f64>,
+    sample_count: usize,
+    seed: i64,
+    mut expired: F,
+    extra_tables: &[FunctionTableDef],
+) -> Result<Outcome>
+where
+    F: FnMut() -> bool,
+{
+    let base = solve_with_tables(text, settings, &overrides_from(specs), extra_tables)
+        .map_err(|e| e.error)?;
     let base_values: BTreeMap<String, f64> = base.values;
 
     // Sorted by construction: `specs` is a BTreeMap, and the Java sorts too.
@@ -181,7 +213,12 @@ where
         let mut info = sample_specs.clone();
         apply_warm_start(&mut info, &warm);
 
-        match solve_with(&apply_overrides(text, &overrides), settings, &info) {
+        match solve_with_tables(
+            &apply_overrides(text, &overrides),
+            settings,
+            &info,
+            extra_tables,
+        ) {
             Ok(solution) => {
                 warm.clone_from(&solution.values);
                 samples.push(Sample {

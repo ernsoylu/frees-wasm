@@ -25,8 +25,9 @@ use frees_core::components::cyclepath;
 use frees_core::parser::blocks::ParametricTable;
 
 use crate::{
-    explicit_units_of, now_ms, overrides_of, settings_of, unit_system_of, variable_entries,
-    variable_rows, SolveRequest, StopCriteriaDto, VariableInfoDto,
+    explicit_units_of, function_table_defs_of, now_ms, overrides_of, settings_of, unit_system_of,
+    variable_entries, variable_rows, FunctionTableDto, SolveRequest, StopCriteriaDto,
+    VariableInfoDto,
 };
 
 // ---------------------------------------------------------------------------
@@ -69,8 +70,10 @@ fn deadline_message() -> String {
 
 // ---------------------------------------------------------------------------
 // Request DTOs — the Java `SolveTableRequest` minus `text` (which rides as
-// the `source` argument, like `solve`'s). `functionTables` is accepted and
-// ignored, the same treatment the `solve` export gives it.
+// the `source` argument, like `solve`'s). `functionTables` is honoured since
+// Wave H (decision D10): converted once per request and threaded into every
+// per-row solve, the Java `TableRowContext.functionDefs`
+// (`SolveController.computeSolveTable`, and line 531's chunked re-dispatch).
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Default, Deserialize)]
@@ -80,6 +83,7 @@ struct SolveTableRequest {
     variable_info: Vec<VariableInfoDto>,
     display_unit_system: Option<String>,
     table: Option<TableDto>,
+    function_tables: Option<Vec<FunctionTableDto>>,
 }
 
 /// `SolveController.TableDto`: `variables` (the declared column order) and
@@ -177,13 +181,17 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             .collect(),
     };
 
-    // The `solve` helpers, reused verbatim through a facade request.
+    // The `solve` helpers, reused verbatim through a facade request. The
+    // request's Function Tables are converted once, outside it — the Java
+    // `TableRowContext.functionDefs`, built once per request too.
     let facade = SolveRequest {
         variable_info: request.variable_info,
         stop_criteria: request.stop_criteria,
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
+        function_tables: None,
     };
+    let extra_tables = function_table_defs_of(&request.function_tables);
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
     let system = unit_system_of(&facade);
@@ -203,7 +211,13 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             return RowOutcome::failed(deadline_message());
         }
         let slot = &mut sides[job.run - 1];
-        match frees_core::solve_with_parametric(&job.source, &settings, &overrides, job.accessors) {
+        match frees_core::solve_with_parametric_tables(
+            &job.source,
+            &settings,
+            &overrides,
+            job.accessors,
+            &extra_tables,
+        ) {
             Ok(mut solution) => {
                 // The Java table row fills missing properties unconditionally,
                 // scoped to the table's own columns — not gated on the
@@ -351,6 +365,10 @@ struct MonteCarloRequest {
     display_unit_system: Option<String>,
     samples: Option<i64>,
     seed: Option<i64>,
+    /// Honoured since Wave H (D10): the Java `computeMonteCarlo` converts
+    /// them once and `MonteCarlo.run` threads them into the base solve and
+    /// every per-sample solve.
+    function_tables: Option<Vec<FunctionTableDto>>,
 }
 
 /// Run a Monte Carlo uncertainty propagation. `request_json` is the
@@ -402,7 +420,9 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         stop_criteria: request.stop_criteria,
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
+        function_tables: None,
     };
+    let extra_tables = function_table_defs_of(&request.function_tables);
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
     let system = unit_system_of(&facade);
@@ -450,11 +470,11 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
     // sigmas (and the display-name/unit maps every conversion below needs)
     // come from this boundary-side solve. One extra solve; the Java pays the
     // same shape differently (its `run` returns the whole base result).
-    let base = frees_core::solve_with(source, &settings, &overrides)
+    let base = frees_core::solve_with_tables(source, &settings, &overrides, &extra_tables)
         .map_err(|failure| failure.to_string_message())?;
 
     let started = now_ms();
-    let outcome = frees_core::analysis::montecarlo::run(
+    let outcome = frees_core::analysis::montecarlo::run_with_tables(
         source,
         &settings,
         &specs,
@@ -462,6 +482,7 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         n as usize,
         seed,
         || (now_ms() - started) / 1000.0 > MAX_MC_SECONDS,
+        &extra_tables,
     )
     .map_err(|e| e.to_string_message())?;
 
@@ -761,11 +782,13 @@ fn optimize_inner(source: &str, request_json: &str) -> Result<Value, String> {
         return Err(syntax_error(&failure));
     }
 
+    // No `function_tables`: the Java `OptimizeRequest` record carries none.
     let facade = SolveRequest {
         variable_info: request.variable_info,
         stop_criteria: request.stop_criteria,
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
+        function_tables: None,
     };
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
@@ -885,11 +908,13 @@ fn optimize_multi_inner(source: &str, request_json: &str) -> Result<Value, Strin
         return Err(syntax_error(&failure));
     }
 
+    // No `function_tables`: the Java `MultiObjectiveRequest` record carries none.
     let facade = SolveRequest {
         variable_info: request.variable_info,
         stop_criteria: request.stop_criteria,
         display_unit_system: None,
         fill_missing: None,
+        function_tables: None,
     };
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
@@ -937,9 +962,10 @@ fn optimize_multi_inner(source: &str, request_json: &str) -> Result<Value, Strin
 // cells exist for the view's own generality — a real table's cells are all
 // `Some`, so a genuine NaN and an unfilled cell are indistinguishable there,
 // which is fine: the fitter treats both as penalty). `functionTables` are
-// accepted and ignored — the same treatment every export in this crate gives
-// them, but noted here because this endpoint's modal always sends them and
-// the omission can change an answer that uses one, not just a diagnostic.
+// honoured since Wave H (D10): converted once and threaded through the solve
+// callback into every fit evaluation, the Java
+// `ParameterFit.run(solver, …, SolveDtos.functionDefsOf(request.functionTables()), …)`
+// (`OptimizeController.computeParameterFit`).
 // ---------------------------------------------------------------------------
 
 /// `frees.solver.max-fit-evaluations` (default) and the Java's `[10, …]`
@@ -969,6 +995,7 @@ struct ParameterFitRequest {
     measured_t: Vec<f64>,
     measured_v: Vec<f64>,
     max_evaluations: Option<i64>,
+    function_tables: Option<Vec<FunctionTableDto>>,
 }
 
 /// Fit DYNAMIC-block parameters to a measured series. Returns a
@@ -1033,7 +1060,9 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
         stop_criteria: request.stop_criteria,
         display_unit_system: None,
         fill_missing: None,
+        function_tables: None,
     };
+    let extra_tables = function_table_defs_of(&request.function_tables);
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
 
@@ -1060,7 +1089,9 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
     };
     let started = now_ms();
     let solve = |text: &str| -> Option<Vec<frees_core::analysis::paramfit::OdeTableView>> {
-        frees_core::solve_with(text, &settings, &overrides)
+        // The Java `ParameterFit.evaluate` threads the request's function
+        // defs into every fit solve; the callback carries them here.
+        frees_core::solve_with_tables(text, &settings, &overrides, &extra_tables)
             .ok()
             .map(|solution| {
                 solution

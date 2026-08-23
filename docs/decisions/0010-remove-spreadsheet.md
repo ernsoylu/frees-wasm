@@ -93,4 +93,10 @@ procedure gains a D5-clip-style paragraph (future rsyncs re-delete
 step. Engine-side, the `functionTables` injection is graded by an
 equivalence oracle — a table injected via the request must answer bit-
 identically to the same table written as a `TABLE` block — plus wasm-level
-tests in the `solve_table.rs` style.
+tests in the `solve_table.rs` style. One rule the implementation verified
+against the Java and mirrors exactly, because it is easy to assume the other
+way round: on a name collision the **document** definition wins on the
+solve/check path (`EquationSystemSolver.withExtraDefs` — "source definitions
+win on name collision"), and the **request** table wins only in the REPL's
+cached defs (`computeSolve`'s `replDefs.putAll(functionDefs)`). The UI must
+not present a GUI table as overriding a same-named `TABLE` block.

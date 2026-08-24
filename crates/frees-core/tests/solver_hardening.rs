@@ -72,46 +72,50 @@ fn the_retry_ladder_rescues_a_symmetric_system_single_shot_newton_fails() {
 /// *one* point of its solution manifold (x = y = 1), and the downstream block
 /// then needs a different point (`exp(w) = x - 1.5` requires x > 1.5).
 ///
-/// The ladder's contract, asserted here (matching what the Java does with
-/// this document — its damped iteration on the merged rank-deficient system
-/// creeps and stalls under the same creep guard we ported):
+/// The ladder's contract, asserted here:
 ///
 /// * the downstream block alone exhausts rungs 1–2;
-/// * rung 3 merges **all three equations** — the failure message proves the
-///   merged system (not the original one-equation block) was attempted, and
-///   the merge-solve's own error propagates (Java rethrows it, not the
-///   original), quoting every merged equation;
-/// * the reset-to-initial-guesses is visible in the partial diagnostics: the
-///   upstream pair no longer sits at its solved point but at the merged
-///   attempt's stalled iterate.
+/// * rung 3 merges **all three equations** and the merged solve *succeeds*,
+///   sliding the rank-deficient pair along its manifold to the one point the
+///   downstream equation can live with;
+/// * the merged answer is written back through the original two-block
+///   decomposition.
+///
+/// **Ledger item 40 rewrote this test.** It used to assert a *failure* here,
+/// with a doc comment claiming the Java stalled on the merged system too. It
+/// does not: run through `tools/golden-dumper` the oracle returns
+/// `w = -116930.27037460794`, `x = 1.5`, `y = 0.5`, `block_count = 2`. This
+/// port only failed because it had no SVD pseudo-inverse — the very fallback
+/// the Java comment quoted above names as the reason the rung exists. With the
+/// fallback transcribed the document agrees with the oracle, so the assertions
+/// are now the oracle's numbers. It is also pinned by the corpus, as
+/// `solver_merge_rung_rank_deficient_pair`.
+///
+/// `w` is the ordinary floating-point limit of `exp(w) = 0`: any `w` below
+/// about `-745` underflows to exactly zero, so the value is whatever the
+/// iteration walks to and only its *residual* is meaningful. It is compared
+/// loosely here for that reason; the two engines agree to 4e-12 relative.
 #[test]
-fn the_merge_rung_attempts_the_combined_system_and_propagates_its_error() {
+fn the_merge_rung_slides_the_rank_deficient_pair_to_meet_the_downstream_block() {
     let source = "x + y = 2\n2*x + 2*y = 4\nexp(w) = x - 1.5\n";
-    let failure = solve(source, &settings()).expect_err("the merged system stalls too");
+    let solution = solve(source, &settings()).expect("the merged system solves, as the Java does");
 
-    let message = failure.to_string_message();
-    assert!(
-        message.contains("3 equations"),
-        "the merged 3-equation system must have been attempted: {message}"
-    );
-    assert!(message.contains("exp(w) = x - 1.5"), "{message}");
-    assert!(message.contains("x + y = 2"), "{message}");
-    assert!(message.contains("2*x + 2*y = 4"), "{message}");
-
-    // The original decomposition (pair + scalar) is what the diagnostics show.
-    assert_eq!(failure.failed_block_index, Some(1));
-    let partial = failure.partial.as_deref().expect("partial diagnostics");
-    assert_eq!(partial.blocks.len(), 2);
-    // The merged attempt reset and moved the upstream pair: its residuals are
-    // no longer the exact zeros the standalone solve had left.
-    let upstream: Vec<f64> = partial
-        .residuals
-        .iter()
-        .filter(|r| r.block == 0)
-        .map(|r| r.residual)
-        .collect();
-    assert_eq!(upstream.len(), 2);
-    assert!(upstream.iter().all(|r| r.is_finite()), "{partial:?}");
+    assert_eq!(solution.blocks.len(), 2, "{:?}", solution.blocks);
+    let x = solution.values["x"];
+    let y = solution.values["y"];
+    let w = solution.values["w"];
+    assert!((x - 1.5).abs() < 1e-9, "x = {x}");
+    assert!((y - 0.5).abs() < 1e-9, "y = {y}");
+    assert!((w - -116_930.270_374_607_94).abs() < 1e-3, "w = {w}");
+    // Every equation is satisfied, including the one that forced the merge.
+    for residual in &solution.residuals {
+        assert!(
+            residual.residual.abs() < 1e-9,
+            "{} left {}",
+            residual.equation,
+            residual.residual
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

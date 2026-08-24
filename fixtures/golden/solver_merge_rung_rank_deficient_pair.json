@@ -1,0 +1,24 @@
+{
+  "name": "solver_merge_rung_rank_deficient_pair",
+  "source": "{ A consistent rank-deficient pair solves instantly at the default guesses to\n  one point of its solution manifold (x = y = 1); the downstream block then\n  needs a different point. The retry ladder's merge rung re-solves all three\n  equations together and the SVD pseudo-inverse slides the pair along its\n  manifold to x = 1.5. Recorded because it is what the Java comment\n  \"previously solved blocks may have incorrect values from SVD fallback on\n  rank-deficient Jacobians\" describes. Ledger item 40. }\nx + y = 2\n2*x + 2*y = 4\nexp(w) = x - 1.5\n",
+  "expect": {
+    "variables": {
+      "w": -116930.27037460794,
+      "x": 1.5,
+      "y": 0.5
+    },
+    "display_names": {
+      "w": "w",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

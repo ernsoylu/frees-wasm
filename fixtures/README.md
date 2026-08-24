@@ -5,10 +5,10 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1279
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1281
 fixtures/corpus/*.tables.json  request-level Function Tables for the document
                                beside them (10 — the curvefn group; see below)
-fixtures/golden/*.json         what the Java engine produced for each     — 1279
+fixtures/golden/*.json         what the Java engine produced for each     — 1281
 fixtures/corpus-pending/       the staging area: documents not yet promoted — 2
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
@@ -688,6 +688,18 @@ Extend it further from, in rough order of value:
      Jacobian is singular" after one iteration. The Java's Newton
      equilibrates the block (its test class is literally
      `SolverEquilibrationTest`); this port does not. Ledger item 38.
+     ***Closed and promoted 2026-08-24 (P3), so it is four not five.*** The
+     class name misled the triage: this port already equilibrates by the
+     Java's exact rule, and Commons Math's LU calls the equilibrated matrix
+     singular too — what the Java has is the **SVD pseudo-inverse** its
+     `solveLinear` falls back to in the `catch (SingularMatrixException)`
+     arm. Transcribed; the document now solves at `big = 1000000.0`,
+     `small = 1e-6` with both residuals exactly 0.0, and is staged in
+     `corpus/` + `golden/` at the corpus default `1e-9` with no tolerance
+     entry. The same change closed a second, unrecorded divergence and
+     promoted `solver_merge_rung_rank_deficient_pair` with it (the retry
+     ladder's merge rung had nothing to slide a rank-deficient pair with).
+     Ledger item 40 has both sets of measurements.
    * **1 not staged — no golden exists.**
      `steady-by-integration-floating-cycle-by-control-volume-integration`
      does not terminate in the **oracle**: IDA reports `mxstep steps taken

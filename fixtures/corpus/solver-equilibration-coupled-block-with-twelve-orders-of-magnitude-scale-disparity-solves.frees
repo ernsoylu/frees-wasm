@@ -1,0 +1,2 @@
+big   = 2e6 - 1e12 * small
+small = 1e-6 * sqrt(big / 1e6)

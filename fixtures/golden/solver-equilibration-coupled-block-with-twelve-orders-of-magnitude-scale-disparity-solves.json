@@ -1,0 +1,22 @@
+{
+  "name": "solver-equilibration-coupled-block-with-twelve-orders-of-magnitude-scale-disparity-solves",
+  "source": "big   = 2e6 - 1e12 * small\nsmall = 1e-6 * sqrt(big / 1e6)\n",
+  "expect": {
+    "variables": {
+      "big": 1000000.0,
+      "small": 1.0E-6
+    },
+    "display_names": {
+      "big": "big",
+      "small": "small"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

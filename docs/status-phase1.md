@@ -576,31 +576,57 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     Wave C1 amendment to
     [D9](decisions/0009-rustprop-backend.md).
 
-40. **Newton does not equilibrate a badly-scaled block; the Java does**
-    (found 2026-08-24, Wave J, `SolverEquilibrationTest`). The two-equation
-    document
+40. ~~**Newton does not equilibrate a badly-scaled block; the Java does**~~
+    **Closed 2026-08-24 (P3).** The diagnosis was wrong and the capability gap
+    was real. `solver::newton::solve_linear_into` already column-equilibrates
+    with the *identical* rule (`d[j] = 1/‖col_j‖₂`, step unscaled by `D`) that
+    `NewtonSolver.solveLinear` uses — equilibration was never the difference.
+    What the Java has and this port did not is the *next* line: Commons Math's
+    LU calls the equilibrated matrix singular too, and the Java catches that
+    and re-solves through the **SVD pseudo-inverse**
+    (`catch (SingularMatrixException e) { … new SingularValueDecomposition(jMat)
+    .getSolver().solve(rVec) … }`), where this port went straight to its
+    Levenberg–Marquardt rescue — which cannot help, because `JᵀJ` squares the
+    `1e24` conditioning. Measured on the reference repo's own classpath, on the
+    exact equilibrated 2×2 this document produces at its second iteration
+    (`[[1, 1], [-7.914585300241862e-12, 1e-12]]`): Commons Math reports
+    `isNonSingular = false` and `getDeterminant = 0.0`, then its SVD
+    (`σ = [1.414213562373095, 6.303563717266935e-12]`, both above the
+    `max(m·σ₀·eps, √SAFE_MIN)` cut-off) returns the step
+    `[-216817.0939025889, 2.1681709394387769e-7]`. Transcribing the catch —
+    `svd_fallback`, over the `SvdSolver` moved from `analysis::uncertainty` to
+    `linalg` so one Commons Math class has one transcription — makes the
+    document solve in **7 iterations at `big = 1000000.0`, `small = 1e-6`,
+    both residuals exactly 0.0**, bit-identical to the oracle. It is now the
+    fixture
+    `solver-equilibration-coupled-block-with-twelve-orders-of-magnitude-scale-disparity-solves`
+    (at the corpus default `1e-9` with no tolerance entry); the acceptance test
+    it was named for,
+    `SolverEquilibrationTest.coupledBlockWithTwelveOrdersOfMagnitudeScaleDisparitySolves`,
+    is also transcribed as a `newton.rs` unit test with the Java's own
+    assertions. No existing fixture moved.
 
-    ```
-    big   = 2e6 - 1e12 * small
-    small = 1e-6 * sqrt(big / 1e6)
-    ```
+    The fallback closed a **second, unrecorded divergence** on the way, which
+    is the strongest evidence the transcription is right.
+    `tests/solver_hardening.rs`'s merge-rung test asserted that
+    `x + y = 2` / `2*x + 2*y = 4` / `exp(w) = x - 1.5` *fails*, on a doc
+    comment claiming the Java stalled on the merged rank-deficient system too.
+    Put through `tools/golden-dumper` it does not: the oracle returns
+    `w = -116930.27037460794`, `x = 1.5`, `y = 0.5`, `block_count = 2`. The
+    retry ladder's merge rung exists precisely because "previously solved
+    blocks may have incorrect values from SVD fallback on rank-deficient
+    Jacobians" (the Java's own words) — and without the fallback the rung had
+    nothing to slide the pair with. This port now answers
+    `w = -116930.27037460377`, `x = 1.5`, `y = 0.4999999999999999`: 3.6e-14
+    relative on `w`, 2.2e-16 on `y`. Promoted as
+    `solver_merge_rung_rank_deficient_pair`, also at the corpus default, and
+    the test rewritten to the oracle's numbers. Corpus 1253 → **1255**.
 
-    spans twelve orders of magnitude between its unknowns. The Java solves
-    it; this port stops after **one** iteration with "no full, halved or
-    damped step reduces the residual (norm 4.13e-5) — the Jacobian is
-    singular". The Jacobian is not singular in exact arithmetic: its entries
-    differ by ~1e12, so the partial-pivot LU sees the small row as noise
-    against the large one. The reference's Newton scales the block (row/column
-    equilibration) before factorising and this one does not. The harvested
-    document is **not** staged — a fixture would pin the refusal, not the
-    behaviour — and it is named here so a future equilibration change has its
-    acceptance test:
-    `SolverEquilibrationTest.coupledBlockWithTwelveOrdersOfMagnitudeScaleDisparitySolves`
-    in the reference repo. Four other Wave-J documents diverge structurally
-    in the same not-a-tolerance way (two zone-HX guess-landscape cases, an
-    IDA first-step failure, and a NaN out of the zeotropic-blend property
-    chain); `fixtures/README.md` growth item 3 lists all five with their
-    exact failures.
+    The four other Wave-J documents
+    that diverge structurally in the same not-a-tolerance way (two zone-HX
+    guess-landscape cases, an IDA first-step failure, and a NaN out of the
+    zeotropic-blend property chain) are **untouched and still open**;
+    `fixtures/README.md` growth item 3 lists them with their exact failures.
 
 ## Commands
 

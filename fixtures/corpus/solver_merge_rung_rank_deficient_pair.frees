@@ -1,0 +1,10 @@
+{ A consistent rank-deficient pair solves instantly at the default guesses to
+  one point of its solution manifold (x = y = 1); the downstream block then
+  needs a different point. The retry ladder's merge rung re-solves all three
+  equations together and the SVD pseudo-inverse slides the pair along its
+  manifold to x = 1.5. Recorded because it is what the Java comment
+  "previously solved blocks may have incorrect values from SVD fallback on
+  rank-deficient Jacobians" describes. Ledger item 40. }
+x + y = 2
+2*x + 2*y = 4
+exp(w) = x - 1.5

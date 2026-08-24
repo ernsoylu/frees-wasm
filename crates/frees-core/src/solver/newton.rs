@@ -31,7 +31,13 @@
 //!    column equilibration (each Jacobian column scaled to unit 2-norm, the step
 //!    unscaled afterwards). Equilibration is the parent engine's §8.5 automatic
 //!    scaling: it keeps a multidomain system mixing `P~1e5`, `ṁ~1`, `I~1e-3`
-//!    conditioned well enough to factor, and is a no-op at the root;
+//!    conditioned well enough to factor, and is a no-op at the root. When a
+//!    pivot collapses anyway, the **SVD pseudo-inverse of the equilibrated
+//!    matrix** answers instead — the Java `solveLinear`'s
+//!    `catch (SingularMatrixException)` arm (ledger item 40). Equilibration
+//!    alone does not save a Jacobian whose columns differ by `1e12`: Commons
+//!    Math's LU declares the equilibrated matrix singular at exactly the point
+//!    this port's does, and the pseudo-inverse is what produces the step;
 //! 4. **halves the step** until the residual norm decreases — `x - λ·Δ` with
 //!    `λ = 1, ½, ¼, …`, up to [`SolverSettings::max_step_halvings`] halvings.
 //!    **Every candidate is clamped into the per-variable `[lo, hi]` box**
@@ -47,9 +53,10 @@
 //!    large `λ` gives a short, per-variable-scaled descent step. Damped
 //!    candidates are clamped into the `[lo, hi]` box exactly like line-search
 //!    ones (Java `dampedRescue`), and a candidate that cannot move because
-//!    every variable is pinned ends the rescue. The rescue also
-//!    covers the singular/ill-conditioned Jacobian, where the Java original
-//!    falls back to an SVD pseudoinverse (see *Deviations*).
+//!    every variable is pinned ends the rescue. The rescue is also the last
+//!    resort for a Jacobian the pseudo-inverse of step 3 could not turn into a
+//!    descending step (the Java reaches its own `dampedRescue` the same way,
+//!    through a non-descending `backtrackLineSearch`).
 //!
 //! # Convergence
 //!
@@ -477,8 +484,15 @@ where
                 solve_linear_into(jacobian, f, lin_d, lin_scaled, lin_b, lin_y, step)
             };
             match solved {
-                Ok(()) => {
-                    linear_failure = None;
+                Ok(path) => {
+                    // A pseudo-inverse direction is taken like any other, but
+                    // it is remembered: if this iteration turns out to be the
+                    // one that stalls, the stall message should still name the
+                    // Jacobian that could not be factored.
+                    linear_failure = match path {
+                        LinearPath::Factored => None,
+                        LinearPath::PseudoInverse => Some(LinearFailure::Singular),
+                    };
                     let search = {
                         let Scratch {
                             step,
@@ -1170,7 +1184,8 @@ where
 
 /// Solves `J·Δ = f` for the Newton step `Δ` (the iterate then moves to
 /// `x - λ·Δ`), with column equilibration around a partial-pivoting Gaussian
-/// elimination.
+/// elimination — and, when a pivot collapses, around the SVD pseudo-inverse
+/// the Java falls back to instead ([`svd_fallback`]).
 #[cfg(test)]
 fn solve_linear(
     jacobian: &[Vec<f64>],
@@ -1201,7 +1216,7 @@ fn solve_linear_into(
     b: &mut [f64],
     y: &mut [f64],
     step: &mut [f64],
-) -> std::result::Result<(), LinearFailure> {
+) -> std::result::Result<LinearPath, LinearFailure> {
     let n = rhs.len();
     // Column equilibration (§8.5 automatic scaling): scale each unknown's column
     // to unit norm, then unscale the step (Δx = D·y). A no-op at the root, but
@@ -1227,7 +1242,22 @@ fn solve_linear_into(
     }
     b.copy_from_slice(rhs);
 
-    gauss_solve_into(scaled, b, y)?;
+    let path = match gauss_solve_into(scaled, b, y) {
+        Ok(()) => LinearPath::Factored,
+        // The Java `solveLinear` catches Commons Math's
+        // `SingularMatrixException` and re-solves the *same equilibrated*
+        // matrix through the SVD pseudo-inverse; only then does the caller see
+        // a step. Transcribing that catch is ledger item 40 — equilibration is
+        // not what rescues a Jacobian whose columns differ by 1e12, because
+        // Commons Math's LU calls the equilibrated matrix singular too (its
+        // pivot threshold is an absolute 1e-11, ours the same ratio of the
+        // largest entry). The pseudo-inverse is what rescues it.
+        Err(LinearFailure::Singular) => {
+            svd_fallback(jacobian, rhs, d, y)?;
+            LinearPath::PseudoInverse
+        }
+        Err(other) => return Err(other),
+    };
 
     for j in 0..n {
         let v = d[j] * y[j];
@@ -1236,6 +1266,49 @@ fn solve_linear_into(
         }
         step[j] = v;
     }
+    Ok(path)
+}
+
+/// How the linear stage produced its direction. The distinction is carried out
+/// of [`solve_linear_into`] for the *diagnostic* only: a pseudo-inverse step is
+/// used exactly like a factored one, but if the iteration later stalls the
+/// message should still say the Jacobian could not be factored, which is the
+/// one fact a user can act on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinearPath {
+    /// Partial-pivoting elimination on the equilibrated matrix.
+    Factored,
+    /// A pivot collapsed and the SVD pseudo-inverse answered instead.
+    PseudoInverse,
+}
+
+/// The Java `solveLinear`'s `catch (SingularMatrixException)` arm: the SVD
+/// pseudo-inverse of the equilibrated Jacobian, writing the scaled solution
+/// into `y` for the caller to unscale.
+///
+/// `gauss_solve_into` eliminates in place, so the equilibrated matrix is
+/// rebuilt here rather than kept in a second buffer: this arm runs only where
+/// the block would otherwise have no Newton direction at all, and the G3b
+/// buffer discipline exists for the hot path, not for the rescue.
+///
+/// A `Singular` verdict from `gauss_solve_into` guarantees every Jacobian and
+/// right-hand-side entry was finite (it checks those first, and reports
+/// `NonFinite` instead), so the decomposition is fed the same finite matrix
+/// Commons Math would see.
+fn svd_fallback(
+    jacobian: &[Vec<f64>],
+    rhs: &[f64],
+    d: &[f64],
+    y: &mut [f64],
+) -> std::result::Result<(), LinearFailure> {
+    let n = rhs.len();
+    let equilibrated: crate::linalg::Mat = (0..n)
+        .map(|i| (0..n).map(|j| jacobian[i][j] * d[j]).collect())
+        .collect();
+    let solver =
+        crate::linalg::SvdSolver::new(&equilibrated).map_err(|_| LinearFailure::Singular)?;
+    let solved = solver.solve(rhs);
+    y.copy_from_slice(&solved);
     Ok(())
 }
 
@@ -1931,8 +2004,10 @@ mod tests {
 
     #[test]
     fn consistent_rank_deficient_system_is_regularized() {
-        // x + y = 2 and 2x + 2y = 4: singular but solvable. The undamped solve
-        // fails on the pivot; the damped rescue finds a least-squares point.
+        // x + y = 2 and 2x + 2y = 4: singular but solvable. The elimination
+        // fails on the pivot; the SVD pseudo-inverse (Java `solveLinear`'s
+        // `catch (SingularMatrixException)`) returns the minimum-norm
+        // least-squares direction, which lands on the solution line.
         let (x, report) = solve(
             |x, out| {
                 out[0] = x[0] + x[1] - 2.0;
@@ -2331,6 +2406,73 @@ mod tests {
         let step = solve_linear(&jacobian, &rhs).unwrap();
         assert!((step[0] - 1.0).abs() < 1e-12, "{step:?}");
         assert!((step[1] - 1.0).abs() < 1e-12, "{step:?}");
+    }
+
+    /// The exact equilibrated 2×2 the acceptance document
+    /// `solver-equilibration-coupled-block-…` produces at its second iteration
+    /// (`big ≈ 3990`, `small ≈ 1.996e-6`), captured out of `solve_linear_into`.
+    const TWELVE_DECADE_JACOBIAN: [[f64; 2]; 2] = [[1.0, 1.0e12], [-7.914585300241862e-12, 1.0]];
+    const TWELVE_DECADE_RHS: [f64; 2] = [4.128878936171532e-5, 1.9328344781864674e-6];
+
+    #[test]
+    fn equilibration_alone_does_not_save_a_twelve_decade_block() {
+        // Ledger item 40's real shape. Column equilibration is applied — and the
+        // equilibrated matrix is *still* singular to a partial-pivoting
+        // factorization, because the trailing pivot lands at 8.91e-12 against
+        // the 1e-11 threshold. Commons Math agrees exactly: on these same
+        // numbers `new LUDecomposition(jMat).getSolver().isNonSingular()` is
+        // `false` and `getDeterminant()` reads 0.0, which is why the Java's
+        // rescue is the SVD catch and not the scaling.
+        let jacobian: Vec<Vec<f64>> = TWELVE_DECADE_JACOBIAN.iter().map(|r| r.to_vec()).collect();
+        let equilibrated = vec![
+            vec![jacobian[0][0], jacobian[0][1] * 1.0e-12],
+            vec![jacobian[1][0], jacobian[1][1] * 1.0e-12],
+        ];
+        assert_eq!(
+            gauss_solve(equilibrated, TWELVE_DECADE_RHS.to_vec()),
+            Err(LinearFailure::Singular),
+            "the equilibrated matrix must still refuse to factor"
+        );
+    }
+
+    #[test]
+    fn solve_linear_falls_back_to_the_svd_pseudo_inverse_when_the_pivot_collapses() {
+        // The step the Java produces on exactly these numbers, measured by
+        // running Commons Math 3.6.1 on the reference repo's own classpath:
+        //     LU threw SingularMatrixException -> Java falls back to SVD
+        //       singular values = [1.414213562373095, 6.303563717266935E-12]
+        //       SVD step = [-216817.0939025889, 2.1681709394387769E-7]
+        let jacobian: Vec<Vec<f64>> = TWELVE_DECADE_JACOBIAN.iter().map(|r| r.to_vec()).collect();
+        let step = solve_linear(&jacobian, &TWELVE_DECADE_RHS)
+            .expect("the SVD fallback must produce a step");
+        assert!(
+            (step[0] - -216_817.093_902_588_9).abs() <= 1e-9 * 216_817.0,
+            "step = {step:?}"
+        );
+        assert!(
+            (step[1] - 2.168_170_939_438_776_9e-7).abs() <= 1e-9 * 2.17e-7,
+            "step = {step:?}"
+        );
+    }
+
+    #[test]
+    fn twelve_orders_of_magnitude_coupled_block_solves() {
+        // The reference's `SolverEquilibrationTest
+        // .coupledBlockWithTwelveOrdersOfMagnitudeScaleDisparitySolves`, as a
+        // bare residual pair: `big = 2e6 - 1e12*small`, `small = 1e-6*sqrt(big/1e6)`.
+        // Its assertions are the Java's own (`1.0` on `big`, `1e-12` on `small`).
+        let (x, report) = solve(
+            |x, out| {
+                out[0] = x[0] - (2.0e6 - 1.0e12 * x[1]);
+                out[1] = x[1] - 1.0e-6 * (x[0] / 1.0e6).sqrt();
+                Ok(())
+            },
+            &[1.0, 1.0],
+        );
+        let report = report.expect("the twelve-decade block must solve");
+        assert!(report.converged);
+        assert!((x[0] - 1.0e6).abs() <= 1.0, "x = {x:?}");
+        assert!((x[1] - 1.0e-6).abs() <= 1.0e-12, "x = {x:?}");
     }
 
     #[test]

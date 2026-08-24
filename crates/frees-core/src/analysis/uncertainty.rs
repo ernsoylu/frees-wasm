@@ -71,7 +71,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::ast::{Equation, Expr};
 use crate::diag::Result;
 use crate::eval::{eval_with, EvalContext, Scope};
-use crate::linalg::{self, Mat};
+use crate::linalg::{Mat, SvdSolver};
 
 /// Scope-key prefix under which a computed uncertainty is published so
 /// `UncertaintyOf(X)` queries can read it. Port of
@@ -597,54 +597,11 @@ fn set_source_uncertainties(
 // ---------------------------------------------------------------------------
 // The SVD least-squares solver
 // ---------------------------------------------------------------------------
-
-/// Commons Math's `SingularValueDecomposition.getSolver()`, which is a
-/// **pseudo-inverse**: `x = V · diag(1/σᵢ for σᵢ > tol) · Uᵀ · b`, never a
-/// singularity error. Singular values at or below the threshold are dropped, so
-/// a rank-deficient `Jy` yields the minimum-norm least-squares response instead
-/// of failing the solve.
-struct SvdSolver {
-    svd: linalg::Svd,
-    tol: f64,
-}
-
-impl SvdSolver {
-    fn new(a: &Mat) -> Result<SvdSolver> {
-        let svd = linalg::svd(a)?;
-        let rows = a.len();
-        let cols = a.first().map_or(0, Vec::len);
-        // Commons Math `SingularValueDecomposition`:
-        //     tol = max(m * singularValues[0] * EPS, sqrt(Precision.SAFE_MIN))
-        // where `m` is the LARGER dimension (the constructor transposes so that
-        // "m is always the largest dimension"), `EPS` is `0x1.0p-52`
-        // (`f64::EPSILON`) and `SAFE_MIN` is `0x1.0p-1022`
-        // (`f64::MIN_POSITIVE`).
-        let m = rows.max(cols) as f64;
-        let s0 = svd.s.first().copied().unwrap_or(0.0);
-        let tol = (m * s0 * f64::EPSILON).max(f64::MIN_POSITIVE.sqrt());
-        Ok(SvdSolver { svd, tol })
-    }
-
-    /// `pinv(A) · b`, with `b` indexed by row of the decomposed matrix.
-    fn solve(&self, b: &[f64]) -> Vec<f64> {
-        let n = self.svd.v.len();
-        let mut x = vec![0.0; n];
-        for (k, &s) in self.svd.s.iter().enumerate() {
-            if !(s > self.tol) {
-                continue;
-            }
-            let mut dot = 0.0;
-            for (i, bi) in b.iter().enumerate() {
-                dot += self.svd.u[i][k] * bi;
-            }
-            let coefficient = dot / s;
-            for (i, xi) in x.iter_mut().enumerate() {
-                *xi += coefficient * self.svd.v[i][k];
-            }
-        }
-        x
-    }
-}
+//
+// Commons Math's `SingularValueDecomposition.getSolver()` lives in
+// [`crate::linalg::SvdSolver`]. It used to be a private copy here; ledger item
+// 40 gave `solver::newton` a second caller for exactly the same Commons Math
+// semantics, and two transcriptions of one Java class is how they drift apart.
 
 // ---------------------------------------------------------------------------
 // The two-pass orchestration

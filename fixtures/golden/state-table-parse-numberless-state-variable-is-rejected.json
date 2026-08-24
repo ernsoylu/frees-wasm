@@ -1,0 +1,18 @@
+{
+  "name": "state-table-parse-numberless-state-variable-is-rejected",
+  "source": "STATE TABLE Refrig(T1, P1, xrefg)\n  FLUID = R134a\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "STATE TABLE 'Refrig': variable 'xrefg' has no state number. State variables must be numbered (e.g. xrefg1 or xrefg[1])."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

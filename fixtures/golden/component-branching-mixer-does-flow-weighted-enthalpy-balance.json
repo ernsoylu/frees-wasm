@@ -1,0 +1,39 @@
+{
+  "name": "component-branching-mixer-does-flow-weighted-enthalpy-balance",
+  "source": "Mixer M1(s1, s2, s3)\ns1.P = 200000;   s1.mdot = 2;   s1.h = 100000\ns2.P = 200000;   s2.mdot = 3;   s2.h = 50000\n",
+  "expect": {
+    "variables": {
+      "s1.h": 100000.0,
+      "s1.mdot": 2.0,
+      "s1.p": 200000.0,
+      "s2.h": 50000.0,
+      "s2.mdot": 3.0,
+      "s2.p": 200000.0,
+      "s3.h": 70000.0,
+      "s3.mdot": 5.0,
+      "s3.p": 200000.0
+    },
+    "display_names": {
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p",
+      "s3": "s3",
+      "s3$h": "s3.h",
+      "s3$mdot": "s3.mdot",
+      "s3$p": "s3.p"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

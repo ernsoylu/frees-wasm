@@ -1,0 +1,15 @@
+COMPONENT SigConst(out)
+  PARAM k
+  out.sig = k
+END
+COMPONENT SigGain(in, out)
+  PARAM k
+  out.sig = k * in.sig
+END
+COMPONENT SigSum(in1, in2, out)
+  out.sig = in1.sig + in2.sig
+END
+SigConst SRC(k=2)
+SigGain  A(k=3)
+SigGain  B(k=5)
+connect(SRC.out, A.in, B.in)

@@ -1,0 +1,32 @@
+{
+  "name": "bitwise-and-special-math-test-special-math-functions",
+  "source": "a = erf(0)\nb = erfc(0)\nc = gamma(4)\nd = loggamma(4)\ne = beta(2, 3)\nf = besselj(2.5, 0)\ng = erfinv(0.5)\n",
+  "expect": {
+    "variables": {
+      "a": 0.0,
+      "b": 1.0,
+      "c": 6.0,
+      "d": 1.791759469228055,
+      "e": 0.08333333333333333,
+      "f": -0.04838377646819804,
+      "g": 0.47693627620446977
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e",
+      "f": "f",
+      "g": "g"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

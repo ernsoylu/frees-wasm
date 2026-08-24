@@ -1,0 +1,28 @@
+{
+  "name": "fluid-property-examples-example3-8-approximating-compressed-liquid-as-saturated-liquid",
+  "source": "T1 = 353.15\nP1 = 5000000\nu_exact = IntEnergy(Water, T=T1, P=P1)\nu_approx = IntEnergy(Water, T=T1, x=0)\nerr_pct = (u_approx - u_exact) / u_exact * 100\n",
+  "expect": {
+    "variables": {
+      "P1": 5000000.0,
+      "T1": 353.15,
+      "err_pct": 0.34218674814755257,
+      "u_approx": 334963.56119421596,
+      "u_exact": 333821.2690490322
+    },
+    "display_names": {
+      "err_pct": "err_pct",
+      "p1": "P1",
+      "t1": "T1",
+      "u_approx": "u_approx",
+      "u_exact": "u_exact"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

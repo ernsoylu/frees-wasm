@@ -1,0 +1,3 @@
+LiquidPipe LP(fluid$=Water, L=1, D=0.01, rough=0.0)
+Pipe FP(fluid$=Water, L=1, D=0.01, rough=0.0)
+connect(LP.out, FP.in)

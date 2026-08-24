@@ -1,0 +1,7 @@
+VoltageSource VS(E=5)
+Diode         D(Gon=10, eps=0.001)
+Resistor      R(R=1)
+Ground        G()
+connect(VS.p, D.p)
+connect(D.n, R.a)
+connect(R.b, VS.n, G.port)

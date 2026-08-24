@@ -1,0 +1,5 @@
+ThermalSource SH(T=400)
+Conduction   WALL(k=50, area=0.1, L=0.02)
+ThermalSource SC(T=300)
+connect(SH.port, WALL.a)
+connect(WALL.b, SC.port)

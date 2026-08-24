@@ -1,0 +1,15 @@
+COMPONENT Mapped(in, out)
+  PARAM k, curve$
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h * curve$(k)
+END
+TABLE dbl(x)
+  1   2
+  2   4
+  3   6
+END
+Mapped M1(k=2, curve$=dbl)
+M1.in.mdot = 1
+M1.in.P    = 100
+M1.in.h    = 10

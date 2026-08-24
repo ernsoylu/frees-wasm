@@ -1,0 +1,24 @@
+{
+  "name": "solid-and-string-functions-numeric-string-functions",
+  "source": "n = StringLen('frees')\np = StringPos('hello world', 'world')\nv = StringVal('3.14')\n",
+  "expect": {
+    "variables": {
+      "n": 5.0,
+      "p": 7.0,
+      "v": 3.14
+    },
+    "display_names": {
+      "n": "n",
+      "p": "p",
+      "v": "v"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "dynamic-ida-solve-ida-method-without-library-fails-clearly",
+  "source": "DYNAMIC d (method = ida, time = 0 .. 1, points = 11)\n  der(x) = -x\n  x(0) = 1\nEND\n",
+  "expect": {
+    "variables": {
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 0,
+    "ode_tables": [
+      {
+        "name": "d",
+        "method": "ida",
+        "stopped": false,
+        "end_time": 1.0,
+        "columns": ["time", "x"],
+        "rows": [
+          [0.0, 1.0],
+          [0.1, 0.9048369131994384],
+          [0.2, 0.8187311864128154],
+          [0.3, 0.7408191754380429],
+          [0.4, 0.6703206938727175],
+          [0.5, 0.606531399436934],
+          [0.6, 0.548812757323126],
+          [0.7, 0.49658622499555455],
+          [0.8, 0.4493295887702343],
+          [0.9, 0.40657009538361416],
+          [1.0, 0.36787972154280363]
+        ],
+        "events": [
+        ]
+      }
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

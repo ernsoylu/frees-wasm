@@ -1,0 +1,28 @@
+{
+  "name": "component-connections-shared-stream-junctions-surface-as-edges",
+  "source": "COMPONENT Batt(p)\np.v = 12\nEND\nCOMPONENT Load(a, b)\na.i = (a.v - b.v) / 10\nb.i = 0 - a.i\nEND\nCOMPONENT Gnd(g)\ng.v = 0\nEND\nBatt B(n1)\nLoad L(n1, n2)\nGnd G(n2)\n",
+  "expect": {
+    "variables": {
+      "n1.i": 1.2,
+      "n1.v": 12.0,
+      "n2.i": -1.2,
+      "n2.v": 0.0
+    },
+    "display_names": {
+      "n1": "n1",
+      "n1$i": "n1.i",
+      "n1$v": "n1.v",
+      "n2": "n2",
+      "n2$i": "n2.i",
+      "n2$v": "n2.v"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

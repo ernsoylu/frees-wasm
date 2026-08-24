@@ -576,6 +576,32 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     Wave C1 amendment to
     [D9](decisions/0009-rustprop-backend.md).
 
+40. **Newton does not equilibrate a badly-scaled block; the Java does**
+    (found 2026-08-24, Wave J, `SolverEquilibrationTest`). The two-equation
+    document
+
+    ```
+    big   = 2e6 - 1e12 * small
+    small = 1e-6 * sqrt(big / 1e6)
+    ```
+
+    spans twelve orders of magnitude between its unknowns. The Java solves
+    it; this port stops after **one** iteration with "no full, halved or
+    damped step reduces the residual (norm 4.13e-5) — the Jacobian is
+    singular". The Jacobian is not singular in exact arithmetic: its entries
+    differ by ~1e12, so the partial-pivot LU sees the small row as noise
+    against the large one. The reference's Newton scales the block (row/column
+    equilibration) before factorising and this one does not. The harvested
+    document is **not** staged — a fixture would pin the refusal, not the
+    behaviour — and it is named here so a future equilibration change has its
+    acceptance test:
+    `SolverEquilibrationTest.coupledBlockWithTwelveOrdersOfMagnitudeScaleDisparitySolves`
+    in the reference repo. Four other Wave-J documents diverge structurally
+    in the same not-a-tolerance way (two zone-HX guess-landscape cases, an
+    IDA first-step failure, and a NaN out of the zeotropic-blend property
+    chain); `fixtures/README.md` growth item 3 lists all five with their
+    exact failures.
+
 ## Commands
 
 ```bash

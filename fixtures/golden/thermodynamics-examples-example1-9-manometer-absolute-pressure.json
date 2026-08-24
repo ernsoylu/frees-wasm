@@ -1,0 +1,36 @@
+{
+  "name": "thermodynamics-examples-example1-9-manometer-absolute-pressure",
+  "source": "{ Worked example: manometer pressure }\nSG = 0.85                      { specific gravity of manometer fluid }\nrho_water = 1000 [kg/m^3]      { standard density of water }\nrho = SG * rho_water           { manometer fluid density }\nh = 55 [cm]                    { column height -> m }\ng = 9.81 [m/s^2]               { gravitational acceleration }\nP_atm = 96 [kPa]               { atmospheric pressure -> Pa }\nP = P_atm + rho * g * h\nP_kPa = P * Convert(Pa, kPa)\nP_gage = P - P_atm\n",
+  "expect": {
+    "variables": {
+      "P": 100586.175,
+      "P_atm": 96000.0,
+      "P_gage": 4586.175000000003,
+      "P_kPa": 100.58617500000001,
+      "SG": 0.85,
+      "g": 9.81,
+      "h": 0.55,
+      "rho": 850.0,
+      "rho_water": 1000.0
+    },
+    "display_names": {
+      "g": "g",
+      "h": "h",
+      "p": "P",
+      "p_atm": "P_atm",
+      "p_gage": "P_gage",
+      "p_kpa": "P_kPa",
+      "rho": "rho",
+      "rho_water": "rho_water",
+      "sg": "SG"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

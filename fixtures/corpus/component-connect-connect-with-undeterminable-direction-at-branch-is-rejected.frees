@@ -1,0 +1,5 @@
+COMPONENT Node3(a, b, c)
+  drain = a.mdot
+END
+Node3 N(a, b, c)
+connect(N.a, N.b, N.c)

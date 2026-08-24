@@ -1,0 +1,7 @@
+{ Worked example: weight on the moon }
+W_dot = 30 [kW]                  { rated power -> W }
+hours = 2200 [h]                 { operating time -> s }
+unitcost = 0.12                  { $/kWh }
+E_total = W_dot * hours          { J per year }
+E_kWh = E_total * Convert(J, kWh)
+money = E_kWh * unitcost         { $ per year }

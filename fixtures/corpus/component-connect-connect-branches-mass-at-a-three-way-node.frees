@@ -1,0 +1,17 @@
+COMPONENT Source(out)
+  PARAM mdot, P, h
+  out.mdot = mdot
+  out.P    = P
+  out.h    = h
+END
+COMPONENT Draw(in)
+  PARAM mdot
+  in.mdot = mdot
+END
+COMPONENT Sink(in)
+  drain = in.mdot
+END
+Source S(mdot=3, P=100000, h=5000)
+Draw   D1(mdot=1)
+Sink   D2()
+connect(S.out, D1.in, D2.in)

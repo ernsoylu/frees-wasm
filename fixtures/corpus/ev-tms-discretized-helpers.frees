@@ -1,0 +1,14 @@
+// flow-weighted collecting junction (liquid domain has no shipped mixer)
+COMPONENT LiqMix(in1, in2, out)
+  PARAM domain$ = liquid
+  out.P    = in1.P
+  in2.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+// lumped thermal mass with internal heat generation + a heat port
+COMPONENT MassGen(port)
+  PARAM C, Qgen, T0
+  der(port.T)  = (Qgen + port.Qdot) / C
+  init(port.T) = T0
+END

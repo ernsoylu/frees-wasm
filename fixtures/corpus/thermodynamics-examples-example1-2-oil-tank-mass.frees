@@ -1,0 +1,4 @@
+{ Worked example: tank mass and weight }
+rho = 850 [kg/m^3]   { oil density }
+V = 2 [m^3]          { tank volume }
+m = rho * V          { mass in the tank }

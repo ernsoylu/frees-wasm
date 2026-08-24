@@ -1,0 +1,20 @@
+COMPONENT Pump2(in, out)
+  PARAM dP
+  out.mdot = in.mdot
+  out.P    = in.P + dP
+  out.h    = in.h
+END
+COMPONENT Pipe2(in, out)
+  PARAM dP
+  out.mdot = in.mdot
+  out.P    = in.P - dP
+  out.h    = in.h
+END
+Pump2 P(dP=50000)
+Pipe2 L(dP=50000)
+connect(P.out, L.in)
+connect(L.out, P.in)
+
+P.in.P    = 100000
+P.in.mdot = 5
+P.in.h    = 1000

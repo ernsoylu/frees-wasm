@@ -1,0 +1,5 @@
+T_react = 298.15
+T_ad = AdiabaticFlameTemp('CH4', 1.0, T_react)
+M_air = mix_mw('N2:0.79, O2:0.21')
+cp_air = mix_cp('N2:0.79, O2:0.21', 300)
+xb = wiebe(20, 0, 60, 5, 2)

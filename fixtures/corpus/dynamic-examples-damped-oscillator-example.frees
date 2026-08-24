@@ -1,0 +1,12 @@
+m = 1.0
+k = 20.0
+c = 0.5
+DYNAMIC oscillator (method = ode45, t = 0 .. 20, points = 400, rtol = 1e-9)
+  der(x) = v
+  der(v) = -(c/m) * v - (k/m) * x
+  energy = 0.5 * m * v*v + 0.5 * k * x*x
+  x(0) = 1.0
+  v(0) = 0.0
+END
+x_settled = FinalValue('x')
+E0        = ODEValue('energy', 0)

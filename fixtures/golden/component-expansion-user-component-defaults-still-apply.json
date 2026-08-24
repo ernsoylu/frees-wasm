@@ -1,0 +1,29 @@
+{
+  "name": "component-expansion-user-component-defaults-still-apply",
+  "source": "COMPONENT Bumper(in, out)\n  PARAM gain = 3\n  out.mdot = in.mdot\n  out.x = in.x * gain\nEND\nBumper B1(s1, s2)\ns1.mdot = 1\ns1.x = 2\n",
+  "expect": {
+    "variables": {
+      "s1.mdot": 1.0,
+      "s1.x": 2.0,
+      "s2.mdot": 1.0,
+      "s2.x": 6.0
+    },
+    "display_names": {
+      "gain": "gain",
+      "s1": "s1",
+      "s1$mdot": "s1.mdot",
+      "s1$x": "s1.x",
+      "s2": "s2",
+      "s2$mdot": "s2.mdot",
+      "s2$x": "s2.x"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,5 @@
+HeatExchanger HX(h_in, h_out, c_in, c_out, UA=5000 [W/K], hot$=Water, cold$=Water, arr$=counterflow)
+h_in.P = 200000 [Pa];   h_in.mdot = 2 [kg/s]
+h_in.h = Enthalpy(Water, T=350 [K], P=200000 [Pa])
+c_in.P = 200000 [Pa];   c_in.mdot = 3 [kg/s]
+c_in.h = Enthalpy(Water, T=290 [K], P=200000 [Pa])

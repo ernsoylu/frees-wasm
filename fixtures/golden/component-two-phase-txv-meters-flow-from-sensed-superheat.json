@@ -1,0 +1,58 @@
+{
+  "name": "component-two-phase-txv-meters-flow-from-sensed-superheat",
+  "source": "COMPONENT RSrc(out)\n  PARAM P, h0, domain$ = twophase\n  out.P = P\n  out.h = h0\nEND\nCOMPONENT PSink(in)\n  PARAM P, domain$ = twophase\n  in.P = P\nEND\nRSrc          SRC(P=900000, h0=270000)\nTXVSuperheat  TXV(fluid$=R134a, Kv=0.001, SH_set=5)\nPSink         SNK(P=300000)\nThermalSource BULB(T=283.15)\nconnect(SRC.out, TXV.in)\nconnect(TXV.out, SNK.in)\nconnect(TXV.bulb, BULB.port)\n",
+  "expect": {
+    "variables": {
+      "bulb.port.qdot": 0.0,
+      "bulb.port.t": 283.15,
+      "snk.in.h": 270000.0,
+      "snk.in.mdot": 0.00432793626219717,
+      "snk.in.p": 300000.0,
+      "src.out.h": 270000.0,
+      "src.out.mdot": 0.00432793626219717,
+      "src.out.p": 900000.0,
+      "txv.bulb.qdot": 0.0,
+      "txv.bulb.t": 283.15,
+      "txv.in.h": 270000.0,
+      "txv.in.mdot": 0.00432793626219717,
+      "txv.in.p": 900000.0,
+      "txv.out.h": 270000.0,
+      "txv.out.mdot": 0.00432793626219717,
+      "txv.out.p": 300000.0,
+      "txv.sh": 9.32793626219717,
+      "txv.t_sat": 273.8220637378028
+    },
+    "display_names": {
+      "bulb$port$qdot": "bulb.port.qdot",
+      "bulb$port$t": "bulb.port.t",
+      "h0": "h0",
+      "p": "P",
+      "r134a": "R134a",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "twophase": "twophase",
+      "txv$bulb$qdot": "txv.bulb.qdot",
+      "txv$bulb$t": "txv.bulb.t",
+      "txv$in$h": "txv.in.h",
+      "txv$in$mdot": "txv.in.mdot",
+      "txv$in$p": "txv.in.p",
+      "txv$out$h": "txv.out.h",
+      "txv$out$mdot": "txv.out.mdot",
+      "txv$out$p": "txv.out.p",
+      "txv$sh": "txv.sh",
+      "txv$t_sat": "txv.t_sat"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

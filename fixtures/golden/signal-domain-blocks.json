@@ -1,0 +1,18 @@
+{
+  "name": "signal-domain-blocks",
+  "source": "COMPONENT SigConst(out)\n  PARAM k\n  out.sig = k\nEND\nCOMPONENT SigGain(in, out)\n  PARAM k\n  out.sig = k * in.sig\nEND\nCOMPONENT SigSum(in1, in2, out)\n  out.sig = in1.sig + in2.sig\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

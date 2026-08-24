@@ -1,0 +1,32 @@
+{
+  "name": "component-map-string-param-bakes-as-table-call-name",
+  "source": "COMPONENT Mapped(in, out)\n  PARAM k, curve$\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h * curve$(k)\nEND\nTABLE dbl(x)\n  1   2\n  2   4\n  3   6\nEND\nMapped M1(k=2, curve$=dbl)\nM1.in.mdot = 1\nM1.in.P    = 100\nM1.in.h    = 10\n",
+  "expect": {
+    "variables": {
+      "m1.in.h": 10.0,
+      "m1.in.mdot": 1.0,
+      "m1.in.p": 100.0,
+      "m1.out.h": 40.0,
+      "m1.out.mdot": 1.0,
+      "m1.out.p": 100.0
+    },
+    "display_names": {
+      "dbl": "dbl",
+      "k": "k",
+      "m1$in$h": "m1.in.h",
+      "m1$in$mdot": "m1.in.mdot",
+      "m1$in$p": "m1.in.p",
+      "m1$out$h": "m1.out.h",
+      "m1$out$mdot": "m1.out.mdot",
+      "m1$out$p": "m1.out.p"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "bitwise-and-special-math-test-new-bessel-and-chi-square",
+  "source": "j0_val = bessel_j0(2)\nj1_val = bessel_j1(2)\ni0_val = bessel_i0(2)\ni1_val = bessel_i1(2)\nk0_val = bessel_k0(2)\nk1_val = bessel_k1(2)\ny0_val = bessel_y0(2)\ny1_val = bessel_y1(2)\n\nk_order2 = bessel_k(2, 2)\ny_order2 = bessel_y(2, 2)\n\nchi2_val = chi_square(4, 2)\n",
+  "expect": {
+    "variables": {
+      "chi2_val": 0.8646647167633873,
+      "i0_val": 2.279585307296026,
+      "i1_val": 1.5906368572633083,
+      "j0_val": 0.2238907819085722,
+      "j1_val": 0.5767248078962938,
+      "k0_val": 0.11389388,
+      "k1_val": 0.13986588,
+      "k_order2": 0.25375976,
+      "y0_val": 0.5103756667370131,
+      "y1_val": -0.1070324316480381,
+      "y_order2": -0.6174080983850512
+    },
+    "display_names": {
+      "chi2_val": "chi2_val",
+      "i0_val": "i0_val",
+      "i1_val": "i1_val",
+      "j0_val": "j0_val",
+      "j1_val": "j1_val",
+      "k0_val": "k0_val",
+      "k1_val": "k1_val",
+      "k_order2": "k_order2",
+      "y0_val": "y0_val",
+      "y1_val": "y1_val",
+      "y_order2": "y_order2"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

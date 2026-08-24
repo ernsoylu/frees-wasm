@@ -1,0 +1,6 @@
+LiquidSource S(fluid$=Water, mdot=0.1, P=200000, T=300)
+LiquidPump P(eta=0.7, fluid$=Water)
+LiquidSink K()
+connect(S.out, P.in)
+connect(P.out, K.in)
+P.out.P = 400000

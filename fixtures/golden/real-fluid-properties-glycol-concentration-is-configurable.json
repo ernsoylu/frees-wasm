@@ -1,0 +1,26 @@
+{
+  "name": "real-fluid-properties-glycol-concentration-is-configurable",
+  "source": "rho10 = Density(EG10, T=293.15, P=101325)\nrho50 = Density(EG50, T=293.15, P=101325)\ncp10 = Cp(EG10, T=293.15, P=101325)\ncp50 = Cp(EG50, T=293.15, P=101325)\n",
+  "expect": {
+    "variables": {
+      "cp10": 4045.8587434905658,
+      "cp50": 3312.0419037405695,
+      "rho10": 1010.5788992741457,
+      "rho50": 1064.9286628298255
+    },
+    "display_names": {
+      "cp10": "cp10",
+      "cp50": "cp50",
+      "rho10": "rho10",
+      "rho50": "rho50"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

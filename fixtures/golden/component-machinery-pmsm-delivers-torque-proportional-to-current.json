@@ -1,0 +1,56 @@
+{
+  "name": "component-machinery-pmsm-delivers-torque-proportional-to-current",
+  "source": "VoltageSource    VS(E=48)\nPMSM             M(Rs=0.5, lambda_pm=0.1, poles=4)\nRotationalDamper LOAD(c=0.05)\nGround           G()\nMechGround       MG()\nconnect(VS.p, M.p)\nconnect(VS.n, M.n, G.port)\nconnect(M.shaft, LOAD.a)\nconnect(LOAD.b, MG.port)\n",
+  "expect": {
+    "variables": {
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "load.a.tau": 3.7402597402597397,
+      "load.a.w": 74.80519480519479,
+      "load.b.tau": -3.7402597402597397,
+      "load.b.w": 0.0,
+      "m.kt": 0.6000000000000001,
+      "m.n.i": -6.233766233766232,
+      "m.n.v": 0.0,
+      "m.p.i": 6.233766233766232,
+      "m.p.v": 48.0,
+      "m.shaft.tau": -3.7402597402597397,
+      "m.shaft.w": 74.80519480519479,
+      "mg.port.tau": 3.7402597402597397,
+      "mg.port.w": 0.0,
+      "vs.n.i": 6.233766233766232,
+      "vs.n.v": 0.0,
+      "vs.p.i": -6.233766233766232,
+      "vs.p.v": 48.0
+    },
+    "display_names": {
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "load$a$tau": "load.a.tau",
+      "load$a$w": "load.a.w",
+      "load$b$tau": "load.b.tau",
+      "load$b$w": "load.b.w",
+      "m$kt": "m.kt",
+      "m$n$i": "m.n.i",
+      "m$n$v": "m.n.v",
+      "m$p$i": "m.p.i",
+      "m$p$v": "m.p.v",
+      "m$shaft$tau": "m.shaft.tau",
+      "m$shaft$w": "m.shaft.w",
+      "mg$port$tau": "mg.port.tau",
+      "mg$port$w": "mg.port.w",
+      "vs$n$i": "vs.n.i",
+      "vs$n$v": "vs.n.v",
+      "vs$p$i": "vs.p.i",
+      "vs$p$v": "vs.p.v"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

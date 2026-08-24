@@ -1,0 +1,4 @@
+h1 = Enthalpy(R134a, T=300, x=1)
+s1 = Entropy(R134a, T=300, x=1)
+P1 = Pressure(R134a, T=300, x=1)
+v1 = Volume(R134a, T=300, x=1)

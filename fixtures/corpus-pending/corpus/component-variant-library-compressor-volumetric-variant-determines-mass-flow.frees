@@ -1,0 +1,4 @@
+Compressor K(s1, s2, model$=volumetric, eta=0.8, fluid$=R134a, eta_v=0.9, disp=30e-6, rpm=3000)
+s1.P = 200000
+s1.T = 283.15
+s2.P = 1000000

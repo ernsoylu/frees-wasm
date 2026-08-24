@@ -1,0 +1,3 @@
+UA_rad = 361.5
+LiquidWallHX RAD1(fluid$=EG50, UA=UA_rad)
+LiquidWallHX RAD2(fluid$=EG50, UA=UA_rad)

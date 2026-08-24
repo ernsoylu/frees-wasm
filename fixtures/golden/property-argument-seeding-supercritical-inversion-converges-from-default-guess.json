@@ -1,0 +1,24 @@
+{
+  "name": "property-argument-seeding-supercritical-inversion-converges-from-default-guess",
+  "source": "P = 30000000 [Pa]\nT = 753.15 [K]\nT = Temperature(Water, P=P, h=h)\n",
+  "expect": {
+    "variables": {
+      "P": 3.0E7,
+      "T": 753.15,
+      "h": 2992048.1679601395
+    },
+    "display_names": {
+      "h": "h",
+      "p": "P",
+      "t": "T"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

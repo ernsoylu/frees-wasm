@@ -1,0 +1,18 @@
+{
+  "name": "component-metadata-resolves-variable-literal-and-string-param-bindings",
+  "source": "UA_chl_r = 575.46\nTwoPhaseEvaporatorUA CHLR(fluid$=R1234yf, UA=UA_chl_r, SH=5)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'chlr' (twophaseevaporatorua): parameter 'dp' has no value (give it a default or pass dp=value)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

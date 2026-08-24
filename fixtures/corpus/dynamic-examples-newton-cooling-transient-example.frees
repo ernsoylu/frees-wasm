@@ -1,0 +1,10 @@
+k     = 0.012
+T_inf = 22
+DYNAMIC cooling (method = ode45, time = 0 .. 300, points = 200, rtol = 1e-8)
+  der(T) = -k * (T - T_inf)
+  T(0)   = 90
+  rate   = -der(T)
+END
+T_final = FinalValue('T')
+T_peak  = MaxValue('T')
+t_half  = TimeAt('T', 56)

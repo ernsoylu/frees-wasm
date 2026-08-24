@@ -1,0 +1,28 @@
+{
+  "name": "cubic-eos-wired-through-solver",
+  "source": "T = 320\nP = 4e6\nZ = eos_z('co2', 'PR', T, P, 'vapor')\nrho = eos_density('co2', 'PR', T, P, 'vapor')\nPsat = eos_psat('propane', 'PR', 300)\n",
+  "expect": {
+    "variables": {
+      "P": 4000000.0,
+      "Psat": 997556.2469315403,
+      "T": 320.0,
+      "Z": 0.8087901683055375,
+      "rho": 81.80716323211284
+    },
+    "display_names": {
+      "p": "P",
+      "psat": "Psat",
+      "rho": "rho",
+      "t": "T",
+      "z": "Z"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

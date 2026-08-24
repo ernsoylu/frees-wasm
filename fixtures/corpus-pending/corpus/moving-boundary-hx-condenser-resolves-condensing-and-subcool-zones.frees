@@ -1,0 +1,7 @@
+MovingBoundaryCondenser CD(fluid$=R134a, U_cond=2500, U_sc=300, D=0.01, L=8, eps_zone=0.01)
+TwoPhaseSourcePH SRC(mdot=0.02, P=900000, h=445000)
+TwoPhaseSink SNK()
+ThermalSource WALL(T=300)
+connect(SRC.out, CD.in)
+connect(CD.out, SNK.in)
+connect(CD.wall, WALL.port)

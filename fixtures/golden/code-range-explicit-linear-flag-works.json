@@ -1,0 +1,29 @@
+{
+  "name": "code-range-explicit-linear-flag-works",
+  "source": "x = -50:50:50 | Linear\na = x[1]\nb = x[3]\n",
+  "expect": {
+    "variables": {
+      "a": -50.0,
+      "b": 50.0,
+      "x[1]": -50.0,
+      "x[2]": 0.0,
+      "x[3]": 50.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "x": "x",
+      "x[1]": "x[1]",
+      "x[2]": "x[2]",
+      "x[3]": "x[3]"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

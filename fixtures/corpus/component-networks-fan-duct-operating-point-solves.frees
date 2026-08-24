@@ -1,0 +1,8 @@
+// Fan–duct operating point (incompressible flow network)
+P_atm = 101325 [Pa]
+
+FanCurve F1(a, b, rho=1.2 [kg/m^3], dP0=500 [Pa], Q0=1.5 [m^3/s])
+Duct     D1(b, c, rho=1.2 [kg/m^3], mu=1.8e-5 [Pa-s], L=100 [m], D=0.3 [m], rough=0.000045 [m])
+
+a.P = P_atm
+c.P = P_atm

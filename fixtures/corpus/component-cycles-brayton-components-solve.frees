@@ -1,0 +1,18 @@
+// Brayton Cycle — built from standard components
+P1 = 100000 [Pa]
+P2 = 1000000 [Pa]
+T_in  = 300 [K]
+T_fire = 1400 [K]
+
+Compressor C1(s1, s2, eta=0.82, fluid$=Air)
+Boiler     B1(s2, s3)
+Turbine    T1(s3, s4, eta=0.85, fluid$=Air)
+
+s1.P    = P1
+s1.h    = Enthalpy(Air, T=T_in, P=P1)
+s1.mdot = 1 [kg/s]
+s2.P    = P2
+s3.h    = Enthalpy(Air, T=T_fire, P=P2)
+s4.P    = P1
+
+eta_th = (T1.W - C1.W) / B1.Q

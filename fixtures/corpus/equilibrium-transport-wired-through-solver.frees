@@ -1,0 +1,4 @@
+mu_air  = mix_viscosity('N2:0.79, O2:0.21', 300)
+k_air   = mix_conductivity('N2:0.79, O2:0.21', 300)
+x_CO    = eq_molefraction('CH4', 1.0, 2300, 101325, 'CO')
+T_flame = AdiabaticFlameTempEq('CH4', 1.0, 298.15, 101325)

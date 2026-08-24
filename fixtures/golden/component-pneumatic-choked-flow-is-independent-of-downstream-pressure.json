@@ -1,0 +1,45 @@
+{
+  "name": "component-pneumatic-choked-flow-is-independent-of-downstream-pressure",
+  "source": "PneumaticSupply     SUP(fluid$=Air, P=700000, T=300)\nPneumaticOrifice    ORI(fluid$=Air, C=1e-8, b=0.3)\nPneumaticAtmosphere ATM(P=50000)\nconnect(SUP.out, ORI.in)\nconnect(ORI.out, ATM.port)\n",
+  "expect": {
+    "variables": {
+      "atm.port.h": 424949.973620621,
+      "atm.port.mdot": 0.008199751902496794,
+      "atm.port.p": 50000.0,
+      "ori.in.h": 424949.973620621,
+      "ori.in.mdot": 0.008199751902496794,
+      "ori.in.p": 700000.0,
+      "ori.out.h": 424949.973620621,
+      "ori.out.mdot": 0.008199751902496794,
+      "ori.out.p": 50000.0,
+      "ori.t_in": 300.0000000000009,
+      "sup.out.h": 424949.973620621,
+      "sup.out.mdot": 0.008199751902496794,
+      "sup.out.p": 700000.0
+    },
+    "display_names": {
+      "air": "Air",
+      "atm$port$h": "atm.port.h",
+      "atm$port$mdot": "atm.port.mdot",
+      "atm$port$p": "atm.port.p",
+      "ori$in$h": "ori.in.h",
+      "ori$in$mdot": "ori.in.mdot",
+      "ori$in$p": "ori.in.p",
+      "ori$out$h": "ori.out.h",
+      "ori$out$mdot": "ori.out.mdot",
+      "ori$out$p": "ori.out.p",
+      "ori$t_in": "ori.t_in",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

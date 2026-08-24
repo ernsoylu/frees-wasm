@@ -1,0 +1,46 @@
+{
+  "name": "component-branching-split-then-mix-closes-mass-and-energy",
+  "source": "Splitter SP(s1, s2, s3)\nMixer    MX(s2, s3, s4)\ns1.P = 100000;   s1.mdot = 4;   s1.h = 60000\ns2.mdot = 1.5\n",
+  "expect": {
+    "variables": {
+      "s1.h": 60000.0,
+      "s1.mdot": 4.0,
+      "s1.p": 100000.0,
+      "s2.h": 60000.0,
+      "s2.mdot": 1.5,
+      "s2.p": 100000.0,
+      "s3.h": 60000.0,
+      "s3.mdot": 2.5,
+      "s3.p": 100000.0,
+      "s4.h": 60000.0,
+      "s4.mdot": 4.0,
+      "s4.p": 100000.0
+    },
+    "display_names": {
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p",
+      "s3": "s3",
+      "s3$h": "s3.h",
+      "s3$mdot": "s3.mdot",
+      "s3$p": "s3.p",
+      "s4": "s4",
+      "s4$h": "s4.h",
+      "s4$mdot": "s4.mdot",
+      "s4$p": "s4.p"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

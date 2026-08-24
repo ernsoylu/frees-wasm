@@ -5,11 +5,11 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 998
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1253
 fixtures/corpus/*.tables.json  request-level Function Tables for the document
                                beside them (10 — the curvefn group; see below)
-fixtures/golden/*.json         what the Java engine produced for each     — 998
-fixtures/corpus-pending/       the staging area: documents not yet promoted — 5
+fixtures/golden/*.json         what the Java engine produced for each     — 1253
+fixtures/corpus-pending/       the staging area: documents not yet promoted — 24
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -467,6 +467,125 @@ Extend it further from, in rough order of value:
    count-only, out of scope), 28 a-specs sites (`VariableSpec` guess/bounds
    overrides — a fixture-format gap nothing currently needs), 10 a-settings
    sites, and the 36 unresolvable arguments above.)*
+
+   **The sweep is done — 2026-08-24, Wave J. Corpus 983 → 1238.** Wave I's
+   correction was right and its estimate was close: the real figures, from
+   `harvest.py --inventory` over the whole tree, are **138 of the 197 test
+   classes hold a harvestable document, 23 were named in `CLASSES`, and 115
+   were never listed at all** (114 are now swept by name; `ValidationSuiteTest`
+   is the one `SKIP_CLASSES` entry, because item 5 below already harvests its
+   documents verbatim from the resource directory) — 540 solve-call sites
+   (504 resolve) and 337
+   text blocks tree-wide, of which 307 sites and 235 blocks sat outside
+   `CLASSES`. So the class list stopped being the sweep: `swept_classes()`
+   now walks `JAVA_TEST_ROOT` and harvests **every** class, `CLASSES` only
+   pins the prefix (and extraction preference) for the pre-Wave-J names so a
+   re-run cannot restage the promoted corpus under new stems, and a class
+   derives `component-moist-air`-style prefixes from its own name otherwise.
+   Four guards joined the existing ones. `SKIP_SITE_TAGS` drops the sites
+   the Wave-I inventory classified as unrepresentable (a-complex / a-specs /
+   a-settings — 37 sites; their default-settings golden would not be the
+   answer the Java test asserts). `MARKUP_RE` drops a candidate whose first
+   content line opens a tag (`VectorExportTest`'s asserted `<svg …>` reaches
+   the fragment guard with an `=` in it — an XML attribute). `normalize`
+   adds a layout-insensitive duplicate check on top of the exact one (fold
+   case, collapse spaces *within* a line, never across lines — newlines are
+   syntax here). And `MAX_DECLARED_POINTS` refuses a `DYNAMIC` grid denser
+   than 2 000 samples, which is a **fixture** limit, not an engine one: the
+   engine's ceiling is 100 000, but the golden stores every cell, and the
+   three Wave-J documents above the line cost 1.6 MB, 3.1 MB and — at
+   `points = 60001` — **139 MB**, against 640 KB for the largest golden the
+   corpus had. They also broke
+   `dynamics_robustness::the_corpus_sample_counts_are_far_below_the_ceiling`,
+   which pins the whole corpus a factor of ten under that ceiling; 2 000
+   keeps that property and excludes nothing else, because the densest
+   document either side of the sweep declares 1 201. `DROPPED` records the
+   four ledger-35 witnesses by name so golden review's permanent rejections
+   are not re-minted every run.
+
+   **285 candidates staged, 284 goldened, 255 promoted, 19 pending, 11
+   classified below.** Duplication against the existing corpus was far
+   smaller than feared: only 352 exact + 2 near duplicates were skipped
+   across the whole tree, so these really were documents nobody had
+   harvested. The 255 are 204 solving documents (35 of them transient, with
+   full `ode_tables` comparison), 34 `SolverException` goldens and 17
+   `ParseException` goldens — the domain-separation refusals, the port-count
+   and unknown-`model$` component rejections, the `DYNAMIC` header
+   rejections, the high-index diagnoses, and fourteen "No equations to
+   solve." documents that are a library or a `STATE TABLE`/`PARAMETRIC`
+   declaration with nothing to solve. The 30 non-promoted classify as:
+
+   * **19 numeric holds, staged in `corpus-pending/`** (the table below).
+     Eighteen are the established `oracle-ph-table` signature — R134a /
+     R1234yf / Water two-phase chains on `cmp.h_s`, `k.h_s`, `b1.q`,
+     `cd.q_sc`, `ev.q_sh`, `rho_in` — with worst divergences (measured
+     per fixture, uncapped, at the corpus default) spanning **1.60e-9**
+     (`steady-by-integration-chiller-bridge-…`) to **4.71e-5**
+     (`moving-boundary-hx-condenser-…`, on the subcool-zone duty). Three of
+     the eighteen are transient and graded scale-anchored. The nineteenth,
+     `dynamic-array-states-rod-with-ode45-also`, has **no property call at
+     all**: a 4-node conduction rod through `ode45` whose 274 diverging
+     table cells peak at 1.40e-7 of the column range — adaptive-step
+     interpolant noise, `ida-adaptive-path`'s explicit sibling. **Three sit
+     within 10× of the corpus default** (1.60e-9, 2.02e-9, 6.90e-9) and
+     would very likely promote on a probe; none was probed here, because
+     promotion needs `tolerances-rustprop.json`'s evidence discipline — a
+     wheel-vs-rustprop-vs-golden measurement *per entry*.
+   * **5 not staged — superheat ≈ 0, denominator collapse.** `ev.sh` /
+     `s1.sh` / `sen.sh` / `sh_start` are 0 here and 1.2e-6…1.5e-6 in the
+     oracle, which reads `rel 1.0` however the tolerance is declared. They
+     cannot pass as authored, so they are recorded here rather than parked
+     in a staging area that means "close":
+     `moving-boundary-hx-evaporator-superheat-zone-collapses-smoothly`,
+     `moving-boundary-hx-undersized-evaporator-leaves-refrigerant-two-phase`,
+     `moving-boundary-hx-transient-warmup-births-superheat-zone-on-ida`,
+     `two-phase-distributed-temperature-glides-along-a-multi-cell-coil`,
+     `two-phase-domain-two-phase-chain-computes-quality-void-and-pressure-glide`.
+   * **5 not staged — engine divergences, not tolerances.** Each is a real
+     behavioural difference and a fixture would pin the difference, not the
+     behaviour. Two are the Water/zone-HX guess-landscape family the Wave-I
+     oracle verdict above already bounds:
+     `component-multi-zone-hx-two-zone-counterflow-hx-transfers-heat-energy-balanced`
+     (the **Java** stalls, this port solves) and
+     `component-two-phase-three-zone-counterflow-hx-is-energy-balanced` (the
+     Java solves, this port stalls in block 37 of 66 equations). Two are
+     transient: `two-phase-distributed-transient-crc-relaxes-on-ida-and-migrates-charge`
+     (this port's DAE integrator cannot take the first step at `t = 0`) and
+     `zeotropic-blend-zeotropic-blend-shows-temperature-glide` (a NaN
+     residual out of the blend property chain). The fifth is the sharpest
+     and is new: **`solver-equilibration-coupled-block-with-twelve-orders-of-magnitude-scale-disparity-solves`**
+     — `big = 2e6 - 1e12*small` / `small = 1e-6*sqrt(big/1e6)`, two
+     equations, which the Java solves and this port refuses with "the
+     Jacobian is singular" after one iteration. The Java's Newton
+     equilibrates the block (its test class is literally
+     `SolverEquilibrationTest`); this port does not. Ledger item 38.
+   * **1 not staged — no golden exists.**
+     `steady-by-integration-floating-cycle-by-control-volume-integration`
+     does not terminate in the **oracle**: IDA reports `mxstep steps taken
+     before reaching tout` at `t = 3.1062` and the Java retry ladder spins
+     on it indefinitely (killed at 500 s; the other 284 candidates goldened
+     in ~26 min total). Nothing to compare against.
+
+   Four more never reached the 285, and are worth naming because a re-run
+   must keep refusing them. Three are the `MAX_DECLARED_POINTS` casualties
+   above (`ev-tms-transient-compressor-ramp-transient`,
+   `scheduled-input-component-takes-scheduled-input`,
+   `ev-tms-component-transient-full-network-transient-both-pressures-float`)
+   — all three were goldened and the first two *passed*, so this is coverage
+   deliberately declined on fixture-size grounds, not a divergence; a
+   re-authored copy at a sane `points` would be welcome and would need its
+   own oracle run. The fourth is
+   `multiout-user-function-with-tilde-discard-2`, a fourth ledger-35
+   `~ignored~N` witness the wider sweep surfaced, now in `DROPPED` with the
+   three Wave-I ones.
+
+   The replay cost is real: **353.3 s** for 1 238 fixtures in release (on a
+   machine carrying a load average of 9–20 from a parallel agent, so read it
+   as an upper bound), against ~145 s for 983. What is left un-harvested
+   from the Java tests is now only
+   what the guards say it is — 37 site-tag drops, 36 unresolvable arguments
+   (12 CoolProp-computed template values, 10 unknown idents, 14 builder
+   loops), 3 oversampled and the four `DROPPED` tilde documents.
 4. `../frEES/backend/core/src/main/resources/components/*.frees` — all 295
    library components. **Swept 2026-08-23 (Wave G4).** A coverage inventory
    found 165 of the 295 component types already exercised by the corpus and
@@ -715,12 +834,14 @@ field.) If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 5 documents
+### What is pending today — 24 documents
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact). Re-measured 2026-08-23 after Wave G3's per-step caches: **~5.6 min** (339 s, upper bound — the first 147 s shared the machine with a replay), from A5's ~12 min, converging to the same `dk` at rel ~8e-16; the whole replay is ~145 s, so one document still costs ~2.3× the gate and the hold stands | 1 | `dyn_accessor_live` |
 | **The golden asserts a non-zero value where the true answer is a structurally exact zero** (Wave A1, 2026-08-24 — the residue of the Wave-I property-chain row, whose other 14 documents were probed and promoted the same day). In each of these four the two-phase plateau makes the quantity identically zero: a condenser outlet still inside the dome, so `SC = Tcond − Temperature(P,h)` is exactly 0, or an evaporator outlet below `hg`, so `SH = Temperature(P,h) − Tsat` is exactly 0. The CoolProp 8.0.0 wheel confirms it — `Temperature(P, h_out)` equals `T_sat(P)` **to the last bit** at all four states — and this port returns `0` or `±5.7e-14`, while the Java's `(P,Hmass)→T` table returns `2.798e-7` (`chgclosed-charge-chain`), `1.183e-6` (`chgclosed-condensing…`), `5.686e-7` (`tpcharge-charge-sets…`) and `−1.216e-6` K (`accomp-air-coil`, on `SH`). A relative measure has no denominator against an exact zero, so every one reads `rel ≈ 1.0` and **no `relative` the harness will accept (`> 1e-9`, `< 1e-2`) can pass them** — this is a golden-side artifact on an exact zero, not a divergence, and it is left here rather than papered over. Their *other* variables are ordinary `oracle-ph-table` gaps and would grade at 1.3e-7 … 3.8e-6; `chgclosed-charge-chain`'s `cnd.rho_in` at 3.767e-6 (wheel 70.35461467939413 vs golden 70.35487973927506, at 1.476 MPa / 435 kJ/kg) is the largest single R134a `Dmass` leaf error the corpus has measured. Closing them needs either an absolute-tolerance channel in `tests/parity.rs` (none exists, and adding one is a gate change, not a fixture change) or re-tuning the documents off the plateau and re-dumping — which would destroy the assertion each was harvested to make, since three of them are the zero-subcooling half of a deliberate pair | 4 | `accomp-air-coil-cools-and-dehumidifies`, `chgclosed-charge-chain-is-well-posed`, `chgclosed-condensing-pressure-floats-with-ambient-and-charge`, `tpcharge-charge-sets-condensing-pressure-and-subcooling` |
+
+| **The same two mechanisms, from the Wave-J class sweep** (2026-08-24, growth item 3). Eighteen are `oracle-ph-table`: R134a/R1234yf/Water two-phase chains on `cmp.h_s`/`k.h_s`/`b1.q`/`cd.q_sc`/`ev.q_sh`/`rho_in`, three of them transient and graded scale-anchored. Worst divergence per fixture, measured uncapped at the corpus default: 4.71e-5 `moving-boundary-hx-condenser`, 1.98e-5 `moving-boundary-hx-evaporator`, 6.10e-6 each for the three rankine documents, 5.47e-6 `ev-tms-api-model`, 4.85e-6 `new-library-components`, 3.05e-6 `ev-tms-cabin-steady`, 2.50e-6 `dual-evap-debug`, 1.16e-6 `fluid-property-examples-example3-7`, 9.86e-7 `component-cycles-refrigeration`, 8.11e-7 `property-argument-seeding-subcritical`, 2.68e-7 and 8.72e-8 the two `component-variant-library-compressor` variants, 8.30e-8 `cooker-faithful`, 6.90e-9 `pressure-cooker-…-undersized-valve`, 2.02e-9 `real-fluid-properties-solves-vapor-compression-cycle`, 1.60e-9 `steady-by-integration-chiller-bridge`. The nineteenth is `ida-adaptive-path`'s explicit sibling and touches **no property**: a 4-node conduction rod through `ode45`, 274 diverging cells peaking at 1.40e-7 of the column range — pure adaptive-step interpolant noise. The last three sit within 10× of the corpus default and would very likely promote on a probe. Every one needs the same discipline as the row above: a per-entry wheel-vs-rustprop-vs-golden leaf probe, which this wave measured but did not perform | 19 | `component-cycles-rankine-components-solve`, `component-cycles-rankine-with-derived-property-boundaries-solves`, `component-cycles-refrigeration-components-solve`, `component-variant-library-compressor-defaults-to-isentropic-backward-compatible`, `component-variant-library-compressor-volumetric-variant-determines-mass-flow`, `cooker-faithful-reproduces-reference-with-electrical-heater`, `cycle-path-component-component-rankine-streams-produce-a-cycle-path`, `dual-evap-debug-check`, `dynamic-array-states-rod-with-ode45-also`, `ev-tms-api-model-integrated-model-solves-with-plain-solver`, `ev-tms-cabin-steady-operating-point`, `fluid-property-examples-example3-7-temperature-of-superheated-vapor`, `moving-boundary-hx-condenser-resolves-condensing-and-subcool-zones`, `moving-boundary-hx-evaporator-resolves-two-phase-and-superheat-zones`, `new-library-components-new-library-components-solve`, `pressure-cooker-cooker-over-pressurises-with-undersized-valve`, `property-argument-seeding-subcritical-inversion-across-dome-converges-from-default-guess`, `real-fluid-properties-solves-vapor-compression-cycle`, `steady-by-integration-chiller-bridge-reaches-consistent-steady-by-integration` |
 
 *(**Fourteen of the Wave-I property-chain row's 18 left this table on
 2026-08-24, Wave A1** — by probing, not by any engine change. Each was

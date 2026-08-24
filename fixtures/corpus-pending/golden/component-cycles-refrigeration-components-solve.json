@@ -1,0 +1,67 @@
+{
+  "name": "component-cycles-refrigeration-components-solve",
+  "source": "// Vapor-Compression Refrigeration — built from standard components\nT_evap = 263.15 [K]\nT_cond = 313.15 [K]\n\nCompressor K1(s1, s2, eta=0.80, fluid$=R134a)\nCondenser  C1(s2, s3)\nThrottle   V1(s3, s4)\n\nP_lo = P_sat(R134a, T=T_evap)\nP_hi = P_sat(R134a, T=T_cond)\n\ns1.P    = P_lo\ns1.h    = Enthalpy(R134a, T=T_evap, x=1)   { saturated vapor leaving evaporator }\ns1.mdot = 1 [kg/s]\ns2.P    = P_hi\ns3.h    = Enthalpy(R134a, P=P_hi, x=0)     { saturated liquid leaving condenser }\ns4.P    = P_lo\n\nq_L = s1.h - s4.h            { refrigeration effect }\nCOP = q_L / K1.W\n",
+  "expect": {
+    "variables": {
+      "COP": 3.2235735566960906,
+      "P_hi": 1016593.02212064,
+      "P_lo": 200603.30747267744,
+      "T_cond": 313.15,
+      "T_evap": 263.15,
+      "c1.q": 178524.18456133886,
+      "k1.h_s": 426479.7260085386,
+      "k1.s_in": 1733.3509014141412,
+      "k1.w": 42268.51555084321,
+      "q_L": 136255.66901049565,
+      "s1.h": 392664.91356786405,
+      "s1.mdot": 1.0,
+      "s1.p": 200603.30747267744,
+      "s2.h": 434933.42911870725,
+      "s2.mdot": 1.0,
+      "s2.p": 1016593.02212064,
+      "s3.h": 256409.2445573684,
+      "s3.mdot": 1.0,
+      "s3.p": 1016593.02212064,
+      "s4.h": 256409.2445573684,
+      "s4.mdot": 1.0,
+      "s4.p": 200603.30747267744
+    },
+    "display_names": {
+      "c1$q": "c1.q",
+      "cop": "COP",
+      "k1$h_s": "k1.h_s",
+      "k1$s_in": "k1.s_in",
+      "k1$w": "k1.w",
+      "p_hi": "P_hi",
+      "p_lo": "P_lo",
+      "q_l": "q_L",
+      "r134a": "R134a",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p",
+      "s3": "s3",
+      "s3$h": "s3.h",
+      "s3$mdot": "s3.mdot",
+      "s3$p": "s3.p",
+      "s4": "s4",
+      "s4$h": "s4.h",
+      "s4$mdot": "s4.mdot",
+      "s4$p": "s4.p",
+      "t_cond": "T_cond",
+      "t_evap": "T_evap"
+    },
+    "block_count": 22,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

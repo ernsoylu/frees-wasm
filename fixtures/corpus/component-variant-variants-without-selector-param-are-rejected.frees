@@ -1,0 +1,10 @@
+COMPONENT NoSel(in, out)
+  out.mdot = in.mdot
+  VARIANT a REQUIRE k
+    out.h = in.h + k
+  END
+END
+NoSel N(s1, s2, k=1)
+s1.P    = 100000
+s1.mdot = 3
+s1.h    = 1000

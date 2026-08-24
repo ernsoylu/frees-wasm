@@ -1,0 +1,6 @@
+MoistAirSource SRC(P=101325, T=303.15, W=0.012, mdot=1)
+CoolingCoil    CC(Tout=283.15)
+MoistAirSink   SNK()
+connect(SRC.out, CC.in)
+connect(CC.out, SNK.in)
+T_out = Temperature(AirH2O, H=CC.out.h, P=101325, W=CC.out.W)

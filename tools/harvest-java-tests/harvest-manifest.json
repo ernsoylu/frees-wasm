@@ -35,6 +35,42 @@
     "kind": "solvecall",
     "method": "volumetricCompressorScalesFlowWithRpm"
   },
+  "bitwise-and-special-math-test-base-convert": {
+    "class": "BitwiseAndSpecialMathTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "testBaseConvert"
+  },
+  "bitwise-and-special-math-test-bessel-i": {
+    "class": "BitwiseAndSpecialMathTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "testBesselI"
+  },
+  "bitwise-and-special-math-test-bitwise-operations": {
+    "class": "BitwiseAndSpecialMathTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "testBitwiseOperations"
+  },
+  "bitwise-and-special-math-test-cs-number-theory": {
+    "class": "BitwiseAndSpecialMathTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "testCSNumberTheory"
+  },
+  "bitwise-and-special-math-test-new-bessel-and-chi-square": {
+    "class": "BitwiseAndSpecialMathTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "testNewBesselAndChiSquare"
+  },
+  "bitwise-and-special-math-test-special-math-functions": {
+    "class": "BitwiseAndSpecialMathTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "testSpecialMathFunctions"
+  },
   "callauto-eigenvalues-sized-from-matrix-dimension": {
     "class": "CallAutoSizeOutputTest.java",
     "in_assert_throws": false,
@@ -83,6 +119,18 @@
     "kind": "solvecall",
     "method": "higherRefrigerantFlowDeliversMoreCooling"
   },
+  "closed-loop-attempt-closed-loop-is-structurally-well-posed": {
+    "class": "ClosedLoopAttemptTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "closedLoopIsStructurallyWellPosed"
+  },
+  "closed-loop-dynamic-integrate-to-steady": {
+    "class": "ClosedLoopDynamicTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "integrateToSteady"
+  },
   "closedloop-measure-dof": {
     "class": "ClosedLoopDiagnosisTest.java",
     "in_assert_throws": false,
@@ -130,6 +178,60 @@
     "in_assert_throws": false,
     "kind": "textblock",
     "method": "REL"
+  },
+  "code-parametric-log-column-spacing": {
+    "class": "CodeParametricTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "logColumnSpacing"
+  },
+  "code-parametric-parses-range-and-list-columns-into-rows": {
+    "class": "CodeParametricTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parsesRangeAndListColumnsIntoRows"
+  },
+  "code-parametric-uneven-columns-pad-with-null-cells": {
+    "class": "CodeParametricTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "unevenColumnsPadWithNullCells"
+  },
+  "code-range-explicit-linear-flag-works": {
+    "class": "CodeRangeTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "explicitLinearFlagWorks"
+  },
+  "code-range-linear-range-with-step-fills-array": {
+    "class": "CodeRangeTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "linearRangeWithStepFillsArray"
+  },
+  "code-range-log-range-spaces-geometrically": {
+    "class": "CodeRangeTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "logRangeSpacesGeometrically"
+  },
+  "code-range-negative-step-counts-down": {
+    "class": "CodeRangeTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "negativeStepCountsDown"
+  },
+  "code-range-range-array-works-with-sum": {
+    "class": "CodeRangeTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "rangeArrayWorksWithSum"
+  },
+  "code-range-two-number-form-defaults-to-step-one": {
+    "class": "CodeRangeTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "twoNumberFormDefaultsToStepOne"
   },
   "codetable-check-accepts-code-table": {
     "class": "CodeTableTest.java",
@@ -208,6 +310,780 @@
     "in_assert_throws": false,
     "kind": "textblock",
     "method": "twoDimensionalCurveFamilyInterpolates"
+  },
+  "combustion-thermo-wired-through-solver": {
+    "class": "CombustionThermoTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "wiredThroughSolver"
+  },
+  "component-branching-heat-exchanger-couples-two-circuits": {
+    "class": "ComponentBranchingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "heatExchangerCouplesTwoCircuits"
+  },
+  "component-branching-mixer-does-flow-weighted-enthalpy-balance": {
+    "class": "ComponentBranchingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "mixerDoesFlowWeightedEnthalpyBalance"
+  },
+  "component-branching-split-then-mix-closes-mass-and-energy": {
+    "class": "ComponentBranchingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "splitThenMixClosesMassAndEnergy"
+  },
+  "component-branching-splitter-conserves-mass-and-carries-state": {
+    "class": "ComponentBranchingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "splitterConservesMassAndCarriesState"
+  },
+  "component-breadth-contact-resistance-carries-heat-by-thermal-resistance": {
+    "class": "ComponentBreadthTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "contactResistanceCarriesHeatByThermalResistance"
+  },
+  "component-breadth-diode-conducts-forward-and-blocks-reverse": {
+    "class": "ComponentBreadthTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "diodeConductsForwardAndBlocksReverse"
+  },
+  "component-breadth-translational-force-drives-mass-against-damper": {
+    "class": "ComponentBreadthTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "translationalForceDrivesMassAgainstDamper"
+  },
+  "component-connect-connect-accepts-bare-stream-names": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "connectAcceptsBareStreamNames"
+  },
+  "component-connect-connect-branches-and-remerges-through-three-port-nodes": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "connectBranchesAndRemergesThroughThreePortNodes"
+  },
+  "component-connect-connect-branches-mass-at-a-three-way-node": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "connectBranchesMassAtAThreeWayNode"
+  },
+  "component-connect-connect-closes-a-loop-without-over-determining": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "connectClosesALoopWithoutOverDetermining"
+  },
+  "component-connect-connect-wires-free-port-instances-in-series": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "connectWiresFreePortInstancesInSeries"
+  },
+  "component-connect-connect-with-undeterminable-direction-at-branch-is-rejected": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "connectWithUndeterminableDirectionAtBranchIsRejected"
+  },
+  "component-connect-heater": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "HEATER"
+  },
+  "component-connect-source-and-sink-boundaries-bracket-an-open-chain": {
+    "class": "ComponentConnectTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "sourceAndSinkBoundariesBracketAnOpenChain"
+  },
+  "component-connections-electrical-defs": {
+    "class": "ComponentConnectionsTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ELECTRICAL_DEFS"
+  },
+  "component-connections-explicit-connects-carry-domain-and-endpoints": {
+    "class": "ComponentConnectionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "explicitConnectsCarryDomainAndEndpoints"
+  },
+  "component-connections-heat-nodes-classify-as-heat": {
+    "class": "ComponentConnectionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "heatNodesClassifyAsHeat"
+  },
+  "component-connections-shared-stream-junctions-surface-as-edges": {
+    "class": "ComponentConnectionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "sharedStreamJunctionsSurfaceAsEdges"
+  },
+  "component-control-closes-the-loop-with-a-feedback-controller-in-dynamic": {
+    "class": "ComponentControlTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "closesTheLoopWithAFeedbackControllerInDynamic"
+  },
+  "component-control-designs-lqr-from-the-linearized-plant": {
+    "class": "ComponentControlTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "designsLqrFromTheLinearizedPlant"
+  },
+  "component-control-pi-controller-eliminates-steady-state-error": {
+    "class": "ComponentControlTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "piControllerEliminatesSteadyStateError"
+  },
+  "component-cross-domain-electrical-dissipation-flows-through-a-thermal-network-to-ambient": {
+    "class": "ComponentCrossDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "electricalDissipationFlowsThroughAThermalNetworkToAmbient"
+  },
+  "component-cross-domain-ev-pack-self-heating-reaches-steady-temperature-above-coolant": {
+    "class": "ComponentCrossDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evPackSelfHeatingReachesSteadyTemperatureAboveCoolant"
+  },
+  "component-cycles-brayton-components-solve": {
+    "class": "ComponentCyclesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "braytonComponentsSolve"
+  },
+  "component-cycles-rankine-components-solve": {
+    "class": "ComponentCyclesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "rankineComponentsSolve"
+  },
+  "component-cycles-rankine-with-derived-property-boundaries-solves": {
+    "class": "ComponentCyclesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "rankineWithDerivedPropertyBoundariesSolves"
+  },
+  "component-cycles-refrigeration-components-solve": {
+    "class": "ComponentCyclesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "refrigerationComponentsSolve"
+  },
+  "component-diagnostics-rigidly-coupled-storage-is-rejected-as-high-index": {
+    "class": "ComponentDiagnosticsTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "rigidlyCoupledStorageIsRejectedAsHighIndex"
+  },
+  "component-diagnostics-underspecified-component-network-lists-the-involved-stream-members": {
+    "class": "ComponentDiagnosticsTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "underspecifiedComponentNetworkListsTheInvolvedStreamMembers"
+  },
+  "component-electrical-battery-drives-a-resistive-load-through-its-internal-resistance": {
+    "class": "ComponentElectricalTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "batteryDrivesAResistiveLoadThroughItsInternalResistance"
+  },
+  "component-electrical-series-resistors-form-a-voltage-divider": {
+    "class": "ComponentElectricalTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "seriesResistorsFormAVoltageDivider"
+  },
+  "component-expansion-derived-property-resolves-on-a-fluid-stream": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "derivedPropertyResolvesOnAFluidStream"
+  },
+  "component-expansion-fluid-string-param-is-baked-into-property-call-names": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "fluidStringParamIsBakedIntoPropertyCallNames"
+  },
+  "component-expansion-heater-chain-shares-streams-and-conserves-mass": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "heaterChainSharesStreamsAndConservesMass"
+  },
+  "component-expansion-heater-lib": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "HEATER_LIB"
+  },
+  "component-expansion-member-on-fluidless-stream-is-an-opaque-rider": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "memberOnFluidlessStreamIsAnOpaqueRider"
+  },
+  "component-expansion-named-outputs-are-instance-namespaced-and-param-defaults-apply": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "namedOutputsAreInstanceNamespacedAndParamDefaultsApply"
+  },
+  "component-expansion-port-count-mismatch-is-rejected": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "portCountMismatchIsRejected"
+  },
+  "component-expansion-top-level-instance-and-stream-member-refs-resolve-to-same-variable": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "topLevelInstanceAndStreamMemberRefsResolveToSameVariable"
+  },
+  "component-expansion-unknown-parameter-override-is-rejected": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "unknownParameterOverrideIsRejected"
+  },
+  "component-expansion-user-component-defaults-still-apply": {
+    "class": "ComponentExpansionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "userComponentDefaultsStillApply"
+  },
+  "component-expansion-valve-expansion-valve-throttles-isenthalpically-at-orifice-flow": {
+    "class": "ComponentExpansionValveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "expansionValveThrottlesIsenthalpicallyAtOrificeFlow"
+  },
+  "component-friction-applied-torque-balances-friction-at-steady-speed": {
+    "class": "ComponentFrictionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "appliedTorqueBalancesFrictionAtSteadySpeed"
+  },
+  "component-fuel-cell-higher-current-lowers-voltage-and-raises-heat": {
+    "class": "ComponentFuelCellTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "higherCurrentLowersVoltageAndRaisesHeat"
+  },
+  "component-gas-mixture-mixer-blends-composition-flow-weighted": {
+    "class": "ComponentGasMixtureTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "mixerBlendsCompositionFlowWeighted"
+  },
+  "component-gas-mixture-pipe-carries-composition-through": {
+    "class": "ComponentGasMixtureTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "pipeCarriesCompositionThrough"
+  },
+  "component-gas-mixture-three-way-blend-conserves-species": {
+    "class": "ComponentGasMixtureTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "threeWayBlendConservesSpecies"
+  },
+  "component-hierarchy-nested-subsystem-flattens-recursively": {
+    "class": "ComponentHierarchyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "nestedSubsystemFlattensRecursively"
+  },
+  "component-hierarchy-subsystem-of-two-heaters-in-series-composes": {
+    "class": "ComponentHierarchyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "subsystemOfTwoHeatersInSeriesComposes"
+  },
+  "component-hierarchy-subsystem-parameters-flow-into-sub-instances": {
+    "class": "ComponentHierarchyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "subsystemParametersFlowIntoSubInstances"
+  },
+  "component-hydraulic-cylinder-holds-load-at-supply-pressure-when-stalled": {
+    "class": "ComponentHydraulicTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "cylinderHoldsLoadAtSupplyPressureWhenStalled"
+  },
+  "component-hydraulic-orifice-meters-flow-from-pressure-drop": {
+    "class": "ComponentHydraulicTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "orificeMetersFlowFromPressureDrop"
+  },
+  "component-hydraulic-relief-valve-stays-shut-below-crack-and-opens-above": {
+    "class": "ComponentHydraulicTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "reliefValveStaysShutBelowCrackAndOpensAbove"
+  },
+  "component-hydraulic-speed-driven-pump-delivers-flow-against-an-orifice-load": {
+    "class": "ComponentHydraulicTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "speedDrivenPumpDeliversFlowAgainstAnOrificeLoad"
+  },
+  "component-machinery-pmsm-delivers-torque-proportional-to-current": {
+    "class": "ComponentMachineryTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "pmsmDeliversTorqueProportionalToCurrent"
+  },
+  "component-machinery-turbocharger-balances-turbine-and-compressor-power-to-set-boost": {
+    "class": "ComponentMachineryTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "turbochargerBalancesTurbineAndCompressorPowerToSetBoost"
+  },
+  "component-map-fan-map-reads-pressure-rise-from-tabulated-curve": {
+    "class": "ComponentMapTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "fanMapReadsPressureRiseFromTabulatedCurve"
+  },
+  "component-map-string-param-bakes-as-table-call-name": {
+    "class": "ComponentMapTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "stringParamBakesAsTableCallName"
+  },
+  "component-mechanical-gear-trades-speed-for-torque-and-conserves-power": {
+    "class": "ComponentMechanicalTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "gearTradesSpeedForTorqueAndConservesPower"
+  },
+  "component-mechanical-planetary-gear-with-held-ring-reduces-speed-and-amplifies-torque": {
+    "class": "ComponentMechanicalTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "planetaryGearWithHeldRingReducesSpeedAndAmplifiesTorque"
+  },
+  "component-mechanical-torque-driven-damper-reaches-steady-speed": {
+    "class": "ComponentMechanicalTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "torqueDrivenDamperReachesSteadySpeed"
+  },
+  "component-metadata-resolves-variable-literal-and-string-param-bindings": {
+    "class": "ComponentMetadataTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "resolvesVariableLiteralAndStringParamBindings"
+  },
+  "component-metadata-shared-variable-resolves-to-same-value-under-each-instance": {
+    "class": "ComponentMetadataTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "sharedVariableResolvesToSameValueUnderEachInstance"
+  },
+  "component-moist-air-air-handling-train-carries-humidity-through-connects": {
+    "class": "ComponentMoistAirTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "airHandlingTrainCarriesHumidityThroughConnects"
+  },
+  "component-moist-air-heating-coil-adds-sensible-heat-at-constant-humidity": {
+    "class": "ComponentMoistAirTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "heatingCoilAddsSensibleHeatAtConstantHumidity"
+  },
+  "component-moist-air-humidifier-adds-moisture-and-enthalpy": {
+    "class": "ComponentMoistAirTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "humidifierAddsMoistureAndEnthalpy"
+  },
+  "component-moist-air-mixing-box-conserves-dry-air-water-and-energy": {
+    "class": "ComponentMoistAirTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "mixingBoxConservesDryAirWaterAndEnergy"
+  },
+  "component-moist-air-moist-air-cannot-connect-to-dry-thermofluid": {
+    "class": "ComponentMoistAirTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "moistAirCannotConnectToDryThermofluid"
+  },
+  "component-motor-battery-drives-motor-against-road-load-across-domains": {
+    "class": "ComponentMotorTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "batteryDrivesMotorAgainstRoadLoadAcrossDomains"
+  },
+  "component-multi-zone-hx-two-zone-counterflow-hx-transfers-heat-energy-balanced": {
+    "class": "ComponentMultiZoneHxTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "twoZoneCounterflowHxTransfersHeatEnergyBalanced"
+  },
+  "component-networks-fan-duct-operating-point-solves": {
+    "class": "ComponentNetworksTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "fanDuctOperatingPointSolves"
+  },
+  "component-networks-fan-duct-real": {
+    "class": "ComponentNetworksTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "FAN_DUCT_REAL"
+  },
+  "component-niche-battery2rc-shows-combined-dc-resistance-at-steady": {
+    "class": "ComponentNicheTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "battery2rcShowsCombinedDcResistanceAtSteady"
+  },
+  "component-niche-current-source-forces-its-current-through-a-load": {
+    "class": "ComponentNicheTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "currentSourceForcesItsCurrentThroughALoad"
+  },
+  "component-niche-flow-sensor-passes-flow-through-and-reports-it": {
+    "class": "ComponentNicheTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "flowSensorPassesFlowThroughAndReportsIt"
+  },
+  "component-niche-isa-atmosphere-matches-the-standard-layers": {
+    "class": "ComponentNicheTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "isaAtmosphereMatchesTheStandardLayers"
+  },
+  "component-niche-thermal-sensor-reads-node-temperature-without-drawing-heat": {
+    "class": "ComponentNicheTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "thermalSensorReadsNodeTemperatureWithoutDrawingHeat"
+  },
+  "component-nozzle-cd-nozzle-expands-and-produces-thrust": {
+    "class": "ComponentNozzleTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "cdNozzleExpandsAndProducesThrust"
+  },
+  "component-pneumatic-actuator-balances-gas-force-against-a-mechanical-load": {
+    "class": "ComponentPneumaticTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "actuatorBalancesGasForceAgainstAMechanicalLoad"
+  },
+  "component-pneumatic-choked-flow-is-independent-of-downstream-pressure": {
+    "class": "ComponentPneumaticTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "chokedFlowIsIndependentOfDownstreamPressure"
+  },
+  "component-pneumatic-orifice-flows-subsonic-above-the-critical-ratio": {
+    "class": "ComponentPneumaticTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "orificeFlowsSubsonicAboveTheCriticalRatio"
+  },
+  "component-pneumatic-volume-charges-through-a-resistance-toward-supply-pressure": {
+    "class": "ComponentPneumaticTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "volumeChargesThroughAResistanceTowardSupplyPressure"
+  },
+  "component-port-units-fan-duct": {
+    "class": "ComponentPortUnitsTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "FAN_DUCT"
+  },
+  "component-powertrain-breadth-grade-road-load-adds-rolling-aero-and-grade-resistance": {
+    "class": "ComponentPowertrainBreadthTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "gradeRoadLoadAddsRollingAeroAndGradeResistance"
+  },
+  "component-powertrain-breadth-mean-value-engine-follows-its-torque-curve": {
+    "class": "ComponentPowertrainBreadthTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "meanValueEngineFollowsItsTorqueCurve"
+  },
+  "component-powertrain-breadth-transmission-scales-speed-and-torque-with-efficiency": {
+    "class": "ComponentPowertrainBreadthTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "transmissionScalesSpeedAndTorqueWithEfficiency"
+  },
+  "component-powertrain-engine-balances-road-load-at-steady-speed": {
+    "class": "ComponentPowertrainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "engineBalancesRoadLoadAtSteadySpeed"
+  },
+  "component-powertrain-slipping-clutch-transmits-torque-to-accelerate-the-driven-side": {
+    "class": "ComponentPowertrainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "slippingClutchTransmitsTorqueToAccelerateTheDrivenSide"
+  },
+  "component-powertrain-spring-mass-damper-settles-at-the-static-twist": {
+    "class": "ComponentPowertrainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "springMassDamperSettlesAtTheStaticTwist"
+  },
+  "component-psychro-cooling-coil-condenses-and-removes-sensible-plus-latent-heat": {
+    "class": "ComponentPsychroTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "coolingCoilCondensesAndRemovesSensiblePlusLatentHeat"
+  },
+  "component-thermal-conduction-between-two-fixed-temperatures-carries-fourier-heat": {
+    "class": "ComponentThermalTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "conductionBetweenTwoFixedTemperaturesCarriesFourierHeat"
+  },
+  "component-thermal-surface-loses-heat-by-convection-and-radiation-at-a-three-way-node": {
+    "class": "ComponentThermalTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "surfaceLosesHeatByConvectionAndRadiationAtAThreeWayNode"
+  },
+  "component-transient-battery-rc-steady-shows-combined-dc-resistance": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "batteryRcSteadyShowsCombinedDcResistance"
+  },
+  "component-transient-battery-rc-transient-relaxes-its-polarization-voltage": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "batteryRcTransientRelaxesItsPolarizationVoltage"
+  },
+  "component-transient-ev-battery-warms-up-and-depletes-under-load": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evBatteryWarmsUpAndDepletesUnderLoad"
+  },
+  "component-transient-fluid-accumulator-pressurizes-until-inflow-meets-outflow": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "fluidAccumulatorPressurizesUntilInflowMeetsOutflow"
+  },
+  "component-transient-inertia-spins-up-under-torque-against-a-damper": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "inertiaSpinsUpUnderTorqueAgainstADamper"
+  },
+  "component-transient-rc-circuit-charges-through-its-time-constant": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "rcCircuitChargesThroughItsTimeConstant"
+  },
+  "component-transient-same-storage-model-solves-steady-with-no-dynamic-block": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "sameStorageModelSolvesSteadyWithNoDynamicBlock"
+  },
+  "component-transient-thermal-mass-relaxes-toward-ambient": {
+    "class": "ComponentTransientTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "thermalMassRelaxesTowardAmbient"
+  },
+  "component-two-phase-three-zone-counterflow-hx-is-energy-balanced": {
+    "class": "ComponentTwoPhaseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "threeZoneCounterflowHxIsEnergyBalanced"
+  },
+  "component-two-phase-two-phase-pipe-applies-the-lockhart-martinelli-multiplier": {
+    "class": "ComponentTwoPhaseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "twoPhasePipeAppliesTheLockhartMartinelliMultiplier"
+  },
+  "component-two-phase-txv-meters-flow-from-sensed-superheat": {
+    "class": "ComponentTwoPhaseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "txvMetersFlowFromSensedSuperheat"
+  },
+  "component-valve-datasheet-pump-curve-meets-valve-at-an-operating-point": {
+    "class": "ComponentValveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "datasheetPumpCurveMeetsValveAtAnOperatingPoint"
+  },
+  "component-valve-two-valves-in-series-share-flow-and-split-the-drop": {
+    "class": "ComponentValveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "twoValvesInSeriesShareFlowAndSplitTheDrop"
+  },
+  "component-valve-valve-sizes-flow-from-its-cv": {
+    "class": "ComponentValveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "valveSizesFlowFromItsCv"
+  },
+  "component-variant-boundary": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "boundary"
+  },
+  "component-variant-default-selector-picks-the-default-variant": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "defaultSelectorPicksTheDefaultVariant"
+  },
+  "component-variant-library-compressor-defaults-to-isentropic-backward-compatible": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "libraryCompressorDefaultsToIsentropicBackwardCompatible"
+  },
+  "component-variant-library-compressor-volumetric-variant-determines-mass-flow": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "libraryCompressorVolumetricVariantDeterminesMassFlow"
+  },
+  "component-variant-missing-required-param-of-selected-variant-errors": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "missingRequiredParamOfSelectedVariantErrors"
+  },
+  "component-variant-selects-the-named-variant-body": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "selectsTheNamedVariantBody"
+  },
+  "component-variant-unknown-variant-is-rejected": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "unknownVariantIsRejected"
+  },
+  "component-variant-unselected-variant-param-is-optional": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "unselectedVariantParamIsOptional"
+  },
+  "component-variant-variants-without-selector-param-are-rejected": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "variantsWithoutSelectorParamAreRejected"
+  },
+  "component-variant-widget": {
+    "class": "ComponentVariantTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "WIDGET"
+  },
+  "compressible-flow-wired-through-solver-and-inverted-by-newton": {
+    "class": "CompressibleFlowTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "wiredThroughSolverAndInvertedByNewton"
+  },
+  "control-system-conversions-round-trip-tf2ss-and-ss2tf": {
+    "class": "ControlSystemConversionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "roundTripTf2ssAndSs2tf"
+  },
+  "control-system-conversions-tf2zp-converts-correctly": {
+    "class": "ControlSystemConversionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "tf2zpConvertsCorrectly"
+  },
+  "control-system-conversions-zp2tf-converts-correctly": {
+    "class": "ControlSystemConversionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "zp2tfConvertsCorrectly"
+  },
+  "control-system-interconnection-car-cruise-control-example-system": {
+    "class": "ControlSystemInterconnectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "carCruiseControlExampleSystem"
+  },
+  "control-system-interconnection-feedback-connection-default-negative": {
+    "class": "ControlSystemInterconnectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "feedbackConnectionDefaultNegative"
+  },
+  "control-system-interconnection-feedback-connection-negative": {
+    "class": "ControlSystemInterconnectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "feedbackConnectionNegative"
+  },
+  "control-system-interconnection-feedback-connection-positive": {
+    "class": "ControlSystemInterconnectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "feedbackConnectionPositive"
+  },
+  "control-system-interconnection-parallel-connection-of-two-systems": {
+    "class": "ControlSystemInterconnectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parallelConnectionOfTwoSystems"
+  },
+  "control-system-interconnection-series-connection-of-two-systems": {
+    "class": "ControlSystemInterconnectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "seriesConnectionOfTwoSystems"
+  },
+  "cooker-faithful-reproduces-reference-with-electrical-heater": {
+    "class": "CookerFaithfulTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "reproducesReferenceWithElectricalHeater"
   },
   "ctldesign-acker-double-integrator": {
     "class": "ControlSystemDesignTest.java",
@@ -479,6 +1355,12 @@
     "kind": "solvecall",
     "method": "stateSpaceStepMatchesTransferFunction"
   },
+  "cubic-eos-wired-through-solver": {
+    "class": "CubicEosTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "wiredThroughSolver"
+  },
   "curvefn-adjusts-outof-range-guesses-to-range-average": {
     "class": "CurveFunctionTest.java",
     "function_tables": [
@@ -569,6 +1451,54 @@
     "kind": "solvecall",
     "method": "logAxesInterpolateAsPowerLaws"
   },
+  "cycle-examples-engine-cycle-solves": {
+    "class": "CycleExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "engineCycleSolves"
+  },
+  "cycle-examples-flame-temperature-solves": {
+    "class": "CycleExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "flameTemperatureSolves"
+  },
+  "cycle-examples-heat-exchanger-solves": {
+    "class": "CycleExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "heatExchangerSolves"
+  },
+  "cycle-path-component-component-rankine-streams-produce-a-cycle-path": {
+    "class": "CyclePathComponentTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "componentRankineStreamsProduceACyclePath"
+  },
+  "cycle-path-resolver-back-fills-the-properties-of-a-numbered-state": {
+    "class": "CyclePathResolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "backFillsThePropertiesOfANumberedState"
+  },
+  "cycle-path-resolver-passes-through-when-no-state-pair-is-complete": {
+    "class": "CyclePathResolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "passesThroughWhenNoStatePairIsComplete"
+  },
+  "cycle-path-resolver-state-table-blocks-resolve-tagged-states-with-their-own-fluid": {
+    "class": "CyclePathResolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "stateTableBlocksResolveTaggedStatesWithTheirOwnFluid"
+  },
+  "cycle-path-resolver-underscore-style-states-keep-their-naming-in-write-back": {
+    "class": "CyclePathResolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "underscoreStyleStatesKeepTheirNamingInWriteBack"
+  },
   "domsep-fluid-cannot-connect-to-mechanical-shaft": {
     "class": "ComponentDomainSeparationTest.java",
     "in_assert_throws": true,
@@ -592,6 +1522,162 @@
     "in_assert_throws": true,
     "kind": "solvecall",
     "method": "pneumaticCannotConnectToHydraulic"
+  },
+  "dual-evap-debug-check": {
+    "class": "DualEvapDebugTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "check"
+  },
+  "dynamic-accessor-final-and-max-value-report-transient-results": {
+    "class": "DynamicAccessorTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "finalAndMaxValueReportTransientResults"
+  },
+  "dynamic-accessor-size-initial-velocity-so-apogee-meets-target": {
+    "class": "DynamicAccessorTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "sizeInitialVelocitySoApogeeMeetsTarget"
+  },
+  "dynamic-accessor-time-at-and-ode-value-accessors": {
+    "class": "DynamicAccessorTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "timeAtAndOdeValueAccessors"
+  },
+  "dynamic-array-states-rod-with-ode45-also": {
+    "class": "DynamicArrayStatesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "rodWithOde45Also"
+  },
+  "dynamic-array-states-transient-heat-rod-reaches-linear-steady-state": {
+    "class": "DynamicArrayStatesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "transientHeatRodReachesLinearSteadyState"
+  },
+  "dynamic-examples-damped-oscillator-example": {
+    "class": "DynamicExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "dampedOscillatorExample"
+  },
+  "dynamic-examples-newton-cooling-transient-example": {
+    "class": "DynamicExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "newtonCoolingTransientExample"
+  },
+  "dynamic-examples-sounding-rocket-reports-apogee-near100km": {
+    "class": "DynamicExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "soundingRocketReportsApogeeNear100km"
+  },
+  "dynamic-examples-transient-heat-rod-example": {
+    "class": "DynamicExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "transientHeatRodExample"
+  },
+  "dynamic-ida-solve-ida-method-without-library-fails-clearly": {
+    "class": "DynamicIdaSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "idaMethodWithoutLibraryFailsClearly"
+  },
+  "dynamic-ida-solve-ida-resolves-algebraic-auxiliary-as-dae-unknown": {
+    "class": "DynamicIdaSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "idaResolvesAlgebraicAuxiliaryAsDaeUnknown"
+  },
+  "dynamic-ida-solve-newton-cooling-on-ida-matches-analytic": {
+    "class": "DynamicIdaSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "newtonCoolingOnIdaMatchesAnalytic"
+  },
+  "dynamic-index-detection-healthy-index-one-dae-still-solves": {
+    "class": "DynamicIndexDetectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "healthyIndexOneDaeStillSolves"
+  },
+  "dynamic-index-detection-output-equation-over-states-is-not-flagged": {
+    "class": "DynamicIndexDetectionTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "outputEquationOverStatesIsNotFlagged"
+  },
+  "dynamic-index-detection-rigid-two-inertia-coupling-is-rejected-with-named-states": {
+    "class": "DynamicIndexDetectionTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "rigidTwoInertiaCouplingIsRejectedWithNamedStates"
+  },
+  "dynamic-parse-event-direction-defaults-to-any": {
+    "class": "DynamicParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "eventDirectionDefaultsToAny"
+  },
+  "dynamic-parse-missing-time-span-is-rejected": {
+    "class": "DynamicParseTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "missingTimeSpanIsRejected"
+  },
+  "dynamic-parse-parses-array-state-initial-condition": {
+    "class": "DynamicParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parsesArrayStateInitialCondition"
+  },
+  "dynamic-parse-parses-header-options-body-initials-and-events": {
+    "class": "DynamicParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parsesHeaderOptionsBodyInitialsAndEvents"
+  },
+  "dynamic-parse-unknown-option-is-rejected": {
+    "class": "DynamicParseTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "unknownOptionIsRejected"
+  },
+  "dynamic-solve-apogee-stop-event-ends-integration": {
+    "class": "DynamicSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "apogeeStopEventEndsIntegration"
+  },
+  "dynamic-solve-auxiliary-column-and-der-coupling": {
+    "class": "DynamicSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "auxiliaryColumnAndDerCoupling"
+  },
+  "dynamic-solve-dynamic-only-check-passes-without-analytic-equations": {
+    "class": "DynamicSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "dynamicOnlyCheckPassesWithoutAnalyticEquations"
+  },
+  "dynamic-solve-dynamic-only-solve-produces-ode-table": {
+    "class": "DynamicSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "dynamicOnlySolveProducesOdeTable"
+  },
+  "dynamic-solve-newton-cooling-matches-analytic-solution": {
+    "class": "DynamicSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "newtonCoolingMatchesAnalyticSolution"
   },
   "epsntu-components": {
     "class": "EpsNtuFloatingTest.java",
@@ -941,6 +2027,132 @@
     "kind": "solvecall",
     "method": "variableCaseFollowsFirstAppearance"
   },
+  "equation-parser-parses-plot-block-into-defined-plot": {
+    "class": "EquationParserTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parsesPlotBlockIntoDefinedPlot"
+  },
+  "equation-parser-parses-property-plot-block": {
+    "class": "EquationParserTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parsesPropertyPlotBlock"
+  },
+  "equilibrium-transport-wired-through-solver": {
+    "class": "EquilibriumTransportTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "wiredThroughSolver"
+  },
+  "ev-tms-api-model-integrated-model-solves-with-plain-solver": {
+    "class": "EvTmsApiModelTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "integratedModelSolvesWithPlainSolver"
+  },
+  "ev-tms-cabin-model": {
+    "class": "EvTmsCabinTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "model"
+  },
+  "ev-tms-cabin-steady-operating-point": {
+    "class": "EvTmsCabinTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "steadyOperatingPoint"
+  },
+  "ev-tms-cabin-transient-ramp": {
+    "class": "EvTmsCabinTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "transientRamp"
+  },
+  "ev-tms-correlated-model": {
+    "class": "EvTmsCorrelatedTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "model"
+  },
+  "ev-tms-coupled-model-head": {
+    "class": "EvTmsCoupledTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "MODEL_HEAD"
+  },
+  "ev-tms-discretized-helpers": {
+    "class": "EvTmsDiscretizedTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "HELPERS"
+  },
+  "ev-tms-discretized-ref-helpers": {
+    "class": "EvTmsDiscretizedTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "REF_HELPERS"
+  },
+  "fluid-property-examples-example3-3-volume-and-energy-change-during-evaporation": {
+    "class": "FluidPropertyExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example3_3_volumeAndEnergyChangeDuringEvaporation"
+  },
+  "fluid-property-examples-example3-4-pressure-and-volume-of-saturated-mixture": {
+    "class": "FluidPropertyExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example3_4_pressureAndVolumeOfSaturatedMixture"
+  },
+  "fluid-property-examples-example3-5-properties-of-saturated-liquid-vapor-mixture": {
+    "class": "FluidPropertyExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example3_5_propertiesOfSaturatedLiquidVaporMixture"
+  },
+  "fluid-property-examples-example3-7-temperature-of-superheated-vapor": {
+    "class": "FluidPropertyExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example3_7_temperatureOfSuperheatedVapor"
+  },
+  "fluid-property-examples-example3-8-approximating-compressed-liquid-as-saturated-liquid": {
+    "class": "FluidPropertyExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example3_8_approximatingCompressedLiquidAsSaturatedLiquid"
+  },
+  "heat-exchanger-wired-through-solver": {
+    "class": "HeatExchangerTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "wiredThroughSolver"
+  },
+  "heisler-charts-heisler-through-the-solver": {
+    "class": "HeislerChartsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "heislerThroughTheSolver"
+  },
+  "humid-air-enthalpy-and-volume-per-dry-air": {
+    "class": "HumidAirTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "enthalpyAndVolumePerDryAir"
+  },
+  "humid-air-relative-humidity-round-trips-through-humidity-ratio": {
+    "class": "HumidAirTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "relativeHumidityRoundTripsThroughHumidityRatio"
+  },
+  "humid-air-wet-bulb-and-dew-point": {
+    "class": "HumidAirTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "wetBulbAndDewPoint"
+  },
   "hvac-problem1-ammonia-cop": {
     "class": "HvacExamplesTest.java",
     "in_assert_throws": false,
@@ -1001,6 +2213,30 @@
     "kind": "textblock",
     "method": "problem9_airSupplyWetBulb"
   },
+  "hx-correlation-document-call-matches-java": {
+    "class": "HxCorrelationTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "documentCallMatchesJava"
+  },
+  "hx-correlation-ua-and-dp-injected-into-component": {
+    "class": "HxCorrelationTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "uaAndDpInjectedIntoComponent"
+  },
+  "ideal-gas-adiabatic-flame-temperature-with-ideal-gas-functions": {
+    "class": "IdealGasTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "adiabaticFlameTemperatureWithIdealGasFunctions"
+  },
+  "ideal-gas-stagnation-properties": {
+    "class": "IdealGasTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "stagnationProperties"
+  },
   "integral-adiabatic-flame-temperature": {
     "class": "IntegralTest.java",
     "in_assert_throws": false,
@@ -1030,6 +2266,12 @@
     "in_assert_throws": true,
     "kind": "solvecall",
     "method": "rejectsIntegralInComplexMode"
+  },
+  "integral-solver-solves-initial-value-problem-with-nested-integral": {
+    "class": "IntegralSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "solvesInitialValueProblemWithNestedIntegral"
   },
   "integral-solves-initial-value-problem": {
     "class": "IntegralTest.java",
@@ -1066,6 +2308,30 @@
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "variableLimitInlinesIntegrandDefinitions"
+  },
+  "interp2-bicubic-node-exact": {
+    "class": "Interp2Test.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "bicubicNodeExact"
+  },
+  "interp2-bilinear-centre": {
+    "class": "Interp2Test.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "bilinearCentre"
+  },
+  "interp2-bilinear-exact-on-affine-field": {
+    "class": "Interp2Test.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "bilinearExactOnAffineField"
+  },
+  "interp2-clamps-outside": {
+    "class": "Interp2Test.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "clampsOutside"
   },
   "linalg-cholesky-known-factor": {
     "class": "LinearAlgebraCallTest.java",
@@ -1108,6 +2374,78 @@
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "traceAndFrobeniusNorm"
+  },
+  "liquid-domain-battery-cold-plate-coolant-loop-solves": {
+    "class": "LiquidDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "batteryColdPlateCoolantLoopSolves"
+  },
+  "liquid-domain-liquid-line-cannot-connect-to-hydraulic-line": {
+    "class": "LiquidDomainTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "liquidLineCannotConnectToHydraulicLine"
+  },
+  "liquid-domain-liquid-line-cannot-connect-to-thermofluid-line": {
+    "class": "LiquidDomainTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "liquidLineCannotConnectToThermofluidLine"
+  },
+  "liquid-domain-liquid-pump-raises-pressure-with-small-liquid-work": {
+    "class": "LiquidDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "liquidPumpRaisesPressureWithSmallLiquidWork"
+  },
+  "mimo-control-channel11-is1-over-splus1": {
+    "class": "MimoControlTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "channel11Is1OverSplus1"
+  },
+  "mimo-control-channel22-is1-over-splus2": {
+    "class": "MimoControlTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "channel22Is1OverSplus2"
+  },
+  "mimo-control-cross-channel12-is-zero": {
+    "class": "MimoControlTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "crossChannel12IsZero"
+  },
+  "moving-boundary-hx-condenser-resolves-condensing-and-subcool-zones": {
+    "class": "MovingBoundaryHxTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "condenserResolvesCondensingAndSubcoolZones"
+  },
+  "moving-boundary-hx-evaporator-resolves-two-phase-and-superheat-zones": {
+    "class": "MovingBoundaryHxTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaporatorResolvesTwoPhaseAndSuperheatZones"
+  },
+  "moving-boundary-hx-evaporator-superheat-zone-collapses-smoothly": {
+    "class": "MovingBoundaryHxTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaporatorSuperheatZoneCollapsesSmoothly"
+  },
+  "moving-boundary-hx-transient-warmup-births-superheat-zone-on-ida": {
+    "class": "MovingBoundaryHxTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "transientWarmupBirthsSuperheatZoneOnIda"
+  },
+  "moving-boundary-hx-undersized-evaporator-leaves-refrigerant-two-phase": {
+    "class": "MovingBoundaryHxTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "undersizedEvaporatorLeavesRefrigerantTwoPhase"
   },
   "multiout-colon-form-partial-omission-also-works": {
     "class": "MultiOutputDestructuringTest.java",
@@ -1174,6 +2512,30 @@
     "in_assert_throws": false,
     "kind": "textblock",
     "method": "userFunctionWithTildeDiscard"
+  },
+  "new-library-components-new-library-components-solve": {
+    "class": "NewLibraryComponentsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "newLibraryComponentsSolve"
+  },
+  "numeric-parity-examples-poly-fit-conductivity-matches-reference": {
+    "class": "NumericParityExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "polyFitConductivityMatchesReference"
+  },
+  "numeric-parity-examples-sensor-calibration-combined": {
+    "class": "NumericParityExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "sensorCalibrationCombined"
+  },
+  "ode-rocket-trajectory-rocket": {
+    "class": "OdeRocketTrajectoryTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "ROCKET"
   },
   "odelib-p01-radioactive-decay-ode1": {
     "class": "OdeProblemLibraryTest.java",
@@ -1301,6 +2663,18 @@
     "kind": "textblock",
     "method": "p21_implicitDAE_ode15s"
   },
+  "parameter-fit-decay-model": {
+    "class": "ParameterFitTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "DECAY_MODEL"
+  },
+  "pressure-cooker-cooker-over-pressurises-with-undersized-valve": {
+    "class": "PressureCookerTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "cookerOverPressurisesWithUndersizedValve"
+  },
   "proc-call-inside-procedure-for-is-rejected-not-silently-dropped": {
     "class": "ProceduralFeaturesTest.java",
     "in_assert_throws": false,
@@ -1390,6 +2764,252 @@
     "in_assert_throws": false,
     "kind": "textblock",
     "method": "procedureWithConditional"
+  },
+  "property-argument-seeding-subcritical-inversion-across-dome-converges-from-default-guess": {
+    "class": "PropertyArgumentSeedingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "subcriticalInversionAcrossDomeConvergesFromDefaultGuess"
+  },
+  "property-argument-seeding-supercritical-inversion-converges-from-default-guess": {
+    "class": "PropertyArgumentSeedingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "supercriticalInversionConvergesFromDefaultGuess"
+  },
+  "real-fluid-properties-ethylene-glycol-mixture-resolves-to-incompressible-solution": {
+    "class": "RealFluidPropertiesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ethyleneGlycolMixtureResolvesToIncompressibleSolution"
+  },
+  "real-fluid-properties-glycol-concentration-is-configurable": {
+    "class": "RealFluidPropertiesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "glycolConcentrationIsConfigurable"
+  },
+  "real-fluid-properties-property-calls-carry-inferred-si-units": {
+    "class": "RealFluidPropertiesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "propertyCallsCarryInferredSiUnits"
+  },
+  "real-fluid-properties-solves-vapor-compression-cycle": {
+    "class": "RealFluidPropertiesTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesVaporCompressionCycle"
+  },
+  "schematic-payload-separates-the-coolant-and-refrigerant-circuits": {
+    "class": "SchematicPayloadTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "separatesTheCoolantAndRefrigerantCircuits"
+  },
+  "schematic-payload-shared-stream-wiring-reports-the-stream-as-written": {
+    "class": "SchematicPayloadTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "sharedStreamWiringReportsTheStreamAsWritten"
+  },
+  "schematic-payload-topology-only-documents-still-report-domain-and-endpoints": {
+    "class": "SchematicPayloadTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "topologyOnlyDocumentsStillReportDomainAndEndpoints"
+  },
+  "signal-domain-algebraic-feedback-loop-solves": {
+    "class": "SignalDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "algebraicFeedbackLoopSolves"
+  },
+  "signal-domain-blocks": {
+    "class": "SignalDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "BLOCKS"
+  },
+  "signal-domain-chained-signal-blocks-propagate-the-value": {
+    "class": "SignalDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "chainedSignalBlocksPropagateTheValue"
+  },
+  "signal-domain-one-writer-broadcasts-to-two-readers": {
+    "class": "SignalDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "oneWriterBroadcastsToTwoReaders"
+  },
+  "signal-domain-signal-cannot-connect-to-a-fluid-port": {
+    "class": "SignalDomainTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "signalCannotConnectToAFluidPort"
+  },
+  "signal-domain-signal-cannot-connect-to-a-heat-port": {
+    "class": "SignalDomainTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "signalCannotConnectToAHeatPort"
+  },
+  "signal-processing-call-convolve": {
+    "class": "SignalProcessingCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "convolve"
+  },
+  "signal-processing-call-fft-of-ramp": {
+    "class": "SignalProcessingCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "fftOfRamp"
+  },
+  "signal-processing-call-ifft-recovers-signal": {
+    "class": "SignalProcessingCallTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ifftRecoversSignal"
+  },
+  "solid-and-string-functions-array-elmt-dynamic-indexing": {
+    "class": "SolidAndStringFunctionsTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "arrayElmtDynamicIndexing"
+  },
+  "solid-and-string-functions-numeric-string-functions": {
+    "class": "SolidAndStringFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "numericStringFunctions"
+  },
+  "solid-and-string-functions-solid-material-properties": {
+    "class": "SolidAndStringFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solidMaterialProperties"
+  },
+  "solid-and-string-functions-solid-property-participates-in-heat-transfer-calc": {
+    "class": "SolidAndStringFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solidPropertyParticipatesInHeatTransferCalc"
+  },
+  "solid-and-string-functions-temperature-dependent-solid-properties": {
+    "class": "SolidAndStringFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "temperatureDependentSolidProperties"
+  },
+  "solver-equilibration-coupled-block-with-twelve-orders-of-magnitude-scale-disparity-solves": {
+    "class": "SolverEquilibrationTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "coupledBlockWithTwelveOrdersOfMagnitudeScaleDisparitySolves"
+  },
+  "ss2tf-solve-ss2tf-recovers-second-order-transfer-function": {
+    "class": "Ss2tfSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ss2tfRecoversSecondOrderTransferFunction"
+  },
+  "ss2tf-solve-ss2tf-recovers-second-order-transfer-function-with-manual-slices": {
+    "class": "Ss2tfSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ss2tfRecoversSecondOrderTransferFunctionWithManualSlices"
+  },
+  "ss2tf-solve-ss2tf-recovers-second-order-transfer-function-with-manual2-d-slices": {
+    "class": "Ss2tfSolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "ss2tfRecoversSecondOrderTransferFunctionWithManual2DSlices"
+  },
+  "state-table-parse-accepts-quoted-fluid-name": {
+    "class": "StateTableParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "acceptsQuotedFluidName"
+  },
+  "state-table-parse-numberless-state-variable-is-rejected": {
+    "class": "StateTableParseTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "numberlessStateVariableIsRejected"
+  },
+  "state-table-parse-parses-variables-and-fluid-attribute": {
+    "class": "StateTableParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parsesVariablesAndFluidAttribute"
+  },
+  "state-table-parse-supports-multiple-fluid-aware-circuits": {
+    "class": "StateTableParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "supportsMultipleFluidAwareCircuits"
+  },
+  "state-table-parse-survives-markdown-extraction": {
+    "class": "StateTableParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "survivesMarkdownExtraction"
+  },
+  "state-table-parse-variable-named-state-still-parses-as-identifier": {
+    "class": "StateTableParseTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "variableNamedStateStillParsesAsIdentifier"
+  },
+  "statistics-functions-descriptive-statistics": {
+    "class": "StatisticsFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "descriptiveStatistics"
+  },
+  "statistics-functions-linear-regression": {
+    "class": "StatisticsFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "linearRegression"
+  },
+  "statistics-functions-normal-distribution": {
+    "class": "StatisticsFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "normalDistribution"
+  },
+  "statistics-functions-percentiles": {
+    "class": "StatisticsFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "percentiles"
+  },
+  "statistics-functions-polynomial-regression": {
+    "class": "StatisticsFunctionsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "polynomialRegression"
+  },
+  "steady-by-integration-chiller-bridge-reaches-consistent-steady-by-integration": {
+    "class": "SteadyByIntegrationTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "chillerBridgeReachesConsistentSteadyByIntegration"
+  },
+  "steady-by-integration-floating-cycle-by-control-volume-integration": {
+    "class": "SteadyByIntegrationTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "floatingCycleByControlVolumeIntegration"
+  },
+  "symbolic-identity-solve-solves-partial-fraction-example-end-to-end": {
+    "class": "SymbolicIdentitySolveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesPartialFractionExampleEndToEnd"
   },
   "sysdesign-ex01-thermal-network": {
     "class": "SystemDesignExamplesTest.java",
@@ -1529,6 +3149,30 @@
     "kind": "textblock",
     "method": "ex20_zeotropicBlend"
   },
+  "system-uncertainty-parameter-tolerance-propagates-to-component-network-kpis": {
+    "class": "SystemUncertaintyTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "parameterTolerancePropagatesToComponentNetworkKpis"
+  },
+  "thermodynamics-examples-example1-1-wind-turbine-energy-and-savings": {
+    "class": "ThermodynamicsExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example1_1_windTurbineEnergyAndSavings"
+  },
+  "thermodynamics-examples-example1-2-oil-tank-mass": {
+    "class": "ThermodynamicsExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example1_2_oilTankMass"
+  },
+  "thermodynamics-examples-example1-9-manometer-absolute-pressure": {
+    "class": "ThermodynamicsExamplesTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "example1_9_manometerAbsolutePressure"
+  },
   "tpcharge-charge-sets-condensing-pressure-and-subcooling": {
     "class": "TwoPhaseChargeTest.java",
     "in_assert_throws": false,
@@ -1570,6 +3214,42 @@
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "nonIsobaricCycleHasSuctionBelowEvaporatingPressureAndPlausibleCop"
+  },
+  "two-phase-distributed-temperature-glides-along-a-multi-cell-coil": {
+    "class": "TwoPhaseDistributedTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "temperatureGlidesAlongAMultiCellCoil"
+  },
+  "two-phase-distributed-transient-crc-relaxes-on-ida-and-migrates-charge": {
+    "class": "TwoPhaseDistributedTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "transientCrcRelaxesOnIdaAndMigratesCharge"
+  },
+  "two-phase-domain-capacitive-resistive-capacitive-chain-is-accepted": {
+    "class": "TwoPhaseDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "capacitiveResistiveCapacitiveChainIsAccepted"
+  },
+  "two-phase-domain-direct-capacitive-to-capacitive-connection-is-rejected": {
+    "class": "TwoPhaseDomainTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "directCapacitiveToCapacitiveConnectionIsRejected"
+  },
+  "two-phase-domain-two-phase-chain-computes-quality-void-and-pressure-glide": {
+    "class": "TwoPhaseDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "twoPhaseChainComputesQualityVoidAndPressureGlide"
+  },
+  "txv-superheat-domain-txv-superheat-connects-to-two-phase-lines": {
+    "class": "TxvSuperheatDomainTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "txvSuperheatConnectsToTwoPhaseLines"
   },
   "validation-algebra-canonical-pair": {
     "class": "validation/algebra-canonical-pair.frees",
@@ -1774,5 +3454,29 @@
     "in_assert_throws": false,
     "kind": "resource",
     "method": "uncertainty-product-rss"
+  },
+  "view-factor-coaxial-disks-reciprocity-with-unequal-radii": {
+    "class": "ViewFactorTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "coaxialDisksReciprocityWithUnequalRadii"
+  },
+  "zeotropic-blend-composition-rider-is-transported-across-connects": {
+    "class": "ZeotropicBlendTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "compositionRiderIsTransportedAcrossConnects"
+  },
+  "zeotropic-blend-pure-refrigerant-has-no-glide": {
+    "class": "ZeotropicBlendTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "pureRefrigerantHasNoGlide"
+  },
+  "zeotropic-blend-zeotropic-blend-shows-temperature-glide": {
+    "class": "ZeotropicBlendTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "zeotropicBlendShowsTemperatureGlide"
   }
 }

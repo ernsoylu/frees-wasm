@@ -1,0 +1,26 @@
+{
+  "name": "statistics-functions-normal-distribution",
+  "source": "a = normalCDF(0)\nb = normalCDF(1.96)\nc = normalInvCDF(0.975)\nd = normalPDF(0)\n",
+  "expect": {
+    "variables": {
+      "a": 0.5,
+      "b": 0.9750021048517796,
+      "c": 1.959963984540054,
+      "d": 0.3989422804014327
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

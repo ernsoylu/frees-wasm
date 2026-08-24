@@ -1,0 +1,47 @@
+{
+  "name": "component-moist-air-humidifier-adds-moisture-and-enthalpy",
+  "source": "COMPONENT MASrc(out)\n  PARAM W, h0, mdot, P, domain$ = moistair\n  out.P    = P\n  out.mdot = mdot\n  out.W    = W\n  out.h    = h0\nEND\nMASrc      SRC(W=0.005, h0=35000, mdot=2, P=101325)\nHumidifier HUM(mdot_w=0.002, h_w=2.5e6)\nconnect(SRC.out, HUM.in)\n",
+  "expect": {
+    "variables": {
+      "hum.in.h": 35000.0,
+      "hum.in.mdot": 2.0,
+      "hum.in.p": 101325.0,
+      "hum.in.w": 0.005,
+      "hum.out.h": 37500.0,
+      "hum.out.mdot": 2.0,
+      "hum.out.p": 101325.0,
+      "hum.out.w": 0.006,
+      "src.out.h": 35000.0,
+      "src.out.mdot": 2.0,
+      "src.out.p": 101325.0,
+      "src.out.w": 0.005
+    },
+    "display_names": {
+      "h0": "h0",
+      "hum$in$h": "hum.in.h",
+      "hum$in$mdot": "hum.in.mdot",
+      "hum$in$p": "hum.in.p",
+      "hum$in$w": "hum.in.w",
+      "hum$out$h": "hum.out.h",
+      "hum$out$mdot": "hum.out.mdot",
+      "hum$out$p": "hum.out.p",
+      "hum$out$w": "hum.out.w",
+      "mdot": "mdot",
+      "moistair": "moistair",
+      "p": "P",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "src$out$w": "src.out.w",
+      "w": "W"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

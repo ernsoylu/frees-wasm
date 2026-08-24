@@ -1,0 +1,3 @@
+Engine   ENG(Tmax=200, throttle=0.5, bf=0.1)
+RoadLoad RL(Crr=10, Caero=0.01)
+connect(ENG.shaft, RL.shaft)

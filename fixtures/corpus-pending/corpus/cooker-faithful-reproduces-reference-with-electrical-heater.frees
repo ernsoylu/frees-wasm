@@ -1,0 +1,18 @@
+VoltageSource   SUP(E=220)
+HeatingResistor HTR(R=32.2667)              // I^2*R = 1500 W, I = 6.818 A
+Ground          GND()
+ThermalMass     STEEL(C=750, T0=293.15)     // lumped steel body
+Convection      S2W(htc=333.33, area=1)     // steel->water link, 333 W/K
+BoilingVessel   COOK(fluid$=Water, V=0.005, m0=2.994, T0=293.15)
+ProportionalReliefValve PRV(fluid$=Water, Pcrack=202600, grad=6e-7, eps=2000)
+TwoPhasePressureSink ATM(P=101300)
+
+connect(SUP.p, HTR.p)
+connect(SUP.n, HTR.n, GND.port)             // single 3-way node = circuit return + ground
+connect(HTR.heat, STEEL.port, S2W.a)        // resistor dissipates into the steel body
+connect(S2W.b, COOK.wall)
+connect(COOK.vent, PRV.in)
+connect(PRV.out, ATM.in)
+
+DYNAMIC cook (method = ida, time = 0 .. 1200, points = 25, rtol = 1e-5, atol = 1e-4)
+END

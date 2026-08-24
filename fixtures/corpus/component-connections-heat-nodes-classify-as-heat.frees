@@ -1,0 +1,9 @@
+COMPONENT Hot(s)
+s.t = 400
+END
+COMPONENT Wall(a, b)
+a.qdot = (a.t - b.t) / 0.5
+b.qdot = 0 - a.qdot
+END
+Hot H(w1)
+Wall W(w1, w2)

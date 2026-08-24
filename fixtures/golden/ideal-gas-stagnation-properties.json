@@ -1,0 +1,32 @@
+{
+  "name": "ideal-gas-stagnation-properties",
+  "source": "T = 300 [K]\nV = 200 [m/s]\ncp = 1005 [J/kg-K]\nT0 = stagnationTemp(T, V, cp)\n\nP = 100000 [Pa]\nk = 1.4\nP0 = stagnationPres(P, T, T0, k)\n",
+  "expect": {
+    "variables": {
+      "P": 100000.0,
+      "P0": 125206.77019884119,
+      "T": 300.0,
+      "T0": 319.9004975124378,
+      "V": 200.0,
+      "cp": 1005.0,
+      "k": 1.4
+    },
+    "display_names": {
+      "cp": "cp",
+      "k": "k",
+      "p": "P",
+      "p0": "P0",
+      "t": "T",
+      "t0": "T0",
+      "v": "V"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

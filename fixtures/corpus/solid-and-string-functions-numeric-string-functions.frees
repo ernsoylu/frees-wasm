@@ -1,0 +1,3 @@
+n = StringLen('frees')
+p = StringPos('hello world', 'world')
+v = StringVal('3.14')

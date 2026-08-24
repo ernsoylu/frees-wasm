@@ -1,0 +1,2 @@
+UA_chl_r = 575.46
+TwoPhaseEvaporatorUA CHLR(fluid$=R1234yf, UA=UA_chl_r, SH=5)

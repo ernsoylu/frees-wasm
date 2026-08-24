@@ -1,0 +1,7 @@
+DYNAMIC rigid(t = 0 .. 1)
+der(w1) = (10 - tau_c) / 2
+der(w2) = tau_c / 3
+w1 = w2
+w1(0) = 0
+w2(0) = 0
+END

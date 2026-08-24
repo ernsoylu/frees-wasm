@@ -1,0 +1,14 @@
+Vol_vessel = 0.080
+m = 4
+P_ves = 160000
+v_avg = Vol_vessel / m
+T_sat = Temperature(R134a, P=P_ves, x=0)
+x = Quality(R134a, P=P_ves, v=v_avg)
+vol_f = Volume(R134a, P=P_ves, x=0)
+vol_g = Volume(R134a, P=P_ves, x=1)
+x_check = (v_avg - vol_f) / (vol_g - vol_f)
+h_f = Enthalpy(R134a, P=P_ves, x=0)
+h_g = Enthalpy(R134a, P=P_ves, x=1)
+h_fg = h_g - h_f
+m_vap = x * m
+Vol_vapor = m_vap * vol_g

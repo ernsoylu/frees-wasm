@@ -1,0 +1,26 @@
+{
+  "name": "view-factor-coaxial-disks-reciprocity-with-unequal-radii",
+  "source": "F12 = viewfactor_disks(0.5, 1.0, 0.4)\nF21 = viewfactor_disks(1.0, 0.5, 0.4)\nlhs = F12 * 0.25\nrhs = F21 * 1.0\n",
+  "expect": {
+    "variables": {
+      "F12": 0.8319356147247143,
+      "F21": 0.20798390368117858,
+      "lhs": 0.20798390368117858,
+      "rhs": 0.20798390368117858
+    },
+    "display_names": {
+      "f12": "F12",
+      "f21": "F21",
+      "lhs": "lhs",
+      "rhs": "rhs"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

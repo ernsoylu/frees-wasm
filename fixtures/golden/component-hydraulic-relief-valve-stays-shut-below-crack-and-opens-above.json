@@ -1,0 +1,44 @@
+{
+  "name": "component-hydraulic-relief-valve-stays-shut-below-crack-and-opens-above",
+  "source": "HydraulicSupply SUP(P=4000000)\nReliefValve     RV(Pcrack=5000000, K=1e-6, eps=10000)\nHydraulicTank   TNK(P=0)\nconnect(SUP.out, RV.in)\nconnect(RV.out, TNK.port)\n",
+  "expect": {
+    "variables": {
+      "rv.in.h": 0.0,
+      "rv.in.mdot": 0.0,
+      "rv.in.p": 4000000.0,
+      "rv.open": 0.0,
+      "rv.out.h": 0.0,
+      "rv.out.mdot": 0.0,
+      "rv.out.p": 0.0,
+      "sup.out.h": 0.0,
+      "sup.out.mdot": 0.0,
+      "sup.out.p": 4000000.0,
+      "tnk.port.h": 0.0,
+      "tnk.port.mdot": 0.0,
+      "tnk.port.p": 0.0
+    },
+    "display_names": {
+      "rv$in$h": "rv.in.h",
+      "rv$in$mdot": "rv.in.mdot",
+      "rv$in$p": "rv.in.p",
+      "rv$open": "rv.open",
+      "rv$out$h": "rv.out.h",
+      "rv$out$mdot": "rv.out.mdot",
+      "rv$out$p": "rv.out.p",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "tnk$port$h": "tnk.port.h",
+      "tnk$port$mdot": "tnk.port.mdot",
+      "tnk$port$p": "tnk.port.p"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

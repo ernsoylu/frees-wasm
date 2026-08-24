@@ -1,0 +1,8 @@
+N = 3
+PLOT 'Speed vs Distance'
+  kind = xy
+  x = speed[1:N]
+  y = distance[1:N], time[1:N]
+  type = line
+  xlabel = 'Speed [m/s]'
+END

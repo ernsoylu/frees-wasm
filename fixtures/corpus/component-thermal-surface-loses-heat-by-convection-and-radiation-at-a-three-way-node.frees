@@ -1,0 +1,8 @@
+ThermalSource SURF(T=350)
+Convection CV(htc=10, area=2)
+Radiation  RD(emis=0.9, area=2)
+ThermalSource AIR(T=300)
+ThermalSource SUR(T=300)
+connect(SURF.port, CV.a, RD.a)
+connect(CV.b, AIR.port)
+connect(RD.b, SUR.port)

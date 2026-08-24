@@ -1,0 +1,34 @@
+{
+  "name": "fluid-property-examples-example3-3-volume-and-energy-change-during-evaporation",
+  "source": "m = 0.2\nP_atm = 100000\nv_f = Volume(Water, P=P_atm, x=0)\nv_g = Volume(Water, P=P_atm, x=1)\nDELTAV = m * (v_g - v_f)\nh_f = Enthalpy(Water, P=P_atm, x=0)\nh_g = Enthalpy(Water, P=P_atm, x=1)\nE_in = m * (h_g - h_f)\n",
+  "expect": {
+    "variables": {
+      "DELTAV": 0.338576902337648,
+      "E_in": 451488.7533270735,
+      "P_atm": 100000.0,
+      "h_f": 417503.9108335986,
+      "h_g": 2674947.6774689658,
+      "m": 0.2,
+      "v_f": 0.0010431536977168344,
+      "v_g": 1.6939276653859567
+    },
+    "display_names": {
+      "deltav": "DELTAV",
+      "e_in": "E_in",
+      "h_f": "h_f",
+      "h_g": "h_g",
+      "m": "m",
+      "p_atm": "P_atm",
+      "v_f": "v_f",
+      "v_g": "v_g"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

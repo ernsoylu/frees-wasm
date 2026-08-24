@@ -1,0 +1,5 @@
+DYNAMIC d (t = 0 .. 10)
+  der(x) = -x
+  x(0) = 1
+  EVENT hit: x = 0 -> record
+END

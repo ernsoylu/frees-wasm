@@ -1,0 +1,6 @@
+Cr = 0.5
+NTU = 1
+eps = hx_effectiveness('counterflow', NTU, Cr)
+hx_effectiveness('counterflow', NTU_req, Cr) = 0.75
+dTlm = LMTD(50, 20)
+Q = 1200 * dTlm

@@ -1,0 +1,10 @@
+k = 0.05
+T_inf = 25 [C]
+m = 0.3
+cp = 4180
+DYNAMIC cooling (method = ode45, time = 0 .. 600 [s], points = 200, rtol = 1e-6)
+  der(T) = -k * (T - T_inf)
+  T(0) = 95 [C]
+  Q_dot = m * cp * der(T)
+  EVENT cool: T = T_inf | falling -> stop
+END

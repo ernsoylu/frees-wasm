@@ -1,0 +1,46 @@
+{
+  "name": "component-electrical-series-resistors-form-a-voltage-divider",
+  "source": "VoltageSource VS(E=10)\nResistor R1(R=3)\nResistor R2(R=2)\nGround   G()\nconnect(VS.p, R1.a)\nconnect(R1.b, R2.a)\nconnect(R2.b, VS.n, G.port)\n",
+  "expect": {
+    "variables": {
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "r1.a.i": 2.0,
+      "r1.a.v": 10.0,
+      "r1.b.i": -2.0,
+      "r1.b.v": 4.0,
+      "r2.a.i": 2.0,
+      "r2.a.v": 4.0,
+      "r2.b.i": -2.0,
+      "r2.b.v": 0.0,
+      "vs.n.i": 2.0,
+      "vs.n.v": 0.0,
+      "vs.p.i": -2.0,
+      "vs.p.v": 10.0
+    },
+    "display_names": {
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "r1$a$i": "r1.a.i",
+      "r1$a$v": "r1.a.v",
+      "r1$b$i": "r1.b.i",
+      "r1$b$v": "r1.b.v",
+      "r2$a$i": "r2.a.i",
+      "r2$a$v": "r2.a.v",
+      "r2$b$i": "r2.b.i",
+      "r2$b$v": "r2.b.v",
+      "vs$n$i": "vs.n.i",
+      "vs$n$v": "vs.n.v",
+      "vs$p$i": "vs.p.i",
+      "vs$p$v": "vs.p.v"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

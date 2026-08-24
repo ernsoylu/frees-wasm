@@ -1,0 +1,18 @@
+{
+  "name": "signal-domain-signal-cannot-connect-to-a-fluid-port",
+  "source": "COMPONENT SigConst(out)\n  PARAM k\n  out.sig = k\nEND\nCOMPONENT SigGain(in, out)\n  PARAM k\n  out.sig = k * in.sig\nEND\nCOMPONENT SigSum(in1, in2, out)\n  out.sig = in1.sig + in2.sig\nEND\nSigConst SRC(k=100000)\nSource   S(fluid$=Air, mdot=1, P=100000, T=300)\nSink     K()\nconnect(SRC.out, K.in)\nconnect(S.out, K.in)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "connect(src.out, k.in): cannot connect a signal port (src.out) to a fluid port (k.in) — different physical domains. Couple domains through a transducer component (a motor, pump, heating resistor, …), not a direct connect."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

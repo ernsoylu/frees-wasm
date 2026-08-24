@@ -1,0 +1,49 @@
+{
+  "name": "component-pneumatic-actuator-balances-gas-force-against-a-mechanical-load",
+  "source": "PneumaticSupply   SUP(fluid$=Air, P=300000, T=300)\nPneumaticActuator ACT(fluid$=Air, area=0.01, Patm=100000)\nTransDamper       D(c=1000)\nTransGround       G()\nconnect(SUP.out, ACT.in)\nconnect(ACT.rod, D.a)\nconnect(D.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "act.in.h": 425848.65181771497,
+      "act.in.mdot": 0.06973783778573016,
+      "act.in.p": 300000.0,
+      "act.rho": 3.4868918892865075,
+      "act.rod.f": -2000.0,
+      "act.rod.vel": 2.0,
+      "d.a.f": 2000.0,
+      "d.a.vel": 2.0,
+      "d.b.f": -2000.0,
+      "d.b.vel": 0.0,
+      "g.port.f": 2000.0,
+      "g.port.vel": 0.0,
+      "sup.out.h": 425848.65181771497,
+      "sup.out.mdot": 0.06973783778573016,
+      "sup.out.p": 300000.0
+    },
+    "display_names": {
+      "act$in$h": "act.in.h",
+      "act$in$mdot": "act.in.mdot",
+      "act$in$p": "act.in.p",
+      "act$rho": "act.rho",
+      "act$rod$f": "act.rod.f",
+      "act$rod$vel": "act.rod.vel",
+      "air": "Air",
+      "d$a$f": "d.a.f",
+      "d$a$vel": "d.a.vel",
+      "d$b$f": "d.b.f",
+      "d$b$vel": "d.b.vel",
+      "g$port$f": "g.port.f",
+      "g$port$vel": "g.port.vel",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

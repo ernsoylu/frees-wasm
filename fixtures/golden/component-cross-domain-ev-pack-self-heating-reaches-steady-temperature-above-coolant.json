@@ -1,0 +1,60 @@
+{
+  "name": "component-cross-domain-ev-pack-self-heating-reaches-steady-temperature-above-coolant",
+  "source": "BatteryThermal B(Voc=400, R0=0.1)\nResistor       MOT(R=3.9)\nGround         G()\nConduction     PLATE(k=10, area=1, L=0.1)\nThermalSource  COOL(T=298)\nconnect(B.p, MOT.a)\nconnect(B.n, MOT.b, G.port)\nconnect(B.heat, PLATE.a)\nconnect(PLATE.b, COOL.port)\n",
+  "expect": {
+    "variables": {
+      "b.heat.qdot": -1000.0,
+      "b.heat.t": 308.0,
+      "b.n.i": 100.0,
+      "b.n.v": 0.0,
+      "b.p.i": -100.0,
+      "b.p.v": 390.0,
+      "b.q": 1000.0,
+      "b.w": 39000.0,
+      "cool.port.qdot": 1000.0,
+      "cool.port.t": 298.0,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "mot.a.i": 100.0,
+      "mot.a.v": 390.0,
+      "mot.b.i": -100.0,
+      "mot.b.v": 0.0,
+      "plate.a.qdot": 1000.0,
+      "plate.a.t": 308.0,
+      "plate.b.qdot": -1000.0,
+      "plate.b.t": 298.0,
+      "plate.q": 1000.0
+    },
+    "display_names": {
+      "b$heat$qdot": "b.heat.qdot",
+      "b$heat$t": "b.heat.t",
+      "b$n$i": "b.n.i",
+      "b$n$v": "b.n.v",
+      "b$p$i": "b.p.i",
+      "b$p$v": "b.p.v",
+      "b$q": "b.q",
+      "b$w": "b.w",
+      "cool$port$qdot": "cool.port.qdot",
+      "cool$port$t": "cool.port.t",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "mot$a$i": "mot.a.i",
+      "mot$a$v": "mot.a.v",
+      "mot$b$i": "mot.b.i",
+      "mot$b$v": "mot.b.v",
+      "plate$a$qdot": "plate.a.qdot",
+      "plate$a$t": "plate.a.t",
+      "plate$b$qdot": "plate.b.qdot",
+      "plate$b$t": "plate.b.t",
+      "plate$q": "plate.q"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

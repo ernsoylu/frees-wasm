@@ -1,0 +1,19 @@
+// Rankine Cycle — built from standard components
+P_hi = 8000000 [Pa]
+P_lo = 10000 [Pa]
+T_hot = 753.15 [K]
+
+Pump      P1(s1, s2, eta=0.80, fluid$=Water)
+Boiler    B1(s2, s3)
+Turbine   T1(s3, s4, eta=0.85, fluid$=Water)
+Condenser C1(s4, s5)
+
+s1.P    = P_lo
+s1.h    = Enthalpy(Water, P=P_lo, x=0)   { saturated liquid into the pump }
+s1.mdot = 1 [kg/s]
+s2.P    = P_hi
+s3.h    = Enthalpy(Water, P=P_hi, T=T_hot) { superheated steam into the turbine }
+s4.P    = P_lo
+s5.h    = Enthalpy(Water, P=P_lo, x=0)
+
+eta_th = (T1.W - P1.W) / B1.Q

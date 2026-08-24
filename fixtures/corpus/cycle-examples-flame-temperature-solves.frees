@@ -1,0 +1,7 @@
+// Adiabatic Flame Temperature
+{ Complete combustion of methane in air (products frozen, no dissociation). }
+phi     = 1.0              { equivalence ratio (1 = stoichiometric, <1 = excess air) }
+T_react = 298.15 [K]       { reactants enter at 25 C }
+T_flame = AdiabaticFlameTemp('CH4', phi, T_react)
+AFR_st  = StoichAFR('CH4') { stoichiometric air-fuel ratio (mass basis) }
+LHV     = HeatingValue('CH4', 'LHV')

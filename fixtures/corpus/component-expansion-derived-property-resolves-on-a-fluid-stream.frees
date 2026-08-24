@@ -1,0 +1,7 @@
+COMPONENT Sink(in)
+  PARAM fluid$ = Water
+  drain = in.mdot
+END
+Sink K1(a, fluid$=R134a)
+a.P = 200000
+a.x = 1

@@ -1,0 +1,36 @@
+{
+  "name": "heisler-charts-heisler-through-the-solver",
+  "source": "h = 100 [W/m^2-K]\nk = 0.6 [W/m-K]\nalpha = 0.15e-6 [m^2/s]\nL = 0.02 [m]\nt = 600 [s]\nBi = h * L / k\nFo = alpha * t / L^2\ntheta_c = heisler_temp('wall', Bi, Fo, 0)\nQ_ratio = heisler_q('wall', Bi, Fo)\n",
+  "expect": {
+    "variables": {
+      "Bi": 3.3333333333333335,
+      "Fo": 0.22499999999999998,
+      "L": 0.02,
+      "Q_ratio": 0.32952524994160104,
+      "alpha": 1.5E-7,
+      "h": 100.0,
+      "k": 0.6,
+      "t": 600.0,
+      "theta_c": 0.8710062253809431
+    },
+    "display_names": {
+      "alpha": "alpha",
+      "bi": "Bi",
+      "fo": "Fo",
+      "h": "h",
+      "k": "k",
+      "l": "L",
+      "q_ratio": "Q_ratio",
+      "t": "t",
+      "theta_c": "theta_c"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

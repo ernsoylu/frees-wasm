@@ -1,0 +1,60 @@
+{
+  "name": "component-valve-datasheet-pump-curve-meets-valve-at-an-operating-point",
+  "source": "COMPONENT PSource(out)\n  PARAM P, h0\n  out.P = P\n  out.h = h0\nEND\nCOMPONENT PSink(in)\n  PARAM P\n  in.P = P\nEND\nTABLE PumpHead(Q [m^3/s]) [Pa]\n  0.0    500000\n  0.05   400000\n  0.1    100000\nEND\nCOMPONENT PumpCurve(in, out)\n  PARAM rho\n  Q        = in.mdot / rho\n  out.mdot = in.mdot\n  out.h    = in.h\n  out.P    = in.P + PumpHead(Q)\nEND\nPSource   SRC(P=100000, h0=0)\nPumpCurve PMP(rho=1000)\nValve     VLV(Cv=0.001, rho=1000)\nPSink     SNK(P=100000)\nconnect(SRC.out, PMP.in)\nconnect(PMP.out, VLV.in)\nconnect(VLV.out, SNK.in)\n",
+  "expect": {
+    "variables": {
+      "pmp.in.h": 0.0,
+      "pmp.in.mdot": 21.38302928559939,
+      "pmp.in.p": 100000.0,
+      "pmp.out.h": 0.0,
+      "pmp.out.mdot": 21.38302928559939,
+      "pmp.out.p": 557233.9414288013,
+      "pmp.q": 0.021383029285599393,
+      "snk.in.h": 0.0,
+      "snk.in.mdot": 21.38302928559939,
+      "snk.in.p": 100000.0,
+      "src.out.h": 0.0,
+      "src.out.mdot": 21.38302928559939,
+      "src.out.p": 100000.0,
+      "vlv.in.h": 0.0,
+      "vlv.in.mdot": 21.38302928559939,
+      "vlv.in.p": 557233.9414288013,
+      "vlv.out.h": 0.0,
+      "vlv.out.mdot": 21.38302928559939,
+      "vlv.out.p": 100000.0
+    },
+    "display_names": {
+      "h0": "h0",
+      "p": "P",
+      "pmp$in$h": "pmp.in.h",
+      "pmp$in$mdot": "pmp.in.mdot",
+      "pmp$in$p": "pmp.in.p",
+      "pmp$out$h": "pmp.out.h",
+      "pmp$out$mdot": "pmp.out.mdot",
+      "pmp$out$p": "pmp.out.p",
+      "pmp$q": "pmp.q",
+      "q": "Q",
+      "rho": "rho",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "vlv$in$h": "vlv.in.h",
+      "vlv$in$mdot": "vlv.in.mdot",
+      "vlv$in$p": "vlv.in.p",
+      "vlv$out$h": "vlv.out.h",
+      "vlv$out$mdot": "vlv.out.mdot",
+      "vlv$out$p": "vlv.out.p"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "component-expansion-derived-property-resolves-on-a-fluid-stream",
+  "source": "COMPONENT Sink(in)\n  PARAM fluid$ = Water\n  drain = in.mdot\nEND\nSink K1(a, fluid$=R134a)\na.P = 200000\na.x = 1\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 3 equations and 4 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): k1.drain. Coupled to: a.mdot. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

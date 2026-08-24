@@ -1,0 +1,5 @@
+Battery  B(Voc=12, R0=0.1)
+Resistor RL(R=2.0)
+Ground   G()
+connect(B.p, RL.a)
+connect(B.n, RL.b, G.port)

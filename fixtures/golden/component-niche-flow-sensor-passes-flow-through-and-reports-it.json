@@ -1,0 +1,53 @@
+{
+  "name": "component-niche-flow-sensor-passes-flow-through-and-reports-it",
+  "source": "COMPONENT FSrc(out)\n  PARAM mdot, P, h0\n  out.mdot = mdot\n  out.P    = P\n  out.h    = h0\nEND\nFSrc       SRC(mdot=2.5, P=100000, h0=0)\nFlowSensor FS()\nSink       SNK()\nconnect(SRC.out, FS.in)\nconnect(FS.out, SNK.in)\n",
+  "expect": {
+    "variables": {
+      "fs.in.h": 0.0,
+      "fs.in.mdot": 2.5,
+      "fs.in.p": 100000.0,
+      "fs.mdot_meas": 2.5,
+      "fs.out.h": 0.0,
+      "fs.out.mdot": 2.5,
+      "fs.out.p": 100000.0,
+      "snk.h": 0.0,
+      "snk.in.h": 0.0,
+      "snk.in.mdot": 2.5,
+      "snk.in.p": 100000.0,
+      "snk.mdot": 2.5,
+      "snk.p": 100000.0,
+      "src.out.h": 0.0,
+      "src.out.mdot": 2.5,
+      "src.out.p": 100000.0
+    },
+    "display_names": {
+      "fs$in$h": "fs.in.h",
+      "fs$in$mdot": "fs.in.mdot",
+      "fs$in$p": "fs.in.p",
+      "fs$mdot_meas": "fs.mdot_meas",
+      "fs$out$h": "fs.out.h",
+      "fs$out$mdot": "fs.out.mdot",
+      "fs$out$p": "fs.out.p",
+      "h0": "h0",
+      "mdot": "mdot",
+      "p": "P",
+      "snk$h": "snk.h",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "snk$mdot": "snk.mdot",
+      "snk$p": "snk.p",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

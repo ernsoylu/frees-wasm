@@ -1,0 +1,4 @@
+F12 = viewfactor_disks(0.5, 1.0, 0.4)
+F21 = viewfactor_disks(1.0, 0.5, 0.4)
+lhs = F12 * 0.25
+rhs = F21 * 1.0

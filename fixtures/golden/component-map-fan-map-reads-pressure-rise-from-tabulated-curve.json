@@ -1,0 +1,35 @@
+{
+  "name": "component-map-fan-map-reads-pressure-rise-from-tabulated-curve",
+  "source": "TABLE fanCurve(Q [m^3/s]) [Pa]\n  0.00   250\n  0.05   180\n  0.10    60\nEND\nFanMap F1(rho=1.2, map$=fanCurve)\nF1.in.mdot = 0.06\nF1.in.P    = 101325\nF1.in.h    = 300000\nF1.out.h   = 300000\n",
+  "expect": {
+    "variables": {
+      "f1.dp": 180.0,
+      "f1.in.h": 300000.0,
+      "f1.in.mdot": 0.06,
+      "f1.in.p": 101325.0,
+      "f1.out.h": 300000.0,
+      "f1.out.mdot": 0.06,
+      "f1.out.p": 101505.0,
+      "f1.q": 0.05
+    },
+    "display_names": {
+      "f1$dp": "f1.dp",
+      "f1$in$h": "f1.in.h",
+      "f1$in$mdot": "f1.in.mdot",
+      "f1$in$p": "f1.in.p",
+      "f1$out$h": "f1.out.h",
+      "f1$out$mdot": "f1.out.mdot",
+      "f1$out$p": "f1.out.p",
+      "f1$q": "f1.q",
+      "fancurve": "fanCurve"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

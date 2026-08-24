@@ -1,0 +1,5 @@
+k = k_(Aluminum)
+rho = rho_(Steel)
+c = c_(Copper)
+E = E_(Steel)
+nu = nu_(Copper)

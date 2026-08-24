@@ -1,0 +1,14 @@
+COMPONENT PSource(out)
+  PARAM P, h0
+  out.P = P
+  out.h = h0
+END
+COMPONENT PSink(in)
+  PARAM P
+  in.P = P
+END
+PSource       SRC(P=1200000, h0=250000)
+ExpansionValve TXV(CdA=1e-6, rho_in=1200)
+PSink         SNK(P=300000)
+connect(SRC.out, TXV.in)
+connect(TXV.out, SNK.in)

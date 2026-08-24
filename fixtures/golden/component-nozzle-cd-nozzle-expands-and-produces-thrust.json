@@ -1,0 +1,40 @@
+{
+  "name": "component-nozzle-cd-nozzle-expands-and-produces-thrust",
+  "source": "Nozzle N(s_in, s_out, k=1.4, R=287, A_throat=0.01, A_exit=0.04, P_amb=0, T0=500)\ns_in.P    = 1000000\ns_in.mdot = 2\ns_in.h    = 300000\n",
+  "expect": {
+    "variables": {
+      "n.m_exit": 2.9401791693125503,
+      "n.t_exit": 183.2219477957242,
+      "n.thrust": 2786.9810659831805,
+      "n.v_exit": 797.7512813392344,
+      "s_in.h": 300000.0,
+      "s_in.mdot": 2.0,
+      "s_in.p": 1000000.0,
+      "s_out.h": -18203.55343919515,
+      "s_out.mdot": 2.0,
+      "s_out.p": 29786.96258261779
+    },
+    "display_names": {
+      "n$m_exit": "n.m_exit",
+      "n$t_exit": "n.t_exit",
+      "n$thrust": "n.thrust",
+      "n$v_exit": "n.v_exit",
+      "s_in": "s_in",
+      "s_in$h": "s_in.h",
+      "s_in$mdot": "s_in.mdot",
+      "s_in$p": "s_in.p",
+      "s_out": "s_out",
+      "s_out$h": "s_out.h",
+      "s_out$mdot": "s_out.mdot",
+      "s_out$p": "s_out.p"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

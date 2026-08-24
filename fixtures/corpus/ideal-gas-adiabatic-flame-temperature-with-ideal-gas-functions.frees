@@ -1,0 +1,9 @@
+M_ch4 = 16.043
+M_o2 = 31.999
+M_n2 = 28.013
+M_co2 = 44.01
+M_h2o = 18.015
+T_in = 298.15 [K]
+H_react = 1 * M_ch4 * Enthalpy(CH4, T=T_in) / 1000 + 2 * M_o2 * Enthalpy(O2, T=T_in) / 1000 + 7.52 * M_n2 * Enthalpy(N2, T=T_in) / 1000
+H_prod = 1 * M_co2 * Enthalpy(CO2, T=T_flame) / 1000 + 2 * M_h2o * Enthalpy(H2O, T=T_flame) / 1000 + 7.52 * M_n2 * Enthalpy(N2, T=T_flame) / 1000
+H_react = H_prod

@@ -1,0 +1,3 @@
+STATE TABLE C(P1, T1)
+  FLUID = 'R245fa'
+END

@@ -1,0 +1,21 @@
+COMPONENT LinPneuRes(in, out)
+  PARAM R, domain$ = gas
+  out.mdot = in.mdot
+  out.h    = in.h
+  in.mdot  = (in.P - out.P) / R
+END
+COMPONENT PneuPlug(port)
+  PARAM domain$ = gas
+  port.mdot = 0
+END
+PneumaticSupply SUP(fluid$=Air, P=200000, T=300)
+LinPneuRes      RES(R=1e5)
+PneumaticVolume VOL(V=0.861, T=300, R=287, P0=100000)
+PneuPlug        PLG()
+connect(SUP.out, RES.in)
+connect(RES.out, VOL.in)
+connect(VOL.out, PLG.port)
+DYNAMIC charge(method = ode45, time = 0 .. 6, points = 100)
+END
+P_final = FinalValue('vol.in.p')
+P_start = MinValue('vol.in.p')

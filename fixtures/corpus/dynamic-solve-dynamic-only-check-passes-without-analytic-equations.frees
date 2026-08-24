@@ -1,0 +1,4 @@
+DYNAMIC cooling (method = ode45, time = 0 .. 100, points = 101)
+  der(T) = -0.01 * (T - 25)
+  T(0) = 95
+END

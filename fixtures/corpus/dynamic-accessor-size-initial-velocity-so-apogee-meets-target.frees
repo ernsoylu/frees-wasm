@@ -1,0 +1,11 @@
+g0 = 9.81
+h_target = 500
+v_used = v0
+MaxValue('h') = h_target
+DYNAMIC flight (method = ode45, t = 0 .. 100, points = 400, rtol = 1e-9)
+  der(h) = v
+  der(v) = -g0
+  h(0) = 0
+  v(0) = v0
+  EVENT apogee: v = 0 | falling -> stop
+END

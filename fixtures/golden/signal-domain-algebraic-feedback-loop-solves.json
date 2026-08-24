@@ -1,0 +1,31 @@
+{
+  "name": "signal-domain-algebraic-feedback-loop-solves",
+  "source": "COMPONENT SigConst(out)\n  PARAM k\n  out.sig = k\nEND\nCOMPONENT SigGain(in, out)\n  PARAM k\n  out.sig = k * in.sig\nEND\nCOMPONENT SigSum(in1, in2, out)\n  out.sig = in1.sig + in2.sig\nEND\nSigConst R(k=1)\nSigGain  FWD(k=8)\nCOMPONENT SigDiff(inp, inm, out)\n  out.sig = inp.sig - inm.sig\nEND\nSigDiff  ERR()\nconnect(R.out, ERR.inp)\nconnect(ERR.out, FWD.in)\nconnect(FWD.out, ERR.inm)\n",
+  "expect": {
+    "variables": {
+      "err.inm.sig": 0.8888888888888888,
+      "err.inp.sig": 1.0,
+      "err.out.sig": 0.1111111111111111,
+      "fwd.in.sig": 0.1111111111111111,
+      "fwd.out.sig": 0.8888888888888888,
+      "r.out.sig": 1.0
+    },
+    "display_names": {
+      "err$inm$sig": "err.inm.sig",
+      "err$inp$sig": "err.inp.sig",
+      "err$out$sig": "err.out.sig",
+      "fwd$in$sig": "fwd.in.sig",
+      "fwd$out$sig": "fwd.out.sig",
+      "k": "k",
+      "r$out$sig": "r.out.sig"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

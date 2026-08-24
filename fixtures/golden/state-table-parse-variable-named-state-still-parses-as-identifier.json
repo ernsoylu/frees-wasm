@@ -1,0 +1,22 @@
+{
+  "name": "state-table-parse-variable-named-state-still-parses-as-identifier",
+  "source": "state = 5\nx = state + 1\n",
+  "expect": {
+    "variables": {
+      "state": 5.0,
+      "x": 6.0
+    },
+    "display_names": {
+      "state": "state",
+      "x": "x"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

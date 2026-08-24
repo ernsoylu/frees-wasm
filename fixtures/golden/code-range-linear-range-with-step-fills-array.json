@@ -1,0 +1,47 @@
+{
+  "name": "code-range-linear-range-with-step-fills-array",
+  "source": "speed = 0:10:100\na = speed[1]\nb = speed[3]\nc = speed[11]\n",
+  "expect": {
+    "variables": {
+      "a": 0.0,
+      "b": 20.0,
+      "c": 100.0,
+      "speed[10]": 90.0,
+      "speed[11]": 100.0,
+      "speed[1]": 0.0,
+      "speed[2]": 10.0,
+      "speed[3]": 20.0,
+      "speed[4]": 30.0,
+      "speed[5]": 40.0,
+      "speed[6]": 50.0,
+      "speed[7]": 60.0,
+      "speed[8]": 70.0,
+      "speed[9]": 80.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "speed": "speed",
+      "speed[10]": "speed[10]",
+      "speed[11]": "speed[11]",
+      "speed[1]": "speed[1]",
+      "speed[2]": "speed[2]",
+      "speed[3]": "speed[3]",
+      "speed[4]": "speed[4]",
+      "speed[5]": "speed[5]",
+      "speed[6]": "speed[6]",
+      "speed[7]": "speed[7]",
+      "speed[8]": "speed[8]",
+      "speed[9]": "speed[9]"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

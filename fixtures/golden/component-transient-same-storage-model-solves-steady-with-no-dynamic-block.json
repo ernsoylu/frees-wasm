@@ -1,0 +1,36 @@
+{
+  "name": "component-transient-same-storage-model-solves-steady-with-no-dynamic-block",
+  "source": "ThermalMass   M(C=5000, T0=400)\nThermalSource amb(T=300)\nConduction    wall(k=2, area=1, L=0.1)\nconnect(M.port, wall.a)\nconnect(wall.b, amb.port)\n",
+  "expect": {
+    "variables": {
+      "amb.port.qdot": 0.0,
+      "amb.port.t": 300.0,
+      "m.port.qdot": 0.0,
+      "m.port.t": 300.0,
+      "wall.a.qdot": 0.0,
+      "wall.a.t": 300.0,
+      "wall.b.qdot": 0.0,
+      "wall.b.t": 300.0,
+      "wall.q": 0.0
+    },
+    "display_names": {
+      "amb$port$qdot": "amb.port.qdot",
+      "amb$port$t": "amb.port.t",
+      "m$port$qdot": "m.port.qdot",
+      "m$port$t": "m.port.t",
+      "wall$a$qdot": "wall.a.qdot",
+      "wall$a$t": "wall.a.t",
+      "wall$b$qdot": "wall.b.qdot",
+      "wall$b$t": "wall.b.t",
+      "wall$q": "wall.q"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

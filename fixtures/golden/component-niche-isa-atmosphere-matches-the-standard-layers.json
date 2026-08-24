@@ -1,0 +1,28 @@
+{
+  "name": "component-niche-isa-atmosphere-matches-the-standard-layers",
+  "source": "T0   = isa_T(0)\nT5   = isa_T(5000)\nP5   = isa_P(5000)\nrho5 = isa_rho(5000)\nT11  = isa_T(11000)\n",
+  "expect": {
+    "variables": {
+      "P5": 54020.49540145998,
+      "T0": 288.15,
+      "T11": 216.64999999999998,
+      "T5": 255.64999999999998,
+      "rho5": 0.7361106665094329
+    },
+    "display_names": {
+      "p5": "P5",
+      "rho5": "rho5",
+      "t0": "T0",
+      "t11": "T11",
+      "t5": "T5"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

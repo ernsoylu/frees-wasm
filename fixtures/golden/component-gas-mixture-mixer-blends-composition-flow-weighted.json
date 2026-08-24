@@ -1,0 +1,45 @@
+{
+  "name": "component-gas-mixture-mixer-blends-composition-flow-weighted",
+  "source": "GasSource S1(a, y=1, mdot=2, P=100000, h0=300000)\nGasSource S2(b, y=0, mdot=3, P=100000, h0=290000)\nGasMixer  MIX(a, b, c)\n",
+  "expect": {
+    "variables": {
+      "a.h": 300000.0,
+      "a.mdot": 2.0,
+      "a.p": 100000.0,
+      "a.y": 1.0,
+      "b.h": 290000.0,
+      "b.mdot": 3.0,
+      "b.p": 100000.0,
+      "b.y": 0.0,
+      "c.h": 294000.0,
+      "c.mdot": 5.0,
+      "c.p": 100000.0,
+      "c.y": 0.4
+    },
+    "display_names": {
+      "a": "a",
+      "a$h": "a.h",
+      "a$mdot": "a.mdot",
+      "a$p": "a.p",
+      "a$y": "a.y",
+      "b": "b",
+      "b$h": "b.h",
+      "b$mdot": "b.mdot",
+      "b$p": "b.p",
+      "b$y": "b.y",
+      "c": "c",
+      "c$h": "c.h",
+      "c$mdot": "c.mdot",
+      "c$p": "c.p",
+      "c$y": "c.y"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

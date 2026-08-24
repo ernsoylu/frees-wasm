@@ -1,0 +1,7 @@
+HydraulicSupply   SUP(P=10000000)
+HydraulicOrifice  ORI(CdA=1e-5, rho=850)
+HydraulicCylinder CYL(rho=850, beta=1.5e9, V0=1e-4, area=0.001, Patm=100000, P0=100000)
+TransGround       G()
+connect(SUP.out, ORI.in)
+connect(ORI.out, CYL.in)
+connect(CYL.rod, G.port)

@@ -1,0 +1,7 @@
+PneumaticSupply   SUP(fluid$=Air, P=300000, T=300)
+PneumaticActuator ACT(fluid$=Air, area=0.01, Patm=100000)
+TransDamper       D(c=1000)
+TransGround       G()
+connect(SUP.out, ACT.in)
+connect(ACT.rod, D.a)
+connect(D.b, G.port)

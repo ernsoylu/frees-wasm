@@ -1,0 +1,24 @@
+{
+  "name": "bitwise-and-special-math-test-cs-number-theory",
+  "source": "a = mod(10.5, 3)\nb = gcd(24, 36)\nc = lcm(12, 18)\n",
+  "expect": {
+    "variables": {
+      "a": 1.5,
+      "b": 12.0,
+      "c": 36.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

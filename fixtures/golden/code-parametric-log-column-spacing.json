@@ -1,0 +1,18 @@
+{
+  "name": "code-parametric-log-column-spacing",
+  "source": "PARAMETRIC s (f)\n  f = 1:5:1000 | Log\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

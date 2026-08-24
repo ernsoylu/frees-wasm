@@ -1,0 +1,30 @@
+{
+  "name": "bitwise-and-special-math-test-bitwise-operations",
+  "source": "a = bitand(5, 6)\nb = bitor(5, 6)\nc = bitxor(5, 6)\nd = bitnot(0)\ne = bitshiftl(2, 3)\nf = bitshiftr(16, 2)\n",
+  "expect": {
+    "variables": {
+      "a": 4.0,
+      "b": 7.0,
+      "c": 3.0,
+      "d": -1.0,
+      "e": 16.0,
+      "f": 4.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e",
+      "f": "f"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

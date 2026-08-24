@@ -1,0 +1,62 @@
+COMPONENT WallT(wall)
+  PARAM T
+  wall.T = T
+END
+COMPONENT EvapSH(in, out, wall)
+  PARAM fluid$, UA, SH, domain$ = twophase
+  out.P = in.P
+  Tevap = T_sat(fluid$, P=out.P)
+  Q     = UA * (wall.T - Tevap)
+  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)
+  out.mdot = Q / (out.h - in.h)
+  in.mdot  = out.mdot
+  wall.Qdot = Q
+END
+COMPONENT TXV(in, out)
+  PARAM domain$ = twophase
+  out.h    = in.h
+  out.mdot = in.mdot
+END
+COMPONENT TwoPhaseMixer(in1, in2, out)
+  PARAM domain$ = twophase
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+COMPONENT CompVol(in, out)
+  PARAM fluid$, disp, eta, domain$ = twophase
+  rho_s = Density(fluid$, P=in.P, h=in.h)
+  in.mdot  = disp * rho_s
+  out.mdot = in.mdot
+  s_in = Entropy(fluid$, P=in.P, h=in.h)
+  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)
+  out.h = in.h + (h_s - in.h) / eta
+  W = in.mdot * (out.h - in.h)
+END
+COMPONENT CondFloatUA(in, out)
+  PARAM fluid$, UA, Tamb, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = UA * (Tcond - Tamb)
+END
+WallT WCHL(T=288)
+WallT WCAB(T=295)
+EvapSH CHLR(fluid$=R1234yf, UA=200, SH=5)
+EvapSH CABE(fluid$=R1234yf, UA=130, SH=8)
+TXV TX1()
+TXV TX2()
+TwoPhaseMixer SUC()
+CompVol CMP(fluid$=R1234yf, disp=0.0025, eta=0.7)
+CondFloatUA COND(fluid$=R1234yf, UA=1200, Tamb=313)
+connect(WCHL.wall, CHLR.wall)
+connect(WCAB.wall, CABE.wall)
+connect(COND.out, TX1.in, TX2.in)
+connect(TX1.out, CHLR.in)
+connect(TX2.out, CABE.in)
+connect(CHLR.out, SUC.in1)
+connect(CABE.out, SUC.in2)
+connect(SUC.out, CMP.in)
+connect(CMP.out, COND.in)

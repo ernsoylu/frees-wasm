@@ -1,0 +1,36 @@
+{
+  "name": "component-thermal-conduction-between-two-fixed-temperatures-carries-fourier-heat",
+  "source": "ThermalSource SH(T=400)\nConduction   WALL(k=50, area=0.1, L=0.02)\nThermalSource SC(T=300)\nconnect(SH.port, WALL.a)\nconnect(WALL.b, SC.port)\n",
+  "expect": {
+    "variables": {
+      "sc.port.qdot": 25000.0,
+      "sc.port.t": 300.0,
+      "sh.port.qdot": -25000.0,
+      "sh.port.t": 400.0,
+      "wall.a.qdot": 25000.0,
+      "wall.a.t": 400.0,
+      "wall.b.qdot": -25000.0,
+      "wall.b.t": 300.0,
+      "wall.q": 25000.0
+    },
+    "display_names": {
+      "sc$port$qdot": "sc.port.qdot",
+      "sc$port$t": "sc.port.t",
+      "sh$port$qdot": "sh.port.qdot",
+      "sh$port$t": "sh.port.t",
+      "wall$a$qdot": "wall.a.qdot",
+      "wall$a$t": "wall.a.t",
+      "wall$b$qdot": "wall.b.qdot",
+      "wall$b$t": "wall.b.t",
+      "wall$q": "wall.q"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

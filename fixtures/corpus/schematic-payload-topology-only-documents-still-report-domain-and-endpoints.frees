@@ -1,0 +1,10 @@
+COMPONENT Batt(p)
+p.v = 12
+END
+COMPONENT Load(a, b)
+a.i = (a.v - b.v) / 10
+b.i = 0 - a.i
+END
+Batt B(x1)
+Load L(x2, x3)
+connect(B.p, L.a)

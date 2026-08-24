@@ -1,0 +1,10 @@
+TorqueSource     TS(T=10)
+Inertia          IN(J=2, w0=0)
+RotationalDamper D(c=0.5)
+MechGround       G()
+connect(TS.a, IN.port, D.a)
+connect(TS.b, D.b, G.port)
+DYNAMIC spinup(method = ode45, time = 0 .. 40, points = 100)
+END
+w_final = FinalValue('in.port.w')
+w_start = MinValue('in.port.w')

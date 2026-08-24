@@ -1,0 +1,18 @@
+{
+  "name": "component-diagnostics-underspecified-component-network-lists-the-involved-stream-members",
+  "source": "Boiler B(s1, s2)\nB.Q = 1000\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 4 equations and 7 variables. The problem is underspecified and cannot be solved. Free quantities (no defining relation): s2.h, s2.mdot, s2.p. Coupled to: s1.h, s1.mdot, s1.p. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

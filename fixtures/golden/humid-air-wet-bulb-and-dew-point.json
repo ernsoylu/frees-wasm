@@ -1,0 +1,22 @@
+{
+  "name": "humid-air-wet-bulb-and-dew-point",
+  "source": "T_wb = WetBulb(AirH2O, T=298.15, P=101325, R=0.5)\nT_dp = DewPoint(AirH2O, T=298.15, P=101325, R=0.5)\n",
+  "expect": {
+    "variables": {
+      "T_dp": 287.0168866488805,
+      "T_wb": 291.033486810309
+    },
+    "display_names": {
+      "t_dp": "T_dp",
+      "t_wb": "T_wb"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

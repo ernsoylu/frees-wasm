@@ -1,0 +1,9 @@
+ThermalMass   M(C=5000, T0=300)
+PIThermostat  TC(Kp=50, Ki=5, Tref=350)
+Conduction    wall(k=2, area=1, L=0.1)
+ThermalSource amb(T=300)
+connect(TC.port, M.port, wall.a)
+connect(wall.b, amb.port)
+DYNAMIC ctrl(method = ode45, time = 0 .. 1000, points = 200)
+END
+T_final = FinalValue('m.port.t')

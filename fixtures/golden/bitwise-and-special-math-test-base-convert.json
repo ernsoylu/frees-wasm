@@ -1,0 +1,26 @@
+{
+  "name": "bitwise-and-special-math-test-base-convert",
+  "source": "a = BaseConvert('FF', 16, 10)\nb = BaseConvert('1010', 2, 10)\nc = BaseConvert('255', 10, 2)\nd = BaseConvert(777, 8, 10)\n",
+  "expect": {
+    "variables": {
+      "a": 255.0,
+      "b": 10.0,
+      "c": 1.1111111E7,
+      "d": 511.0
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

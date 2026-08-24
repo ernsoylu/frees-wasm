@@ -1,0 +1,116 @@
+COMPONENT LiqMix(in1, in2, out)
+  PARAM domain$ = liquid
+  out.P = in1.P
+  in2.P = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+COMPONENT TwoPhaseMixer(in1, in2, out)
+  PARAM domain$ = twophase
+  out.P = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+COMPONENT MassGen(port)
+  PARAM C, Qgen, T0
+  der(port.T)  = (Qgen + port.Qdot) / C
+  init(port.T) = T0
+END
+COMPONENT LiqFeed(out)
+  PARAM fluid$, P, x, domain$ = twophase
+  out.P = P
+  out.h = Enthalpy(fluid$, P=P, x=x)
+END
+COMPONENT EvapSH(in, out, wall)
+  PARAM fluid$, UA, SH, domain$ = twophase
+  out.P = in.P
+  Tevap = T_sat(fluid$, P=out.P)
+  Q     = frac * UA * (wall.T - Tevap)
+  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)
+  out.mdot = Q / (out.h - in.h)
+  in.mdot  = out.mdot
+  wall.Qdot = Q
+END
+COMPONENT Compressor(in, out)
+  PARAM fluid$, eta, domain$ = twophase
+  out.mdot = in.mdot
+  s_in = Entropy(fluid$, P=in.P, h=in.h)
+  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)
+  out.h = in.h + (h_s - in.h) / eta
+  W = in.mdot * (out.h - in.h)
+END
+COMPONENT CondFloatUA(in, out)
+  PARAM fluid$, UA, Tamb, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = UA * (Tcond - Tamb)
+END
+
+// ── Coolant line (EG50): pump → wide-branch split → battery & motor
+//    branches → collect → discretized radiator → pump ───────────────────
+LiquidSource  PUMPIN(fluid$=EG50, mdot=0.4, P=200000, T=305)
+LiquidPump    PUMP(fluid$=EG50, eta=0.6)
+LiquidOrifice OBAT(CdA=1.6e-5, rho=1050)
+LiquidOrifice OMOT(CdA=1.2e-5, rho=1050)
+LiquidWallHX  BCP(fluid$=EG50, UA=600)
+LiquidWallHX  CHLC(fluid$=EG50, UA=600)
+LiquidWallHX  MCP(fluid$=EG50, UA=500)
+LiqMix        MIX()
+LiquidWallHX  RAD1(fluid$=EG50, UA=400)
+LiquidOrifice OR1(CdA=1.2e-4, rho=1050)
+LiquidWallHX  RAD2(fluid$=EG50, UA=400)
+LiquidOrifice OR2(CdA=1.2e-4, rho=1050)
+LiquidWallHX  RAD3(fluid$=EG50, UA=400)
+LiquidOrifice OR3(CdA=1.2e-4, rho=1050)
+ThermalSource AMB(T=313)
+LiquidSink    PUMPOUT()
+
+// ── Loads (thermal-mass states) ────────────────────────────────────────
+MassGen BATT(C=60000, Qgen=4000, T0=305)
+MassGen MOTOR(C=40000, Qgen=5000, T0=305)
+MassGen CABIN(C=8000,  Qgen=2500, T0=305)
+
+// ── Refrigerant line (R1234yf): feed → wide-branch split → chiller &
+//    cabin evaporators → collect at suction → compressor → condenser ─────
+LiqFeed       FEED(fluid$=R1234yf, P=350000, x=0.20)
+EvapSH        CHLR(fluid$=R1234yf, UA=300, SH=5)
+EvapSH        CABE(fluid$=R1234yf, UA=130, SH=8)
+TwoPhaseMixer SUC()
+Compressor    CMP(fluid$=R1234yf, eta=0.7)
+CondFloatUA   COND(fluid$=R1234yf, UA=1500, Tamb=313)
+TwoPhaseSink  LIQ()
+
+// coolant network
+connect(PUMPIN.out, PUMP.in)
+connect(PUMP.out, OBAT.in, OMOT.in)
+connect(OBAT.out, BCP.in)
+connect(BCP.wall, BATT.port)
+connect(BCP.out, CHLC.in)
+connect(CHLC.out, MIX.in1)
+connect(OMOT.out, MCP.in)
+connect(MCP.wall, MOTOR.port)
+connect(MCP.out, MIX.in2)
+connect(MIX.out, RAD1.in)
+connect(RAD1.out, OR1.in)
+connect(OR1.out, RAD2.in)
+connect(RAD2.out, OR2.in)
+connect(OR2.out, RAD3.in)
+connect(RAD3.out, OR3.in)
+connect(OR3.out, PUMPOUT.in)
+connect(AMB.port, RAD1.wall, RAD2.wall, RAD3.wall)
+PUMPOUT.in.P = 200000
+
+// refrigerant network
+connect(FEED.out, CHLR.in, CABE.in)
+connect(CHLR.out, SUC.in1)
+connect(CABE.out, SUC.in2)
+connect(SUC.out, CMP.in)
+connect(CMP.out, COND.in)
+connect(COND.out, LIQ.in)
+connect(CABE.wall, CABIN.port)
+
+// CROSS-DOMAIN BRIDGE: chiller refrigerant evaporator wall <-> coolant chiller
+connect(CHLR.wall, CHLC.wall)

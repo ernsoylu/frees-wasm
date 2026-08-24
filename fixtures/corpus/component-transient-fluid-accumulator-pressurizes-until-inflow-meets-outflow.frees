@@ -1,0 +1,25 @@
+COMPONENT FlowSource(out)
+  PARAM mdot, h0
+  out.mdot = mdot
+  out.h    = h0
+END
+COMPONENT LinRes(in, out)
+  PARAM R
+  out.mdot = in.mdot
+  out.h    = in.h
+  in.mdot  = (in.P - out.P) / R
+END
+COMPONENT PSink(in)
+  PARAM P
+  in.P = P
+END
+FlowSource  SRC(mdot=0.1, h0=0)
+Accumulator ACC(C=1e-6, P0=100000)
+LinRes      RES(R=1e6)
+PSink       SNK(P=100000)
+connect(SRC.out, ACC.in)
+connect(ACC.out, RES.in)
+connect(RES.out, SNK.in)
+DYNAMIC fill(method = ode45, time = 0 .. 6, points = 100)
+END
+P_final = FinalValue('acc.in.p')

@@ -1,0 +1,11 @@
+COMPONENT SigConst(out)
+  PARAM k
+  out.sig = k
+END
+COMPONENT SigGain(in, out)
+  PARAM k
+  out.sig = k * in.sig
+END
+COMPONENT SigSum(in1, in2, out)
+  out.sig = in1.sig + in2.sig
+END

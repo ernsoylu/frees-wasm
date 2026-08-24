@@ -1,0 +1,10 @@
+BoilingVessel   COOK(fluid$=Water, V=0.005, m0=3.0, T0=288.15)
+SteamReliefValve PRV(fluid$=Water, A=2e-6, Pset=111458, Cd=0.8, kgas=1.14, Rgas=461.5, eps=1000)
+TwoPhasePressureSink ATM(P=101325)
+
+connect(COOK.vent, PRV.in)
+connect(PRV.out, ATM.in)
+COOK.wall.Qdot = 3000          // 3 kW electric heater (I = 3000/220 = 13.6 A)
+
+DYNAMIC cook (method = ida, time = 0 .. 1200, points = 25, rtol = 1e-5, atol = 1e-4)
+END

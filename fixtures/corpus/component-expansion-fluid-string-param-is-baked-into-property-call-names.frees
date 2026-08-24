@@ -1,0 +1,6 @@
+COMPONENT Probe(p)
+  PARAM fluid$ = Water
+  p.rho = Density(fluid$, T=p.T, P=p.P)
+END
+Probe A(a)
+Probe B(b, fluid$=Air)

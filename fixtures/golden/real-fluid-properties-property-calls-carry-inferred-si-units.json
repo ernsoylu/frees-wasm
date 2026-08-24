@@ -1,0 +1,26 @@
+{
+  "name": "real-fluid-properties-property-calls-carry-inferred-si-units",
+  "source": "h1 = Enthalpy(R134a, T=300, x=1)\ns1 = Entropy(R134a, T=300, x=1)\nP1 = Pressure(R134a, T=300, x=1)\nv1 = Volume(R134a, T=300, x=1)\n",
+  "expect": {
+    "variables": {
+      "P1": 702820.6471670809,
+      "h1": 413265.6843372975,
+      "s1": 1715.5774162300063,
+      "v1": 0.029245891772358635
+    },
+    "display_names": {
+      "h1": "h1",
+      "p1": "P1",
+      "s1": "s1",
+      "v1": "v1"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

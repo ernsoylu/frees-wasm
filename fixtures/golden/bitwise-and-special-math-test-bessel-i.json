@@ -1,0 +1,28 @@
+{
+  "name": "bitwise-and-special-math-test-bessel-i",
+  "source": "a = besseli(0, 0)\nb = besseli(0, 1)\nc = besseli(1, 0)\nd = besseli(2, 1)\ne = besseli(2.5, 1)\n",
+  "expect": {
+    "variables": {
+      "a": 1.0,
+      "b": 0.0,
+      "c": 1.2660658777520082,
+      "d": 1.5906368546373288,
+      "e": 2.5167162452886975
+    },
+    "display_names": {
+      "a": "a",
+      "b": "b",
+      "c": "c",
+      "d": "d",
+      "e": "e"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

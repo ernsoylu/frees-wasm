@@ -1,0 +1,11 @@
+T_tank = 363.15
+m_total = 10
+m_f = 8
+m_g = 2
+P_tank = Pressure(Water, T=T_tank, x=0)
+v_f = Volume(Water, T=T_tank, x=0)
+v_g = Volume(Water, T=T_tank, x=1)
+Vol = m_f * v_f + m_g * v_g
+x = m_g / m_total
+v_avg = v_f + x * (v_g - v_f)
+Vol2 = m_total * v_avg

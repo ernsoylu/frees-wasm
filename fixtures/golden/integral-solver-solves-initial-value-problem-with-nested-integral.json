@@ -1,0 +1,27 @@
+{
+  "name": "integral-solver-solves-initial-value-problem-with-nested-integral",
+  "source": "y = y0 + Integral(dydt, t, 0, 5)\ndydt = y * cos(t)\ny0 = 1\n",
+  "expect": {
+    "variables": {
+      "dydt": 0.10872913921636329,
+      "integral_1": -0.6166949816070607,
+      "t": 5.0,
+      "y": 0.3833050183929393,
+      "y0": 1.0
+    },
+    "display_names": {
+      "dydt": "dydt",
+      "t": "t",
+      "y": "y",
+      "y0": "y0"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

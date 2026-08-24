@@ -1,0 +1,53 @@
+{
+  "name": "liquid-domain-liquid-pump-raises-pressure-with-small-liquid-work",
+  "source": "LiquidSource S(fluid$=Water, mdot=0.1, P=200000, T=300)\nLiquidPump P(eta=0.7, fluid$=Water)\nLiquidSink K()\nconnect(S.out, P.in)\nconnect(P.out, K.in)\nP.out.P = 400000\n",
+  "expect": {
+    "variables": {
+      "k.h": 113032.43774978713,
+      "k.in.h": 113032.43774978713,
+      "k.in.mdot": 0.1,
+      "k.in.p": 400000.0,
+      "k.mdot": 0.1,
+      "k.p": 400000.0,
+      "p.in.h": 112745.74907578646,
+      "p.in.mdot": 0.1,
+      "p.in.p": 200000.0,
+      "p.out.h": 113032.43774978713,
+      "p.out.mdot": 0.1,
+      "p.out.p": 400000.0,
+      "p.v": 0.0010034103590023386,
+      "p.w": 28.668867400067395,
+      "s.out.h": 112745.74907578646,
+      "s.out.mdot": 0.1,
+      "s.out.p": 200000.0
+    },
+    "display_names": {
+      "k$h": "k.h",
+      "k$in$h": "k.in.h",
+      "k$in$mdot": "k.in.mdot",
+      "k$in$p": "k.in.p",
+      "k$mdot": "k.mdot",
+      "k$p": "k.p",
+      "p$in$h": "p.in.h",
+      "p$in$mdot": "p.in.mdot",
+      "p$in$p": "p.in.p",
+      "p$out$h": "p.out.h",
+      "p$out$mdot": "p.out.mdot",
+      "p$out$p": "p.out.p",
+      "p$v": "p.v",
+      "p$w": "p.w",
+      "s$out$h": "s.out.h",
+      "s$out$mdot": "s.out.mdot",
+      "s$out$p": "s.out.p",
+      "water": "Water"
+    },
+    "block_count": 17,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

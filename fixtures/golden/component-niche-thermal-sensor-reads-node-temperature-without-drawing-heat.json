@@ -1,0 +1,28 @@
+{
+  "name": "component-niche-thermal-sensor-reads-node-temperature-without-drawing-heat",
+  "source": "ThermalSource SRC(T=350)\nThermalSensor SENS()\nconnect(SRC.port, SENS.port)\n",
+  "expect": {
+    "variables": {
+      "sens.port.qdot": 0.0,
+      "sens.port.t": 350.0,
+      "sens.t_meas": 350.0,
+      "src.port.qdot": 0.0,
+      "src.port.t": 350.0
+    },
+    "display_names": {
+      "sens$port$qdot": "sens.port.qdot",
+      "sens$port$t": "sens.port.t",
+      "sens$t_meas": "sens.t_meas",
+      "src$port$qdot": "src.port.qdot",
+      "src$port$t": "src.port.t"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

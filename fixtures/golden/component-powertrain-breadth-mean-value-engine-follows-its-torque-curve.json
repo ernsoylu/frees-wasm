@@ -1,0 +1,40 @@
+{
+  "name": "component-powertrain-breadth-mean-value-engine-follows-its-torque-curve",
+  "source": "MeanValueEngine ENG(throttle=0.6, Tpeak=200, w_peak=400, FMEP_a=5, FMEP_b=0.01)\nSpeedSource     SS(w=400)\nMechGround      G()\nconnect(SS.a, ENG.shaft)\nconnect(SS.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "eng.shaft.tau": -111.0,
+      "eng.shaft.w": 400.0,
+      "eng.t_fric": 9.0,
+      "eng.t_ind": 120.0,
+      "eng.t_wot": 200.0,
+      "g.port.tau": 111.0,
+      "g.port.w": 0.0,
+      "ss.a.tau": 111.0,
+      "ss.a.w": 400.0,
+      "ss.b.tau": -111.0,
+      "ss.b.w": 0.0
+    },
+    "display_names": {
+      "eng$shaft$tau": "eng.shaft.tau",
+      "eng$shaft$w": "eng.shaft.w",
+      "eng$t_fric": "eng.t_fric",
+      "eng$t_ind": "eng.t_ind",
+      "eng$t_wot": "eng.t_wot",
+      "g$port$tau": "g.port.tau",
+      "g$port$w": "g.port.w",
+      "ss$a$tau": "ss.a.tau",
+      "ss$a$w": "ss.a.w",
+      "ss$b$tau": "ss.b.tau",
+      "ss$b$w": "ss.b.w"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

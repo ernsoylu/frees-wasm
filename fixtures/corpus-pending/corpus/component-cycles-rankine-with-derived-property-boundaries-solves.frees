@@ -1,0 +1,18 @@
+// Rankine — states given as derived properties (s.x, s.T)
+P_hi = 8000000 [Pa]
+P_lo = 10000 [Pa]
+
+Pump      P1(s1, s2, eta=0.80, fluid$=Water)
+Boiler    B1(s2, s3)
+Turbine   T1(s3, s4, eta=0.85, fluid$=Water)
+Condenser C1(s4, s5)
+
+s1.P    = P_lo
+s1.x    = 0              { saturated liquid — derived property }
+s1.mdot = 1 [kg/s]
+s2.P    = P_hi
+s3.T    = 753.15 [K]     { superheated steam — derived property }
+s4.P    = P_lo
+s5.x    = 0
+
+eta_th = (T1.W - P1.W) / B1.Q

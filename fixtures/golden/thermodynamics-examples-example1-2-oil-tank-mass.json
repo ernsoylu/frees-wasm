@@ -1,0 +1,24 @@
+{
+  "name": "thermodynamics-examples-example1-2-oil-tank-mass",
+  "source": "{ Worked example: tank mass and weight }\nrho = 850 [kg/m^3]   { oil density }\nV = 2 [m^3]          { tank volume }\nm = rho * V          { mass in the tank }\n",
+  "expect": {
+    "variables": {
+      "V": 2.0,
+      "m": 1700.0,
+      "rho": 850.0
+    },
+    "display_names": {
+      "m": "m",
+      "rho": "rho",
+      "v": "V"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

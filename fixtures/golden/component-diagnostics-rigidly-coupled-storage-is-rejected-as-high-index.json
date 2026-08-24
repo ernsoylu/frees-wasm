@@ -1,0 +1,18 @@
+{
+  "name": "component-diagnostics-rigidly-coupled-storage-is-rejected-as-high-index",
+  "source": "ThermalMass   M1(C=5000, T0=400)\nThermalMass   M2(C=3000, T0=300)\nconnect(M1.port, M2.port)\nDYNAMIC d(method = ode45, time = 0 .. 10)\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "High-index DAE: storage states 'm1.port.t' and 'm2.port.t' are rigidly coupled (directly equated) — index ≥ 2. Lump them into one storage element, or insert a small resistance/compliance between them."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

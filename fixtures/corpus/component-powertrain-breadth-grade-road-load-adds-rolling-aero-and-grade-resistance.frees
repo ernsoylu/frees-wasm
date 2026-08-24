@@ -1,0 +1,5 @@
+GradeRoadLoad ROAD(Crr=50, Caero=2, m=1500, g=9.81, grade=0.05)
+SpeedSource   SS(w=30)
+MechGround    G()
+connect(SS.a, ROAD.shaft)
+connect(SS.b, G.port)

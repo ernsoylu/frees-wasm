@@ -1,0 +1,24 @@
+{
+  "name": "compressible-flow-wired-through-solver-and-inverted-by-newton",
+  "source": "k = 1.4\nratio = P0_P(2.0, k)\nP0_P(M, k) = 4.0\n",
+  "expect": {
+    "variables": {
+      "M": 1.5588365679841947,
+      "k": 1.4,
+      "ratio": 7.824449066867263
+    },
+    "display_names": {
+      "k": "k",
+      "m": "M",
+      "ratio": "ratio"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

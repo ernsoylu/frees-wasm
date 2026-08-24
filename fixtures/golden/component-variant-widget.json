@@ -1,0 +1,18 @@
+{
+  "name": "component-variant-widget",
+  "source": "COMPONENT Widget(in, out)\n  PARAM model$ = linear\n  out.mdot = in.mdot\n  out.P    = in.P\n  VARIANT linear REQUIRE gain\n    out.h = in.h + gain\n  END\n  VARIANT scaled REQUIRE factor\n    out.h = in.h * factor\n  END\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

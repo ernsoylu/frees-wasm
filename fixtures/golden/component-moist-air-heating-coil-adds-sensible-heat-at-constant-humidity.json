@@ -1,0 +1,47 @@
+{
+  "name": "component-moist-air-heating-coil-adds-sensible-heat-at-constant-humidity",
+  "source": "COMPONENT MASrc(out)\n  PARAM W, h0, mdot, P, domain$ = moistair\n  out.P    = P\n  out.mdot = mdot\n  out.W    = W\n  out.h    = h0\nEND\nMASrc      SRC(W=0.006, h0=40000, mdot=2, P=101325)\nHeatingCoil HC(Q=10000)\nconnect(SRC.out, HC.in)\n",
+  "expect": {
+    "variables": {
+      "hc.in.h": 40000.0,
+      "hc.in.mdot": 2.0,
+      "hc.in.p": 101325.0,
+      "hc.in.w": 0.006,
+      "hc.out.h": 45000.0,
+      "hc.out.mdot": 2.0,
+      "hc.out.p": 101325.0,
+      "hc.out.w": 0.006,
+      "src.out.h": 40000.0,
+      "src.out.mdot": 2.0,
+      "src.out.p": 101325.0,
+      "src.out.w": 0.006
+    },
+    "display_names": {
+      "h0": "h0",
+      "hc$in$h": "hc.in.h",
+      "hc$in$mdot": "hc.in.mdot",
+      "hc$in$p": "hc.in.p",
+      "hc$in$w": "hc.in.w",
+      "hc$out$h": "hc.out.h",
+      "hc$out$mdot": "hc.out.mdot",
+      "hc$out$p": "hc.out.p",
+      "hc$out$w": "hc.out.w",
+      "mdot": "mdot",
+      "moistair": "moistair",
+      "p": "P",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "src$out$w": "src.out.w",
+      "w": "W"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

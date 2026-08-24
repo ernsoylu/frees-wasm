@@ -1,0 +1,18 @@
+{
+  "name": "component-port-units-fan-duct",
+  "source": "P_atm = 101325 [Pa]\nFan  F1(a, b, dP0=500 [Pa], Q0=0.6 [m^3/s], eta=0.6, fluid$=Air)\nPipe D1(b, c, L=100 [m], D=0.3 [m], rough=0.000045 [m], fluid$=Air)\na.P = P_atm\na.h = Enthalpy(Air, T=293 [K], P=P_atm)\nc.P = P_atm\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "Block 6 did not converge within 250 iterations (residual norm 4299.00). Increase the iteration limit in Preferences or adjust guess values. Last property error: CoolProp: unable to solve 1phase PY flash with Tmin=60.7561, Tmax=3000 due to error: HSU_P_flash_singlephase_Brent could not find a solution because Hmolar [-2769.04 J/mol] is below the minimum value of 4304.04404456 J/mol : PropsSI(\"Dmass\",\"P\",5679000,\"Hmass\",-95597.9169,\"Air\")"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

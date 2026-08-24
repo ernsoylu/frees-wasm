@@ -1,0 +1,5 @@
+MeanValueEngine ENG(throttle=0.6, Tpeak=200, w_peak=400, FMEP_a=5, FMEP_b=0.01)
+SpeedSource     SS(w=400)
+MechGround      G()
+connect(SS.a, ENG.shaft)
+connect(SS.b, G.port)

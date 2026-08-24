@@ -1,0 +1,121 @@
+COMPONENT MassGen(port)
+  PARAM C, Qgen, T0
+  der(port.T)  = (Qgen + port.Qdot) / C
+  init(port.T) = T0
+END
+// evaporator with a TXV holding a SET SUPERHEAT, at the shared suction
+// pressure (out.P). in.h is the post-TXV enthalpy = condenser liquid
+// (TXV isenthalpic), pinned top-level from the floating P_cond. Duty
+// Q = frac*UA*(T_wall - Tevap) is load-following (stable); the flow the
+// TXV meters follows: mdot = Q / (h_superheat - h_in).
+COMPONENT EvapSH(in, out, wall)
+  PARAM fluid$, UA, SH, domain$ = twophase
+  out.P = in.P
+  Tevap = T_sat(fluid$, P=out.P)
+  Q     = frac * UA * (wall.T - Tevap)
+  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)
+  out.mdot = Q / (out.h - in.h)
+  in.mdot  = out.mdot
+  wall.Qdot = Q
+END
+// post-TXV flash feed: P (= suction) and quality set; mdot FREE (the
+// evaporator's TXV meters it). Anchors + seeds each branch's suction P.
+COMPONENT LiqFeed(out)
+  PARAM fluid$, P, x, domain$ = twophase
+  out.P = P
+  out.h = Enthalpy(fluid$, P=P, x=x)
+END
+// suction manifold: both branches arrive at the SAME suction pressure
+// (set by their feeds), so we mix mass + enthalpy without re-equating P.
+COMPONENT TwoPhaseMixer(in1, in2, out)
+  PARAM domain$ = twophase
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+// real compressor: pulls the combined suction flow, real-gas isentropic
+// head from the (floating) suction to the (floating) condenser pressure.
+COMPONENT Compressor(in, out)
+  PARAM fluid$, eta, domain$ = twophase
+  out.mdot = in.mdot
+  s_in = Entropy(fluid$, P=in.P, h=in.h)
+  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)
+  out.h = in.h + (h_s - in.h) / eta
+  W = in.mdot * (out.h - in.h)
+END
+COMPONENT CondFloatUA(in, out)
+  PARAM fluid$, UA, Tamb, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = UA * (Tcond - Tamb)
+END
+COMPONENT LiquidMixer(in1, in2, out)
+  PARAM domain$ = liquid
+  out.P    = in1.P
+  in2.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+
+MassGen BATT(C=60000, Qgen=4000, T0=315)
+MassGen MOTOR(C=40000, Qgen=5000, T0=315)
+MassGen CABIN(C=8000, Qgen=2500, T0=315)
+
+LiquidSource    PUMPIN(fluid$=EG50, mdot=0.25, P=200000, T=310)
+LiquidPump      PUMP(fluid$=EG50, eta=0.6)
+LiquidOrifice   MOTR(CdA=1.2e-5, rho=1050)
+LiquidWallHX    MOTOR_CP(fluid$=EG50, UA=400)
+LiquidWallHX    RADL(fluid$=EG50, UA=600)
+MoistAirWallHX  RADA(eps=0.5)
+MoistAirSource  OAIR(P=101325, T=313, W=0.010, mdot=0.8)
+MoistAirSink    OAOUT()
+LiquidOrifice   VLV(CdA=1.5e-5, rho=1050)
+LiquidWallHX    CHL(fluid$=EG50, UA=500)
+LiquidWallHX    BATT_CP(fluid$=EG50, UA=400)
+LiquidMixer     MIX()
+LiquidSink      PUMPOUT()
+
+// ONE refrigerant circuit: two evaporators -> common suction -> one
+// compressor -> one condenser. Both evaporating + condensing pressures float.
+LiqFeed     FCHL(fluid$=R1234yf, P=350000, x=0.20)
+LiqFeed     FCAB(fluid$=R1234yf, P=350000, x=0.20)
+EvapSH      CHLR(fluid$=R1234yf, UA=200, SH=5)
+EvapSH      CABE(fluid$=R1234yf, UA=130, SH=8)
+TwoPhaseMixer SUC()
+Compressor  CMP(fluid$=R1234yf, eta=0.7)
+CondFloatUA COND(fluid$=R1234yf, UA=1200, Tamb=313)
+TwoPhaseSink LIQ()
+
+// coolant loop
+connect(PUMPIN.out, PUMP.in)
+connect(PUMP.out, MOTR.in, VLV.in)
+connect(MOTR.out, MOTOR_CP.in)
+connect(MOTOR_CP.wall, MOTOR.port)
+connect(MOTOR_CP.out, RADL.in)
+connect(RADL.wall, RADA.wall)
+connect(OAIR.out, RADA.in)
+connect(RADA.out, OAOUT.in)
+connect(RADL.out, MIX.in1)
+connect(VLV.out, CHL.in)
+connect(CHL.wall, CHLR.wall)
+connect(CHL.out, BATT_CP.in)
+connect(BATT_CP.wall, BATT.port)
+connect(BATT_CP.out, MIX.in2)
+connect(MIX.out, PUMPOUT.in)
+PUMPOUT.in.P = 200000
+
+// refrigerant: each evaporator fed by its post-TXV flash state at the
+// shared suction pressure; two TXVs hold different superheat (SH param).
+connect(FCHL.out, CHLR.in)
+connect(FCAB.out, CABE.in)
+connect(CHLR.out, SUC.in1)
+connect(CABE.out, SUC.in2)
+connect(SUC.out, CMP.in)
+connect(CMP.out, COND.in)
+connect(COND.out, LIQ.in)
+connect(CABE.wall, CABIN.port)
+CHLR.frac = 1
+CABE.frac = 1

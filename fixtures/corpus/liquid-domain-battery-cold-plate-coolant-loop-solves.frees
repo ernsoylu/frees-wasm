@@ -1,0 +1,5 @@
+LiquidSource S(fluid$=Water, mdot=0.1, P=200000, T=300)
+LiquidColdPlate CP(Q=2000)
+LiquidSink K()
+connect(S.out, CP.in)
+connect(CP.out, K.in)

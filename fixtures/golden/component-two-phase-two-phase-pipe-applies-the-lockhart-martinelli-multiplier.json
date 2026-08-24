@@ -1,0 +1,66 @@
+{
+  "name": "component-two-phase-two-phase-pipe-applies-the-lockhart-martinelli-multiplier",
+  "source": "COMPONENT RSrc(out)\n  PARAM P, h0, mdot\n  out.P = P\n  out.h = h0\n  out.mdot = mdot\nEND\nCOMPONENT PSink(in)\n  PARAM P\n  in.P = P\nEND\nRSrc        SRC(P=500000, h0=250000, mdot=0.05)\nTwoPhasePipe TP(fluid$=R134a, L=2, D=0.01, rough=1e-5, x=0.3, rho_l=1200, rho_g=20, mu_l=2e-4, mu_g=1e-5)\nSink        SNK()\nconnect(SRC.out, TP.in)\nconnect(TP.out, SNK.in)\n",
+  "expect": {
+    "variables": {
+      "snk.h": 250000.0,
+      "snk.in.h": 250000.0,
+      "snk.in.mdot": 0.05,
+      "snk.in.p": 472031.02009803016,
+      "snk.mdot": 0.05,
+      "snk.p": 472031.02009803016,
+      "src.out.h": 250000.0,
+      "src.out.mdot": 0.05,
+      "src.out.p": 500000.0,
+      "tp.a": 7.853981633974483E-5,
+      "tp.dp_l": 453.0929045974886,
+      "tp.f_l": 0.02737865954276164,
+      "tp.in.h": 250000.0,
+      "tp.in.mdot": 0.05,
+      "tp.in.p": 500000.0,
+      "tp.out.h": 250000.0,
+      "tp.out.mdot": 0.05,
+      "tp.out.p": 472031.02009803016,
+      "tp.phi2": 61.72901764333842,
+      "tp.re_l": 22281.69203286535,
+      "tp.v_l": 0.3713615338810891,
+      "tp.x_tt": 0.37342765818999457
+    },
+    "display_names": {
+      "h0": "h0",
+      "mdot": "mdot",
+      "p": "P",
+      "r134a": "R134a",
+      "snk$h": "snk.h",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "snk$mdot": "snk.mdot",
+      "snk$p": "snk.p",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "tp$a": "tp.a",
+      "tp$dp_l": "tp.dp_l",
+      "tp$f_l": "tp.f_l",
+      "tp$in$h": "tp.in.h",
+      "tp$in$mdot": "tp.in.mdot",
+      "tp$in$p": "tp.in.p",
+      "tp$out$h": "tp.out.h",
+      "tp$out$mdot": "tp.out.mdot",
+      "tp$out$p": "tp.out.p",
+      "tp$phi2": "tp.phi2",
+      "tp$re_l": "tp.re_l",
+      "tp$v_l": "tp.v_l",
+      "tp$x_tt": "tp.x_tt"
+    },
+    "block_count": 22,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "signal-domain-chained-signal-blocks-propagate-the-value",
+  "source": "COMPONENT SigConst(out)\n  PARAM k\n  out.sig = k\nEND\nCOMPONENT SigGain(in, out)\n  PARAM k\n  out.sig = k * in.sig\nEND\nCOMPONENT SigSum(in1, in2, out)\n  out.sig = in1.sig + in2.sig\nEND\nSigConst SRC(k=2)\nSigGain  G1(k=3)\nSigGain  G2(k=5)\nconnect(SRC.out, G1.in)\nconnect(G1.out, G2.in)\n",
+  "expect": {
+    "variables": {
+      "g1.in.sig": 2.0,
+      "g1.out.sig": 6.0,
+      "g2.in.sig": 6.0,
+      "g2.out.sig": 30.0,
+      "src.out.sig": 2.0
+    },
+    "display_names": {
+      "g1$in$sig": "g1.in.sig",
+      "g1$out$sig": "g1.out.sig",
+      "g2$in$sig": "g2.in.sig",
+      "g2$out$sig": "g2.out.sig",
+      "k": "k",
+      "src$out$sig": "src.out.sig"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

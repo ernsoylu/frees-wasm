@@ -1,0 +1,5 @@
+num1 = [0, 1]
+den1 = [1, 1]
+num2 = [0, 2]
+den2 = [1, 3]
+CALL parallel(num1, den1, num2, den2 : num_out[1:3], den_out[1:3])

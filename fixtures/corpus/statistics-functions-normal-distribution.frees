@@ -1,0 +1,4 @@
+a = normalCDF(0)
+b = normalCDF(1.96)
+c = normalInvCDF(0.975)
+d = normalPDF(0)

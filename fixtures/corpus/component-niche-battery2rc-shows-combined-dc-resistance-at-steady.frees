@@ -1,0 +1,5 @@
+Battery2RC B(Voc=48, R0=0.1, R1=0.2, C1=1000, R2=0.1, C2=2000, Vrc1_0=0, Vrc2_0=0)
+Resistor   RL(R=4.6)
+Ground     G()
+connect(B.p, RL.a)
+connect(B.n, RL.b, G.port)

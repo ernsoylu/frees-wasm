@@ -1,0 +1,34 @@
+{
+  "name": "component-powertrain-breadth-grade-road-load-adds-rolling-aero-and-grade-resistance",
+  "source": "GradeRoadLoad ROAD(Crr=50, Caero=2, m=1500, g=9.81, grade=0.05)\nSpeedSource   SS(w=30)\nMechGround    G()\nconnect(SS.a, ROAD.shaft)\nconnect(SS.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "g.port.tau": -2585.4434758180314,
+      "g.port.w": 0.0,
+      "road.shaft.tau": 2585.4434758180314,
+      "road.shaft.w": 30.0,
+      "ss.a.tau": -2585.4434758180314,
+      "ss.a.w": 30.0,
+      "ss.b.tau": 2585.4434758180314,
+      "ss.b.w": 0.0
+    },
+    "display_names": {
+      "g$port$tau": "g.port.tau",
+      "g$port$w": "g.port.w",
+      "road$shaft$tau": "road.shaft.tau",
+      "road$shaft$w": "road.shaft.w",
+      "ss$a$tau": "ss.a.tau",
+      "ss$a$w": "ss.a.w",
+      "ss$b$tau": "ss.b.tau",
+      "ss$b$w": "ss.b.w"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,3 @@
+STATE TABLE Refrig(T1, P1, xrefg)
+  FLUID = R134a
+END

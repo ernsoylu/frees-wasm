@@ -1,0 +1,4 @@
+freq = 1:5:1000 | Log
+f1 = freq[1]
+f3 = freq[3]
+f5 = freq[5]

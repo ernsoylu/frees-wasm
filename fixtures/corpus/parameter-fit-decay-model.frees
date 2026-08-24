@@ -1,0 +1,6 @@
+k = 0.3
+x0 = 5
+DYNAMIC decay(t = 0 .. 5, points = 120)
+der(x) = -k * x
+x(0) = x0
+END

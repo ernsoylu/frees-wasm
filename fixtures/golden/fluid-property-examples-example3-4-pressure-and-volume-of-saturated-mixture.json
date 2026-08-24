@@ -1,0 +1,40 @@
+{
+  "name": "fluid-property-examples-example3-4-pressure-and-volume-of-saturated-mixture",
+  "source": "T_tank = 363.15\nm_total = 10\nm_f = 8\nm_g = 2\nP_tank = Pressure(Water, T=T_tank, x=0)\nv_f = Volume(Water, T=T_tank, x=0)\nv_g = Volume(Water, T=T_tank, x=1)\nVol = m_f * v_f + m_g * v_g\nx = m_g / m_total\nv_avg = v_f + x * (v_g - v_f)\nVol2 = m_total * v_avg\n",
+  "expect": {
+    "variables": {
+      "P_tank": 70181.76581517824,
+      "T_tank": 363.15,
+      "Vol": 4.726404385947489,
+      "Vol2": 4.726404385947489,
+      "m_f": 8.0,
+      "m_g": 2.0,
+      "m_total": 10.0,
+      "v_avg": 0.47264043859474886,
+      "v_f": 0.0010359523872364288,
+      "v_g": 2.3590583834247987,
+      "x": 0.2
+    },
+    "display_names": {
+      "m_f": "m_f",
+      "m_g": "m_g",
+      "m_total": "m_total",
+      "p_tank": "P_tank",
+      "t_tank": "T_tank",
+      "v_avg": "v_avg",
+      "v_f": "v_f",
+      "v_g": "v_g",
+      "vol": "Vol",
+      "vol2": "Vol2",
+      "x": "x"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

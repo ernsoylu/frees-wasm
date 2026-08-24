@@ -1,0 +1,28 @@
+COMPONENT PSource(out)
+  PARAM P, h0
+  out.P = P
+  out.h = h0
+END
+COMPONENT PSink(in)
+  PARAM P
+  in.P = P
+END
+TABLE PumpHead(Q [m^3/s]) [Pa]
+  0.0    500000
+  0.05   400000
+  0.1    100000
+END
+COMPONENT PumpCurve(in, out)
+  PARAM rho
+  Q        = in.mdot / rho
+  out.mdot = in.mdot
+  out.h    = in.h
+  out.P    = in.P + PumpHead(Q)
+END
+PSource   SRC(P=100000, h0=0)
+PumpCurve PMP(rho=1000)
+Valve     VLV(Cv=0.001, rho=1000)
+PSink     SNK(P=100000)
+connect(SRC.out, PMP.in)
+connect(PMP.out, VLV.in)
+connect(VLV.out, SNK.in)

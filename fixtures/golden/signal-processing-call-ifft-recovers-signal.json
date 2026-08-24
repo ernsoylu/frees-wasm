@@ -1,0 +1,54 @@
+{
+  "name": "signal-processing-call-ifft-recovers-signal",
+  "source": "xr = [10, -2, -2, -2]\nxi = [0, 2, 0, -2]\nCALL IFFT(xr, xi : yr, yi)\n",
+  "expect": {
+    "variables": {
+      "xi[1]": 0.0,
+      "xi[2]": 2.0,
+      "xi[3]": 0.0,
+      "xi[4]": -2.0,
+      "xr[1]": 10.0,
+      "xr[2]": -2.0,
+      "xr[3]": -2.0,
+      "xr[4]": -2.0,
+      "yi[1]": 0.0,
+      "yi[2]": 1.1102230246251565E-16,
+      "yi[3]": -1.6653345369377348E-16,
+      "yi[4]": -4.996003610813204E-16,
+      "yr[1]": 1.0,
+      "yr[2]": 2.0,
+      "yr[3]": 3.0,
+      "yr[4]": 3.9999999999999996
+    },
+    "display_names": {
+      "xi": "xi",
+      "xi[1]": "xi[1]",
+      "xi[2]": "xi[2]",
+      "xi[3]": "xi[3]",
+      "xi[4]": "xi[4]",
+      "xr": "xr",
+      "xr[1]": "xr[1]",
+      "xr[2]": "xr[2]",
+      "xr[3]": "xr[3]",
+      "xr[4]": "xr[4]",
+      "yi": "yi",
+      "yi[1]": "yi[1]",
+      "yi[2]": "yi[2]",
+      "yi[3]": "yi[3]",
+      "yi[4]": "yi[4]",
+      "yr": "yr",
+      "yr[1]": "yr[1]",
+      "yr[2]": "yr[2]",
+      "yr[3]": "yr[3]",
+      "yr[4]": "yr[4]"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,16 @@
+COMPONENT PSource(out)
+  PARAM P, h0
+  out.P = P
+  out.h = h0
+END
+COMPONENT PSink(in)
+  PARAM P
+  in.P = P
+END
+PSource SRC(P=400000, h0=0)
+Valve   V1(Cv=0.001, rho=1000)
+Valve   V2(Cv=0.001, rho=1000)
+PSink   SNK(P=100000)
+connect(SRC.out, V1.in)
+connect(V1.out, V2.in)
+connect(V2.out, SNK.in)

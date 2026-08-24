@@ -1,0 +1,30 @@
+COMPONENT Split(in, out1, out2)
+  in.mdot = out1.mdot + out2.mdot
+  out1.P  = in.P
+  out2.P  = in.P
+  out1.h  = in.h
+  out2.h  = in.h
+END
+COMPONENT Leg(in, out)
+  PARAM Q
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h + Q / in.mdot
+END
+COMPONENT Join(in1, in2, out)
+  out.mdot      = in1.mdot + in2.mdot
+  out.P         = in1.P
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+Split SP()
+Leg   L1(Q=1000)
+Leg   L2(Q=2000)
+Join  JN()
+connect(SP.out1, L1.in)
+connect(SP.out2, L2.in)
+connect(L1.out, JN.in1)
+connect(L2.out, JN.in2)
+SP.in.P    = 100000
+SP.in.mdot = 4
+SP.in.h    = 0
+SP.out1.mdot = 1

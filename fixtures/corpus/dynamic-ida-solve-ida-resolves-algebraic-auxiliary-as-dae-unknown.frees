@@ -1,0 +1,7 @@
+k = 0.02
+T_inf = 20
+DYNAMIC cooling (method = ida, time = 0 .. 50, points = 51)
+  der(T) = -k * (T - T_inf)
+  a = 2 * T
+  T(0) = 80
+END

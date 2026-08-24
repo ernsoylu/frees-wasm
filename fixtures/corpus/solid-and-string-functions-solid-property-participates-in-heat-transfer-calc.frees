@@ -1,0 +1,4 @@
+q = k_(Aluminum) * A * dT / L
+A = 2
+dT = 50
+L = 0.1

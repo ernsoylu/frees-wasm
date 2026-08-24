@@ -1,0 +1,18 @@
+{
+  "name": "closed-loop-attempt-closed-loop-is-structurally-well-posed",
+  "source": "COMPONENT WallT(wall)\n  PARAM T\n  wall.T = T\nEND\nCOMPONENT EvapSH(in, out, wall)\n  PARAM fluid$, UA, SH, domain$ = twophase\n  out.P = in.P\n  Tevap = T_sat(fluid$, P=out.P)\n  Q     = UA * (wall.T - Tevap)\n  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)\n  out.mdot = Q / (out.h - in.h)\n  in.mdot  = out.mdot\n  wall.Qdot = Q\nEND\nCOMPONENT TXV(in, out)\n  PARAM domain$ = twophase\n  out.h    = in.h\n  out.mdot = in.mdot\nEND\nCOMPONENT TwoPhaseMixer(in1, in2, out)\n  PARAM domain$ = twophase\n  out.P    = in1.P\n  out.mdot = in1.mdot + in2.mdot\n  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h\nEND\nCOMPONENT CompVol(in, out)\n  PARAM fluid$, disp, eta, domain$ = twophase\n  rho_s = Density(fluid$, P=in.P, h=in.h)\n  in.mdot  = disp * rho_s\n  out.mdot = in.mdot\n  s_in = Entropy(fluid$, P=in.P, h=in.h)\n  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)\n  out.h = in.h + (h_s - in.h) / eta\n  W = in.mdot * (out.h - in.h)\nEND\nCOMPONENT CondFloatUA(in, out)\n  PARAM fluid$, UA, Tamb, domain$ = twophase\n  out.mdot = in.mdot\n  out.P    = in.P\n  Tcond    = T_sat(fluid$, P=in.P)\n  out.h    = Enthalpy(fluid$, P=in.P, x=0)\n  Q        = in.mdot * (in.h - out.h)\n  Q        = UA * (Tcond - Tamb)\nEND\nWallT WCHL(T=288)\nWallT WCAB(T=295)\nEvapSH CHLR(fluid$=R1234yf, UA=200, SH=5)\nEvapSH CABE(fluid$=R1234yf, UA=130, SH=8)\nTXV TX1()\nTXV TX2()\nTwoPhaseMixer SUC()\nCompVol CMP(fluid$=R1234yf, disp=0.0025, eta=0.7)\nCondFloatUA COND(fluid$=R1234yf, UA=1200, Tamb=313)\nconnect(WCHL.wall, CHLR.wall)\nconnect(WCAB.wall, CABE.wall)\nconnect(COND.out, TX1.in, TX2.in)\nconnect(TX1.out, CHLR.in)\nconnect(TX2.out, CABE.in)\nconnect(CHLR.out, SUC.in1)\nconnect(CABE.out, SUC.in2)\nconnect(SUC.out, CMP.in)\nconnect(CMP.out, COND.in)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "Newton iteration stalled in block 4 (residual 2645117.4361748807). Try different guess values. Last property error: CoolProp: unable to solve 1phase PY flash with Tmin=121.599, Tmax=284.404 due to error: HSU_P_flash_singlephase_Brent could not find a solution because Hmolar [2881.28 J/mol] is below the minimum value of 2881.28657646 J/mol : PropsSI(\"Smass\",\"P\",455091.3937,\"Hmass\",25265.20871,\"R1234yf\")"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

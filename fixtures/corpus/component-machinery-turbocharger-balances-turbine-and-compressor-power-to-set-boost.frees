@@ -1,0 +1,8 @@
+Turbocharger TC(t1, t2, c1, c2, cp=1005, eta_t=0.8, eta_c=0.78, gam=1.4)
+t1.T = 900
+t1.P = 200000
+t1.mdot = 0.1
+t2.P = 100000
+c1.T = 300
+c1.P = 100000
+c1.mdot = 0.1

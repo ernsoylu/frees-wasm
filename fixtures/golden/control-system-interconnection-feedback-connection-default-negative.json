@@ -1,0 +1,44 @@
+{
+  "name": "control-system-interconnection-feedback-connection-default-negative",
+  "source": "num1 = [0, 1]\nden1 = [1, 1]\nnum2 = [1]\nden2 = [1]\nCALL feedback(num1, den1, num2, den2 : num_out[1:2], den_out[1:2])\n",
+  "expect": {
+    "variables": {
+      "den1[1]": 1.0,
+      "den1[2]": 1.0,
+      "den2[1]": 1.0,
+      "den_out[1]": 1.0,
+      "den_out[2]": 2.0,
+      "num1[1]": 0.0,
+      "num1[2]": 1.0,
+      "num2[1]": 1.0,
+      "num_out[1]": 0.0,
+      "num_out[2]": 1.0
+    },
+    "display_names": {
+      "den1": "den1",
+      "den1[1]": "den1[1]",
+      "den1[2]": "den1[2]",
+      "den2": "den2",
+      "den2[1]": "den2[1]",
+      "den_out": "den_out",
+      "den_out[1]": "den_out[1]",
+      "den_out[2]": "den_out[2]",
+      "num1": "num1",
+      "num1[1]": "num1[1]",
+      "num1[2]": "num1[2]",
+      "num2": "num2",
+      "num2[1]": "num2[1]",
+      "num_out": "num_out",
+      "num_out[1]": "num_out[1]",
+      "num_out[2]": "num_out[2]"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

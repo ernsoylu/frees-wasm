@@ -1,0 +1,64 @@
+{
+  "name": "component-psychro-cooling-coil-condenses-and-removes-sensible-plus-latent-heat",
+  "source": "MoistAirSource SRC(P=101325, T=303.15, W=0.012, mdot=1)\nCoolingCoil    CC(Tout=283.15)\nMoistAirSink   SNK()\nconnect(SRC.out, CC.in)\nconnect(CC.out, SNK.in)\nT_out = Temperature(AirH2O, H=CC.out.h, P=101325, W=CC.out.W)\n",
+  "expect": {
+    "variables": {
+      "T_out": 283.15,
+      "cc.in.h": 60848.84666848224,
+      "cc.in.mdot": 1.0,
+      "cc.in.p": 101325.0,
+      "cc.in.w": 0.012,
+      "cc.out.h": 29354.502080723512,
+      "cc.out.mdot": 1.0,
+      "cc.out.p": 101325.0,
+      "cc.out.w": 0.007662649152912059,
+      "cc.q": 31494.34458775873,
+      "cc.q_lat": 10847.71446856694,
+      "snk.h": 29354.502080723512,
+      "snk.in.h": 29354.502080723512,
+      "snk.in.mdot": 1.0,
+      "snk.in.p": 101325.0,
+      "snk.in.w": 0.007662649152912059,
+      "snk.mdot": 1.0,
+      "snk.p": 101325.0,
+      "snk.w": 0.007662649152912059,
+      "src.out.h": 60848.84666848224,
+      "src.out.mdot": 1.0,
+      "src.out.p": 101325.0,
+      "src.out.w": 0.012
+    },
+    "display_names": {
+      "cc$in$h": "cc.in.h",
+      "cc$in$mdot": "cc.in.mdot",
+      "cc$in$p": "cc.in.p",
+      "cc$in$w": "cc.in.w",
+      "cc$out$h": "cc.out.h",
+      "cc$out$mdot": "cc.out.mdot",
+      "cc$out$p": "cc.out.p",
+      "cc$out$w": "cc.out.w",
+      "cc$q": "cc.q",
+      "cc$q_lat": "cc.q_lat",
+      "snk$h": "snk.h",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "snk$in$w": "snk.in.w",
+      "snk$mdot": "snk.mdot",
+      "snk$p": "snk.p",
+      "snk$w": "snk.w",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "src$out$w": "src.out.w",
+      "t_out": "T_out"
+    },
+    "block_count": 23,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

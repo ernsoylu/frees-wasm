@@ -1,0 +1,18 @@
+{
+  "name": "liquid-domain-liquid-line-cannot-connect-to-hydraulic-line",
+  "source": "LiquidPipe LP(fluid$=Water, L=1, D=0.01, rough=0.0)\nHydraulicOrifice HO(CdA=1e-5, rho=850)\nconnect(LP.out, HO.in)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "connect(lp.out, ho.in): cannot connect a 'liquid' line (lp.out) to a 'oil' line (ho.in). Thermofluid ('fluid'), liquid ('liquid'), two-phase ('twophase'), pneumatic ('gas'), hydraulic ('oil') and humid-air ('moistair') are incompatible fluid connector types; couple them only through a heat exchanger."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

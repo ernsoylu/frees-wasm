@@ -1,0 +1,11 @@
+N = 5
+dx = 0.25
+alpha = 0.05
+DYNAMIC rod (method = ode45, t = 0 .. 400, points = 100, rtol = 1e-7)
+  FOR i = 2 TO N-1
+    der(T[i]) = alpha / dx^2 * (T[i-1] - 2*T[i] + T[i+1])
+  END
+  T[1] = 100
+  T[5] = 0
+  T[2:4](0) = 0
+END

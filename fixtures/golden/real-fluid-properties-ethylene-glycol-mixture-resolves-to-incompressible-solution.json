@@ -1,0 +1,22 @@
+{
+  "name": "real-fluid-properties-ethylene-glycol-mixture-resolves-to-incompressible-solution",
+  "source": "rho = Density(EG50, T=293.15, P=101325)\ncp = Cp(EG50, T=293.15, P=101325)\n",
+  "expect": {
+    "variables": {
+      "cp": 3312.0419037405695,
+      "rho": 1064.9286628298255
+    },
+    "display_names": {
+      "cp": "cp",
+      "rho": "rho"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,5 @@
+Tw1 = 400 [K]
+Pw1 = 101325 [Pa]
+STATE TABLE WaterCircuit(Tw1, Pw1)
+  FLUID = Water
+END

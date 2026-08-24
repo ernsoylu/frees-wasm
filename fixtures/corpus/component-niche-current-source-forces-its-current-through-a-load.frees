@@ -1,0 +1,5 @@
+CurrentSource CS(I=2)
+Resistor      R(R=5)
+Ground        G()
+connect(CS.p, R.a)
+connect(CS.n, R.b, G.port)

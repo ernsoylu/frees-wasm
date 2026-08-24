@@ -1,0 +1,41 @@
+{
+  "name": "interp2-bilinear-centre",
+  "source": "x = [0, 1]\ny = [0, 1]\nZ = [0, 1; 2, 3]\nCALL Interp2(x, y, Z, 0.5, 0.5 : zc)\nCALL Interp2(x, y, Z, 0.5, 0 : ze)\n",
+  "expect": {
+    "variables": {
+      "Z[1,1]": 0.0,
+      "Z[1,2]": 1.0,
+      "Z[2,1]": 2.0,
+      "Z[2,2]": 3.0,
+      "x[1]": 0.0,
+      "x[2]": 1.0,
+      "y[1]": 0.0,
+      "y[2]": 1.0,
+      "zc": 1.5,
+      "ze": 1.0
+    },
+    "display_names": {
+      "x": "x",
+      "x[1]": "x[1]",
+      "x[2]": "x[2]",
+      "y": "y",
+      "y[1]": "y[1]",
+      "y[2]": "y[2]",
+      "z": "Z",
+      "z[1,1]": "Z[1,1]",
+      "z[1,2]": "Z[1,2]",
+      "z[2,1]": "Z[2,1]",
+      "z[2,2]": "Z[2,2]",
+      "zc": "zc",
+      "ze": "ze"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

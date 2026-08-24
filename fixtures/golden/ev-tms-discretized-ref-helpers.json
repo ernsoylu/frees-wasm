@@ -1,0 +1,18 @@
+{
+  "name": "ev-tms-discretized-ref-helpers",
+  "source": "// post-TXV flash feed: P (= suction) and quality set; mdot free\nCOMPONENT LiqFeed(out)\n  PARAM fluid$, P, x, domain$ = twophase\n  out.P = P\n  out.h = Enthalpy(fluid$, P=P, x=x)\nEND\n// load-following evaporator at the (shared) suction; TXV holds superheat\nCOMPONENT EvapSH(in, out, wall)\n  PARAM fluid$, UA, SH, domain$ = twophase\n  out.P = in.P\n  Tevap = T_sat(fluid$, P=out.P)\n  Q     = frac * UA * (wall.T - Tevap)\n  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)\n  out.mdot = Q / (out.h - in.h)\n  in.mdot  = out.mdot\n  wall.Qdot = Q\nEND\n// suction manifold collect (flow-weighted enthalpy, branches at same suction)\nCOMPONENT TwoPhaseMixer(in1, in2, out)\n  PARAM domain$ = twophase\n  out.P    = in1.P\n  out.mdot = in1.mdot + in2.mdot\n  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h\nEND\nCOMPONENT Compressor(in, out)\n  PARAM fluid$, eta, domain$ = twophase\n  out.mdot = in.mdot\n  s_in = Entropy(fluid$, P=in.P, h=in.h)\n  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)\n  out.h = in.h + (h_s - in.h) / eta\n  W = in.mdot * (out.h - in.h)\nEND\nCOMPONENT CondFloatUA(in, out)\n  PARAM fluid$, UA, Tamb, domain$ = twophase\n  out.mdot = in.mdot\n  out.P    = in.P\n  Tcond    = T_sat(fluid$, P=in.P)\n  out.h    = Enthalpy(fluid$, P=in.P, x=0)\n  Q        = in.mdot * (in.h - out.h)\n  Q        = UA * (Tcond - Tamb)\nEND\nCOMPONENT MassGen(port)\n  PARAM C, Qgen, T0\n  der(port.T)  = (Qgen + port.Qdot) / C\n  init(port.T) = T0\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

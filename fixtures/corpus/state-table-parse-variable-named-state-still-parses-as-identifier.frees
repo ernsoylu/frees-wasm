@@ -1,0 +1,2 @@
+state = 5
+x = state + 1

@@ -1,0 +1,5 @@
+ThermalMass   M1(C=5000, T0=400)
+ThermalMass   M2(C=3000, T0=300)
+connect(M1.port, M2.port)
+DYNAMIC d(method = ode45, time = 0 .. 10)
+END

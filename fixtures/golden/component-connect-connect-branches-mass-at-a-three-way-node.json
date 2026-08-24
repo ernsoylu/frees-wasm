@@ -1,0 +1,42 @@
+{
+  "name": "component-connect-connect-branches-mass-at-a-three-way-node",
+  "source": "COMPONENT Source(out)\n  PARAM mdot, P, h\n  out.mdot = mdot\n  out.P    = P\n  out.h    = h\nEND\nCOMPONENT Draw(in)\n  PARAM mdot\n  in.mdot = mdot\nEND\nCOMPONENT Sink(in)\n  drain = in.mdot\nEND\nSource S(mdot=3, P=100000, h=5000)\nDraw   D1(mdot=1)\nSink   D2()\nconnect(S.out, D1.in, D2.in)\n",
+  "expect": {
+    "variables": {
+      "d1.in.h": 5000.0,
+      "d1.in.mdot": 1.0,
+      "d1.in.p": 100000.0,
+      "d2.drain": 2.0,
+      "d2.in.h": 5000.0,
+      "d2.in.mdot": 2.0,
+      "d2.in.p": 100000.0,
+      "s.out.h": 5000.0,
+      "s.out.mdot": 3.0,
+      "s.out.p": 100000.0
+    },
+    "display_names": {
+      "d1$in$h": "d1.in.h",
+      "d1$in$mdot": "d1.in.mdot",
+      "d1$in$p": "d1.in.p",
+      "d2$drain": "d2.drain",
+      "d2$in$h": "d2.in.h",
+      "d2$in$mdot": "d2.in.mdot",
+      "d2$in$p": "d2.in.p",
+      "drain": "drain",
+      "h": "h",
+      "mdot": "mdot",
+      "p": "P",
+      "s$out$h": "s.out.h",
+      "s$out$mdot": "s.out.mdot",
+      "s$out$p": "s.out.p"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

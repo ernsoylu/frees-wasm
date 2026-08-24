@@ -1,0 +1,40 @@
+{
+  "name": "component-transient-battery-rc-steady-shows-combined-dc-resistance",
+  "source": "BatteryRC B(Voc=48, R0=0.1, R1=0.2, C1=1000, Vrc0=0)\nResistor  RL(R=4.7)\nGround    G()\nconnect(B.p, RL.a)\nconnect(B.n, RL.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "b.n.i": 9.6,
+      "b.n.v": 0.0,
+      "b.p.i": -9.6,
+      "b.p.v": 45.120000000000005,
+      "b.vrc": 1.9199999999999977,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "rl.a.i": 9.6,
+      "rl.a.v": 45.120000000000005,
+      "rl.b.i": -9.6,
+      "rl.b.v": 0.0
+    },
+    "display_names": {
+      "b$n$i": "b.n.i",
+      "b$n$v": "b.n.v",
+      "b$p$i": "b.p.i",
+      "b$p$v": "b.p.v",
+      "b$vrc": "b.vrc",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "rl$a$i": "rl.a.i",
+      "rl$a$v": "rl.a.v",
+      "rl$b$i": "rl.b.i",
+      "rl$b$v": "rl.b.v"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "name": "component-gas-mixture-three-way-blend-conserves-species",
+  "source": "GasSource S1(a, y=1.0, mdot=1, P=100000, h0=300000)\nGasSource S2(b, y=0.0, mdot=1, P=100000, h0=300000)\nGasMixer  M1(a, b, m)\nGasSource S3(d, y=0.2, mdot=2, P=100000, h0=300000)\nGasMixer  M2(m, d, out)\n",
+  "expect": {
+    "variables": {
+      "a.h": 300000.0,
+      "a.mdot": 1.0,
+      "a.p": 100000.0,
+      "a.y": 1.0,
+      "b.h": 300000.0,
+      "b.mdot": 1.0,
+      "b.p": 100000.0,
+      "b.y": 0.0,
+      "d.h": 300000.0,
+      "d.mdot": 2.0,
+      "d.p": 100000.0,
+      "d.y": 0.2,
+      "m.h": 300000.0,
+      "m.mdot": 2.0,
+      "m.p": 100000.0,
+      "m.y": 0.5,
+      "out.h": 300000.0,
+      "out.mdot": 4.0,
+      "out.p": 100000.0,
+      "out.y": 0.35
+    },
+    "display_names": {
+      "a": "a",
+      "a$h": "a.h",
+      "a$mdot": "a.mdot",
+      "a$p": "a.p",
+      "a$y": "a.y",
+      "b": "b",
+      "b$h": "b.h",
+      "b$mdot": "b.mdot",
+      "b$p": "b.p",
+      "b$y": "b.y",
+      "d": "d",
+      "d$h": "d.h",
+      "d$mdot": "d.mdot",
+      "d$p": "d.p",
+      "d$y": "d.y",
+      "m": "m",
+      "m$h": "m.h",
+      "m$mdot": "m.mdot",
+      "m$p": "m.p",
+      "m$y": "m.y",
+      "out": "out",
+      "out$h": "out.h",
+      "out$mdot": "out.mdot",
+      "out$p": "out.p",
+      "out$y": "out.y"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

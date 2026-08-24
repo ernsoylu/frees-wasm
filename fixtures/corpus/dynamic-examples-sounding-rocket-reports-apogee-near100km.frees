@@ -1,0 +1,25 @@
+g0     = 9.81
+m0     = 600
+mdot   = 9
+F0     = 28000
+Cd     = 0.3
+A      = 0.03
+rho0   = 1.225
+Hscale = 8000
+t_burn = 27
+DYNAMIC ascent (method = ode45, time = 0 .. 600, points = 500, rtol = 1e-7, atol = 1e-3)
+  thrust = If(time, t_burn, F0, F0, 0)
+  mflow  = If(time, t_burn, mdot, mdot, 0)
+  rho    = rho0 * exp(-h / Hscale)
+  drag   = 0.5 * rho * v * v * Cd * A
+  der(h) = v
+  der(v) = (thrust - drag - m * g0) / m
+  der(m) = -mflow
+  h(0) = 0
+  v(0) = 0
+  m(0) = m0
+  EVENT apogee: v = 0 | falling -> stop
+END
+apogee_km = MaxValue('h') / 1000
+v_burnout = ODEValue('v', t_burn)
+m_final   = FinalValue('m')

@@ -1,0 +1,11 @@
+T_evap = 263.15
+T_cond = 313.15
+h1 = Enthalpy(R134a, T=T_evap, x=1)
+s1 = Entropy(R134a, T=T_evap, x=1)
+P_cond = Pressure(R134a, T=T_cond, x=1)
+h2 = Enthalpy(R134a, P=P_cond, s=s1)
+h3 = Enthalpy(R134a, T=T_cond, x=0)
+h4 = h3
+q_evap = h1 - h4
+w_comp = h2 - h1
+COP = q_evap / w_comp

@@ -1,0 +1,39 @@
+{
+  "name": "statistics-functions-percentiles",
+  "source": "v = [2, 4, 4, 4, 5, 5, 7, 9]\np50 = Percentile(50, v[1:8])\np25 = Percentile(25, v[1:8])\n",
+  "expect": {
+    "variables": {
+      "p25": 4.0,
+      "p50": 4.5,
+      "v[1]": 2.0,
+      "v[2]": 4.0,
+      "v[3]": 4.0,
+      "v[4]": 4.0,
+      "v[5]": 5.0,
+      "v[6]": 5.0,
+      "v[7]": 7.0,
+      "v[8]": 9.0
+    },
+    "display_names": {
+      "p25": "p25",
+      "p50": "p50",
+      "v": "v",
+      "v[1]": "v[1]",
+      "v[2]": "v[2]",
+      "v[3]": "v[3]",
+      "v[4]": "v[4]",
+      "v[5]": "v[5]",
+      "v[6]": "v[6]",
+      "v[7]": "v[7]",
+      "v[8]": "v[8]"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

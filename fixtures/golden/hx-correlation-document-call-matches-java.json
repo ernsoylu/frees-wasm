@@ -1,0 +1,26 @@
+{
+  "name": "hx-correlation-document-call-matches-java",
+  "source": "h_cool = htc_1phase('EG50', 200000, 300, 0.2, 0.008, 1.2e-4)\nh_evap = htc_evap('R1234yf', 350000, 0.5, 0.03, 0.006, 8e-5)\nUA = ua_hx(h_evap, 0.6, h_cool, 0.8, 1e-4)\ndP = dp_2phase('R1234yf', 350000, 0.5, 0.03, 0.006, 8e-5, 2)\n",
+  "expect": {
+    "variables": {
+      "UA": 1297.640130753653,
+      "dP": 90316.11880237199,
+      "h_cool": 2752.986251192705,
+      "h_evap": 7695.4822706796085
+    },
+    "display_names": {
+      "dp": "dP",
+      "h_cool": "h_cool",
+      "h_evap": "h_evap",
+      "ua": "UA"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

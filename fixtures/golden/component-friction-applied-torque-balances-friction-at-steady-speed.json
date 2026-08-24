@@ -1,0 +1,40 @@
+{
+  "name": "component-friction-applied-torque-balances-friction-at-steady-speed",
+  "source": "TorqueSource TS(T=5)\nFriction     FR(Fc=2, Fs=3, vs=1, bv=0.5, eps=0.01)\nMechGround   G()\nconnect(TS.a, FR.a)\nconnect(TS.b, FR.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "fr.a.tau": 5.0,
+      "fr.a.w": 5.999999999999999,
+      "fr.b.tau": -5.0,
+      "fr.b.w": 0.0,
+      "fr.dw": 5.999999999999999,
+      "g.port.tau": 0.0,
+      "g.port.w": 0.0,
+      "ts.a.tau": -5.0,
+      "ts.a.w": 5.999999999999999,
+      "ts.b.tau": 5.0,
+      "ts.b.w": 0.0
+    },
+    "display_names": {
+      "fr$a$tau": "fr.a.tau",
+      "fr$a$w": "fr.a.w",
+      "fr$b$tau": "fr.b.tau",
+      "fr$b$w": "fr.b.w",
+      "fr$dw": "fr.dw",
+      "g$port$tau": "g.port.tau",
+      "g$port$w": "g.port.w",
+      "ts$a$tau": "ts.a.tau",
+      "ts$a$w": "ts.a.w",
+      "ts$b$tau": "ts.b.tau",
+      "ts$b$w": "ts.b.w"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

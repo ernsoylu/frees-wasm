@@ -1,0 +1,63 @@
+COMPONENT WallT(wall)
+  PARAM T
+  wall.T = T
+END
+COMPONENT EvapSH(in, out, wall)
+  PARAM fluid$, UA, SH, domain$ = twophase
+  out.P = in.P
+  Tevap = T_sat(fluid$, P=out.P)
+  Q     = UA * (wall.T - Tevap)
+  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)
+  out.mdot = Q / (out.h - in.h)
+  in.mdot  = out.mdot
+  wall.Qdot = Q
+END
+// suction manifold: both branches arrive at the SAME suction pressure
+// (set by their feeds), so we mix mass + enthalpy without re-equating P.
+COMPONENT TwoPhaseMixer(in1, in2, out)
+  PARAM domain$ = twophase
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+COMPONENT Compressor(in, out)
+  PARAM fluid$, eta, domain$ = twophase
+  out.mdot = in.mdot
+  s_in = Entropy(fluid$, P=in.P, h=in.h)
+  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)
+  out.h = in.h + (h_s - in.h) / eta
+  W = in.mdot * (out.h - in.h)
+END
+COMPONENT CondFloatUA(in, out)
+  PARAM fluid$, UA, Tamb, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = UA * (Tcond - Tamb)
+END
+COMPONENT LiqFeed(out)
+  PARAM fluid$, P, x, domain$ = twophase
+  out.P = P
+  out.h = Enthalpy(fluid$, P=P, x=x)
+END
+WallT WCHL(T=288)
+WallT WCAB(T=295)
+LiqFeed FCHL(fluid$=R1234yf, P=350000, x=0.20)
+LiqFeed FCAB(fluid$=R1234yf, P=350000, x=0.20)
+EvapSH CHLR(fluid$=R1234yf, UA=600, SH=5)
+EvapSH CABE(fluid$=R1234yf, UA=300, SH=8)
+TwoPhaseMixer SUC()
+Compressor CMP(fluid$=R1234yf, eta=0.7)
+CondFloatUA COND(fluid$=R1234yf, UA=350, Tamb=313)
+TwoPhaseSink LIQ()
+connect(WCHL.wall, CHLR.wall)
+connect(WCAB.wall, CABE.wall)
+connect(FCHL.out, CHLR.in)
+connect(FCAB.out, CABE.in)
+connect(CHLR.out, SUC.in1)
+connect(CABE.out, SUC.in2)
+connect(SUC.out, CMP.in)
+connect(CMP.out, COND.in)
+connect(COND.out, LIQ.in)

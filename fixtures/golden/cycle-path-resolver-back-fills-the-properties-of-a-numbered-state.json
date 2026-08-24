@@ -1,0 +1,22 @@
+{
+  "name": "cycle-path-resolver-back-fills-the-properties-of-a-numbered-state",
+  "source": "T1 = 400 [K]\nP1 = 101325 [Pa]\n",
+  "expect": {
+    "variables": {
+      "P1": 101325.0,
+      "T1": 400.0
+    },
+    "display_names": {
+      "p1": "P1",
+      "t1": "T1"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

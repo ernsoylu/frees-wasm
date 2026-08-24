@@ -1,0 +1,41 @@
+{
+  "name": "component-connect-connect-accepts-bare-stream-names",
+  "source": "COMPONENT Heater(in, out)\n  PARAM Q\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\nEND\nHeater H1(s1, s2, Q=4000)\nconnect(s2, s3)\ns1.P = 100000\ns1.mdot = 4\ns1.h = 0\ns3.extra = 7\n",
+  "expect": {
+    "variables": {
+      "s1.h": 0.0,
+      "s1.mdot": 4.0,
+      "s1.p": 100000.0,
+      "s2.h": 1000.0,
+      "s2.mdot": 4.0,
+      "s2.p": 100000.0,
+      "s3.extra": 7.0,
+      "s3.h": 1000.0,
+      "s3.mdot": 4.0,
+      "s3.p": 100000.0
+    },
+    "display_names": {
+      "q": "Q",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p",
+      "s3$extra": "s3.extra",
+      "s3$h": "s3.h",
+      "s3$mdot": "s3.mdot",
+      "s3$p": "s3.p"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "state-table-parse-supports-multiple-fluid-aware-circuits",
+  "source": "STATE TABLE WaterCircuit(Pw_1, Pw_2)\n  FLUID = Water\nEND\n\nSTATE TABLE RefrigerantCircuit(Pref_1, Pref_2, xref1)\n  FLUID = R134a\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

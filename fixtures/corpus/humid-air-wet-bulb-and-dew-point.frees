@@ -1,0 +1,2 @@
+T_wb = WetBulb(AirH2O, T=298.15, P=101325, R=0.5)
+T_dp = DewPoint(AirH2O, T=298.15, P=101325, R=0.5)

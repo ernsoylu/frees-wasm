@@ -1,0 +1,7 @@
+DYNAMIC outputs(t = 0 .. 1)
+der(x1) = -x1
+der(x2) = -2*x2
+y = x1 + x2
+x1(0) = 1
+x2(0) = 1
+END

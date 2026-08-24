@@ -1,0 +1,9 @@
+g0 = 9.81
+v0 = 50
+DYNAMIC flight (method = ode45, t = 0 .. 100, points = 50)
+  der(h) = v
+  der(v) = -g0
+  h(0) = 0
+  v(0) = v0
+  EVENT apogee: v = 0 | falling -> stop
+END

@@ -1,0 +1,40 @@
+{
+  "name": "component-electrical-battery-drives-a-resistive-load-through-its-internal-resistance",
+  "source": "Battery  B(Voc=12, R0=0.1)\nResistor RL(R=2.0)\nGround   G()\nconnect(B.p, RL.a)\nconnect(B.n, RL.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "b.n.i": 5.714285714285714,
+      "b.n.v": 0.0,
+      "b.p.i": -5.714285714285714,
+      "b.p.v": 11.428571428571429,
+      "b.w": 65.3061224489796,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "rl.a.i": 5.714285714285714,
+      "rl.a.v": 11.428571428571429,
+      "rl.b.i": -5.714285714285714,
+      "rl.b.v": 0.0
+    },
+    "display_names": {
+      "b$n$i": "b.n.i",
+      "b$n$v": "b.n.v",
+      "b$p$i": "b.p.i",
+      "b$p$v": "b.p.v",
+      "b$w": "b.w",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "rl$a$i": "rl.a.i",
+      "rl$a$v": "rl.a.v",
+      "rl$b$i": "rl.b.i",
+      "rl$b$v": "rl.b.v"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

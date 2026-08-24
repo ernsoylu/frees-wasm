@@ -1,0 +1,50 @@
+{
+  "name": "component-thermal-surface-loses-heat-by-convection-and-radiation-at-a-three-way-node",
+  "source": "ThermalSource SURF(T=350)\nConvection CV(htc=10, area=2)\nRadiation  RD(emis=0.9, area=2)\nThermalSource AIR(T=300)\nThermalSource SUR(T=300)\nconnect(SURF.port, CV.a, RD.a)\nconnect(CV.b, AIR.port)\nconnect(RD.b, SUR.port)\n",
+  "expect": {
+    "variables": {
+      "air.port.qdot": 1000.0,
+      "air.port.t": 300.0,
+      "cv.a.qdot": 1000.0,
+      "cv.a.t": 350.0,
+      "cv.b.qdot": -1000.0,
+      "cv.b.t": 300.0,
+      "cv.q": 1000.0,
+      "rd.a.qdot": 704.8984199619375,
+      "rd.a.t": 350.0,
+      "rd.b.qdot": -704.8984199619375,
+      "rd.b.t": 300.0,
+      "rd.q": 704.8984199619375,
+      "sur.port.qdot": 704.8984199619375,
+      "sur.port.t": 300.0,
+      "surf.port.qdot": -1704.8984199619376,
+      "surf.port.t": 350.0
+    },
+    "display_names": {
+      "air$port$qdot": "air.port.qdot",
+      "air$port$t": "air.port.t",
+      "cv$a$qdot": "cv.a.qdot",
+      "cv$a$t": "cv.a.t",
+      "cv$b$qdot": "cv.b.qdot",
+      "cv$b$t": "cv.b.t",
+      "cv$q": "cv.q",
+      "rd$a$qdot": "rd.a.qdot",
+      "rd$a$t": "rd.a.t",
+      "rd$b$qdot": "rd.b.qdot",
+      "rd$b$t": "rd.b.t",
+      "rd$q": "rd.q",
+      "sur$port$qdot": "sur.port.qdot",
+      "sur$port$t": "sur.port.t",
+      "surf$port$qdot": "surf.port.qdot",
+      "surf$port$t": "surf.port.t"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

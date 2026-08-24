@@ -1,0 +1,5 @@
+v = [2, 4, 4, 4, 5, 5, 7, 9]
+m = Mean(v[1:8])
+md = Median(v[1:8])
+vr = Variance(v[1:8])
+sd = StdDev(v[1:8])

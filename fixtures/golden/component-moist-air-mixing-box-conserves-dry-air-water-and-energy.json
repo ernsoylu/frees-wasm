@@ -1,0 +1,66 @@
+{
+  "name": "component-moist-air-mixing-box-conserves-dry-air-water-and-energy",
+  "source": "COMPONENT MASrc(out)\n  PARAM W, h0, mdot, P, domain$ = moistair\n  out.P    = P\n  out.mdot = mdot\n  out.W    = W\n  out.h    = h0\nEND\nMASrc     A(W=0.010, h0=60000, mdot=2, P=101325)\nMASrc     B(W=0.004, h0=30000, mdot=1, P=101325)\nMixingBox MB(a, b, c)\nconnect(A.out, MB.in1)\nconnect(B.out, MB.in2)\n",
+  "expect": {
+    "variables": {
+      "a.h": 60000.0,
+      "a.mdot": 2.0,
+      "a.out.h": 60000.0,
+      "a.out.mdot": 2.0,
+      "a.out.p": 101325.0,
+      "a.out.w": 0.01,
+      "a.p": 101325.0,
+      "a.w": 0.01,
+      "b.h": 30000.0,
+      "b.mdot": 1.0,
+      "b.out.h": 30000.0,
+      "b.out.mdot": 1.0,
+      "b.out.p": 101325.0,
+      "b.out.w": 0.004,
+      "b.p": 101325.0,
+      "b.w": 0.004,
+      "c.h": 50000.0,
+      "c.mdot": 3.0,
+      "c.p": 101325.0,
+      "c.w": 0.008
+    },
+    "display_names": {
+      "a": "a",
+      "a$h": "a.h",
+      "a$mdot": "a.mdot",
+      "a$out$h": "a.out.h",
+      "a$out$mdot": "a.out.mdot",
+      "a$out$p": "a.out.p",
+      "a$out$w": "a.out.w",
+      "a$p": "a.p",
+      "a$w": "a.w",
+      "b": "b",
+      "b$h": "b.h",
+      "b$mdot": "b.mdot",
+      "b$out$h": "b.out.h",
+      "b$out$mdot": "b.out.mdot",
+      "b$out$p": "b.out.p",
+      "b$out$w": "b.out.w",
+      "b$p": "b.p",
+      "b$w": "b.w",
+      "c": "c",
+      "c$h": "c.h",
+      "c$mdot": "c.mdot",
+      "c$p": "c.p",
+      "c$w": "c.w",
+      "h0": "h0",
+      "mdot": "mdot",
+      "moistair": "moistair",
+      "p": "P",
+      "w": "W"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

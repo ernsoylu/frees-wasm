@@ -1,0 +1,55 @@
+{
+  "name": "txv-superheat-domain-txv-superheat-connects-to-two-phase-lines",
+  "source": "TwoPhasePressureSource HI(fluid$=R134a, P=900000, x=0)\nTXVSuperheat V(fluid$=R134a, Kv=5e-7, SH_set=5)\nTwoPhasePressureSink LO(P=350000)\nThermalSource BULB(T=288)\nconnect(HI.out, V.in)\nconnect(V.out, LO.in)\nconnect(V.bulb, BULB.port)\n",
+  "expect": {
+    "variables": {
+      "bulb.port.qdot": 0.0,
+      "bulb.port.t": 288.0,
+      "hi.out.h": 249779.7946448451,
+      "hi.out.mdot": 2.41096394103468E-6,
+      "hi.out.p": 900000.0,
+      "lo.in.h": 249779.7946448451,
+      "lo.in.mdot": 2.41096394103468E-6,
+      "lo.in.p": 350000.0,
+      "v.bulb.qdot": 0.0,
+      "v.bulb.t": 288.0,
+      "v.in.h": 249779.7946448451,
+      "v.in.mdot": 2.41096394103468E-6,
+      "v.in.p": 900000.0,
+      "v.out.h": 249779.7946448451,
+      "v.out.mdot": 2.41096394103468E-6,
+      "v.out.p": 350000.0,
+      "v.sh": 9.82192788206936,
+      "v.t_sat": 278.17807211793064
+    },
+    "display_names": {
+      "bulb$port$qdot": "bulb.port.qdot",
+      "bulb$port$t": "bulb.port.t",
+      "hi$out$h": "hi.out.h",
+      "hi$out$mdot": "hi.out.mdot",
+      "hi$out$p": "hi.out.p",
+      "lo$in$h": "lo.in.h",
+      "lo$in$mdot": "lo.in.mdot",
+      "lo$in$p": "lo.in.p",
+      "r134a": "R134a",
+      "v$bulb$qdot": "v.bulb.qdot",
+      "v$bulb$t": "v.bulb.t",
+      "v$in$h": "v.in.h",
+      "v$in$mdot": "v.in.mdot",
+      "v$in$p": "v.in.p",
+      "v$out$h": "v.out.h",
+      "v$out$mdot": "v.out.mdot",
+      "v$out$p": "v.out.p",
+      "v$sh": "v.sh",
+      "v$t_sat": "v.t_sat"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

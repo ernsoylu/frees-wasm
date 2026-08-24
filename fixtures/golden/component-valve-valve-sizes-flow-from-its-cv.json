@@ -1,0 +1,44 @@
+{
+  "name": "component-valve-valve-sizes-flow-from-its-cv",
+  "source": "COMPONENT PSource(out)\n  PARAM P, h0\n  out.P = P\n  out.h = h0\nEND\nCOMPONENT PSink(in)\n  PARAM P\n  in.P = P\nEND\nPSource SRC(P=200000, h0=0)\nValve   VLV(Cv=0.001, rho=1000)\nPSink   SNK(P=100000)\nconnect(SRC.out, VLV.in)\nconnect(VLV.out, SNK.in)\n",
+  "expect": {
+    "variables": {
+      "snk.in.h": 0.0,
+      "snk.in.mdot": 10.0,
+      "snk.in.p": 100000.0,
+      "src.out.h": 0.0,
+      "src.out.mdot": 10.0,
+      "src.out.p": 200000.0,
+      "vlv.in.h": 0.0,
+      "vlv.in.mdot": 10.0,
+      "vlv.in.p": 200000.0,
+      "vlv.out.h": 0.0,
+      "vlv.out.mdot": 10.0,
+      "vlv.out.p": 100000.0
+    },
+    "display_names": {
+      "h0": "h0",
+      "p": "P",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "vlv$in$h": "vlv.in.h",
+      "vlv$in$mdot": "vlv.in.mdot",
+      "vlv$in$p": "vlv.in.p",
+      "vlv$out$h": "vlv.out.h",
+      "vlv$out$mdot": "vlv.out.mdot",
+      "vlv$out$p": "vlv.out.p"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,6 @@
+PLOT 'Rankine Cycle'
+  kind = property
+  fluid = Water
+  diagram = 'T-s'
+  overlaystates = true
+END

@@ -1,0 +1,11 @@
+COMPONENT FSrc(out)
+  PARAM mdot, P, h0
+  out.mdot = mdot
+  out.P    = P
+  out.h    = h0
+END
+FSrc       SRC(mdot=2.5, P=100000, h0=0)
+FlowSensor FS()
+Sink       SNK()
+connect(SRC.out, FS.in)
+connect(FS.out, SNK.in)

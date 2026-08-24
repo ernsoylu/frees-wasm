@@ -1,0 +1,28 @@
+{
+  "name": "combustion-thermo-wired-through-solver",
+  "source": "T_react = 298.15\nT_ad = AdiabaticFlameTemp('CH4', 1.0, T_react)\nM_air = mix_mw('N2:0.79, O2:0.21')\ncp_air = mix_cp('N2:0.79, O2:0.21', 300)\nxb = wiebe(20, 0, 60, 5, 2)\n",
+  "expect": {
+    "variables": {
+      "M_air": 0.028850640000000004,
+      "T_ad": 2325.598129753964,
+      "T_react": 298.15,
+      "cp_air": 1010.0686132802725,
+      "xb": 0.169049610098708
+    },
+    "display_names": {
+      "cp_air": "cp_air",
+      "m_air": "M_air",
+      "t_ad": "T_ad",
+      "t_react": "T_react",
+      "xb": "xb"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

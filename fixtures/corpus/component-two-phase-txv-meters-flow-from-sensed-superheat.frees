@@ -1,0 +1,16 @@
+COMPONENT RSrc(out)
+  PARAM P, h0, domain$ = twophase
+  out.P = P
+  out.h = h0
+END
+COMPONENT PSink(in)
+  PARAM P, domain$ = twophase
+  in.P = P
+END
+RSrc          SRC(P=900000, h0=270000)
+TXVSuperheat  TXV(fluid$=R134a, Kv=0.001, SH_set=5)
+PSink         SNK(P=300000)
+ThermalSource BULB(T=283.15)
+connect(SRC.out, TXV.in)
+connect(TXV.out, SNK.in)
+connect(TXV.bulb, BULB.port)

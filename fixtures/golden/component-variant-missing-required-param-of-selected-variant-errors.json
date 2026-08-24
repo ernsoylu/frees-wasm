@@ -1,0 +1,18 @@
+{
+  "name": "component-variant-missing-required-param-of-selected-variant-errors",
+  "source": "COMPONENT Widget(in, out)\n  PARAM model$ = linear\n  out.mdot = in.mdot\n  out.P    = in.P\n  VARIANT linear REQUIRE gain\n    out.h = in.h + gain\n  END\n  VARIANT scaled REQUIRE factor\n    out.h = in.h * factor\n  END\nEND\nWidget W(s1, s2, model$=scaled)\ns1.P    = 100000\ns1.mdot = 3\ns1.h    = 1000\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'w' (widget): parameter 'factor' has no value (give it a default or pass factor=value). (required by the selected 'scaled' variant)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

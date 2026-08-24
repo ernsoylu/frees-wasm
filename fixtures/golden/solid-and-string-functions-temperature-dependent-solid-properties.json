@@ -1,0 +1,28 @@
+{
+  "name": "solid-and-string-functions-temperature-dependent-solid-properties",
+  "source": "k_ref = k_(Aluminum)\nk_hot = k_(Aluminum, T=500)\nc_iron = c_(Iron, T=400)\nrho_hot = rho_(Steel, T=500)\nk_gold = k_(Gold, T=500)\n",
+  "expect": {
+    "variables": {
+      "c_iron": 489.0,
+      "k_gold": 317.0,
+      "k_hot": 233.0,
+      "k_ref": 237.0,
+      "rho_hot": 7854.0
+    },
+    "display_names": {
+      "c_iron": "c_iron",
+      "k_gold": "k_gold",
+      "k_hot": "k_hot",
+      "k_ref": "k_ref",
+      "rho_hot": "rho_hot"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

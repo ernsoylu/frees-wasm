@@ -1,0 +1,5 @@
+P1 = 10
+T1 = 45
+STATE TABLE C(P1, T1)
+  FLUID = Water
+END

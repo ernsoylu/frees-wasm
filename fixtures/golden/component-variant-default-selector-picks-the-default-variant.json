@@ -1,0 +1,35 @@
+{
+  "name": "component-variant-default-selector-picks-the-default-variant",
+  "source": "COMPONENT Widget(in, out)\n  PARAM model$ = linear\n  out.mdot = in.mdot\n  out.P    = in.P\n  VARIANT linear REQUIRE gain\n    out.h = in.h + gain\n  END\n  VARIANT scaled REQUIRE factor\n    out.h = in.h * factor\n  END\nEND\nWidget W(s1, s2, gain=250)\ns1.P    = 100000\ns1.mdot = 3\ns1.h    = 1000\n",
+  "expect": {
+    "variables": {
+      "s1.h": 1000.0,
+      "s1.mdot": 3.0,
+      "s1.p": 100000.0,
+      "s2.h": 1250.0,
+      "s2.mdot": 3.0,
+      "s2.p": 100000.0
+    },
+    "display_names": {
+      "factor": "factor",
+      "gain": "gain",
+      "linear": "linear",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "component-powertrain-engine-balances-road-load-at-steady-speed",
+  "source": "Engine   ENG(Tmax=200, throttle=0.5, bf=0.1)\nRoadLoad RL(Crr=10, Caero=0.01)\nconnect(ENG.shaft, RL.shaft)\n",
+  "expect": {
+    "variables": {
+      "eng.shaft.tau": -91.0,
+      "eng.shaft.w": 90.0,
+      "rl.shaft.tau": 91.0,
+      "rl.shaft.w": 90.0
+    },
+    "display_names": {
+      "eng$shaft$tau": "eng.shaft.tau",
+      "eng$shaft$w": "eng.shaft.w",
+      "rl$shaft$tau": "rl.shaft.tau",
+      "rl$shaft$w": "rl.shaft.w"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

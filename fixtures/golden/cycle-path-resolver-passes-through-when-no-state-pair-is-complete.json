@@ -1,0 +1,22 @@
+{
+  "name": "cycle-path-resolver-passes-through-when-no-state-pair-is-complete",
+  "source": "T1 = 400 [K]\nzeta = 2\n",
+  "expect": {
+    "variables": {
+      "T1": 400.0,
+      "zeta": 2.0
+    },
+    "display_names": {
+      "t1": "T1",
+      "zeta": "zeta"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

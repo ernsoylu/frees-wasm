@@ -1,0 +1,30 @@
+{
+  "name": "heat-exchanger-wired-through-solver",
+  "source": "Cr = 0.5\nNTU = 1\neps = hx_effectiveness('counterflow', NTU, Cr)\nhx_effectiveness('counterflow', NTU_req, Cr) = 0.75\ndTlm = LMTD(50, 20)\nQ = 1200 * dTlm\n",
+  "expect": {
+    "variables": {
+      "Cr": 0.5,
+      "NTU": 1.0,
+      "NTU_req": 1.8325814637483098,
+      "Q": 39288.84004574249,
+      "dTlm": 32.74070003811874,
+      "eps": 0.5647334016064162
+    },
+    "display_names": {
+      "cr": "Cr",
+      "dtlm": "dTlm",
+      "eps": "eps",
+      "ntu": "NTU",
+      "ntu_req": "NTU_req",
+      "q": "Q"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

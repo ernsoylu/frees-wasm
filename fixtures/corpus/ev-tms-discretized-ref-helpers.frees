@@ -1,0 +1,46 @@
+// post-TXV flash feed: P (= suction) and quality set; mdot free
+COMPONENT LiqFeed(out)
+  PARAM fluid$, P, x, domain$ = twophase
+  out.P = P
+  out.h = Enthalpy(fluid$, P=P, x=x)
+END
+// load-following evaporator at the (shared) suction; TXV holds superheat
+COMPONENT EvapSH(in, out, wall)
+  PARAM fluid$, UA, SH, domain$ = twophase
+  out.P = in.P
+  Tevap = T_sat(fluid$, P=out.P)
+  Q     = frac * UA * (wall.T - Tevap)
+  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)
+  out.mdot = Q / (out.h - in.h)
+  in.mdot  = out.mdot
+  wall.Qdot = Q
+END
+// suction manifold collect (flow-weighted enthalpy, branches at same suction)
+COMPONENT TwoPhaseMixer(in1, in2, out)
+  PARAM domain$ = twophase
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+COMPONENT Compressor(in, out)
+  PARAM fluid$, eta, domain$ = twophase
+  out.mdot = in.mdot
+  s_in = Entropy(fluid$, P=in.P, h=in.h)
+  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)
+  out.h = in.h + (h_s - in.h) / eta
+  W = in.mdot * (out.h - in.h)
+END
+COMPONENT CondFloatUA(in, out)
+  PARAM fluid$, UA, Tamb, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = UA * (Tcond - Tamb)
+END
+COMPONENT MassGen(port)
+  PARAM C, Qgen, T0
+  der(port.T)  = (Qgen + port.Qdot) / C
+  init(port.T) = T0
+END

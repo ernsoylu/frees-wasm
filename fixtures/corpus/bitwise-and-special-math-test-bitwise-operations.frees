@@ -1,0 +1,6 @@
+a = bitand(5, 6)
+b = bitor(5, 6)
+c = bitxor(5, 6)
+d = bitnot(0)
+e = bitshiftl(2, 3)
+f = bitshiftr(16, 2)

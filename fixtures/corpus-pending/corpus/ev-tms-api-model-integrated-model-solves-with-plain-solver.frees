@@ -1,0 +1,105 @@
+// ===================== custom refrigerant half-HX (heat-port coupled) =====================
+// Lumped refrigerant evaporator: boils its (P,x) inlet to a SET superheat,
+// so the duty Q = mdot*(h_out-h_in) is fixed by the flow (no wall-temp
+// feedback -> robust). Q is injected at the heat port; the secondary half
+// (LiquidWallHX / MoistAirWallHX) absorbs the SAME Q through the shared
+// wall node, so the two-side duties are identical by construction.
+COMPONENT RefEvap(in, out, wall)
+  PARAM fluid$, SH_set, domain$ = twophase
+  out.mdot  = in.mdot
+  out.P     = in.P
+  Tevap     = T_sat(fluid$, P=in.P)
+  out.h     = Enthalpy(fluid$, P=in.P, T=Tevap + SH_set)
+  Q         = in.mdot * (out.h - in.h)
+  wall.Qdot = Q
+END
+// Lumped refrigerant condenser: desuperheats+condenses+subcools to a SET
+// subcooling; rejects Q to the (outdoor-air) wall.
+COMPONENT RefCond(in, out, wall)
+  PARAM fluid$, SC_set, domain$ = twophase
+  out.mdot  = in.mdot
+  out.P     = in.P
+  Tcond     = T_sat(fluid$, P=in.P)
+  out.h     = Enthalpy(fluid$, P=in.P, T=Tcond - SC_set)
+  Q         = in.mdot * (in.h - out.h)
+  wall.Qdot = -Q
+END
+// Two-phase suction junction (mass + energy conserving).
+COMPONENT TwoPhaseMixer(in1, in2, out)
+  PARAM domain$ = twophase
+  out.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+// Liquid junction (coolant mixer).
+COMPONENT LiquidMixer(in1, in2, out)
+  PARAM domain$ = liquid
+  out.P    = in1.P
+  in2.P    = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+
+// ===================== REFRIGERANT CIRCUIT (R1234yf) =====================
+TwoPhaseSource     RB(fluid$=R1234yf, mdot=0.035, P=350000, x=0.22)
+RefEvap            EVB(fluid$=R1234yf, SH_set=5)      // battery chiller, ref side
+TwoPhaseSource     RC(fluid$=R1234yf, mdot=0.050, P=350000, x=0.22)
+RefEvap            EVC(fluid$=R1234yf, SH_set=8)      // cabin evaporator, ref side
+TwoPhaseMixer      RMIX()
+TwoPhaseCompressor CMP(fluid$=R1234yf, eta=0.7)
+RefCond            COND(fluid$=R1234yf, SC_set=5)     // condenser, ref side
+TwoPhaseSink       RLIQ()
+
+connect(RB.out, EVB.in)
+connect(RC.out, EVC.in)
+connect(EVB.out, RMIX.in1)
+connect(EVC.out, RMIX.in2)
+connect(RMIX.out, CMP.in)
+connect(CMP.out, COND.in)
+connect(COND.out, RLIQ.in)
+CMP.out.P = 1500000
+
+// ===================== CABIN AIR (indoor blower over the evaporator) =====================
+MoistAirSource CABIN(P=101325, T=300, W=0.011, mdot=0.40)
+MoistAirWallHX EVCA(eps=0.85)
+MoistAirSink   SUPPLY()
+connect(CABIN.out, EVCA.in)
+connect(EVCA.out, SUPPLY.in)
+connect(EVC.wall, EVCA.wall)            // cabin evaporator <-> cabin air
+
+// ===================== COOLANT CIRCUIT (EG50) =====================
+LiquidSource    PUMPIN(fluid$=EG50, mdot=0.25, P=200000, T=312)
+LiquidPump      PUMP(fluid$=EG50, eta=0.6)
+LiquidOrifice   MOTR(CdA=1.2e-5, rho=1050)
+LiquidColdPlate MOTOR(Q=5000)
+LiquidOrifice   VLV(CdA=1.5e-5, rho=1050)
+LiquidColdPlate BATT(Q=4000)
+LiquidWallHX    CHLL(fluid$=EG50, UA=400)
+LiquidMixer     CMIX()
+LiquidWallHX    RADL(fluid$=EG50, UA=600)
+MoistAirWallHX  RADA(eps=0.5)
+LiquidSink      PUMPOUT()
+
+connect(PUMPIN.out, PUMP.in)
+connect(PUMP.out, MOTR.in, VLV.in)
+// motor branch: cold plate -> radiator (reject to outdoor air)
+connect(MOTR.out, MOTOR.in)
+connect(MOTOR.out, RADL.in)
+connect(RADL.out, CMIX.in1)
+// battery branch: cold plate -> chiller liquid side (reject to refrigerant)
+connect(VLV.out, BATT.in)
+connect(BATT.out, CHLL.in)
+connect(CHLL.out, CMIX.in2)
+connect(EVB.wall, CHLL.wall)            // battery chiller <-> coolant
+connect(CMIX.out, PUMPOUT.in)
+PUMPOUT.in.P = 200000
+
+// ===================== OUTDOOR AIR (fan -> radiator -> condenser stack) =====================
+MoistAirSource OAIR(P=101325, T=313, W=0.010, mdot=0.9)
+MoistAirWallHX CONDA(eps=0.6)
+MoistAirSink   OAOUT()
+connect(OAIR.out, RADA.in)
+connect(RADL.wall, RADA.wall)           // radiator coolant <-> outdoor air
+connect(RADA.out, CONDA.in)
+connect(COND.wall, CONDA.wall)          // condenser <-> outdoor air
+connect(CONDA.out, OAOUT.in)

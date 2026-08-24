@@ -1,0 +1,54 @@
+{
+  "name": "component-machinery-turbocharger-balances-turbine-and-compressor-power-to-set-boost",
+  "source": "Turbocharger TC(t1, t2, c1, c2, cp=1005, eta_t=0.8, eta_c=0.78, gam=1.4)\nt1.T = 900\nt1.P = 200000\nt1.mdot = 0.1\nt2.P = 100000\nc1.T = 300\nc1.P = 100000\nc1.mdot = 0.1\n",
+  "expect": {
+    "variables": {
+      "c1.mdot": 0.1,
+      "c1.p": 100000.0,
+      "c1.t": 300.0,
+      "c2.mdot": 0.1,
+      "c2.p": 275867.4952151855,
+      "c2.t": 429.35854367450065,
+      "t1.mdot": 0.1,
+      "t1.p": 200000.0,
+      "t1.t": 900.0,
+      "t2.mdot": 0.1,
+      "t2.p": 100000.0,
+      "t2.t": 770.6414563254993,
+      "tc.prc": 2.758674952151855,
+      "tc.prt": 2.0,
+      "tc.wc": 13000.533639287316,
+      "tc.wt": 13000.533639287316
+    },
+    "display_names": {
+      "c1": "c1",
+      "c1$mdot": "c1.mdot",
+      "c1$p": "c1.p",
+      "c1$t": "c1.t",
+      "c2": "c2",
+      "c2$mdot": "c2.mdot",
+      "c2$p": "c2.p",
+      "c2$t": "c2.t",
+      "t1": "t1",
+      "t1$mdot": "t1.mdot",
+      "t1$p": "t1.p",
+      "t1$t": "t1.t",
+      "t2": "t2",
+      "t2$mdot": "t2.mdot",
+      "t2$p": "t2.p",
+      "t2$t": "t2.t",
+      "tc$prc": "tc.prc",
+      "tc$prt": "tc.prt",
+      "tc$wc": "tc.wc",
+      "tc$wt": "tc.wt"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "real-fluid-properties-solves-vapor-compression-cycle",
+  "source": "T_evap = 263.15\nT_cond = 313.15\nh1 = Enthalpy(R134a, T=T_evap, x=1)\ns1 = Entropy(R134a, T=T_evap, x=1)\nP_cond = Pressure(R134a, T=T_cond, x=1)\nh2 = Enthalpy(R134a, P=P_cond, s=s1)\nh3 = Enthalpy(R134a, T=T_cond, x=0)\nh4 = h3\nq_evap = h1 - h4\nw_comp = h2 - h1\nCOP = q_evap / w_comp\n",
+  "expect": {
+    "variables": {
+      "COP": 4.029470910470433,
+      "P_cond": 1016593.02212064,
+      "T_cond": 313.15,
+      "T_evap": 263.15,
+      "h1": 392664.91356786405,
+      "h2": 426479.692738112,
+      "h3": 256409.24455736837,
+      "h4": 256409.24455736837,
+      "q_evap": 136255.66901049568,
+      "s1": 1733.3507972613968,
+      "w_comp": 33814.77917024796
+    },
+    "display_names": {
+      "cop": "COP",
+      "h1": "h1",
+      "h2": "h2",
+      "h3": "h3",
+      "h4": "h4",
+      "p_cond": "P_cond",
+      "q_evap": "q_evap",
+      "s1": "s1",
+      "t_cond": "T_cond",
+      "t_evap": "T_evap",
+      "w_comp": "w_comp"
+    },
+    "block_count": 11,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

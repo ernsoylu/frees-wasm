@@ -1,0 +1,24 @@
+{
+  "name": "property-argument-seeding-subcritical-inversion-across-dome-converges-from-default-guess",
+  "source": "P = 8000000 [Pa]\nT = 753.15 [K]\nT = Temperature(Water, P=P, h=h)\n",
+  "expect": {
+    "variables": {
+      "P": 8000000.0,
+      "T": 753.15,
+      "h": 3349642.4503472517
+    },
+    "display_names": {
+      "h": "h",
+      "p": "P",
+      "t": "T"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

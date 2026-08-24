@@ -1,0 +1,13 @@
+COMPONENT Heater(in, out)
+  PARAM Q = 1000
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h + Q / in.mdot
+  duty     = Q
+END
+Heater H1(s1, s2, Q=5000)
+Heater H2(s2, s3, Q=3000)
+
+s1.P    = 100000
+s1.mdot = 2
+s1.h    = 10000

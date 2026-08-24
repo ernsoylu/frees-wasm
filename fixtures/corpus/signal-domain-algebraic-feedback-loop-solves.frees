@@ -1,0 +1,20 @@
+COMPONENT SigConst(out)
+  PARAM k
+  out.sig = k
+END
+COMPONENT SigGain(in, out)
+  PARAM k
+  out.sig = k * in.sig
+END
+COMPONENT SigSum(in1, in2, out)
+  out.sig = in1.sig + in2.sig
+END
+SigConst R(k=1)
+SigGain  FWD(k=8)
+COMPONENT SigDiff(inp, inm, out)
+  out.sig = inp.sig - inm.sig
+END
+SigDiff  ERR()
+connect(R.out, ERR.inp)
+connect(ERR.out, FWD.in)
+connect(FWD.out, ERR.inm)

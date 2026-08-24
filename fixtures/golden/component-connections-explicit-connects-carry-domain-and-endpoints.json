@@ -1,0 +1,38 @@
+{
+  "name": "component-connections-explicit-connects-carry-domain-and-endpoints",
+  "source": "COMPONENT Batt(p)\np.v = 12\nEND\nCOMPONENT Load(a, b)\na.i = (a.v - b.v) / 10\nb.i = 0 - a.i\nEND\nCOMPONENT Gnd(g)\ng.v = 0\nEND\nBatt B(x1)\nLoad L(x2, x3)\nGnd G(x4)\nconnect(B.p, L.a)\nconnect(L.b, G.g)\n",
+  "expect": {
+    "variables": {
+      "x1.i": -1.2,
+      "x1.v": 12.0,
+      "x2.i": 1.2,
+      "x2.v": 12.0,
+      "x3.i": -1.2,
+      "x3.v": 0.0,
+      "x4.i": 1.2,
+      "x4.v": 0.0
+    },
+    "display_names": {
+      "x1": "x1",
+      "x1$i": "x1.i",
+      "x1$v": "x1.v",
+      "x2": "x2",
+      "x2$i": "x2.i",
+      "x2$v": "x2.v",
+      "x3": "x3",
+      "x3$i": "x3.i",
+      "x3$v": "x3.v",
+      "x4": "x4",
+      "x4$i": "x4.i",
+      "x4$v": "x4.v"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,9 @@
+k = 0.01
+T_inf = 25
+m = 0.5
+cp = 4000
+DYNAMIC cooling (method = ode45, time = 0 .. 100, points = 51)
+  der(T) = -k * (T - T_inf)
+  T(0) = 95
+  Q = m * cp * der(T)
+END

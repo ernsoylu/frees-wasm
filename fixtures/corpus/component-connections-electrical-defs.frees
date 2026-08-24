@@ -1,0 +1,10 @@
+COMPONENT Batt(p)
+p.v = 12
+END
+COMPONENT Load(a, b)
+a.i = (a.v - b.v) / 10
+b.i = 0 - a.i
+END
+COMPONENT Gnd(g)
+g.v = 0
+END

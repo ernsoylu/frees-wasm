@@ -1,0 +1,4 @@
+DYNAMIC d (method = ida, time = 0 .. 1, points = 11)
+  der(x) = -x
+  x(0) = 1
+END

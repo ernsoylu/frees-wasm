@@ -1,0 +1,36 @@
+{
+  "name": "component-breadth-contact-resistance-carries-heat-by-thermal-resistance",
+  "source": "ThermalSource HOT(T=400)\nContactResistance CR(Rth=0.05)\nThermalSource COLD(T=300)\nconnect(HOT.port, CR.a)\nconnect(CR.b, COLD.port)\n",
+  "expect": {
+    "variables": {
+      "cold.port.qdot": 2000.0,
+      "cold.port.t": 300.0,
+      "cr.a.qdot": 2000.0,
+      "cr.a.t": 400.0,
+      "cr.b.qdot": -2000.0,
+      "cr.b.t": 300.0,
+      "cr.q": 2000.0,
+      "hot.port.qdot": -2000.0,
+      "hot.port.t": 400.0
+    },
+    "display_names": {
+      "cold$port$qdot": "cold.port.qdot",
+      "cold$port$t": "cold.port.t",
+      "cr$a$qdot": "cr.a.qdot",
+      "cr$a$t": "cr.a.t",
+      "cr$b$qdot": "cr.b.qdot",
+      "cr$b$t": "cr.b.t",
+      "cr$q": "cr.q",
+      "hot$port$qdot": "hot.port.qdot",
+      "hot$port$t": "hot.port.t"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

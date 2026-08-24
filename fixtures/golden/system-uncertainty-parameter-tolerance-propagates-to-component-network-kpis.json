@@ -1,0 +1,60 @@
+{
+  "name": "system-uncertainty-parameter-tolerance-propagates-to-component-network-kpis",
+  "source": "R_val = 5\nUncertaintyOf(R_val) = 0.5\nVoltageSource   VS(E=10)\nHeatingResistor HR(R=R_val)\nGround          G()\nConduction      C(k=2, area=1, L=0.1)\nThermalSource   AMB(T=300)\nconnect(VS.p, HR.p)\nconnect(VS.n, HR.n, G.port)\nconnect(HR.heat, C.a)\nconnect(C.b, AMB.port)\n",
+  "expect": {
+    "variables": {
+      "R_val": 5.0,
+      "amb.port.qdot": 20.0,
+      "amb.port.t": 300.0,
+      "c.a.qdot": 20.0,
+      "c.a.t": 301.0,
+      "c.b.qdot": -20.0,
+      "c.b.t": 300.0,
+      "c.q": 20.0,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "hr.heat.qdot": -20.0,
+      "hr.heat.t": 301.0,
+      "hr.n.i": -2.0,
+      "hr.n.v": 0.0,
+      "hr.p.i": 2.0,
+      "hr.p.v": 10.0,
+      "hr.q": 20.0,
+      "vs.n.i": 2.0,
+      "vs.n.v": 0.0,
+      "vs.p.i": -2.0,
+      "vs.p.v": 10.0
+    },
+    "display_names": {
+      "amb$port$qdot": "amb.port.qdot",
+      "amb$port$t": "amb.port.t",
+      "c$a$qdot": "c.a.qdot",
+      "c$a$t": "c.a.t",
+      "c$b$qdot": "c.b.qdot",
+      "c$b$t": "c.b.t",
+      "c$q": "c.q",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "hr$heat$qdot": "hr.heat.qdot",
+      "hr$heat$t": "hr.heat.t",
+      "hr$n$i": "hr.n.i",
+      "hr$n$v": "hr.n.v",
+      "hr$p$i": "hr.p.i",
+      "hr$p$v": "hr.p.v",
+      "hr$q": "hr.q",
+      "r_val": "R_val",
+      "vs$n$i": "vs.n.i",
+      "vs$n$v": "vs.n.v",
+      "vs$p$i": "vs.p.i",
+      "vs$p$v": "vs.p.v"
+    },
+    "block_count": 21,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

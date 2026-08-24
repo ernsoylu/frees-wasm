@@ -1,0 +1,36 @@
+{
+  "name": "component-gas-mixture-pipe-carries-composition-through",
+  "source": "GasSource S(a, y=0.21, mdot=1.5, P=120000, h0=305000)\nGasPipe   P(a, b)\n",
+  "expect": {
+    "variables": {
+      "a.h": 305000.0,
+      "a.mdot": 1.5,
+      "a.p": 120000.0,
+      "a.y": 0.21,
+      "b.h": 305000.0,
+      "b.mdot": 1.5,
+      "b.p": 120000.0,
+      "b.y": 0.21
+    },
+    "display_names": {
+      "a": "a",
+      "a$h": "a.h",
+      "a$mdot": "a.mdot",
+      "a$p": "a.p",
+      "a$y": "a.y",
+      "b": "b",
+      "b$h": "b.h",
+      "b$mdot": "b.mdot",
+      "b$p": "b.p",
+      "b$y": "b.y"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

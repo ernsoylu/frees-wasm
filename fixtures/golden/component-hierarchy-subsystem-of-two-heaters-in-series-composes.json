@@ -1,0 +1,57 @@
+{
+  "name": "component-hierarchy-subsystem-of-two-heaters-in-series-composes",
+  "source": "COMPONENT Heater(in, out)\n  PARAM Q\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\nEND\nCOMPONENT DoubleHeater(in, out)\n  Heater H1(Q=1000)\n  Heater H2(Q=2000)\n  connect(in, H1.in)\n  connect(H1.out, H2.in)\n  connect(H2.out, out)\nEND\nDoubleHeater DH(s1, s2)\ns1.P    = 100000\ns1.mdot = 2\ns1.h    = 0\n",
+  "expect": {
+    "variables": {
+      "dh.h1.in.h": 0.0,
+      "dh.h1.in.mdot": 2.0,
+      "dh.h1.in.p": 100000.0,
+      "dh.h1.out.h": 500.0,
+      "dh.h1.out.mdot": 2.0,
+      "dh.h1.out.p": 100000.0,
+      "dh.h2.in.h": 500.0,
+      "dh.h2.in.mdot": 2.0,
+      "dh.h2.in.p": 100000.0,
+      "dh.h2.out.h": 1500.0,
+      "dh.h2.out.mdot": 2.0,
+      "dh.h2.out.p": 100000.0,
+      "s1.h": 0.0,
+      "s1.mdot": 2.0,
+      "s1.p": 100000.0,
+      "s2.h": 1500.0,
+      "s2.mdot": 2.0,
+      "s2.p": 100000.0
+    },
+    "display_names": {
+      "dh.h1$in$h": "dh.h1.in.h",
+      "dh.h1$in$mdot": "dh.h1.in.mdot",
+      "dh.h1$in$p": "dh.h1.in.p",
+      "dh.h1$out$h": "dh.h1.out.h",
+      "dh.h1$out$mdot": "dh.h1.out.mdot",
+      "dh.h1$out$p": "dh.h1.out.p",
+      "dh.h2$in$h": "dh.h2.in.h",
+      "dh.h2$in$mdot": "dh.h2.in.mdot",
+      "dh.h2$in$p": "dh.h2.in.p",
+      "dh.h2$out$h": "dh.h2.out.h",
+      "dh.h2$out$mdot": "dh.h2.out.mdot",
+      "dh.h2$out$p": "dh.h2.out.p",
+      "q": "Q",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

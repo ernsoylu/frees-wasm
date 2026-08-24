@@ -1,0 +1,5 @@
+T = 320
+P = 4e6
+Z = eos_z('co2', 'PR', T, P, 'vapor')
+rho = eos_density('co2', 'PR', T, P, 'vapor')
+Psat = eos_psat('propane', 'PR', 300)

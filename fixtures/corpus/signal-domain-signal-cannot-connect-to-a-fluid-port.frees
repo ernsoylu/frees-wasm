@@ -1,0 +1,16 @@
+COMPONENT SigConst(out)
+  PARAM k
+  out.sig = k
+END
+COMPONENT SigGain(in, out)
+  PARAM k
+  out.sig = k * in.sig
+END
+COMPONENT SigSum(in1, in2, out)
+  out.sig = in1.sig + in2.sig
+END
+SigConst SRC(k=100000)
+Source   S(fluid$=Air, mdot=1, P=100000, T=300)
+Sink     K()
+connect(SRC.out, K.in)
+connect(S.out, K.in)

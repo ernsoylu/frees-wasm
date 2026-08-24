@@ -1,0 +1,22 @@
+{
+  "name": "state-table-parse-survives-markdown-extraction",
+  "source": "P1 = 10\nT1 = 45\nSTATE TABLE C(P1, T1)\n  FLUID = Water\nEND\n",
+  "expect": {
+    "variables": {
+      "P1": 10.0,
+      "T1": 45.0
+    },
+    "display_names": {
+      "p1": "P1",
+      "t1": "T1"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

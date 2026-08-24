@@ -1,0 +1,45 @@
+{
+  "name": "component-pneumatic-orifice-flows-subsonic-above-the-critical-ratio",
+  "source": "PneumaticSupply     SUP(fluid$=Air, P=120000, T=300)\nPneumaticOrifice    ORI(fluid$=Air, C=1e-8, b=0.3)\nPneumaticAtmosphere ATM(P=100000)\nconnect(SUP.out, ORI.in)\nconnect(ORI.out, ATM.port)\n",
+  "expect": {
+    "variables": {
+      "atm.port.h": 426255.4792459648,
+      "atm.port.mdot": 9.104382341286571E-4,
+      "atm.port.p": 100000.0,
+      "ori.in.h": 426255.4792459648,
+      "ori.in.mdot": 9.104382341286571E-4,
+      "ori.in.p": 120000.0,
+      "ori.out.h": 426255.4792459648,
+      "ori.out.mdot": 9.104382341286571E-4,
+      "ori.out.p": 100000.0,
+      "ori.t_in": 299.99999999998465,
+      "sup.out.h": 426255.4792459648,
+      "sup.out.mdot": 9.104382341286571E-4,
+      "sup.out.p": 120000.0
+    },
+    "display_names": {
+      "air": "Air",
+      "atm$port$h": "atm.port.h",
+      "atm$port$mdot": "atm.port.mdot",
+      "atm$port$p": "atm.port.p",
+      "ori$in$h": "ori.in.h",
+      "ori$in$mdot": "ori.in.mdot",
+      "ori$in$p": "ori.in.p",
+      "ori$out$h": "ori.out.h",
+      "ori$out$mdot": "ori.out.mdot",
+      "ori$out$p": "ori.out.p",
+      "ori$t_in": "ori.t_in",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

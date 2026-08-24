@@ -1,0 +1,26 @@
+{
+  "name": "solid-and-string-functions-solid-property-participates-in-heat-transfer-calc",
+  "source": "q = k_(Aluminum) * A * dT / L\nA = 2\ndT = 50\nL = 0.1\n",
+  "expect": {
+    "variables": {
+      "A": 2.0,
+      "L": 0.1,
+      "dT": 50.0,
+      "q": 237000.0
+    },
+    "display_names": {
+      "a": "A",
+      "dt": "dT",
+      "l": "L",
+      "q": "q"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

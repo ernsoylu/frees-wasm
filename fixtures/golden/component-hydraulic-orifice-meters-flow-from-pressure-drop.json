@@ -1,0 +1,42 @@
+{
+  "name": "component-hydraulic-orifice-meters-flow-from-pressure-drop",
+  "source": "HydraulicSupply  SUP(P=10000000)\nHydraulicOrifice ORI(CdA=1e-5, rho=850)\nHydraulicTank    TNK(P=0)\nconnect(SUP.out, ORI.in)\nconnect(ORI.out, TNK.port)\n",
+  "expect": {
+    "variables": {
+      "ori.in.h": 0.0,
+      "ori.in.mdot": 1.30384048104053,
+      "ori.in.p": 1.0E7,
+      "ori.out.h": 0.0,
+      "ori.out.mdot": 1.30384048104053,
+      "ori.out.p": 0.0,
+      "sup.out.h": 0.0,
+      "sup.out.mdot": 1.30384048104053,
+      "sup.out.p": 1.0E7,
+      "tnk.port.h": 0.0,
+      "tnk.port.mdot": 1.30384048104053,
+      "tnk.port.p": 0.0
+    },
+    "display_names": {
+      "ori$in$h": "ori.in.h",
+      "ori$in$mdot": "ori.in.mdot",
+      "ori$in$p": "ori.in.p",
+      "ori$out$h": "ori.out.h",
+      "ori$out$mdot": "ori.out.mdot",
+      "ori$out$p": "ori.out.p",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p",
+      "tnk$port$h": "tnk.port.h",
+      "tnk$port$mdot": "tnk.port.mdot",
+      "tnk$port$p": "tnk.port.p"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

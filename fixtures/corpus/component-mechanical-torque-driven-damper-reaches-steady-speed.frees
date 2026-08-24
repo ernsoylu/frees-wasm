@@ -1,0 +1,5 @@
+TorqueSource     TS(T=10)
+RotationalDamper D(c=0.5)
+MechGround       G()
+connect(TS.a, D.a)
+connect(TS.b, D.b, G.port)

@@ -1,0 +1,9 @@
+BatteryRC B(Voc=48, R0=0.1, R1=0.2, C1=1000, Vrc0=0)
+Resistor  RL(R=4.7)
+Ground    G()
+connect(B.p, RL.a)
+connect(B.n, RL.b, G.port)
+DYNAMIC drive(method = ode45, time = 0 .. 2000, points = 100)
+END
+Vrc_final = FinalValue('b.vrc')
+Vrc_start = MinValue('b.vrc')

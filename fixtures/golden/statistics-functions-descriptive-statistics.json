@@ -1,0 +1,43 @@
+{
+  "name": "statistics-functions-descriptive-statistics",
+  "source": "v = [2, 4, 4, 4, 5, 5, 7, 9]\nm = Mean(v[1:8])\nmd = Median(v[1:8])\nvr = Variance(v[1:8])\nsd = StdDev(v[1:8])\n",
+  "expect": {
+    "variables": {
+      "m": 5.0,
+      "md": 4.5,
+      "sd": 2.138089935299395,
+      "v[1]": 2.0,
+      "v[2]": 4.0,
+      "v[3]": 4.0,
+      "v[4]": 4.0,
+      "v[5]": 5.0,
+      "v[6]": 5.0,
+      "v[7]": 7.0,
+      "v[8]": 9.0,
+      "vr": 4.571428571428571
+    },
+    "display_names": {
+      "m": "m",
+      "md": "md",
+      "sd": "sd",
+      "v": "v",
+      "v[1]": "v[1]",
+      "v[2]": "v[2]",
+      "v[3]": "v[3]",
+      "v[4]": "v[4]",
+      "v[5]": "v[5]",
+      "v[6]": "v[6]",
+      "v[7]": "v[7]",
+      "v[8]": "v[8]",
+      "vr": "vr"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

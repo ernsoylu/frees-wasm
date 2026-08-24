@@ -1,0 +1,50 @@
+{
+  "name": "component-powertrain-breadth-transmission-scales-speed-and-torque-with-efficiency",
+  "source": "SpeedSource      SS(w=200)\nMechGround       G()\nTransmission     TR(ratio=10, eta=0.9)\nRotationalDamper LOAD(c=2)\nMechGround       G2()\nconnect(SS.a, TR.in)\nconnect(SS.b, G.port)\nconnect(TR.out, LOAD.a)\nconnect(LOAD.b, G2.port)\n",
+  "expect": {
+    "variables": {
+      "g.port.tau": -4.444444444444445,
+      "g.port.w": 0.0,
+      "g2.port.tau": 40.0,
+      "g2.port.w": 0.0,
+      "load.a.tau": 40.0,
+      "load.a.w": 20.0,
+      "load.b.tau": -40.0,
+      "load.b.w": 0.0,
+      "ss.a.tau": -4.444444444444445,
+      "ss.a.w": 200.0,
+      "ss.b.tau": 4.444444444444445,
+      "ss.b.w": 0.0,
+      "tr.in.tau": 4.444444444444445,
+      "tr.in.w": 200.0,
+      "tr.out.tau": -40.0,
+      "tr.out.w": 20.0
+    },
+    "display_names": {
+      "g$port$tau": "g.port.tau",
+      "g$port$w": "g.port.w",
+      "g2$port$tau": "g2.port.tau",
+      "g2$port$w": "g2.port.w",
+      "load$a$tau": "load.a.tau",
+      "load$a$w": "load.a.w",
+      "load$b$tau": "load.b.tau",
+      "load$b$w": "load.b.w",
+      "ss$a$tau": "ss.a.tau",
+      "ss$a$w": "ss.a.w",
+      "ss$b$tau": "ss.b.tau",
+      "ss$b$w": "ss.b.w",
+      "tr$in$tau": "tr.in.tau",
+      "tr$in$w": "tr.in.w",
+      "tr$out$tau": "tr.out.tau",
+      "tr$out$w": "tr.out.w"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "control-system-conversions-zp2tf-converts-correctly",
+  "source": "zr = [-3.0]\nzi = [0.0]\npr = [-1.0, -2.0]\npi = [0.0, 0.0]\nk = 2.0\nCALL zp2tf(zr, zi, pr, pi, k : num[1:3], den[1:3])\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "den[2]": 3.0,
+      "den[3]": 2.0,
+      "k": 2.0,
+      "num[1]": 0.0,
+      "num[2]": 2.0,
+      "num[3]": 6.0,
+      "pi[1]": 0.0,
+      "pi[2]": 0.0,
+      "pr[1]": -1.0,
+      "pr[2]": -2.0,
+      "zi[1]": 0.0,
+      "zr[1]": -3.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "k": "k",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]",
+      "num[3]": "num[3]",
+      "pi": "pi",
+      "pi[1]": "pi[1]",
+      "pi[2]": "pi[2]",
+      "pr": "pr",
+      "pr[1]": "pr[1]",
+      "pr[2]": "pr[2]",
+      "zi": "zi",
+      "zi[1]": "zi[1]",
+      "zr": "zr",
+      "zr[1]": "zr[1]"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

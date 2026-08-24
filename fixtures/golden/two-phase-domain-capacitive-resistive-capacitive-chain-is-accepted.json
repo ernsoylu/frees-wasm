@@ -1,0 +1,18 @@
+{
+  "name": "two-phase-domain-capacitive-resistive-capacitive-chain-is-accepted",
+  "source": "LiquidVolume V1(C=1e-7, P0=200000)\nLiquidOrifice R(CdA=1e-6, rho=1000)\nLiquidVolume V2(C=1e-7, P0=200000)\nconnect(V1.out, R.in)\nconnect(R.out, V2.in)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 13 equations and 16 variables. The problem is underspecified and cannot be solved. Free quantities (no defining relation): v2.in.p, v2.out.h, v2.out.mdot. Coupled to: r.in.h, r.in.mdot, r.in.p, r.out.h, r.out.mdot, r.out.p, v1.in.h, v1.in.mdot, v1.out.h, v1.out.mdot, v1.out.p, v2.in.h, …. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

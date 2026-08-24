@@ -1,0 +1,42 @@
+{
+  "name": "component-niche-battery2rc-shows-combined-dc-resistance-at-steady",
+  "source": "Battery2RC B(Voc=48, R0=0.1, R1=0.2, C1=1000, R2=0.1, C2=2000, Vrc1_0=0, Vrc2_0=0)\nResistor   RL(R=4.6)\nGround     G()\nconnect(B.p, RL.a)\nconnect(B.n, RL.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "b.n.i": 9.600000000000001,
+      "b.n.v": 0.0,
+      "b.p.i": -9.600000000000001,
+      "b.p.v": 44.160000000000004,
+      "b.vrc1": 1.9200000000000004,
+      "b.vrc2": 0.9599999999999972,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "rl.a.i": 9.600000000000001,
+      "rl.a.v": 44.160000000000004,
+      "rl.b.i": -9.600000000000001,
+      "rl.b.v": 0.0
+    },
+    "display_names": {
+      "b$n$i": "b.n.i",
+      "b$n$v": "b.n.v",
+      "b$p$i": "b.p.i",
+      "b$p$v": "b.p.v",
+      "b$vrc1": "b.vrc1",
+      "b$vrc2": "b.vrc2",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "rl$a$i": "rl.a.i",
+      "rl$a$v": "rl.a.v",
+      "rl$b$i": "rl.b.i",
+      "rl$b$v": "rl.b.v"
+    },
+    "block_count": 7,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

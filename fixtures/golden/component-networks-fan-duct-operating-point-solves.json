@@ -1,0 +1,47 @@
+{
+  "name": "component-networks-fan-duct-operating-point-solves",
+  "source": "// Fan–duct operating point (incompressible flow network)\nP_atm = 101325 [Pa]\n\nFanCurve F1(a, b, rho=1.2 [kg/m^3], dP0=500 [Pa], Q0=1.5 [m^3/s])\nDuct     D1(b, c, rho=1.2 [kg/m^3], mu=1.8e-5 [Pa-s], L=100 [m], D=0.3 [m], rough=0.000045 [m])\n\na.P = P_atm\nc.P = P_atm\n",
+  "expect": {
+    "variables": {
+      "P_atm": 101325.0,
+      "a.mdot": 0.9007597979250026,
+      "a.p": 101325.0,
+      "b.mdot": 0.9007597979250026,
+      "b.p": 101699.78885593242,
+      "c.mdot": 0.9007597979250026,
+      "c.p": 101325.0,
+      "d1.a": 0.07068583470577035,
+      "d1.f": 0.016617510329163098,
+      "d1.re_d": 212385.73981958654,
+      "d1.v": 10.61928699097933,
+      "f1.dp": 374.78885593242416,
+      "f1.q": 0.7506331649375022
+    },
+    "display_names": {
+      "a": "a",
+      "a$mdot": "a.mdot",
+      "a$p": "a.p",
+      "b": "b",
+      "b$mdot": "b.mdot",
+      "b$p": "b.p",
+      "c": "c",
+      "c$mdot": "c.mdot",
+      "c$p": "c.p",
+      "d1$a": "d1.a",
+      "d1$f": "d1.f",
+      "d1$re_d": "d1.re_d",
+      "d1$v": "d1.v",
+      "f1$dp": "f1.dp",
+      "f1$q": "f1.q",
+      "p_atm": "P_atm"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

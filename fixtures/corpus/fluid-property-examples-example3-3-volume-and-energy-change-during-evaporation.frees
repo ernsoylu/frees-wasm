@@ -1,0 +1,8 @@
+m = 0.2
+P_atm = 100000
+v_f = Volume(Water, P=P_atm, x=0)
+v_g = Volume(Water, P=P_atm, x=1)
+DELTAV = m * (v_g - v_f)
+h_f = Enthalpy(Water, P=P_atm, x=0)
+h_g = Enthalpy(Water, P=P_atm, x=1)
+E_in = m * (h_g - h_f)

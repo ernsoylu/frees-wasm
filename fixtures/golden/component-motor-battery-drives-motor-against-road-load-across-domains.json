@@ -1,0 +1,66 @@
+{
+  "name": "component-motor-battery-drives-motor-against-road-load-across-domains",
+  "source": "BatteryThermal   B(Voc=48, R0=0.1)\nDCMotor          MOT(Kt=0.5, Ke=0.5, R=1)\nRotationalDamper LOAD(c=0.1)\nGround           G()\nMechGround       MG()\nThermalSource    COOL(T=300)\nconnect(B.p, MOT.p)\nconnect(B.n, MOT.n, G.port)\nconnect(MOT.shaft, LOAD.a)\nconnect(LOAD.b, MG.port)\nconnect(B.heat, COOL.port)\n",
+  "expect": {
+    "variables": {
+      "b.heat.qdot": -17.777777777777782,
+      "b.heat.t": 300.0,
+      "b.n.i": 13.333333333333334,
+      "b.n.v": 0.0,
+      "b.p.i": -13.333333333333334,
+      "b.p.v": 46.666666666666664,
+      "b.q": 17.777777777777782,
+      "b.w": 622.2222222222222,
+      "cool.port.qdot": 17.777777777777782,
+      "cool.port.t": 300.0,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "load.a.tau": 6.666666666666667,
+      "load.a.w": 66.66666666666666,
+      "load.b.tau": -6.666666666666667,
+      "load.b.w": 0.0,
+      "mg.port.tau": 6.666666666666667,
+      "mg.port.w": 0.0,
+      "mot.n.i": -13.333333333333334,
+      "mot.n.v": 0.0,
+      "mot.p.i": 13.333333333333334,
+      "mot.p.v": 46.666666666666664,
+      "mot.shaft.tau": -6.666666666666667,
+      "mot.shaft.w": 66.66666666666666
+    },
+    "display_names": {
+      "b$heat$qdot": "b.heat.qdot",
+      "b$heat$t": "b.heat.t",
+      "b$n$i": "b.n.i",
+      "b$n$v": "b.n.v",
+      "b$p$i": "b.p.i",
+      "b$p$v": "b.p.v",
+      "b$q": "b.q",
+      "b$w": "b.w",
+      "cool$port$qdot": "cool.port.qdot",
+      "cool$port$t": "cool.port.t",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "load$a$tau": "load.a.tau",
+      "load$a$w": "load.a.w",
+      "load$b$tau": "load.b.tau",
+      "load$b$w": "load.b.w",
+      "mg$port$tau": "mg.port.tau",
+      "mg$port$w": "mg.port.w",
+      "mot$n$i": "mot.n.i",
+      "mot$n$v": "mot.n.v",
+      "mot$p$i": "mot.p.i",
+      "mot$p$v": "mot.p.v",
+      "mot$shaft$tau": "mot.shaft.tau",
+      "mot$shaft$w": "mot.shaft.w"
+    },
+    "block_count": 17,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

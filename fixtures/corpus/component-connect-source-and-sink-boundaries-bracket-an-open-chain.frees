@@ -1,0 +1,7 @@
+Source S(fluid$=Water, mdot=2, P=8000000, T=773.15)
+Boiler B()
+Sink   K()
+connect(S.out, B.in)
+connect(B.out, K.in)
+
+B.Q = 1000000

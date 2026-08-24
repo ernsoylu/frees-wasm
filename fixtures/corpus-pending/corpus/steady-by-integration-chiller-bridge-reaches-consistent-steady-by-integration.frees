@@ -1,0 +1,37 @@
+// lumped refrigerant evaporator half with a heat port: boils its
+// (P,x) inlet to a set superheat (duty fixed by the flow), injecting
+// Q at the wall. Robust (no moving-boundary regime switching).
+COMPONENT RefEvap(in, out, wall)
+  PARAM fluid$, SH_set, domain$ = twophase
+  out.mdot  = in.mdot
+  out.P     = in.P
+  Tevap     = T_sat(fluid$, P=in.P)
+  out.h     = Enthalpy(fluid$, P=in.P, T=Tevap + SH_set)
+  Q         = in.mdot * (out.h - in.h)
+  wall.Qdot = Q
+END
+
+// refrigerant side (held inputs): boils against the wall
+TwoPhaseSource RSRC(fluid$=R1234yf, mdot=0.03, P=350000, x=0.20)
+RefEvap EV(fluid$=R1234yf, SH_set=5)
+TwoPhaseSink RSNK()
+// coolant side (held inputs): EG50 gives heat to the wall
+LiquidSource CSRC(fluid$=EG50, mdot=0.10, P=200000, T=310)
+LiquidWallHX CL(fluid$=EG50, UA=400)
+LiquidSink CSNK()
+// the coupling node carries a thermal mass -> the steady point is the
+// equilibrium of der(T_wall)=ΣQ̇/C as t->inf
+ThermalMass WALL(C=3000, T0=295)
+
+connect(RSRC.out, EV.in)
+connect(EV.out, RSNK.in)
+connect(CSRC.out, CL.in)
+connect(CL.out, CSNK.in)
+connect(EV.wall, WALL.port, CL.wall)
+
+DYNAMIC stabilize(method = ida, time = 0 .. 300, points = 60, rtol = 1e-6, atol = 1e-8)
+END
+Tw_final  = FinalValue('wall.port.t')
+Qref_final = FinalValue('ev.q')
+Qcool_final = FinalValue('cl.q')
+dTw = FinalValue('wall.port.t') - MinValue('wall.port.t')

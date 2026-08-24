@@ -1,0 +1,38 @@
+{
+  "name": "component-expansion-member-on-fluidless-stream-is-an-opaque-rider",
+  "source": "COMPONENT Heater(in, out)\n  PARAM Q = 1000\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\n  duty     = Q\nEND\nHeater H1(s1, s2, Q=5000)\ns1.P = 100000;  s1.mdot = 2;  s1.h = 10000;  s1.T = 300\n",
+  "expect": {
+    "variables": {
+      "h1.duty": 5000.0,
+      "s1.h": 10000.0,
+      "s1.mdot": 2.0,
+      "s1.p": 100000.0,
+      "s1.t": 300.0,
+      "s2.h": 12500.0,
+      "s2.mdot": 2.0,
+      "s2.p": 100000.0
+    },
+    "display_names": {
+      "duty": "duty",
+      "h1$duty": "h1.duty",
+      "q": "Q",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s1$t": "s1.t",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

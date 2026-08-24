@@ -1,0 +1,5 @@
+HydraulicSupply  SUP(P=10000000)
+HydraulicOrifice ORI(CdA=1e-5, rho=850)
+HydraulicTank    TNK(P=0)
+connect(SUP.out, ORI.in)
+connect(ORI.out, TNK.port)

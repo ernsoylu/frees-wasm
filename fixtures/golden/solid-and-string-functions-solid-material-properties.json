@@ -1,0 +1,28 @@
+{
+  "name": "solid-and-string-functions-solid-material-properties",
+  "source": "k = k_(Aluminum)\nrho = rho_(Steel)\nc = c_(Copper)\nE = E_(Steel)\nnu = nu_(Copper)\n",
+  "expect": {
+    "variables": {
+      "E": 2.0E11,
+      "c": 385.0,
+      "k": 237.0,
+      "nu": 0.34,
+      "rho": 7854.0
+    },
+    "display_names": {
+      "c": "c",
+      "e": "E",
+      "k": "k",
+      "nu": "nu",
+      "rho": "rho"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

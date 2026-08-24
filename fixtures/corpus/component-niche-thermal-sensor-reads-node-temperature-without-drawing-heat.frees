@@ -1,0 +1,3 @@
+ThermalSource SRC(T=350)
+ThermalSensor SENS()
+connect(SRC.port, SENS.port)

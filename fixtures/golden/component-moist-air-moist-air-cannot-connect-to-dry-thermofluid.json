@@ -1,0 +1,18 @@
+{
+  "name": "component-moist-air-moist-air-cannot-connect-to-dry-thermofluid",
+  "source": "COMPONENT DrySink(in)\n  PARAM P\n  in.P = P\nEND\nMoistAirSource SRC(P=101325, T=300, W=0.008, mdot=1)\nDrySink        SNK(P=101325)\nconnect(SRC.out, SNK.in)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "connect(src.out, snk.in): cannot connect a 'moistair' line (src.out) to a 'fluid' line (snk.in). Thermofluid ('fluid'), liquid ('liquid'), two-phase ('twophase'), pneumatic ('gas'), hydraulic ('oil') and humid-air ('moistair') are incompatible fluid connector types; couple them only through a heat exchanger."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

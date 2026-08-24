@@ -287,6 +287,28 @@ gating the new dev-dependencies off the wasm target in the manifest.
    closed by Waves D1 and G4. `fixtures/README.md` growth item 3 has the
    full accounting, the 18 property-chain pendings, and the four new
    ledger-35 witnesses.)*
+   *(And the sweep that correction called for is done — 2026-08-24, Wave J.
+   Measured, not estimated: **138 of the 197 test classes hold a harvestable
+   document; 23 were in `CLASSES` and 115 were never listed at all** (Wave I
+   guessed ~100; 114 are now swept by name and one is a deliberate
+   `SKIP_CLASSES` entry), across 540 solve-call sites — 504 resolving — and
+   337 text blocks. The class list stopped being the sweep: `harvest.py` now
+   walks the whole test tree and `CLASSES` only pins the pre-Wave-J prefixes,
+   with the unrepresentable *sites* dropped by tag instead of staged. 285
+   candidates staged, 284 goldened, **255 promoted — corpus 983 → 1238** — 19
+   numeric holds staged into `corpus-pending/`, 11 classified in
+   `fixtures/README.md` (five ≈0-superheat denominator collapses, five engine
+   divergences incl. the new ledger item 38, one the oracle cannot golden at
+   all). Three further documents were declined on fixture *size*: a new
+   `MAX_DECLARED_POINTS` guard refuses a `DYNAMIC` grid denser than 2 000
+   samples, because at `points = 60001` the golden is **139 MB** (the corpus's
+   largest was 640 KB) and the corpus-wide sample-ceiling assertion in
+   `dynamics_robustness` breaks. This item is now closed on every axis it
+   named: what is left un-harvested is 37 tagged-unrepresentable sites, 36
+   unresolvable arguments, 3 oversampled documents and four ledger-35 tilde
+   documents. The one cost is time — the release replay is **353.3 s** where
+   983 fixtures took ~145 s, and that figure was taken on a machine carrying
+   a load average of 9–20 from a parallel agent, so it is an upper bound.)*
 2. **`CALL eigenvalues`/`eigen` found unwired and left unwired.** This was a
    hardening phase; wiring a new CALL belongs with the Phase 8 backlog. The
    three documents wait in `corpus-pending/` as the acceptance test.

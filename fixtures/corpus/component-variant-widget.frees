@@ -1,0 +1,11 @@
+COMPONENT Widget(in, out)
+  PARAM model$ = linear
+  out.mdot = in.mdot
+  out.P    = in.P
+  VARIANT linear REQUIRE gain
+    out.h = in.h + gain
+  END
+  VARIANT scaled REQUIRE factor
+    out.h = in.h * factor
+  END
+END

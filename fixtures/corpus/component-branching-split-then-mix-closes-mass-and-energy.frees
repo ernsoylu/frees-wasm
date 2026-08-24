@@ -1,0 +1,4 @@
+Splitter SP(s1, s2, s3)
+Mixer    MX(s2, s3, s4)
+s1.P = 100000;   s1.mdot = 4;   s1.h = 60000
+s2.mdot = 1.5

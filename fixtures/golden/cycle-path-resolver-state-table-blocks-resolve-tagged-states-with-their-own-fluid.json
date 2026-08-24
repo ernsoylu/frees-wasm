@@ -1,0 +1,22 @@
+{
+  "name": "cycle-path-resolver-state-table-blocks-resolve-tagged-states-with-their-own-fluid",
+  "source": "Tw1 = 400 [K]\nPw1 = 101325 [Pa]\nSTATE TABLE WaterCircuit(Tw1, Pw1)\n  FLUID = Water\nEND\n",
+  "expect": {
+    "variables": {
+      "Pw1": 101325.0,
+      "Tw1": 400.0
+    },
+    "display_names": {
+      "pw1": "Pw1",
+      "tw1": "Tw1"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

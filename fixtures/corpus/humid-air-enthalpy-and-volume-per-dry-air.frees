@@ -1,0 +1,2 @@
+h = Enthalpy(AirH2O, T=298.15, P=101325, R=0.5)
+v = Volume(AirH2O, T=298.15, P=101325, R=0.5)

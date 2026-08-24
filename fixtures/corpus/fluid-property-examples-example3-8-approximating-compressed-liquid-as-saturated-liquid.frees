@@ -1,0 +1,5 @@
+T1 = 353.15
+P1 = 5000000
+u_exact = IntEnergy(Water, T=T1, P=P1)
+u_approx = IntEnergy(Water, T=T1, x=0)
+err_pct = (u_approx - u_exact) / u_exact * 100

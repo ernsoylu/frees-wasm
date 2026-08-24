@@ -1,0 +1,4 @@
+DYNAMIC d (method = ode45)
+  der(x) = -x
+  x(0) = 1
+END

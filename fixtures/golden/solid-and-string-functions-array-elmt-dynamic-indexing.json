@@ -1,0 +1,31 @@
+{
+  "name": "solid-and-string-functions-array-elmt-dynamic-indexing",
+  "source": "data[1] = 10\ndata[2] = 20\ndata[3] = 30\ndata[4] = 40\nk = 3\nv = ArrayElmt(data[1:4], k)\n",
+  "expect": {
+    "variables": {
+      "data[1]": 10.0,
+      "data[2]": 20.0,
+      "data[3]": 30.0,
+      "data[4]": 40.0,
+      "k": 3.0,
+      "v": 30.0
+    },
+    "display_names": {
+      "data": "data",
+      "data[1]": "data[1]",
+      "data[2]": "data[2]",
+      "data[3]": "data[3]",
+      "data[4]": "data[4]",
+      "k": "k",
+      "v": "v"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

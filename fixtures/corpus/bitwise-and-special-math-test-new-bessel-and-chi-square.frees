@@ -1,0 +1,13 @@
+j0_val = bessel_j0(2)
+j1_val = bessel_j1(2)
+i0_val = bessel_i0(2)
+i1_val = bessel_i1(2)
+k0_val = bessel_k0(2)
+k1_val = bessel_k1(2)
+y0_val = bessel_y0(2)
+y1_val = bessel_y1(2)
+
+k_order2 = bessel_k(2, 2)
+y_order2 = bessel_y(2, 2)
+
+chi2_val = chi_square(4, 2)

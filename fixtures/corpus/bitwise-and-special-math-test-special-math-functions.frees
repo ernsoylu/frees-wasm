@@ -1,0 +1,7 @@
+a = erf(0)
+b = erfc(0)
+c = gamma(4)
+d = loggamma(4)
+e = beta(2, 3)
+f = besselj(2.5, 0)
+g = erfinv(0.5)

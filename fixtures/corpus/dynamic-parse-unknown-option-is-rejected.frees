@@ -1,0 +1,4 @@
+DYNAMIC d (t = 0 .. 1, bogus = 5)
+  der(x) = -x
+  x(0) = 1
+END

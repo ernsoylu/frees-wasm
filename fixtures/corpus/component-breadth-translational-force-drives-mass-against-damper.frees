@@ -1,0 +1,12 @@
+ForceSource FS(F=10)
+TransMass   M(m=2, v0=0)
+TransDamper D(c=0.5)
+TransGround GS()
+TransGround GD()
+connect(FS.a, M.port, D.a)
+connect(FS.b, GS.port)
+connect(D.b, GD.port)
+DYNAMIC accel(method = ode45, time = 0 .. 40, points = 100)
+END
+v_final = FinalValue('m.port.vel')
+v_start = MinValue('m.port.vel')

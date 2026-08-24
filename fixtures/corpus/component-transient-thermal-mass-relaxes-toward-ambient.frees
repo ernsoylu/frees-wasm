@@ -1,0 +1,10 @@
+ThermalMass   M(C=5000, T0=400)
+ThermalSource amb(T=300)
+Conduction    wall(k=2, area=1, L=0.1)
+connect(M.port, wall.a)
+connect(wall.b, amb.port)
+DYNAMIC warmup(method = ode45, time = 0 .. 2000, points = 100)
+END
+T_final = FinalValue('m.port.t')
+T_peak  = MaxValue('m.port.t')
+t_half  = TimeAt('m.port.t', 350)

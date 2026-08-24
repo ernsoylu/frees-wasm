@@ -1,0 +1,6 @@
+data[1] = 10
+data[2] = 20
+data[3] = 30
+data[4] = 40
+k = 3
+v = ArrayElmt(data[1:4], k)

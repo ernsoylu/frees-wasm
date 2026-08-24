@@ -1,0 +1,46 @@
+{
+  "name": "fluid-property-examples-example3-5-properties-of-saturated-liquid-vapor-mixture",
+  "source": "Vol_vessel = 0.080\nm = 4\nP_ves = 160000\nv_avg = Vol_vessel / m\nT_sat = Temperature(R134a, P=P_ves, x=0)\nx = Quality(R134a, P=P_ves, v=v_avg)\nvol_f = Volume(R134a, P=P_ves, x=0)\nvol_g = Volume(R134a, P=P_ves, x=1)\nx_check = (v_avg - vol_f) / (vol_g - vol_f)\nh_f = Enthalpy(R134a, P=P_ves, x=0)\nh_g = Enthalpy(R134a, P=P_ves, x=1)\nh_fg = h_g - h_f\nm_vap = x * m\nVol_vapor = m_vap * vol_g\n",
+  "expect": {
+    "variables": {
+      "P_ves": 160000.0,
+      "T_sat": 257.56217901202064,
+      "Vol_vapor": 0.0774919478051373,
+      "Vol_vessel": 0.08,
+      "h_f": 179370.26842510738,
+      "h_fg": 209898.25388788347,
+      "h_g": 389268.52231299086,
+      "m": 4.0,
+      "m_vap": 0.6275198807443243,
+      "v_avg": 0.02,
+      "vol_f": 7.436818324124765E-4,
+      "vol_g": 0.12348923146980023,
+      "x": 0.15687997018608107,
+      "x_check": 0.15687997018608107
+    },
+    "display_names": {
+      "h_f": "h_f",
+      "h_fg": "h_fg",
+      "h_g": "h_g",
+      "m": "m",
+      "m_vap": "m_vap",
+      "p_ves": "P_ves",
+      "t_sat": "T_sat",
+      "v_avg": "v_avg",
+      "vol_f": "vol_f",
+      "vol_g": "vol_g",
+      "vol_vapor": "Vol_vapor",
+      "vol_vessel": "Vol_vessel",
+      "x": "x",
+      "x_check": "x_check"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

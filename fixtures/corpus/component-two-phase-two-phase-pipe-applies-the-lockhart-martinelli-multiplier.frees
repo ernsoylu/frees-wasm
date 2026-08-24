@@ -1,0 +1,15 @@
+COMPONENT RSrc(out)
+  PARAM P, h0, mdot
+  out.P = P
+  out.h = h0
+  out.mdot = mdot
+END
+COMPONENT PSink(in)
+  PARAM P
+  in.P = P
+END
+RSrc        SRC(P=500000, h0=250000, mdot=0.05)
+TwoPhasePipe TP(fluid$=R134a, L=2, D=0.01, rough=1e-5, x=0.3, rho_l=1200, rho_g=20, mu_l=2e-4, mu_g=1e-5)
+Sink        SNK()
+connect(SRC.out, TP.in)
+connect(TP.out, SNK.in)

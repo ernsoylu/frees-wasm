@@ -1,0 +1,5 @@
+a = besseli(0, 0)
+b = besseli(0, 1)
+c = besseli(1, 0)
+d = besseli(2, 1)
+e = besseli(2.5, 1)

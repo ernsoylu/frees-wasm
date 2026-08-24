@@ -1,0 +1,7 @@
+COMPONENT DrySink(in)
+  PARAM P
+  in.P = P
+END
+MoistAirSource SRC(P=101325, T=300, W=0.008, mdot=1)
+DrySink        SNK(P=101325)
+connect(SRC.out, SNK.in)

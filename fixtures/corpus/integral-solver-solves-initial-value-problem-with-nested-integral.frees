@@ -1,0 +1,3 @@
+y = y0 + Integral(dydt, t, 0, 5)
+dydt = y * cos(t)
+y0 = 1

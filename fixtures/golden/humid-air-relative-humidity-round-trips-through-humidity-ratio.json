@@ -1,0 +1,22 @@
+{
+  "name": "humid-air-relative-humidity-round-trips-through-humidity-ratio",
+  "source": "w = HumRat(AirH2O, T=298.15, P=101325, R=0.5)\nrh = RelHum(AirH2O, T=298.15, P=101325, w=w)\n",
+  "expect": {
+    "variables": {
+      "rh": 0.49999999999999994,
+      "w": 0.009925739296161223
+    },
+    "display_names": {
+      "rh": "rh",
+      "w": "w"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

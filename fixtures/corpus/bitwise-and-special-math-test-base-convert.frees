@@ -1,0 +1,4 @@
+a = BaseConvert('FF', 16, 10)
+b = BaseConvert('1010', 2, 10)
+c = BaseConvert('255', 10, 2)
+d = BaseConvert(777, 8, 10)

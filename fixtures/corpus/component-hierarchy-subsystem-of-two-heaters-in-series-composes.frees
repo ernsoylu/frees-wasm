@@ -1,0 +1,17 @@
+COMPONENT Heater(in, out)
+  PARAM Q
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h + Q / in.mdot
+END
+COMPONENT DoubleHeater(in, out)
+  Heater H1(Q=1000)
+  Heater H2(Q=2000)
+  connect(in, H1.in)
+  connect(H1.out, H2.in)
+  connect(H2.out, out)
+END
+DoubleHeater DH(s1, s2)
+s1.P    = 100000
+s1.mdot = 2
+s1.h    = 0

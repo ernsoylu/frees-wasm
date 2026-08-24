@@ -1,0 +1,5 @@
+ThermalSource HOT(T=400)
+ContactResistance CR(Rth=0.05)
+ThermalSource COLD(T=300)
+connect(HOT.port, CR.a)
+connect(CR.b, COLD.port)

@@ -1,0 +1,2 @@
+GasSource S(a, y=0.21, mdot=1.5, P=120000, h0=305000)
+GasPipe   P(a, b)

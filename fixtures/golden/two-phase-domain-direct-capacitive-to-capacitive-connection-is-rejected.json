@@ -1,0 +1,18 @@
+{
+  "name": "two-phase-domain-direct-capacitive-to-capacitive-connection-is-rejected",
+  "source": "LiquidVolume V1(C=1e-7, P0=200000)\nLiquidVolume V2(C=1e-7, P0=200000)\nconnect(V1.out, V2.in)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "connect(...): capacitive volumes [v1, v2] are connected directly with no resistance between them (C-C). Two pressure-storage volumes at one node make the DAE index-2; interpose a resistive flow element between them (the C-R-C rule)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

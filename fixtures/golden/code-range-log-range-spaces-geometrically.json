@@ -1,0 +1,35 @@
+{
+  "name": "code-range-log-range-spaces-geometrically",
+  "source": "freq = 1:5:1000 | Log\nf1 = freq[1]\nf3 = freq[3]\nf5 = freq[5]\n",
+  "expect": {
+    "variables": {
+      "f1": 1.0,
+      "f3": 31.622776601683796,
+      "f5": 1000.0,
+      "freq[1]": 1.0,
+      "freq[2]": 5.623413251903491,
+      "freq[3]": 31.622776601683796,
+      "freq[4]": 177.8279410038923,
+      "freq[5]": 1000.0
+    },
+    "display_names": {
+      "f1": "f1",
+      "f3": "f3",
+      "f5": "f5",
+      "freq": "freq",
+      "freq[1]": "freq[1]",
+      "freq[2]": "freq[2]",
+      "freq[3]": "freq[3]",
+      "freq[4]": "freq[4]",
+      "freq[5]": "freq[5]"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

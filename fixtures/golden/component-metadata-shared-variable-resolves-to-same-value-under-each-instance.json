@@ -1,0 +1,18 @@
+{
+  "name": "component-metadata-shared-variable-resolves-to-same-value-under-each-instance",
+  "source": "UA_rad = 361.5\nLiquidWallHX RAD1(fluid$=EG50, UA=UA_rad)\nLiquidWallHX RAD2(fluid$=EG50, UA=UA_rad)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 13 equations and 21 variables. The problem is underspecified and cannot be solved. Free quantities (no defining relation): rad1.out.mdot, rad1.out.p, rad1.t_in, rad1.wall.t, rad2.out.mdot, rad2.out.p, rad2.t_in, rad2.wall.t. Coupled to: rad1.in.h, rad1.in.mdot, rad1.in.p, rad1.out.h, rad1.q, rad1.wall.qdot, rad2.in.h, rad2.in.mdot, rad2.in.p, rad2.out.h, rad2.q, rad2.wall.qdot. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

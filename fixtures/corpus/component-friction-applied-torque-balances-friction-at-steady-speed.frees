@@ -1,0 +1,5 @@
+TorqueSource TS(T=5)
+Friction     FR(Fc=2, Fs=3, vs=1, bv=0.5, eps=0.01)
+MechGround   G()
+connect(TS.a, FR.a)
+connect(TS.b, FR.b, G.port)

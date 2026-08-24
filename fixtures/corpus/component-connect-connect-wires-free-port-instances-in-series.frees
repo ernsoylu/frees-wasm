@@ -1,0 +1,13 @@
+COMPONENT Heater(in, out)
+  PARAM Q
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h + Q / in.mdot
+END
+Heater H1(Q=5000)
+Heater H2(Q=3000)
+connect(H1.out, H2.in)
+
+H1.in.P    = 100000
+H1.in.mdot = 2
+H1.in.h    = 10000

@@ -1,0 +1,7 @@
+STATE TABLE WaterCircuit(Pw_1, Pw_2)
+  FLUID = Water
+END
+
+STATE TABLE RefrigerantCircuit(Pref_1, Pref_2, xref1)
+  FLUID = R134a
+END

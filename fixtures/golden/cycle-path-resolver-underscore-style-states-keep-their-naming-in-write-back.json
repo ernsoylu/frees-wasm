@@ -1,0 +1,22 @@
+{
+  "name": "cycle-path-resolver-underscore-style-states-keep-their-naming-in-write-back",
+  "source": "T_1 = 500 [K]\nP_1 = 200000 [Pa]\n",
+  "expect": {
+    "variables": {
+      "P_1": 200000.0,
+      "T_1": 500.0
+    },
+    "display_names": {
+      "p_1": "P_1",
+      "t_1": "T_1"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

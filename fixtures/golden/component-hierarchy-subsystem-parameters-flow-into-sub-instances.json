@@ -1,0 +1,58 @@
+{
+  "name": "component-hierarchy-subsystem-parameters-flow-into-sub-instances",
+  "source": "COMPONENT Heater(in, out)\n  PARAM Q\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\nEND\nCOMPONENT TwoStage(in, out)\n  PARAM Qtot\n  Heater H1(Q=Qtot/2)\n  Heater H2(Q=Qtot/2)\n  connect(in, H1.in)\n  connect(H1.out, H2.in)\n  connect(H2.out, out)\nEND\nTwoStage TS(s1, s2, Qtot=4000)\ns1.P    = 100000\ns1.mdot = 2\ns1.h    = 0\n",
+  "expect": {
+    "variables": {
+      "s1.h": 0.0,
+      "s1.mdot": 2.0,
+      "s1.p": 100000.0,
+      "s2.h": 2000.0,
+      "s2.mdot": 2.0,
+      "s2.p": 100000.0,
+      "ts.h1.in.h": 0.0,
+      "ts.h1.in.mdot": 2.0,
+      "ts.h1.in.p": 100000.0,
+      "ts.h1.out.h": 1000.0,
+      "ts.h1.out.mdot": 2.0,
+      "ts.h1.out.p": 100000.0,
+      "ts.h2.in.h": 1000.0,
+      "ts.h2.in.mdot": 2.0,
+      "ts.h2.in.p": 100000.0,
+      "ts.h2.out.h": 2000.0,
+      "ts.h2.out.mdot": 2.0,
+      "ts.h2.out.p": 100000.0
+    },
+    "display_names": {
+      "q": "Q",
+      "qtot": "Qtot",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p",
+      "ts.h1$in$h": "ts.h1.in.h",
+      "ts.h1$in$mdot": "ts.h1.in.mdot",
+      "ts.h1$in$p": "ts.h1.in.p",
+      "ts.h1$out$h": "ts.h1.out.h",
+      "ts.h1$out$mdot": "ts.h1.out.mdot",
+      "ts.h1$out$p": "ts.h1.out.p",
+      "ts.h2$in$h": "ts.h2.in.h",
+      "ts.h2$in$mdot": "ts.h2.in.mdot",
+      "ts.h2$in$p": "ts.h2.in.p",
+      "ts.h2$out$h": "ts.h2.out.h",
+      "ts.h2$out$mdot": "ts.h2.out.mdot",
+      "ts.h2$out$p": "ts.h2.out.p"
+    },
+    "block_count": 18,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

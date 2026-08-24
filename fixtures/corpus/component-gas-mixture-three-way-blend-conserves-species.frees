@@ -1,0 +1,5 @@
+GasSource S1(a, y=1.0, mdot=1, P=100000, h0=300000)
+GasSource S2(b, y=0.0, mdot=1, P=100000, h0=300000)
+GasMixer  M1(a, b, m)
+GasSource S3(d, y=0.2, mdot=2, P=100000, h0=300000)
+GasMixer  M2(m, d, out)

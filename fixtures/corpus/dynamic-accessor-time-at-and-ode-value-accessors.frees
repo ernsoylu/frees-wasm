@@ -1,0 +1,6 @@
+DYNAMIC ramp (t = 0 .. 10, points = 101)
+  der(y) = 1
+  y(0) = 0
+END
+t7 = TimeAt('y', 7)
+y3 = ODEValue('y', 3)

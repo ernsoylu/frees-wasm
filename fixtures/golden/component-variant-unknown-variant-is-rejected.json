@@ -1,0 +1,18 @@
+{
+  "name": "component-variant-unknown-variant-is-rejected",
+  "source": "COMPONENT Widget(in, out)\n  PARAM model$ = linear\n  out.mdot = in.mdot\n  out.P    = in.P\n  VARIANT linear REQUIRE gain\n    out.h = in.h + gain\n  END\n  VARIANT scaled REQUIRE factor\n    out.h = in.h * factor\n  END\nEND\nWidget W(s1, s2, model$=bogus, gain=1)\ns1.P    = 100000\ns1.mdot = 3\ns1.h    = 1000\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'w' (widget): unknown model$ 'bogus'. Variants: linear, scaled."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

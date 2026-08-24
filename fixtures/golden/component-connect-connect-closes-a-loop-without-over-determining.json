@@ -1,0 +1,43 @@
+{
+  "name": "component-connect-connect-closes-a-loop-without-over-determining",
+  "source": "COMPONENT Pump2(in, out)\n  PARAM dP\n  out.mdot = in.mdot\n  out.P    = in.P + dP\n  out.h    = in.h\nEND\nCOMPONENT Pipe2(in, out)\n  PARAM dP\n  out.mdot = in.mdot\n  out.P    = in.P - dP\n  out.h    = in.h\nEND\nPump2 P(dP=50000)\nPipe2 L(dP=50000)\nconnect(P.out, L.in)\nconnect(L.out, P.in)\n\nP.in.P    = 100000\nP.in.mdot = 5\nP.in.h    = 1000\n",
+  "expect": {
+    "variables": {
+      "l.in.h": 1000.0,
+      "l.in.mdot": 5.0,
+      "l.in.p": 150000.0,
+      "l.out.h": 1000.0,
+      "l.out.mdot": 5.0,
+      "l.out.p": 100000.0,
+      "p.in.h": 1000.0,
+      "p.in.mdot": 5.0,
+      "p.in.p": 100000.0,
+      "p.out.h": 1000.0,
+      "p.out.mdot": 5.0,
+      "p.out.p": 150000.0
+    },
+    "display_names": {
+      "dp": "dP",
+      "l$in$h": "l.in.h",
+      "l$in$mdot": "l.in.mdot",
+      "l$in$p": "l.in.p",
+      "l$out$h": "l.out.h",
+      "l$out$mdot": "l.out.mdot",
+      "l$out$p": "l.out.p",
+      "p$in$h": "p.in.h",
+      "p$in$mdot": "p.in.mdot",
+      "p$in$p": "p.in.p",
+      "p$out$h": "p.out.h",
+      "p$out$mdot": "p.out.mdot",
+      "p$out$p": "p.out.p"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

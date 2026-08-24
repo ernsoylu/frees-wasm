@@ -1,0 +1,49 @@
+{
+  "name": "liquid-domain-battery-cold-plate-coolant-loop-solves",
+  "source": "LiquidSource S(fluid$=Water, mdot=0.1, P=200000, T=300)\nLiquidColdPlate CP(Q=2000)\nLiquidSink K()\nconnect(S.out, CP.in)\nconnect(CP.out, K.in)\n",
+  "expect": {
+    "variables": {
+      "cp.in.h": 112745.74907578646,
+      "cp.in.mdot": 0.1,
+      "cp.in.p": 200000.0,
+      "cp.out.h": 132745.74907578644,
+      "cp.out.mdot": 0.1,
+      "cp.out.p": 200000.0,
+      "k.h": 132745.74907578644,
+      "k.in.h": 132745.74907578644,
+      "k.in.mdot": 0.1,
+      "k.in.p": 200000.0,
+      "k.mdot": 0.1,
+      "k.p": 200000.0,
+      "s.out.h": 112745.74907578646,
+      "s.out.mdot": 0.1,
+      "s.out.p": 200000.0
+    },
+    "display_names": {
+      "cp$in$h": "cp.in.h",
+      "cp$in$mdot": "cp.in.mdot",
+      "cp$in$p": "cp.in.p",
+      "cp$out$h": "cp.out.h",
+      "cp$out$mdot": "cp.out.mdot",
+      "cp$out$p": "cp.out.p",
+      "k$h": "k.h",
+      "k$in$h": "k.in.h",
+      "k$in$mdot": "k.in.mdot",
+      "k$in$p": "k.in.p",
+      "k$mdot": "k.mdot",
+      "k$p": "k.p",
+      "s$out$h": "s.out.h",
+      "s$out$mdot": "s.out.mdot",
+      "s$out$p": "s.out.p",
+      "water": "Water"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

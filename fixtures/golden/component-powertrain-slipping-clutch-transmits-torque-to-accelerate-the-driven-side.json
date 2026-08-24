@@ -1,0 +1,52 @@
+{
+  "name": "component-powertrain-slipping-clutch-transmits-torque-to-accelerate-the-driven-side",
+  "source": "TorqueSource     TS(T=30)\nClutch           CL(Tmax=50, eng=1, eps=0.01)\nRotationalDamper LOAD(c=2)\nMechGround       GS()\nMechGround       GL()\nconnect(TS.a, CL.a)\nconnect(TS.b, GS.port)\nconnect(CL.b, LOAD.a)\nconnect(LOAD.b, GL.port)\n",
+  "expect": {
+    "variables": {
+      "cl.a.tau": 30.0,
+      "cl.a.w": 15.006931471805599,
+      "cl.b.tau": -30.0,
+      "cl.b.w": 15.0,
+      "cl.dw": 0.006931471805599453,
+      "gl.port.tau": 30.0,
+      "gl.port.w": 0.0,
+      "gs.port.tau": -30.0,
+      "gs.port.w": 0.0,
+      "load.a.tau": 30.0,
+      "load.a.w": 15.0,
+      "load.b.tau": -30.0,
+      "load.b.w": 0.0,
+      "ts.a.tau": -30.0,
+      "ts.a.w": 15.006931471805599,
+      "ts.b.tau": 30.0,
+      "ts.b.w": 0.0
+    },
+    "display_names": {
+      "cl$a$tau": "cl.a.tau",
+      "cl$a$w": "cl.a.w",
+      "cl$b$tau": "cl.b.tau",
+      "cl$b$w": "cl.b.w",
+      "cl$dw": "cl.dw",
+      "gl$port$tau": "gl.port.tau",
+      "gl$port$w": "gl.port.w",
+      "gs$port$tau": "gs.port.tau",
+      "gs$port$w": "gs.port.w",
+      "load$a$tau": "load.a.tau",
+      "load$a$w": "load.a.w",
+      "load$b$tau": "load.b.tau",
+      "load$b$w": "load.b.w",
+      "ts$a$tau": "ts.a.tau",
+      "ts$a$w": "ts.a.w",
+      "ts$b$tau": "ts.b.tau",
+      "ts$b$w": "ts.b.w"
+    },
+    "block_count": 17,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

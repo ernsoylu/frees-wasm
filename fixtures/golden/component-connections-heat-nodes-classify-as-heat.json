@@ -1,0 +1,18 @@
+{
+  "name": "component-connections-heat-nodes-classify-as-heat",
+  "source": "COMPONENT Hot(s)\ns.t = 400\nEND\nCOMPONENT Wall(a, b)\na.qdot = (a.t - b.t) / 0.5\nb.qdot = 0 - a.qdot\nEND\nHot H(w1)\nWall W(w1, w2)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 3 equations and 4 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): w2.t. Coupled to: w1.qdot, w2.qdot. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

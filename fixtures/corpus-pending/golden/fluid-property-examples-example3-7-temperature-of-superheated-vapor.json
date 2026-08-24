@@ -1,0 +1,24 @@
+{
+  "name": "fluid-property-examples-example3-7-temperature-of-superheated-vapor",
+  "source": "P1 = 500000\nh1 = 2890000\nT1 = Temperature(Steam, P=P1, h=h1)\n",
+  "expect": {
+    "variables": {
+      "P1": 500000.0,
+      "T1": 489.2124541612719,
+      "h1": 2890000.0
+    },
+    "display_names": {
+      "h1": "h1",
+      "p1": "P1",
+      "t1": "T1"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

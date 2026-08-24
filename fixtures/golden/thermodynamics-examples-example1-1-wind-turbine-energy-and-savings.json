@@ -1,0 +1,30 @@
+{
+  "name": "thermodynamics-examples-example1-1-wind-turbine-energy-and-savings",
+  "source": "{ Worked example: weight on the moon }\nW_dot = 30 [kW]                  { rated power -> W }\nhours = 2200 [h]                 { operating time -> s }\nunitcost = 0.12                  { $/kWh }\nE_total = W_dot * hours          { J per year }\nE_kWh = E_total * Convert(J, kWh)\nmoney = E_kWh * unitcost         { $ per year }\n",
+  "expect": {
+    "variables": {
+      "E_kWh": 66000.0,
+      "E_total": 2.376E11,
+      "W_dot": 30000.0,
+      "hours": 7920000.0,
+      "money": 7920.0,
+      "unitcost": 0.12
+    },
+    "display_names": {
+      "e_kwh": "E_kWh",
+      "e_total": "E_total",
+      "hours": "hours",
+      "money": "money",
+      "unitcost": "unitcost",
+      "w_dot": "W_dot"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

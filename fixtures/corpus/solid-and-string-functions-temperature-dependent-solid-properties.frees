@@ -1,0 +1,5 @@
+k_ref = k_(Aluminum)
+k_hot = k_(Aluminum, T=500)
+c_iron = c_(Iron, T=400)
+rho_hot = rho_(Steel, T=500)
+k_gold = k_(Gold, T=500)

@@ -1,0 +1,50 @@
+{
+  "name": "component-hydraulic-cylinder-holds-load-at-supply-pressure-when-stalled",
+  "source": "HydraulicSupply   SUP(P=10000000)\nHydraulicOrifice  ORI(CdA=1e-5, rho=850)\nHydraulicCylinder CYL(rho=850, beta=1.5e9, V0=1e-4, area=0.001, Patm=100000, P0=100000)\nTransGround       G()\nconnect(SUP.out, ORI.in)\nconnect(ORI.out, CYL.in)\nconnect(CYL.rod, G.port)\n",
+  "expect": {
+    "variables": {
+      "cyl.in.h": 0.0,
+      "cyl.in.mdot": 0.0,
+      "cyl.in.p": 1.0E7,
+      "cyl.rod.f": -9900.0,
+      "cyl.rod.vel": 0.0,
+      "g.port.f": 9900.0,
+      "g.port.vel": 0.0,
+      "ori.in.h": 0.0,
+      "ori.in.mdot": 0.0,
+      "ori.in.p": 1.0E7,
+      "ori.out.h": 0.0,
+      "ori.out.mdot": 0.0,
+      "ori.out.p": 1.0E7,
+      "sup.out.h": 0.0,
+      "sup.out.mdot": 0.0,
+      "sup.out.p": 1.0E7
+    },
+    "display_names": {
+      "cyl$in$h": "cyl.in.h",
+      "cyl$in$mdot": "cyl.in.mdot",
+      "cyl$in$p": "cyl.in.p",
+      "cyl$rod$f": "cyl.rod.f",
+      "cyl$rod$vel": "cyl.rod.vel",
+      "g$port$f": "g.port.f",
+      "g$port$vel": "g.port.vel",
+      "ori$in$h": "ori.in.h",
+      "ori$in$mdot": "ori.in.mdot",
+      "ori$in$p": "ori.in.p",
+      "ori$out$h": "ori.out.h",
+      "ori$out$mdot": "ori.out.mdot",
+      "ori$out$p": "ori.out.p",
+      "sup$out$h": "sup.out.h",
+      "sup$out$mdot": "sup.out.mdot",
+      "sup$out$p": "sup.out.p"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

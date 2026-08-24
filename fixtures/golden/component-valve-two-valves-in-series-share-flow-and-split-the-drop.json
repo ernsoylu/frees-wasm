@@ -1,0 +1,56 @@
+{
+  "name": "component-valve-two-valves-in-series-share-flow-and-split-the-drop",
+  "source": "COMPONENT PSource(out)\n  PARAM P, h0\n  out.P = P\n  out.h = h0\nEND\nCOMPONENT PSink(in)\n  PARAM P\n  in.P = P\nEND\nPSource SRC(P=400000, h0=0)\nValve   V1(Cv=0.001, rho=1000)\nValve   V2(Cv=0.001, rho=1000)\nPSink   SNK(P=100000)\nconnect(SRC.out, V1.in)\nconnect(V1.out, V2.in)\nconnect(V2.out, SNK.in)\n",
+  "expect": {
+    "variables": {
+      "snk.in.h": 0.0,
+      "snk.in.mdot": 12.24744871391589,
+      "snk.in.p": 100000.0,
+      "src.out.h": 0.0,
+      "src.out.mdot": 12.24744871391589,
+      "src.out.p": 400000.0,
+      "v1.in.h": 0.0,
+      "v1.in.mdot": 12.24744871391589,
+      "v1.in.p": 400000.0,
+      "v1.out.h": 0.0,
+      "v1.out.mdot": 12.24744871391589,
+      "v1.out.p": 250000.0,
+      "v2.in.h": 0.0,
+      "v2.in.mdot": 12.24744871391589,
+      "v2.in.p": 250000.0,
+      "v2.out.h": 0.0,
+      "v2.out.mdot": 12.24744871391589,
+      "v2.out.p": 100000.0
+    },
+    "display_names": {
+      "h0": "h0",
+      "p": "P",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "src$out$h": "src.out.h",
+      "src$out$mdot": "src.out.mdot",
+      "src$out$p": "src.out.p",
+      "v1$in$h": "v1.in.h",
+      "v1$in$mdot": "v1.in.mdot",
+      "v1$in$p": "v1.in.p",
+      "v1$out$h": "v1.out.h",
+      "v1$out$mdot": "v1.out.mdot",
+      "v1$out$p": "v1.out.p",
+      "v2$in$h": "v2.in.h",
+      "v2$in$mdot": "v2.in.mdot",
+      "v2$in$p": "v2.in.p",
+      "v2$out$h": "v2.out.h",
+      "v2$out$mdot": "v2.out.mdot",
+      "v2$out$p": "v2.out.p"
+    },
+    "block_count": 14,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

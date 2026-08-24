@@ -1,0 +1,56 @@
+{
+  "name": "cycle-examples-heat-exchanger-solves",
+  "source": "// Heat Exchanger — Effectiveness-NTU Method\n{ Counterflow water-to-water exchanger rated with the effectiveness-NTU method. }\nmdot_h = 2.0 [kg/s]\ncp_h = 4180 [J/kg-K]\nmdot_c = 1.5 [kg/s]\ncp_c = 4180 [J/kg-K]\nTh_in = 360 [K]\nTc_in = 290 [K]\nUA = 12000 [W/K]\n\nC_h = mdot_h * cp_h\nC_c = mdot_c * cp_c\nC_min = min(C_h, C_c)\nC_max = max(C_h, C_c)\nCr = C_min / C_max\nNTU = UA / C_min\n\neps = hx_effectiveness('counterflow', NTU, Cr)\nQ_max = C_min * (Th_in - Tc_in)\nQ = eps * Q_max\nTh_out = Th_in - Q / C_h\nTc_out = Tc_in + Q / C_c\ndTlm = LMTD(Th_in - Tc_out, Th_out - Tc_in)\n",
+  "expect": {
+    "variables": {
+      "C_c": 6270.0,
+      "C_h": 8360.0,
+      "C_max": 8360.0,
+      "C_min": 6270.0,
+      "Cr": 0.75,
+      "NTU": 1.9138755980861244,
+      "Q": 311844.9332461017,
+      "Q_max": 438900.0,
+      "Tc_in": 290.0,
+      "Tc_out": 339.73603401054254,
+      "Th_in": 360.0,
+      "Th_out": 322.69797449209307,
+      "UA": 12000.0,
+      "cp_c": 4180.0,
+      "cp_h": 4180.0,
+      "dTlm": 25.987077770508453,
+      "eps": 0.7105147715791791,
+      "mdot_c": 1.5,
+      "mdot_h": 2.0
+    },
+    "display_names": {
+      "c_c": "C_c",
+      "c_h": "C_h",
+      "c_max": "C_max",
+      "c_min": "C_min",
+      "cp_c": "cp_c",
+      "cp_h": "cp_h",
+      "cr": "Cr",
+      "dtlm": "dTlm",
+      "eps": "eps",
+      "mdot_c": "mdot_c",
+      "mdot_h": "mdot_h",
+      "ntu": "NTU",
+      "q": "Q",
+      "q_max": "Q_max",
+      "tc_in": "Tc_in",
+      "tc_out": "Tc_out",
+      "th_in": "Th_in",
+      "th_out": "Th_out",
+      "ua": "UA"
+    },
+    "block_count": 19,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

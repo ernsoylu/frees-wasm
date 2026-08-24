@@ -1,0 +1,51 @@
+{
+  "name": "component-connect-source-and-sink-boundaries-bracket-an-open-chain",
+  "source": "Source S(fluid$=Water, mdot=2, P=8000000, T=773.15)\nBoiler B()\nSink   K()\nconnect(S.out, B.in)\nconnect(B.out, K.in)\n\nB.Q = 1000000\n",
+  "expect": {
+    "variables": {
+      "b.in.h": 3399491.6516347155,
+      "b.in.mdot": 2.0,
+      "b.in.p": 8000000.0,
+      "b.out.h": 3899491.6516347155,
+      "b.out.mdot": 2.0,
+      "b.out.p": 8000000.0,
+      "b.q": 1000000.0,
+      "k.h": 3899491.6516347155,
+      "k.in.h": 3899491.6516347155,
+      "k.in.mdot": 2.0,
+      "k.in.p": 8000000.0,
+      "k.mdot": 2.0,
+      "k.p": 8000000.0,
+      "s.out.h": 3399491.6516347155,
+      "s.out.mdot": 2.0,
+      "s.out.p": 8000000.0
+    },
+    "display_names": {
+      "b$in$h": "b.in.h",
+      "b$in$mdot": "b.in.mdot",
+      "b$in$p": "b.in.p",
+      "b$out$h": "b.out.h",
+      "b$out$mdot": "b.out.mdot",
+      "b$out$p": "b.out.p",
+      "b$q": "b.q",
+      "k$h": "k.h",
+      "k$in$h": "k.in.h",
+      "k$in$mdot": "k.in.mdot",
+      "k$in$p": "k.in.p",
+      "k$mdot": "k.mdot",
+      "k$p": "k.p",
+      "s$out$h": "s.out.h",
+      "s$out$mdot": "s.out.mdot",
+      "s$out$p": "s.out.p",
+      "water": "Water"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

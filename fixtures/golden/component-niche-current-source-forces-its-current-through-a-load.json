@@ -1,0 +1,38 @@
+{
+  "name": "component-niche-current-source-forces-its-current-through-a-load",
+  "source": "CurrentSource CS(I=2)\nResistor      R(R=5)\nGround        G()\nconnect(CS.p, R.a)\nconnect(CS.n, R.b, G.port)\n",
+  "expect": {
+    "variables": {
+      "cs.n.i": 2.0,
+      "cs.n.v": 0.0,
+      "cs.p.i": -2.0,
+      "cs.p.v": 10.0,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "r.a.i": 2.0,
+      "r.a.v": 10.0,
+      "r.b.i": -2.0,
+      "r.b.v": 0.0
+    },
+    "display_names": {
+      "cs$n$i": "cs.n.i",
+      "cs$n$v": "cs.n.v",
+      "cs$p$i": "cs.p.i",
+      "cs$p$v": "cs.p.v",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "r$a$i": "r.a.i",
+      "r$a$v": "r.a.v",
+      "r$b$i": "r.b.i",
+      "r$b$v": "r.b.v"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

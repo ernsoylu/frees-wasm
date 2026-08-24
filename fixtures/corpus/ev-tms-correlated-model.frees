@@ -1,0 +1,141 @@
+COMPONENT LiqMix(in1, in2, out)
+  PARAM domain$ = liquid
+  out.P = in1.P
+  in2.P = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+COMPONENT TwoPhaseMixer(in1, in2, out)
+  PARAM domain$ = twophase
+  out.P = in1.P
+  out.mdot = in1.mdot + in2.mdot
+  out.mdot * out.h = in1.mdot * in1.h + in2.mdot * in2.h
+END
+COMPONENT MassGen(port)
+  PARAM C, Qgen, T0
+  der(port.T)  = (Qgen + port.Qdot) / C
+  init(port.T) = T0
+END
+COMPONENT LiqFeed(out)
+  PARAM fluid$, P, x, domain$ = twophase
+  out.P = P
+  out.h = Enthalpy(fluid$, P=P, x=x)
+END
+COMPONENT EvapSH(in, out, wall)
+  PARAM fluid$, UA, dP, SH, domain$ = twophase
+  out.P = in.P - dP
+  Tevap = T_sat(fluid$, P=in.P)
+  Q     = frac * UA * (wall.T - Tevap)
+  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)
+  in.mdot  = Q / (out.h - in.h)
+  out.mdot = in.mdot
+  wall.Qdot = Q
+END
+COMPONENT Compressor(in, out)
+  PARAM fluid$, eta, domain$ = twophase
+  out.mdot = in.mdot
+  s_in = Entropy(fluid$, P=in.P, h=in.h)
+  h_s  = Enthalpy(fluid$, P=out.P, s=s_in)
+  out.h = in.h + (h_s - in.h) / eta
+  W = in.mdot * (out.h - in.h)
+END
+COMPONENT LiqWallUA(in, out, wall)
+  PARAM fluid$, UA, domain$ = liquid
+  out.mdot = in.mdot
+  out.P    = in.P
+  T_in     = Temperature(fluid$, P=in.P, h=in.h)
+  Q        = UA * (T_in - wall.T)
+  out.h    = in.h - Q / in.mdot
+  wall.Qdot = -Q
+END
+COMPONENT CondFloatUA(in, out)
+  PARAM fluid$, UA, Tamb, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = UA * (Tcond - Tamb)
+END
+
+// ── UA / dP objects from correlation + geometry (design-point flows) ──
+// chiller: R1234yf boiling (refrigerant side) and EG50 coolant side
+h_chl_r = htc_evap('R1234yf', 350000, 0.5, 0.05, 0.006, 8e-5)
+h_chl_c = htc_1phase('EG50', 200000, 290, 0.23, 0.008, 1.5e-4)
+UA_chl_r = h_chl_r * 0.05
+UA_chl_c = h_chl_c * 0.35
+dP_chl   = dp_2phase('R1234yf', 350000, 0.5, 0.05, 0.006, 1.2e-4, 0.4)
+// cabin evaporator (refrigerant boiling, set by its own UA)
+h_cab_r = htc_evap('R1234yf', 350000, 0.5, 0.02, 0.006, 8e-5)
+UA_cab   = h_cab_r * 0.03
+dP_cab   = dp_2phase('R1234yf', 350000, 0.5, 0.02, 0.006, 1.2e-4, 0.4)
+// condenser: R1234yf condensation <-> external AIR (htc_extair)
+h_cnd_r = htc_cond('R1234yf', 1200000, 0.5, 0.07, 0.006, 8e-5)
+h_cnd_a = htc_extair('Air', 101325, 313, 0.6, 0.01, 0.03)
+UA_cond = ua_hx(h_cnd_r, 1.0, h_cnd_a, 6.0, 1e-4)
+// radiator cell: EG50 coolant <-> external AIR
+h_rad_c = htc_1phase('EG50', 200000, 320, 0.4, 0.008, 1.5e-4)
+h_rad_a = htc_extair('Air', 101325, 313, 0.5, 0.01, 0.03)
+UA_rad  = ua_hx(h_rad_c, 0.4, h_rad_a, 2.5, 1e-4)
+// battery / motor cold plates (coolant side film * area)
+UA_bcp  = h_chl_c * 0.5
+UA_mcp  = htc_1phase('EG50', 200000, 320, 0.17, 0.008, 1.5e-4) * 0.5
+
+// ── Coolant line ──
+LiquidSource  PUMPIN(fluid$=EG50, mdot=0.4, P=200000, T=305)
+LiquidPump    PUMP(fluid$=EG50, eta=0.6)
+LiquidOrifice OBAT(CdA=1.6e-5, rho=1050)
+LiquidOrifice OMOT(CdA=1.2e-5, rho=1050)
+LiqWallUA     BCP(fluid$=EG50, UA=UA_bcp)
+LiqWallUA     CHLC(fluid$=EG50, UA=UA_chl_c)
+LiqWallUA     MCP(fluid$=EG50, UA=UA_mcp)
+LiqMix        MIX()
+LiqWallUA     RAD1(fluid$=EG50, UA=UA_rad)
+LiquidOrifice OR1(CdA=1.2e-4, rho=1050)
+LiqWallUA     RAD2(fluid$=EG50, UA=UA_rad)
+LiquidOrifice OR2(CdA=1.2e-4, rho=1050)
+LiqWallUA     RAD3(fluid$=EG50, UA=UA_rad)
+LiquidOrifice OR3(CdA=1.2e-4, rho=1050)
+ThermalSource AMB(T=313)
+LiquidSink    PUMPOUT()
+
+MassGen BATT(C=60000, Qgen=4000, T0=305)
+MassGen MOTOR(C=40000, Qgen=5000, T0=305)
+MassGen CABIN(C=8000,  Qgen=2500, T0=305)
+
+// ── Refrigerant line ──
+LiqFeed       FEED(fluid$=R1234yf, P=350000, x=0.20)
+EvapSH        CHLR(fluid$=R1234yf, UA=UA_chl_r, dP=dP_chl, SH=5)
+EvapSH        CABE(fluid$=R1234yf, UA=UA_cab,  dP=dP_cab, SH=8)
+TwoPhaseMixer SUC()
+Compressor    CMP(fluid$=R1234yf, eta=0.7)
+CondFloatUA   COND(fluid$=R1234yf, UA=UA_cond, Tamb=313)
+TwoPhaseSink  LIQ()
+
+connect(PUMPIN.out, PUMP.in)
+connect(PUMP.out, OBAT.in, OMOT.in)
+connect(OBAT.out, BCP.in)
+connect(BCP.wall, BATT.port)
+connect(BCP.out, CHLC.in)
+connect(CHLC.out, MIX.in1)
+connect(OMOT.out, MCP.in)
+connect(MCP.wall, MOTOR.port)
+connect(MCP.out, MIX.in2)
+connect(MIX.out, RAD1.in)
+connect(RAD1.out, OR1.in)
+connect(OR1.out, RAD2.in)
+connect(RAD2.out, OR2.in)
+connect(OR2.out, RAD3.in)
+connect(RAD3.out, OR3.in)
+connect(OR3.out, PUMPOUT.in)
+connect(AMB.port, RAD1.wall, RAD2.wall, RAD3.wall)
+PUMPOUT.in.P = 200000
+
+connect(FEED.out, CHLR.in, CABE.in)
+connect(CHLR.out, SUC.in1)
+connect(CABE.out, SUC.in2)
+connect(SUC.out, CMP.in)
+connect(CMP.out, COND.in)
+connect(COND.out, LIQ.in)
+connect(CABE.wall, CABIN.port)
+connect(CHLR.wall, CHLC.wall)

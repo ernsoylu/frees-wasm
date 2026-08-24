@@ -1,0 +1,48 @@
+{
+  "name": "component-breadth-diode-conducts-forward-and-blocks-reverse",
+  "source": "VoltageSource VS(E=5)\nDiode         D(Gon=10, eps=0.001)\nResistor      R(R=1)\nGround        G()\nconnect(VS.p, D.p)\nconnect(D.n, R.a)\nconnect(R.b, VS.n, G.port)\n",
+  "expect": {
+    "variables": {
+      "d.n.i": -4.545454545454546,
+      "d.n.v": 4.545454545454546,
+      "d.p.i": 4.545454545454546,
+      "d.p.v": 5.0,
+      "d.vd": 0.45454545454545453,
+      "g.port.i": 0.0,
+      "g.port.v": 0.0,
+      "r.a.i": 4.545454545454546,
+      "r.a.v": 4.545454545454546,
+      "r.b.i": -4.545454545454546,
+      "r.b.v": 0.0,
+      "vs.n.i": 4.545454545454546,
+      "vs.n.v": 0.0,
+      "vs.p.i": -4.545454545454546,
+      "vs.p.v": 5.0
+    },
+    "display_names": {
+      "d$n$i": "d.n.i",
+      "d$n$v": "d.n.v",
+      "d$p$i": "d.p.i",
+      "d$p$v": "d.p.v",
+      "d$vd": "d.vd",
+      "g$port$i": "g.port.i",
+      "g$port$v": "g.port.v",
+      "r$a$i": "r.a.i",
+      "r$a$v": "r.a.v",
+      "r$b$i": "r.b.i",
+      "r$b$v": "r.b.v",
+      "vs$n$i": "vs.n.i",
+      "vs$n$v": "vs.n.v",
+      "vs$p$i": "vs.p.i",
+      "vs$p$v": "vs.p.v"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

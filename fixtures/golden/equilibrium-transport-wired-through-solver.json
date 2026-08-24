@@ -1,0 +1,26 @@
+{
+  "name": "equilibrium-transport-wired-through-solver",
+  "source": "mu_air  = mix_viscosity('N2:0.79, O2:0.21', 300)\nk_air   = mix_conductivity('N2:0.79, O2:0.21', 300)\nx_CO    = eq_molefraction('CH4', 1.0, 2300, 101325, 'CO')\nT_flame = AdiabaticFlameTempEq('CH4', 1.0, 298.15, 101325)\n",
+  "expect": {
+    "variables": {
+      "T_flame": 2230.292091923241,
+      "k_air": 0.025512742570156198,
+      "mu_air": 1.861838941354871E-5,
+      "x_CO": 0.011525237150430006
+    },
+    "display_names": {
+      "k_air": "k_air",
+      "mu_air": "mu_air",
+      "t_flame": "T_flame",
+      "x_co": "x_CO"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

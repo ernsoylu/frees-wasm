@@ -1,0 +1,10 @@
+COMPONENT MASrc(out)
+  PARAM W, h0, mdot, P, domain$ = moistair
+  out.P    = P
+  out.mdot = mdot
+  out.W    = W
+  out.h    = h0
+END
+MASrc      SRC(W=0.006, h0=40000, mdot=2, P=101325)
+HeatingCoil HC(Q=10000)
+connect(SRC.out, HC.in)

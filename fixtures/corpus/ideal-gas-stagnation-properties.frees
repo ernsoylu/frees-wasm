@@ -1,0 +1,8 @@
+T = 300 [K]
+V = 200 [m/s]
+cp = 1005 [J/kg-K]
+T0 = stagnationTemp(T, V, cp)
+
+P = 100000 [Pa]
+k = 1.4
+P0 = stagnationPres(P, T, T0, k)

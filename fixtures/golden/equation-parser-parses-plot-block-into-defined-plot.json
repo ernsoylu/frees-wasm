@@ -1,0 +1,20 @@
+{
+  "name": "equation-parser-parses-plot-block-into-defined-plot",
+  "source": "N = 3\nPLOT 'Speed vs Distance'\n  kind = xy\n  x = speed[1:N]\n  y = distance[1:N], time[1:N]\n  type = line\n  xlabel = 'Speed [m/s]'\nEND\n",
+  "expect": {
+    "variables": {
+      "N": 3.0
+    },
+    "display_names": {
+      "n": "N"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

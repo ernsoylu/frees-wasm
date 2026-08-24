@@ -1,0 +1,39 @@
+{
+  "name": "component-variant-library-compressor-defaults-to-isentropic-backward-compatible",
+  "source": "Compressor K(s1, s2, eta=0.8, fluid$=R134a)\ns1.P = 200000\ns1.T = 283.15\ns1.mdot = 0.05\ns2.P = 1000000\n",
+  "expect": {
+    "variables": {
+      "k.h_s": 446718.4808483889,
+      "k.s_in": 1796.0672844151663,
+      "k.w": 2312.0636039603532,
+      "s1.h": 409725.4631850233,
+      "s1.mdot": 0.05,
+      "s1.p": 200000.0,
+      "s2.h": 455966.73526423034,
+      "s2.mdot": 0.05,
+      "s2.p": 1000000.0
+    },
+    "display_names": {
+      "k$h_s": "k.h_s",
+      "k$s_in": "k.s_in",
+      "k$w": "k.w",
+      "r134a": "R134a",
+      "s1": "s1",
+      "s1$h": "s1.h",
+      "s1$mdot": "s1.mdot",
+      "s1$p": "s1.p",
+      "s2": "s2",
+      "s2$h": "s2.h",
+      "s2$mdot": "s2.mdot",
+      "s2$p": "s2.p"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

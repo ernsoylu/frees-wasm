@@ -1,0 +1,11 @@
+VoltageSource VS(E=10)
+Resistor      R(R=1000)
+Capacitor     CAP(C=0.001, V0=0)
+Ground        G()
+connect(VS.p, R.a)
+connect(R.b, CAP.p)
+connect(CAP.n, VS.n, G.port)
+DYNAMIC charge(method = ode45, time = 0 .. 5, points = 100)
+END
+V_final = FinalValue('cap.vc')
+t_half  = TimeAt('cap.vc', 5)

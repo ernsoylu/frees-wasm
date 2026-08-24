@@ -33,6 +33,17 @@ Wave I grew the resolver over Phase 12's (see `docs/status-phase12.md`,
   * ``.frees`` documents under test *resources* directories listed in
     RESOURCE_DIRS are copied through verbatim (the validation suite).
 
+Wave J made the class selection automatic. Wave I's own inventory found that
+the remaining growth was not a representability problem at all: 115 of the 138
+document-bearing test classes were simply never listed in CLASSES. **Every test
+class under JAVA_TEST_ROOT is now swept**; CLASSES only pins the fixture prefix
+(and the extraction-preference mode) for the classes harvested before Wave J,
+SKIP_CLASSES names the ones deliberately left out, and the sites the inventory
+classified as unrepresentable — complex mode, ``VariableSpec`` overrides,
+non-default solver settings — are dropped by tag (SKIP_SITE_TAGS) rather than
+staged as documents whose default-settings golden would not be what the Java
+test asserted.
+
 Writes candidates into the --out directory (default
 fixtures/corpus-staged/corpus/) with a per-class kebab prefix, skipping
 candidates identical (after trimming, with identical sidecar tables) to
@@ -80,6 +91,12 @@ MANIFEST = os.path.join(HERE, "harvest-manifest.json")
 # class file -> (prefix, mode). mode "text" = prefer text-block extraction,
 # "concat" = prefer solve-call extraction. Both run on every class; mode only
 # decides which extraction claims a duplicate first (naming preference).
+#
+# Since Wave J this table is *not* the sweep: every class under JAVA_TEST_ROOT
+# is harvested (see `swept_classes`), and an entry here only overrides the
+# prefix a class's own name would otherwise derive. Keeping the pre-Wave-J
+# nicknames is what stops a re-run restaging the whole promoted corpus under
+# new stems.
 CLASSES = {
     "SystemDesignExamplesTest.java": ("sysdesign", "text"),
     "OdeProblemLibraryTest.java": ("odelib", "text"),
@@ -113,6 +130,55 @@ CLASSES = {
 RESOURCE_DIRS = {
     "validation": "validation",
 }
+
+# Classes the sweep deliberately does not harvest, with the reason. A class
+# belongs here only when *no* document it holds can become a fixture — never
+# because grading it is inconvenient.
+SKIP_CLASSES = {
+    # Reads `../resources/validation/*.frees` itself; RESOURCE_DIRS harvests
+    # those files directly and verbatim, so sweeping the class would only
+    # re-derive them through the (lossier) string path.
+    "ValidationSuiteTest.java": "documents come from RESOURCE_DIRS",
+}
+
+# Solve-site classifications the Wave-I inventory established as
+# unrepresentable in the fixture format. The document text resolves, but the
+# Java test hands the solver something the fixture cannot carry, so a
+# default-settings golden would not be the answer the test asserts:
+#   a-complex  complex mode (`new SolverSettings(..., true)`) — count-only here
+#   a-specs    `VariableSpec` guess/bounds overrides — no in-document spelling
+#   a-settings any other non-default `SolverSettings`
+SKIP_SITE_TAGS = ("a-complex", "a-specs", "a-settings")
+
+# Candidates permanently rejected by golden review: staging them again would
+# re-mint a golden that cannot be frozen. Keyed by the name the sweep assigns,
+# which is deterministic given the corpus it dedups against.
+DROPPED = {
+    # Ledger item 35: `~ignored~N` sink names are numbered by a JVM-batch-global
+    # counter, so the oracle's own answer depends on what it dumped before.
+    "multiout-mid-list-tilde-on-two-output-2": "ledger item 35 (~ignored~N)",
+    "multiout-svd-discard-with-tilde-2": "ledger item 35 (~ignored~N)",
+    "multiout-user-function-with-tilde-discard": "ledger item 35 (~ignored~N)",
+    "multiout-user-function-with-tilde-discard-2": "ledger item 35 (~ignored~N)",
+}
+
+# A candidate whose first content line opens a markup tag is an expected
+# *output* the test asserts on, not an input document — `VectorExportTest`'s
+# `<svg …>` reaches the fragment guard with an `=` in it (an XML attribute) and
+# would golden "the parser rejects markup", which is nobody's behaviour.
+MARKUP_RE = re.compile(r"\s*<")
+
+# A `DYNAMIC` output grid this dense is fine for the engine (the ceiling is
+# `ode::problem::MAX_OUTPUT_SAMPLES`, 100 000) and ruinous for a *fixture*: the
+# golden stores every cell, so `points = 10001` costs 1.6–3.1 MB and
+# `points = 60001` costs **139 MB**, against 640 KB for the largest golden the
+# corpus had. `dynamics_robustness::the_corpus_sample_counts_are_far_below_the
+# _ceiling` also asserts the whole corpus stays a factor of ten under that
+# ceiling, and the three Wave-J documents above the line broke it. 2000 keeps
+# both properties and excludes nothing else: the densest document either side
+# of the sweep declares 1201.
+MAX_DECLARED_POINTS = 2000
+POINTS_RE = re.compile(r"\bpoints\s*=\s*(\d+)", re.IGNORECASE)
 
 SIMPLE_ESCAPES = {
     "n": "\n",
@@ -292,6 +358,32 @@ def kebab(name):
     s = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", name)
     s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", s)
     return s.replace("_", "-").lower()
+
+
+def auto_prefix(basename):
+    """The fixture prefix a swept class derives from its own name.
+
+    `ComponentMoistAirTest.java` -> `component-moist-air`. Long, and
+    deliberately so: a parity failure names its class without a lookup table,
+    which is worth more than a short stem once the sweep covers 100+ classes.
+    """
+    return kebab(basename.removesuffix(".java").removesuffix("Test"))
+
+
+def normalize(text):
+    """A layout-insensitive key for "the same document".
+
+    Frees variable names are case-insensitive and its statements are
+    newline-separated, so folding case and collapsing runs of spaces *inside*
+    a line — never the line structure, which is syntax — identifies candidates
+    that differ from a corpus document only in indentation. Such a candidate
+    adds no coverage and is skipped as a duplicate.
+    """
+    lines = (
+        re.sub(r"[ \t]+", " ", line).strip()
+        for line in text.strip().lower().split("\n")
+    )
+    return "\n".join(line for line in lines if line)
 
 
 class Unresolved(Exception):
@@ -1028,9 +1120,29 @@ def all_test_sources():
     return out
 
 
+def swept_classes():
+    """(path, basename, prefix, mode) for every class the sweep harvests.
+
+    Wave J: the whole test tree, minus SKIP_CLASSES. CLASSES supplies the
+    prefix and extraction preference where it has one; every other class
+    derives its prefix from its own name and prefers the solve-call path,
+    which is the one that resolves constants, locals and helper inlining.
+    """
+    out = []
+    for path in all_test_sources():
+        base = os.path.basename(path)
+        if base in SKIP_CLASSES:
+            continue
+        prefix, mode = CLASSES.get(base, (auto_prefix(base), "concat"))
+        out.append((path, base, prefix, mode))
+    return out
+
+
 def existing_documents():
-    """(trimmed content, tables json or None) -> stem, plus the stem set."""
+    """(trimmed content, tables json or None) -> stem, the stem set, and the
+    same map keyed by `normalize`d content (layout-insensitive duplicates)."""
     existing = {}
+    near = {}
     stems = set()
     for d in (
         os.path.join(FREES_WASM, "fixtures/corpus"),
@@ -1050,7 +1162,8 @@ def existing_documents():
                         json.load(open(sidecar, encoding="utf-8")), sort_keys=True
                     )
                 existing[(content, tables)] = stem
-    return existing, stems
+                near.setdefault((normalize(content), tables), stem)
+    return existing, stems, near
 
 
 def line_of(src, pos):
@@ -1062,6 +1175,9 @@ def inventory():
     registry = build_registry(paths)
     totals = {}
     examples = {}
+    bearing = 0  # classes holding at least one harvestable document
+    listed = 0  # ... of those, how many CLASSES names (the pre-Wave-J sweep)
+    skipped_cls = 0  # ... and how many SKIP_CLASSES excludes
     print(f"{len(paths)} test classes under {JAVA_TEST_ROOT}\n")
     for p in paths:
         try:
@@ -1084,14 +1200,32 @@ def inventory():
         n_res = sum(1 for c, _ in rows if c == "resolved")
         n_un = len(rows) - n_res
         if rows or blocks:
+            base = os.path.basename(p)
+            bearing += 1
+            if base in SKIP_CLASSES:
+                skipped_cls += 1
+                mark = "!!"
+            elif base in CLASSES:
+                listed += 1
+                mark = "  "
+            else:
+                mark = "+ "  # swept by name since Wave J
             flat = sorted({t for _, tags in rows for t in tags})
             print(
-                f"  {os.path.basename(p):46} calls {len(rows):3} "
+                f"{mark}{base:46} calls {len(rows):3} "
                 f"(ok {n_res:3} / un {n_un:3})  blocks {len(blocks):3}  {flat}"
             )
     print("\ntotals:")
     for k in sorted(totals):
         print(f"  {k:22} {totals[k]:4}  {examples.get(k, '')}")
+    print(
+        f"\n{bearing} of {len(paths)} classes hold a harvestable document; "
+        f"{listed} are named in CLASSES, {skipped_cls} in SKIP_CLASSES, "
+        f"the remaining {bearing - listed - skipped_cls} are swept by name "
+        f"(Wave J).\n"
+        f"Sites dropped by SKIP_SITE_TAGS: "
+        + ", ".join(f"{t} {totals.get(t, 0)}" for t in SKIP_SITE_TAGS)
+    )
 
 
 def main():
@@ -1102,7 +1236,7 @@ def main():
     if "--out" in sys.argv:
         out_corpus = sys.argv[sys.argv.index("--out") + 1]
     os.makedirs(out_corpus, exist_ok=True)
-    existing, existing_stems = existing_documents()
+    existing, existing_stems, existing_near = existing_documents()
 
     registry = build_registry(all_test_sources())
 
@@ -1110,27 +1244,32 @@ def main():
     if os.path.exists(MANIFEST):
         manifest = json.load(open(MANIFEST, encoding="utf-8"))
     seen = {}  # (trimmed content, tables json) -> assigned name
+    seen_near = {}  # the same, keyed layout-insensitively
     counts = {}
+    name_counts = {}  # global: two classes may derive the same prefix
     skipped = {
         "fragment": 0,
         "template": 0,
+        "markup": 0,
+        "oversampled": 0,
         "dup_existing": 0,
+        "dup_near": 0,
         "dup_harvest": 0,
         "unresolved": 0,
+        "site_tag": 0,
+        "dropped": 0,
     }
 
-    def assign_name(base, name_counts):
+    def assign_name(base):
         n = name_counts.get(base, 0)
         while True:
             n += 1
             name = base if n == 1 else f"{base}-{n}"
-            if name not in existing_stems:
+            if name not in existing_stems and name not in seen.values():
                 name_counts[base] = n
                 return name
 
-    def write_candidate(
-        prefix, name_counts, pos_name, doc, kind, in_throws, tables, cls
-    ):
+    def write_candidate(prefix, pos_name, doc, kind, in_throws, tables, cls):
         trimmed = doc.strip()
         if "=" not in trimmed:
             skipped["fragment"] += 1
@@ -1141,17 +1280,44 @@ def main():
         if TEMPLATE_RE.search(trimmed):
             skipped["template"] += 1
             return
+        first = next(
+            (
+                line
+                for line in trimmed.split("\n")
+                if line.strip() and not line.strip().startswith("//")
+            ),
+            "",
+        )
+        if MARKUP_RE.match(first):
+            skipped["markup"] += 1
+            return
+        if any(
+            int(m.group(1)) > MAX_DECLARED_POINTS for m in POINTS_RE.finditer(trimmed)
+        ):
+            skipped["oversampled"] += 1
+            return
         tables_key = json.dumps(tables, sort_keys=True) if tables else None
         key = (trimmed, tables_key)
+        near_key = (normalize(trimmed), tables_key)
         if key in existing:
             skipped["dup_existing"] += 1
             return
         if key in seen:
             skipped["dup_harvest"] += 1
             return
+        if near_key in existing_near:
+            skipped["dup_near"] += 1
+            return
+        if near_key in seen_near:
+            skipped["dup_near"] += 1
+            return
         base = f"{prefix}-{kebab(pos_name)}"
-        name = assign_name(base, name_counts)
+        name = assign_name(base)
+        if name in DROPPED:
+            skipped["dropped"] += 1
+            return
         seen[key] = name
+        seen_near[near_key] = name
         counts[prefix] = counts.get(prefix, 0) + 1
         out = doc if doc.endswith("\n") else doc + "\n"
         with open(os.path.join(out_corpus, name + ".frees"), "w") as f:
@@ -1169,15 +1335,21 @@ def main():
             entry["function_tables"] = [t["name"] for t in tables]
         manifest[name] = entry
 
-    for fname, (prefix, mode) in CLASSES.items():
-        path = os.path.join(JAVA_TESTS, fname)
-        fh = FileHarvest(path, registry)
+    for path, fname, prefix, mode in swept_classes():
+        try:
+            fh = FileHarvest(path, registry)
+        except AssertionError as exc:
+            print(f"  {fname}: tokenizer failed ({exc}) — skipped")
+            continue
 
         candidates = []  # (pos, doc, kind, in_throws, tables)
         tabled_contents = set()
-        for pos, doc, in_throws, tables, _tags in fh.solve_calls():
+        for pos, doc, in_throws, tables, tags in fh.solve_calls():
             if doc is None:
                 skipped["unresolved"] += 1
+                continue
+            if any(t in tags for t in SKIP_SITE_TAGS):
+                skipped["site_tag"] += 1
                 continue
             candidates.append((pos, doc, "solvecall", in_throws, tables))
             if tables:
@@ -1194,11 +1366,9 @@ def main():
         pref = "textblock" if mode == "text" else "solvecall"
         candidates.sort(key=lambda c: (0 if c[2] == pref else 1, c[0]))
 
-        name_counts = {}
         for pos, doc, kind, in_throws, tables in candidates:
             write_candidate(
                 prefix,
-                name_counts,
                 fh.enclosing(pos),
                 doc,
                 kind,
@@ -1209,14 +1379,12 @@ def main():
 
     for rel, prefix in RESOURCE_DIRS.items():
         d = os.path.join(RESOURCE_ROOT, rel)
-        name_counts = {}
         for f in sorted(os.listdir(d)):
             if not f.endswith(".frees"):
                 continue
             doc = open(os.path.join(d, f), encoding="utf-8").read()
             write_candidate(
                 prefix,
-                name_counts,
                 f.removesuffix(".frees"),
                 doc,
                 "resource",

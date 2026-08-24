@@ -1,0 +1,10 @@
+{ Worked example: manometer pressure }
+SG = 0.85                      { specific gravity of manometer fluid }
+rho_water = 1000 [kg/m^3]      { standard density of water }
+rho = SG * rho_water           { manometer fluid density }
+h = 55 [cm]                    { column height -> m }
+g = 9.81 [m/s^2]               { gravitational acceleration }
+P_atm = 96 [kPa]               { atmospheric pressure -> Pa }
+P = P_atm + rho * g * h
+P_kPa = P * Convert(Pa, kPa)
+P_gage = P - P_atm

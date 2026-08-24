@@ -1,0 +1,18 @@
+{
+  "name": "component-expansion-port-count-mismatch-is-rejected",
+  "source": "COMPONENT Heater(in, out)\n  PARAM Q = 1000\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\n  duty     = Q\nEND\nHeater H1(s1)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'h1' (heater) binds 1 port(s) but COMPONENT heater declares 2 (in, out). Bind every port to a stream, or none and wire them with connect(...)."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,8 @@
+COMPONENT Bumper(in, out)
+  PARAM gain = 3
+  out.mdot = in.mdot
+  out.x = in.x * gain
+END
+Bumper B1(s1, s2)
+s1.mdot = 1
+s1.x = 2

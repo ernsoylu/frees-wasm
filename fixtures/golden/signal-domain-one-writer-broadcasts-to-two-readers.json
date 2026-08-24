@@ -1,0 +1,29 @@
+{
+  "name": "signal-domain-one-writer-broadcasts-to-two-readers",
+  "source": "COMPONENT SigConst(out)\n  PARAM k\n  out.sig = k\nEND\nCOMPONENT SigGain(in, out)\n  PARAM k\n  out.sig = k * in.sig\nEND\nCOMPONENT SigSum(in1, in2, out)\n  out.sig = in1.sig + in2.sig\nEND\nSigConst SRC(k=2)\nSigGain  A(k=3)\nSigGain  B(k=5)\nconnect(SRC.out, A.in, B.in)\n",
+  "expect": {
+    "variables": {
+      "a.in.sig": 2.0,
+      "a.out.sig": 6.0,
+      "b.in.sig": 2.0,
+      "b.out.sig": 10.0,
+      "src.out.sig": 2.0
+    },
+    "display_names": {
+      "a$in$sig": "a.in.sig",
+      "a$out$sig": "a.out.sig",
+      "b$in$sig": "b.in.sig",
+      "b$out$sig": "b.out.sig",
+      "k": "k",
+      "src$out$sig": "src.out.sig"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

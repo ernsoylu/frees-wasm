@@ -1,0 +1,18 @@
+{
+  "name": "component-expansion-unknown-parameter-override-is-rejected",
+  "source": "COMPONENT Heater(in, out)\n  PARAM Q = 1000\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\n  duty     = Q\nEND\nHeater H1(s1, s2, bogus=3)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Component 'h1' (heater): unknown parameter 'bogus'."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

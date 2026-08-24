@@ -1,0 +1,7 @@
+// Fan–duct (real air properties)
+P_atm = 101325 [Pa]
+Fan  F1(a, b, dP0=500 [Pa], Q0=0.6 [m^3/s], eta=0.6, fluid$=Air)
+Pipe D1(b, c, L=100 [m], D=0.3 [m], rough=0.000045 [m], fluid$=Air)
+a.P = P_atm
+a.h = Enthalpy(Air, T=293 [K], P=P_atm)
+c.P = P_atm

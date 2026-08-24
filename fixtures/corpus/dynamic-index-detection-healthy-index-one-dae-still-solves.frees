@@ -1,0 +1,5 @@
+DYNAMIC ok(t = 0 .. 1)
+der(x) = -x + u
+u = 2 - x
+x(0) = 1
+END

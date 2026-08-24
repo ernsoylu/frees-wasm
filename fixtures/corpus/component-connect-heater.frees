@@ -1,0 +1,6 @@
+COMPONENT Heater(in, out)
+  PARAM Q
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = in.h + Q / in.mdot
+END

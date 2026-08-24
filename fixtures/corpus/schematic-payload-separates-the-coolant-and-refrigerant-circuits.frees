@@ -1,0 +1,18 @@
+LiquidSource  PUMPIN(fluid$=EG50, mdot=0.4, P=200000 [Pa], T=305 [K])
+LiquidPump    PUMP(fluid$=EG50, eta=0.6)
+LiquidWallHX  BCP(fluid$=EG50, UA=500)
+LiquidSink    PUMPOUT()
+MassGen BATT(C=60000, Qgen=4000, T0=305 [K])
+
+TwoPhasePressureSource FEED(fluid$=R1234yf, P=350000 [Pa], x=0.20)
+TwoPhaseEvaporatorUA CHLR(fluid$=R1234yf, UA=400, dP=1000, SH=5)
+TwoPhaseCompressor CMP(fluid$=R1234yf, eta=0.7)
+TwoPhaseSink LIQ()
+
+connect(PUMPIN.out, PUMP.in)
+connect(PUMP.out, BCP.in)
+connect(BCP.wall, BATT.port)
+connect(BCP.out, PUMPOUT.in)
+connect(FEED.out, CHLR.in)
+connect(CHLR.out, CMP.in)
+connect(CMP.out, LIQ.in)

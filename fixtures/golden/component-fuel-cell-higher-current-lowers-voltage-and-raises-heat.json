@@ -1,0 +1,18 @@
+{
+  "name": "component-fuel-cell-higher-current-lowers-voltage-and-raises-heat",
+  "source": "COMPONENT CurrentDraw(p, n)\n  PARAM Idraw\n  p.I = Idraw\n  p.I + n.I = 0\nEND\nFuelCellStack FC(ncells=10, area=0.01, i0=10, ilim=20000, Rohm=1e-5, E0=1.18, alpha=0.5, Eth=1.48, T=343)\nCurrentDraw   LOAD(Idraw=IVAL)\nThermalSource COOL(T=343)\nConvection    HS(htc=200, area=1)\nGround        G()\nconnect(FC.p, LOAD.p)\nconnect(FC.n, LOAD.n, G.port)\nconnect(FC.heat, HS.a)\nconnect(HS.b, COOL.port)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "There are 23 equations and 24 variables. The problem is underspecified and cannot be solved. Free quantity (no defining relation): load.p.i. Coupled to: cool.port.qdot, fc.heat.qdot, fc.heat.t, fc.i, fc.i_cell, fc.n.i, fc.p.i, fc.p.v, fc.q, fc.v_cell, g.port.i, hs.a.qdot, …. A common cause: an element chain with no constitutive law for that quantity — e.g. an efficiency-only machine or rigid pass-through between boundaries leaves its through-flow or a port pressure free; add an orifice/valve/flow-map element or pin a boundary value."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

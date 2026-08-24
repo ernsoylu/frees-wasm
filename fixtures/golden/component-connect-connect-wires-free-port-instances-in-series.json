@@ -1,0 +1,43 @@
+{
+  "name": "component-connect-connect-wires-free-port-instances-in-series",
+  "source": "COMPONENT Heater(in, out)\n  PARAM Q\n  out.mdot = in.mdot\n  out.P    = in.P\n  out.h    = in.h + Q / in.mdot\nEND\nHeater H1(Q=5000)\nHeater H2(Q=3000)\nconnect(H1.out, H2.in)\n\nH1.in.P    = 100000\nH1.in.mdot = 2\nH1.in.h    = 10000\n",
+  "expect": {
+    "variables": {
+      "h1.in.h": 10000.0,
+      "h1.in.mdot": 2.0,
+      "h1.in.p": 100000.0,
+      "h1.out.h": 12500.0,
+      "h1.out.mdot": 2.0,
+      "h1.out.p": 100000.0,
+      "h2.in.h": 12500.0,
+      "h2.in.mdot": 2.0,
+      "h2.in.p": 100000.0,
+      "h2.out.h": 14000.0,
+      "h2.out.mdot": 2.0,
+      "h2.out.p": 100000.0
+    },
+    "display_names": {
+      "h1$in$h": "h1.in.h",
+      "h1$in$mdot": "h1.in.mdot",
+      "h1$in$p": "h1.in.p",
+      "h1$out$h": "h1.out.h",
+      "h1$out$mdot": "h1.out.mdot",
+      "h1$out$p": "h1.out.p",
+      "h2$in$h": "h2.in.h",
+      "h2$in$mdot": "h2.in.mdot",
+      "h2$in$p": "h2.in.p",
+      "h2$out$h": "h2.out.h",
+      "h2$out$mdot": "h2.out.mdot",
+      "h2$out$p": "h2.out.p",
+      "q": "Q"
+    },
+    "block_count": 12,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

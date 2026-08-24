@@ -1,0 +1,4 @@
+speed = 0:10:100
+a = speed[1]
+b = speed[3]
+c = speed[11]

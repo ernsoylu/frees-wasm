@@ -1,0 +1,22 @@
+{
+  "name": "humid-air-enthalpy-and-volume-per-dry-air",
+  "source": "h = Enthalpy(AirH2O, T=298.15, P=101325, R=0.5)\nv = Volume(AirH2O, T=298.15, P=101325, R=0.5)\n",
+  "expect": {
+    "variables": {
+      "h": 50423.45039075701,
+      "v": 0.8577882434265997
+    },
+    "display_names": {
+      "h": "h",
+      "v": "v"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

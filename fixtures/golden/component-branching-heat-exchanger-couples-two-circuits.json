@@ -1,0 +1,64 @@
+{
+  "name": "component-branching-heat-exchanger-couples-two-circuits",
+  "source": "HeatExchanger HX(h_in, h_out, c_in, c_out, UA=5000 [W/K], hot$=Water, cold$=Water, arr$=counterflow)\nh_in.P = 200000 [Pa];   h_in.mdot = 2 [kg/s]\nh_in.h = Enthalpy(Water, T=350 [K], P=200000 [Pa])\nc_in.P = 200000 [Pa];   c_in.mdot = 3 [kg/s]\nc_in.h = Enthalpy(Water, T=290 [K], P=200000 [Pa])\n",
+  "expect": {
+    "variables": {
+      "c_in.h": 70917.56957564679,
+      "c_in.mdot": 3.0,
+      "c_in.p": 200000.0,
+      "c_out.h": 137568.56632170608,
+      "c_out.mdot": 3.0,
+      "c_out.p": 200000.0,
+      "h_in.h": 321918.3569311111,
+      "h_in.mdot": 2.0,
+      "h_in.p": 200000.0,
+      "h_out.h": 221941.86181202214,
+      "h_out.mdot": 2.0,
+      "h_out.p": 200000.0,
+      "hx.c_c": 12558.822397216174,
+      "hx.c_h": 8388.503616756374,
+      "hx.cmax": 12558.822397216174,
+      "hx.cmin": 8388.503616756374,
+      "hx.eps": 0.3972758419805239,
+      "hx.q": 199952.99023817788,
+      "hx.tc": 290.00000000000364,
+      "hx.th": 349.99999999999295
+    },
+    "display_names": {
+      "c_in": "c_in",
+      "c_in$h": "c_in.h",
+      "c_in$mdot": "c_in.mdot",
+      "c_in$p": "c_in.p",
+      "c_out": "c_out",
+      "c_out$h": "c_out.h",
+      "c_out$mdot": "c_out.mdot",
+      "c_out$p": "c_out.p",
+      "counterflow": "counterflow",
+      "h_in": "h_in",
+      "h_in$h": "h_in.h",
+      "h_in$mdot": "h_in.mdot",
+      "h_in$p": "h_in.p",
+      "h_out": "h_out",
+      "h_out$h": "h_out.h",
+      "h_out$mdot": "h_out.mdot",
+      "h_out$p": "h_out.p",
+      "hx$c_c": "hx.c_c",
+      "hx$c_h": "hx.c_h",
+      "hx$cmax": "hx.cmax",
+      "hx$cmin": "hx.cmin",
+      "hx$eps": "hx.eps",
+      "hx$q": "hx.q",
+      "hx$tc": "hx.tc",
+      "hx$th": "hx.th",
+      "water": "Water"
+    },
+    "block_count": 20,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

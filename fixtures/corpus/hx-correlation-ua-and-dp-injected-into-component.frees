@@ -1,0 +1,29 @@
+COMPONENT EvapUA(in, out, wall)
+  PARAM fluid$, UA, dP, SH, domain$ = twophase
+  out.P = in.P - dP
+  Tevap = T_sat(fluid$, P=in.P)
+  Q     = UA * (wall.T - Tevap)
+  out.h = Enthalpy(fluid$, P=out.P, T=Tevap + SH)
+  in.mdot  = Q / (out.h - in.h)
+  out.mdot = in.mdot
+  wall.Qdot = Q
+END
+COMPONENT LiqFeed(out)
+  PARAM fluid$, P, x, domain$ = twophase
+  out.P = P
+  out.h = Enthalpy(fluid$, P=P, x=x)
+END
+// UA object (chiller: R1234yf boiling <-> EG50 coolant) + dP object,
+// both computed from correlation + geometry and injected below.
+h_ref  = htc_evap('R1234yf', 350000, 0.5, 0.03, 0.006, 8e-5)
+h_cool = htc_1phase('EG50', 200000, 290, 0.2, 0.008, 1.2e-4)
+UA_chl = ua_hx(h_ref, 0.6, h_cool, 0.8, 1e-4)
+dP_chl = dp_2phase('R1234yf', 350000, 0.5, 0.03, 0.006, 8e-5, 1.5)
+
+LiqFeed       FEED(fluid$=R1234yf, P=350000, x=0.20)
+EvapUA        EV(fluid$=R1234yf, UA=UA_chl, dP=dP_chl, SH=5)
+ThermalSource WALL(T=290)
+TwoPhaseSink  SNK()
+connect(FEED.out, EV.in)
+connect(EV.wall, WALL.port)
+connect(EV.out, SNK.in)

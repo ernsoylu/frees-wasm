@@ -34,10 +34,27 @@ export interface StoredProjectMeta {
   savedAt: string
   /** Serialized size in bytes — the list UI's honesty about quota. */
   size: number
+  /**
+   * Our own write counter for this row, bumped on every save (Wave: multi-tab
+   * safety). NOT `savedAt`: two tabs can produce the same millisecond, clocks
+   * move backwards, and a project loaded from a file carries a `savedAt` from
+   * another machine entirely. A counter we mint on write is the only thing in
+   * the row we can compare and trust. Rows written before revisions existed
+   * read back as `LEGACY_REV` (0), which compares correctly against a tab that
+   * loaded them.
+   */
+  rev: number
 }
+
+/** The revision of a row stored before this file stamped revisions. */
+const LEGACY_REV = 0
 
 interface ProjectRow extends StoredProjectMeta {
   project: FreesProject
+}
+
+function metaOf(row: ProjectRow): StoredProjectMeta {
+  return { name: row.name, savedAt: row.savedAt, size: row.size, rev: row.rev ?? LEGACY_REV }
 }
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
@@ -46,8 +63,14 @@ let dbPromise: Promise<IDBDatabase | null> | null = null
 // Multi-tab coordination (Wave E, narrowing Phase 11's gap 5). BroadcastChannel
 // posts never echo to the sending tab, so every received event IS another tab:
 // the library modal refreshes its listing live, and App warns when the project
-// it has open was just overwritten elsewhere. Writes stay last-write-wins —
-// this is the *visibility* half, not a locking scheme.
+// it has open was just overwritten elsewhere. That is the *visibility* half.
+//
+// The *safety* half is `rev` above: a save states the revision it is replacing,
+// and a save whose revision no longer matches what is on disk writes NOTHING
+// and returns `conflict` for the caller to resolve (overwrite / save a copy /
+// take theirs). The notices below stay exactly as they were — a warning you
+// can miss is a fine complement to a write that cannot silently lose work, and
+// a poor substitute for one.
 // ---------------------------------------------------------------------------
 
 /** One library mutation as seen from another tab. */
@@ -143,15 +166,26 @@ export async function listStoredProjects(): Promise<StoredProjectMeta[]> {
       db.transaction(PROJECTS_STORE, 'readonly').objectStore(PROJECTS_STORE).getAll() as IDBRequest<ProjectRow[]>,
     )
     return rows
-      .map(({ name, savedAt, size }) => ({ name, savedAt, size }))
+      .map(metaOf)
       .sort((a, b) => (a.savedAt < b.savedAt ? 1 : a.savedAt > b.savedAt ? -1 : 0))
   } catch {
     return []
   }
 }
 
-/** Read one project back, re-validated exactly like a localStorage read. */
-export async function loadStoredProject(name: string): Promise<FreesProject | null> {
+/** A project read out of the library, with the revision it was read at. */
+export interface LoadedProject {
+  project: FreesProject
+  /** Hand this back as `expectedRev` on the next save of this name. */
+  rev: number
+}
+
+/**
+ * Read one project back with its revision, re-validated exactly like a
+ * localStorage read. The revision is the whole point: a tab that saves without
+ * remembering what it loaded cannot be told apart from a tab that never looked.
+ */
+export async function loadStoredProjectRev(name: string): Promise<LoadedProject | null> {
   const db = await openDb()
   if (!db) return null
   try {
@@ -160,35 +194,99 @@ export async function loadStoredProject(name: string): Promise<FreesProject | nu
         ProjectRow | undefined
       >,
     )
-    return row ? normalizeStoredProject(row.project) : null
+    if (!row) return null
+    const project = normalizeStoredProject(row.project)
+    return project ? { project, rev: row.rev ?? LEGACY_REV } : null
   } catch {
     return null
   }
 }
 
+/** Read one project back, discarding the revision. */
+export async function loadStoredProject(name: string): Promise<FreesProject | null> {
+  return (await loadStoredProjectRev(name))?.project ?? null
+}
+
 /**
- * Save under `name`, overwriting any existing project of that name — the same
- * semantics as saving a file. Returns the stored metadata, or null when the
- * library is unavailable (callers surface that; a failed *explicit* save must
- * never be silent).
+ * What a tab believes about the row it is about to write.
+ *
+ * `number` — "I loaded (or last wrote) this revision"; anything else on disk is
+ *            another tab's work and the save is refused.
+ * `'new'`  — "I have never read this name"; any existing row is refused.
+ * `'overwrite'` — the deliberate last-write-wins escape hatch, which is what
+ *            the conflict dialog's Overwrite button chooses.
  */
-export async function saveStoredProject(name: string, project: FreesProject): Promise<StoredProjectMeta | null> {
+export type ExpectedRev = number | 'new' | 'overwrite'
+
+export type SaveOutcome =
+  /** Written. `meta.rev` is the revision to remember for the next save. */
+  | { status: 'saved'; meta: StoredProjectMeta }
+  /** Nothing was written: the row on disk is not the one this tab loaded. */
+  | { status: 'conflict'; theirs: StoredProjectMeta }
+  /** No library here (private mode, partitioned context), or an invalid project. */
+  | { status: 'unavailable' }
+
+/**
+ * Save under `name` — the same overwrite semantics as saving a file, but only
+ * when `expected` still describes what is on disk. The read-compare-write runs
+ * inside one readwrite transaction, so two tabs racing cannot both see the old
+ * revision and both write.
+ *
+ * `expected` is required, deliberately: every call site has to state what it
+ * thinks it is replacing, and a caller that genuinely means last-write-wins has
+ * to say `'overwrite'` where a reader can see it.
+ */
+export async function saveStoredProject(
+  name: string,
+  project: FreesProject,
+  expected: ExpectedRev,
+): Promise<SaveOutcome> {
   const db = await openDb()
-  if (!db) return null
+  if (!db) return { status: 'unavailable' }
   const safe = normalizeStoredProject(project)
-  if (!safe) return null
-  const row: ProjectRow = {
-    name: normalizeName(name),
-    savedAt: safe.savedAt,
-    size: JSON.stringify(safe).length,
-    project: safe,
-  }
+  if (!safe) return { status: 'unavailable' }
+  const key = normalizeName(name)
   try {
-    await await_(db.transaction(PROJECTS_STORE, 'readwrite').objectStore(PROJECTS_STORE).put(row))
+    const store = db.transaction(PROJECTS_STORE, 'readwrite').objectStore(PROJECTS_STORE)
+    const current = await await_(store.get(key) as IDBRequest<ProjectRow | undefined>)
+    if (current && expected !== 'overwrite') {
+      const currentRev = current.rev ?? LEGACY_REV
+      // 'new' means "I expect nothing here", so any row at all is a conflict.
+      if (expected === 'new' || expected !== currentRev) {
+        return { status: 'conflict', theirs: metaOf(current) }
+      }
+    }
+    // An absent row is never a conflict, even for a tab that loaded a revision:
+    // another tab deleting the project and this one re-creating it loses no
+    // work, where refusing the save would lose this tab's.
+    const row: ProjectRow = {
+      name: key,
+      savedAt: safe.savedAt,
+      size: JSON.stringify(safe).length,
+      rev: (current?.rev ?? LEGACY_REV) + 1,
+      project: safe,
+    }
+    await await_(store.put(row))
     postLibraryChange({ kind: 'saved', name: row.name })
-    return { name: row.name, savedAt: row.savedAt, size: row.size }
+    return { status: 'saved', meta: metaOf(row) }
   } catch {
-    return null
+    return { status: 'unavailable' }
+  }
+}
+
+/**
+ * A free "save as a copy" name: `model` → `model (copy)` → `model (copy 2)`.
+ * Pure, and exported because it is the one piece of the conflict resolution
+ * that can be wrong in a way no storage test would catch — a colliding copy
+ * name would resolve one conflict by creating another.
+ */
+export function copyName(base: string, taken: Iterable<string>): string {
+  const used = new Set<string>()
+  for (const name of taken) used.add(normalizeName(name).toLowerCase())
+  const stem = normalizeName(base)
+  for (let n = 1; ; n += 1) {
+    const candidate = n === 1 ? `${stem} (copy)` : `${stem} (copy ${n})`
+    if (!used.has(candidate.toLowerCase())) return candidate
   }
 }
 
@@ -233,6 +331,14 @@ export async function renameStoredProject(from: string, to: string): Promise<boo
 /**
  * The durable half of the debounced autosave. Best-effort by the same rule as
  * the localStorage half: autosave must never interrupt the user.
+ *
+ * Deliberately NOT revision-checked, unlike the named library above. This is a
+ * single fixed key mirroring one tab's live workspace, and its authority is
+ * already single-tab by construction: the localStorage half it mirrors is
+ * per-tab-last-writer too, and `mirrorIsNewer` only ever *offers* the mirror at
+ * boot rather than restoring it. A conflict dialog on an autosave would
+ * interrupt the user on a keystroke timer to ask about a document they never
+ * asked to save.
  */
 export async function writeAutosaveMirror(project: FreesProject): Promise<void> {
   const db = await openDb()

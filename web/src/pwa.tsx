@@ -1,6 +1,7 @@
 import { Button, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { registerSW } from 'virtual:pwa-register'
+import { decidePrecache, dropPrecache, readDataSaver } from './dataSaver'
 
 // Phase 11: service-worker registration and the update flow.
 //
@@ -12,8 +13,25 @@ import { registerSW } from 'virtual:pwa-register'
 // waits, and this notification hands the choice to the user. `updateSW(true)`
 // tells the waiting worker to skipWaiting and reloads the page onto the new
 // precache in one motion.
+//
+// Data saver (see dataSaver.ts for why this is the only honest lever) gates
+// the whole thing: on, and nothing is registered — the app is downloaded as it
+// is used and there is no offline guarantee. Off is the default and is
+// byte-for-byte the behaviour that shipped before the switch existed, which is
+// what keeps the offline e2e gate meaningful.
 
 export function setupPwa() {
+  const decision = decidePrecache(readDataSaver(), 'serviceWorker' in navigator)
+
+  if (decision === 'unsupported') return
+
+  if (decision === 'drop') {
+    // Fire-and-forget: reclaims the storage this browser already spent and,
+    // more to the point, stops the next deploy precaching in the background.
+    void dropPrecache({ serviceWorker: navigator.serviceWorker, caches: globalThis.caches })
+    return
+  }
+
   const updateSW = registerSW({
     onNeedRefresh() {
       notifications.show({

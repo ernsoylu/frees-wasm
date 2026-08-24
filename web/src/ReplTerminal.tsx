@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ActionIcon, Group, Tooltip } from '@mantine/core'
-import { IconTrash } from '@tabler/icons-react'
+import {
+  IconArrowBarToRight,
+  IconChevronDown,
+  IconChevronUp,
+  IconCornerDownLeft,
+  IconTrash,
+} from '@tabler/icons-react'
 import { replEvaluate, VariableResult, type UnitSystem } from './api'
 import { REPL_BANNER } from './version'
 
@@ -56,6 +62,38 @@ const CAS_FUNCTIONS = [
   'Collect', 'Diff', 'Integrate', 'Apart', 'Laplace', 'InverseLaplace',
 ]
 
+/**
+ * True on a touch device. The REPL was desktop-only until the mobile Terminal
+ * tab shipped, and three of its affordances are keyboard-or-mouse assumptions:
+ * autofocus (which pops the software keyboard the moment the tab opens),
+ * Up/Down history and Tab-completion (no such keys on a software keyboard),
+ * and a 13 px prompt (iOS Safari zooms the whole page when a focused input is
+ * under 16 px). Each is conditioned on this rather than duplicated into a
+ * second component, so the two surfaces cannot drift.
+ */
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(() => {
+    try {
+      return globalThis.matchMedia?.('(pointer: coarse)').matches ?? false
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    let mq: MediaQueryList | undefined
+    try {
+      mq = globalThis.matchMedia?.('(pointer: coarse)')
+    } catch {
+      return
+    }
+    if (!mq?.addEventListener) return
+    const onChange = (e: MediaQueryListEvent) => setCoarse(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return coarse
+}
+
 function longestCommonPrefix(words: string[]): string {
   if (words.length === 0) return ''
   let prefix = words[0]
@@ -89,6 +127,7 @@ export default function ReplTerminal({
   })
   const [histIndex, setHistIndex] = useState<number>(-1) // -1 = current draft
   const [busy, setBusy] = useState(false)
+  const coarse = useCoarsePointer()
 
   useEffect(() => {
     try {
@@ -106,8 +145,14 @@ export default function ReplTerminal({
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [lines])
 
-  // Focus the prompt whenever the panel opens.
-  useEffect(() => { inputRef.current?.focus() }, [])
+  // Focus the prompt whenever the panel opens — but never on touch, where the
+  // only effect is a software keyboard covering half the screen before the
+  // user has decided to type.
+  useEffect(() => {
+    if (!coarse) inputRef.current?.focus()
+    // Mount-only: refocusing on a pointer-type change would be a jump.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const append = useCallback((...newLines: Line[]) => {
     setLines((prev) => [...prev, ...newLines])
@@ -267,6 +312,27 @@ Symbolic CAS — returns a transformed expression as text:
     append({ kind: 'info', text: matches.slice(0, 40).join('    ') })
   }, [input, variables, functions, append])
 
+  // History stepping lives outside onKeyDown so the touch key bar can drive the
+  // same two moves — Up/Down do not exist on a software keyboard.
+  const historyPrev = useCallback(() => {
+    if (history.length === 0) return
+    const next = histIndex === -1 ? history.length - 1 : Math.max(0, histIndex - 1)
+    setHistIndex(next)
+    setInput(history[next])
+  }, [history, histIndex])
+
+  const historyNext = useCallback(() => {
+    if (histIndex === -1) return
+    const next = histIndex + 1
+    if (next >= history.length) {
+      setHistIndex(-1)
+      setInput('')
+    } else {
+      setHistIndex(next)
+      setInput(history[next])
+    }
+  }, [history, histIndex])
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -276,21 +342,10 @@ Symbolic CAS — returns a transformed expression as text:
       complete()
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      if (history.length === 0) return
-      const next = histIndex === -1 ? history.length - 1 : Math.max(0, histIndex - 1)
-      setHistIndex(next)
-      setInput(history[next])
+      historyPrev()
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (histIndex === -1) return
-      const next = histIndex + 1
-      if (next >= history.length) {
-        setHistIndex(-1)
-        setInput('')
-      } else {
-        setHistIndex(next)
-        setInput(history[next])
-      }
+      historyNext()
     }
   }
 
@@ -329,8 +384,12 @@ Symbolic CAS — returns a transformed expression as text:
           overflowY: 'auto',
           padding: '4px 10px',
           fontFamily: 'var(--mantine-font-family-monospace)',
-          fontSize: 12.5,
+          fontSize: coarse ? 13 : 12.5,
           lineHeight: 1.5,
+          // A phone is ~40 monospace columns: unbroken output (a long variable
+          // name, a 17-digit double) has to break mid-token or the whole panel
+          // scrolls sideways.
+          overflowWrap: 'anywhere',
         }}
       >
         {lines.map((line, i) => (
@@ -341,7 +400,73 @@ Symbolic CAS — returns a transformed expression as text:
         ))}
       </div>
 
-      <Group gap={6} px={10} py={6} wrap="nowrap" style={{ flex: '0 0 auto', borderTop: '1px solid var(--mantine-color-dark-5)' }}>
+      {/* Touch key bar: the three moves a software keyboard cannot make.
+          `onMouseDown` preventDefault keeps focus (and therefore the keyboard)
+          on the prompt — without it every tap dismisses the keyboard first. */}
+      {coarse && (
+        <Group
+          gap={4}
+          px={8}
+          py={5}
+          wrap="nowrap"
+          justify="space-between"
+          style={{ flex: '0 0 auto', borderTop: '1px solid var(--mantine-color-dark-5)' }}
+        >
+          <Group gap={4} wrap="nowrap">
+            <ActionIcon
+              variant="default"
+              size="md"
+              aria-label="Previous command"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={historyPrev}
+            >
+              <IconChevronUp size={16} />
+            </ActionIcon>
+            <ActionIcon
+              variant="default"
+              size="md"
+              aria-label="Next command"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={historyNext}
+            >
+              <IconChevronDown size={16} />
+            </ActionIcon>
+            <ActionIcon
+              variant="default"
+              size="md"
+              aria-label="Complete name"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={complete}
+            >
+              <IconArrowBarToRight size={16} />
+            </ActionIcon>
+          </Group>
+          <ActionIcon
+            variant="filled"
+            color="teal"
+            size="md"
+            aria-label="Run expression"
+            loading={busy}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void submit()}
+          >
+            <IconCornerDownLeft size={16} />
+          </ActionIcon>
+        </Group>
+      )}
+
+      <Group
+        gap={6}
+        px={10}
+        py={6}
+        wrap="nowrap"
+        style={{
+          flex: '0 0 auto',
+          // On touch the key bar above already carries the divider; a second
+          // rule between it and the prompt visually detaches the two.
+          borderTop: coarse ? undefined : '1px solid var(--mantine-color-dark-5)',
+        }}
+      >
         <span style={{ flex: '0 0 auto', color: 'var(--mantine-color-teal-4)', fontFamily: 'var(--mantine-font-family-monospace)' }}>›</span>
         <input
           ref={inputRef}
@@ -350,15 +475,22 @@ Symbolic CAS — returns a transformed expression as text:
           onKeyDown={onKeyDown}
           spellCheck={false}
           autoComplete="off"
-          placeholder="Evaluate an expression… (Up/Down history, Tab completes)"
+          autoCapitalize="off"
+          autoCorrect="off"
+          enterKeyHint="go"
+          placeholder={coarse ? 'Evaluate an expression…' : 'Evaluate an expression… (Up/Down history, Tab completes)'}
           style={{
             flex: 1,
+            minWidth: 0,
             background: 'transparent',
             border: 'none',
             outline: 'none',
             color: 'var(--mantine-color-text)',
             fontFamily: 'var(--mantine-font-family-monospace)',
-            fontSize: 13,
+            // 16 px is not a taste call: iOS Safari zooms the page when a
+            // focused input is smaller, which leaves the prompt off-centre and
+            // the layout horizontally scrolled for the rest of the session.
+            fontSize: coarse ? 16 : 13,
           }}
           aria-label="REPL expression input"
         />

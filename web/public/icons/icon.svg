@@ -1,8 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <!-- The frees mark: an italic f beside an equals sign — a document is
-       equations. Teal on Mantine dark, matching the in-app wordmark. -->
-  <rect width="512" height="512" rx="96" fill="#1a1b1e"/>
-  <text x="120" y="360" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="340" fill="#38d9a9">f</text>
-  <rect x="296" y="212" width="120" height="30" rx="15" fill="#38d9a9"/>
-  <rect x="296" y="282" width="120" height="30" rx="15" fill="#63e6be"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="frees">
+  <!--
+    The frees mark: an equals sign, and nothing else.
+
+    frees is an equation solver, so the equals sign IS the product; the previous
+    mark paired it with an italic Georgia "f", and at a 16 px favicon that f
+    rendered as about ten grey pixels of mush beside two hairlines. Two pills
+    and a gap survive that size, which is the whole job of an app icon.
+
+    GEOMETRY — shared verbatim with icon-maskable.svg. Both bars are 300x80
+    pills (rx = half the height, so the ends are true semicircles) centred on
+    (256, 256) with a 56 px gap: top 148..228, bottom 284..364.
+
+    That geometry is chosen for the MASKABLE variant's safe zone, and both files
+    use it so the two marks are the same size (a maskable icon that is visibly
+    smaller than its round sibling is the usual tell of a rushed icon set). The
+    safe zone is the inner 80% circle, radius 0.4 * 512 = 204.8 from centre. The
+    farthest point of a pill is on its end cap, not its bounding-box corner:
+    cap centre (366, 148+40) is sqrt(110^2 + 108^2) = 154.2 from centre, plus
+    the 40 px cap radius = 194.2. Inside 204.8, with room to spare.
+
+    The tile is the manifest's own background_color, so the installed app's
+    splash screen and its icon are the same ink rather than two near-blacks.
+    One gradient runs across BOTH bars — a single light source reads as one
+    object, where two flat tints read as two unrelated shapes. The tile itself
+    is flat on purpose: a soft radial sheen behind it looked good and cost
+    230 KB across the four PNGs (a full-canvas gradient has no runs for PNG to
+    compress), which is a poor trade in a bundle that is precached whole.
+
+    A designer pass is still welcome; this is a legible mark, not a brand.
+  -->
+  <defs>
+    <linearGradient id="freesBars" x1="106" y1="148" x2="406" y2="364" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7bedcd"/>
+      <stop offset="1" stop-color="#12b886"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#1a1b1e"/>
+  <g fill="url(#freesBars)">
+    <rect x="106" y="148" width="300" height="80" rx="40"/>
+    <rect x="106" y="284" width="300" height="80" rx="40"/>
+  </g>
 </svg>

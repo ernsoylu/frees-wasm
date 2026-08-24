@@ -129,6 +129,68 @@ export function SharedLinkModal({
   )
 }
 
+/**
+ * "This browser project changed in another tab" — the resolution offered when
+ * a library save is refused because the stored revision is no longer the one
+ * this tab loaded. Nothing has been written when this opens, and nothing is
+ * written unless one of the three actions is taken; Cancel leaves both copies
+ * exactly as they are.
+ */
+export function ProjectConflictModal({
+  opened,
+  projectName,
+  theirSavedAt,
+  onOverwrite,
+  onSaveCopy,
+  onTakeTheirs,
+  onCancel,
+}: Readonly<{
+  opened: boolean
+  projectName: string
+  /** When the other tab saved, already formatted for display. */
+  theirSavedAt: string
+  onOverwrite: () => void
+  onSaveCopy: () => void
+  onTakeTheirs: () => void
+  onCancel: () => void
+}>) {
+  return (
+    <Modal opened={opened} onClose={onCancel} title="Saved in another tab" centered size="lg">
+      <Stack gap="md">
+        <Text size="sm">
+          <strong>{projectName}</strong> was saved in another tab ({theirSavedAt}) after this one
+          opened it. Nothing has been written — choose what to keep.
+        </Text>
+        <Stack gap="xs">
+          <Button variant="light" color="teal" onClick={onSaveCopy} data-autofocus>
+            Save as a copy
+          </Button>
+          <Text size="xs" c="dimmed">
+            Keeps both. This window&apos;s work is stored under a new name.
+          </Text>
+          <Button variant="light" color="red" onClick={onOverwrite}>
+            Overwrite theirs
+          </Button>
+          <Text size="xs" c="dimmed">
+            Replaces the other tab&apos;s version with this window&apos;s. Their changes are lost.
+          </Text>
+          <Button variant="light" color="yellow" onClick={onTakeTheirs}>
+            Discard mine, load theirs
+          </Button>
+          <Text size="xs" c="dimmed">
+            Loads the stored version into this window. This window&apos;s unsaved changes are lost.
+          </Text>
+        </Stack>
+        <Group justify="flex-end">
+          <Button variant="default" size="xs" onClick={onCancel}>
+            Cancel
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
 export function MessageModal({
   opened,
   title,

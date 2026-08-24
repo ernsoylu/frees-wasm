@@ -33,8 +33,12 @@ export function ProjectLibraryModal({
   /** The workspace's project name — what "Save current" saves under. */
   currentName: string
   onClose: () => void
-  /** Save the live workspace under its current name; resolves true on success. */
-  onSaveCurrent: () => Promise<boolean>
+  /**
+   * Save the live workspace under its current name. `'conflict'` means another
+   * tab moved the row on and App has raised its own resolution dialog — the
+   * one outcome this modal must NOT report as a storage failure.
+   */
+  onSaveCurrent: () => Promise<'saved' | 'conflict' | 'unavailable'>
   /** Load a stored project into the workspace (App applies its own dirty guard). */
   onOpenProject: (name: string) => void
 }>) {
@@ -79,13 +83,15 @@ export function ProjectLibraryModal({
   }, [armedDelete])
 
   const handleSaveCurrent = useCallback(async () => {
-    const ok = await onSaveCurrent()
-    if (ok) {
-      setError(null)
-      refresh()
-    } else {
+    const outcome = await onSaveCurrent()
+    if (outcome === 'unavailable') {
       setError('Could not save to browser storage — it may be unavailable in this browsing mode.')
+      return
     }
+    setError(null)
+    // A conflict wrote nothing, but the listing is stale either way — the other
+    // tab's save is exactly what the refresh should show.
+    refresh()
   }, [onSaveCurrent, refresh])
 
   const handleDelete = useCallback(

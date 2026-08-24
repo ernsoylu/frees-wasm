@@ -6,6 +6,7 @@ import {
   IconVariable,
   IconChartLine,
   IconTable,
+  IconTerminal2,
   IconSettings,
   IconDatabase,
   IconDeviceFloppy,
@@ -39,6 +40,48 @@ export function resolveTablePanelKey(
   if (entry.state) return has(entry.id) ? entry.id : null
   if (has(`table:${entry.id}`)) return `table:${entry.id}`
   return has(TABLES_WORKBOOK_WINDOW_ID) ? TABLES_WORKBOOK_WINDOW_ID : null
+}
+
+/**
+ * The smallest layout-vs-visual viewport gap that means "an on-screen keyboard
+ * is up" rather than "browser chrome is mid-animation". A software keyboard is
+ * never under ~200 px tall; a collapsing URL bar is ~50–60.
+ */
+const KEYBOARD_MIN_PX = 64
+
+/**
+ * The mobile shell's root height. Pure and exported so the contract is pinned
+ * by a test rather than by a device nobody has to hand.
+ *
+ * `100dvh` follows the *layout* viewport, and iOS Safari does not shrink that
+ * for the on-screen keyboard — so a bottom-anchored control (the REPL prompt,
+ * the tab bar) ends up underneath it, which is exactly the failure the fifth
+ * Terminal tab would otherwise ship with. `visualViewport.height` is the one
+ * signal that does shrink. Switch to it only once the gap is larger than any
+ * browser-chrome animation, so the URL-bar collapse is not fought with JS.
+ */
+export function resolveShellHeight(visual: number | null, layout: number): string {
+  if (visual == null || !Number.isFinite(visual) || visual <= 0) return '100dvh'
+  if (!Number.isFinite(layout) || layout <= 0) return '100dvh'
+  return layout - visual >= KEYBOARD_MIN_PX ? `${Math.round(visual)}px` : '100dvh'
+}
+
+/** Track `resolveShellHeight` against the live visual viewport. */
+function useShellHeight(): string {
+  const [height, setHeight] = useState('100dvh')
+  useEffect(() => {
+    const viewport = globalThis.visualViewport
+    if (!viewport) return
+    const update = () => setHeight(resolveShellHeight(viewport.height, globalThis.innerHeight))
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [])
+  return height
 }
 
 interface MobileLayoutProps {
@@ -101,7 +144,10 @@ export default function MobileLayout({
   onRenameProject,
   onOpenExamples,
 }: MobileLayoutProps) {
-  const [activeTab, setActiveTab] = useState<'equations' | 'workspace' | 'plots' | 'table'>('equations')
+  const [activeTab, setActiveTab] = useState<'equations' | 'workspace' | 'plots' | 'table' | 'terminal'>(
+    'equations',
+  )
+  const shellHeight = useShellHeight()
   // One entry per selectable panel in the Tables tab: editable/code tables
   // first (TableSpec ids), then the read-only STATE TABLE panels.
   const tableEntries = [
@@ -135,11 +181,16 @@ export default function MobileLayout({
     { id: 'workspace', label: 'Variables', icon: IconVariable },
     { id: 'plots', label: 'Plots', icon: IconChartLine },
     { id: 'table', label: 'Tables', icon: IconTable },
+    // The one desktop-only surface worth having on a phone: the REPL is the
+    // fastest way to interrogate a solved workspace, and it costs no new
+    // plumbing — App already publishes panelContent['terminal'].
+    { id: 'terminal', label: 'Terminal', icon: IconTerminal2 },
   ] as const
 
   let content: ReactNode = null
   if (activeTab === 'equations') content = panelContent['equations']
   if (activeTab === 'workspace') content = panelContent['workspace']
+  if (activeTab === 'terminal') content = panelContent['terminal']
   if (activeTab === 'plots') {
     if (plots.length === 0) {
       content = <Box p="md"><Text c="dimmed">No plots yet. Add one from a table (select columns → Plot curve) or with a PLOT block in code.</Text></Box>
@@ -168,7 +219,7 @@ export default function MobileLayout({
   const isSolving = isTableActive && selectedTableId ? solvingTableId === selectedTableId : solving
 
   return (
-    <Flex direction="column" h="100dvh" style={{ overflow: 'hidden' }}>
+    <Flex direction="column" h={shellHeight} style={{ overflow: 'hidden' }}>
       {/* Top Bar */}
       <Paper
         shadow="xs"
@@ -231,7 +282,7 @@ export default function MobileLayout({
             </ActionIcon>
             <Menu position="bottom-end">
               <Menu.Target>
-                <ActionIcon variant="subtle" color="gray">
+                <ActionIcon variant="subtle" color="gray" aria-label="Menu" title="Menu">
                   <IconSettings size={18} />
                 </ActionIcon>
               </Menu.Target>
@@ -294,9 +345,16 @@ export default function MobileLayout({
         </Group>
       </Paper>
 
-      {/* Main Content Area — the editor fills edge-to-edge (it carries its own
-          hairline padding); other tabs keep a comfortable inset. */}
-      <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} p={activeTab === 'equations' ? 0 : 'xs'}>
+      {/* Main Content Area — the editor and the terminal fill edge-to-edge
+          (each carries its own padding and its own internal scroller); other
+          tabs keep a comfortable inset and scroll here. The terminal must NOT
+          scroll here: its prompt is bottom-anchored inside a height:100% flex
+          column, so an outer scroller would push the prompt off-screen instead
+          of scrolling only the output. */}
+      <Box
+        style={{ flex: 1, minHeight: 0, overflowY: activeTab === 'terminal' ? 'hidden' : 'auto' }}
+        p={activeTab === 'equations' || activeTab === 'terminal' ? 0 : 'xs'}
+      >
         {activeTab === 'table' && tableEntries.length > 1 && (
           <Group gap="xs" mb="sm" style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
             {tableEntries.map((e) => (
@@ -361,17 +419,23 @@ export default function MobileLayout({
               <UnstyledButton
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                aria-label={tab.label}
+                aria-current={isActive ? 'page' : undefined}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
+                  // Five tabs at 375 px leave ~75 px each; without minWidth the
+                  // longest label ("Equations") would widen its own column and
+                  // starve the rest.
+                  minWidth: 0,
                   color: isActive ? 'var(--mantine-color-teal-filled)' : 'var(--mantine-color-text)',
                   opacity: isActive ? 1 : 0.6,
                   transition: 'opacity 0.2s, color 0.2s',
                 }}
               >
                 <Box
-                  p={6}
+                  p={5}
                   style={{
                     backgroundColor: isActive ? 'var(--mantine-color-teal-light)' : 'transparent',
                     borderRadius: '12px',
@@ -380,7 +444,7 @@ export default function MobileLayout({
                 >
                   <Icon size={22} stroke={isActive ? 2.5 : 1.5} />
                 </Box>
-                <Text size="0.65rem" fw={isActive ? 600 : 400}>
+                <Text size="0.62rem" fw={isActive ? 600 : 400} style={{ whiteSpace: 'nowrap' }}>
                   {tab.label}
                 </Text>
               </UnstyledButton>

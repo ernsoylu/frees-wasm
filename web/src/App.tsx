@@ -149,7 +149,13 @@ import { DEFAULT_EXAMPLE_TEXT } from './defaultExample'
 import type { Example } from './examples'
 import type { EquationEditorHandle } from './EquationEditor'
 const EquationEditor = lazy(() => import('./EquationEditor'))
-import { MessageModal, SaveCheckModal, SharedLinkModal, TextPromptModal } from './dialogs'
+import {
+  MessageModal,
+  ProjectConflictModal,
+  SaveCheckModal,
+  SharedLinkModal,
+  TextPromptModal,
+} from './dialogs'
 import { Rail, TopBar } from './WorkspaceChrome'
 import type { WorkspaceDockHandle, OpenWindow } from './workspace/WorkspaceDock'
 const WorkspaceDock = lazy(() => import('./workspace/WorkspaceDock').then(m => ({ default: m.WorkspaceDock })))
@@ -177,7 +183,9 @@ import {
 import {
   clearAutosaveMirror,
   clearFileLink,
-  loadStoredProject,
+  copyName,
+  listStoredProjects,
+  loadStoredProjectRev,
   mirrorIsNewer,
   readAutosaveMirror,
   readFileLink,
@@ -185,6 +193,9 @@ import {
   subscribeLibraryChanges,
   writeAutosaveMirror,
   writeFileLink,
+  type ExpectedRev,
+  type SaveOutcome,
+  type StoredProjectMeta,
 } from './projectStore'
 import { queryWritePermission, saveTarget, type SaveProvenance } from './saveTarget'
 import { ProjectLibraryModal } from './ProjectLibraryModal'
@@ -781,6 +792,11 @@ export default function App() {
   const applyProject = useCallback((p: FreesProject) => {
     suppressDirtyRef.current = true
     isDirtyRef.current = false
+    // Whatever is now in the workspace, it is not the library row this tab was
+    // tracking. Every load path funnels through here, so clearing it here (and
+    // re-arming it only in the two library paths) is the one place that has to
+    // be right.
+    libraryRevRef.current = null
     applyText(p.text ?? '')
     setVarDrafts(p.varDrafts ?? {})
     setStopCriteria(p.stopCriteria)
@@ -864,6 +880,13 @@ export default function App() {
   // Mirrored to IndexedDB (projectStore's file link) beside the autosave that
   // holds the workspace it belongs to, so it survives a reload.
   const projectHandleRef = useRef<FileSystemFileHandle | null>(null)
+  // The browser-library row this tab is editing: the name it was read under and
+  // the revision it saw. A save states this back to the store, which refuses
+  // rather than clobber when another tab has moved on. The name travels with
+  // the revision so that renaming the project (or opening anything else) can
+  // never leave a stale revision pointing at a row it no longer describes.
+  const libraryRevRef = useRef<{ name: string; rev: number } | null>(null)
+  const [libraryConflict, setLibraryConflict] = useState<{ name: string; theirs: StoredProjectMeta } | null>(null)
 
   /** Adopt (or clear) the current file handle, keeping the persisted link in step. */
   const adoptFileHandle = useCallback((handle: FileSystemFileHandle | null, name: string) => {
@@ -900,6 +923,35 @@ export default function App() {
   // save. Returns false only when nothing was saved (unavailable library,
   // cancelled picker) so callers can keep the dirty flag and any pending
   // destructive action on hold.
+  /** What this tab believes it is replacing when it writes `name`. */
+  const expectedLibraryRev = useCallback((name: string): ExpectedRev => {
+    const known = libraryRevRef.current
+    if (!known) return 'new'
+    return known.name.trim().toLowerCase() === name.trim().toLowerCase() ? known.rev : 'new'
+  }, [])
+
+  /**
+   * The one write into the browser library. On success it records the new
+   * revision so the *next* save of this tab is checked against its own write;
+   * on a conflict it raises the resolution dialog and writes nothing.
+   */
+  const saveToLibrary = useCallback(
+    async (name: string, expected: ExpectedRev): Promise<SaveOutcome['status']> => {
+      const outcome = await saveStoredProject(name, buildProject(currentSlices()), expected)
+      if (outcome.status === 'saved') {
+        libraryRevRef.current = { name, rev: outcome.meta.rev }
+        isDirtyRef.current = false
+        projectSourceRef.current = 'browser'
+        // The library is the project's home now; drop any stale file link.
+        adoptFileHandle(null, name)
+      } else if (outcome.status === 'conflict') {
+        setLibraryConflict({ name, theirs: outcome.theirs })
+      }
+      return outcome.status
+    },
+    [currentSlices, adoptFileHandle],
+  )
+
   const performSave = useCallback(async (): Promise<boolean> => {
     const project = buildProject(currentSlices())
     const handle = projectHandleRef.current
@@ -907,9 +959,8 @@ export default function App() {
     const target = saveTarget(projectSourceRef.current, handle !== null, permission)
 
     if (target === 'library') {
-      const meta = await saveStoredProject(projectName, project)
-      if (!meta) return false
-      isDirtyRef.current = false
+      const status = await saveToLibrary(projectName, expectedLibraryRev(projectName))
+      if (status !== 'saved') return false
       notifications.show({
         color: 'teal',
         title: 'Saved',
@@ -946,7 +997,7 @@ export default function App() {
       adoptFileHandle(saved.handle, projectName)
     }
     return saved.saved
-  }, [currentSlices, projectName, adoptFileHandle])
+  }, [currentSlices, projectName, adoptFileHandle, saveToLibrary, expectedLibraryRev])
 
   // If the project is dirty, show the save-check dialog; otherwise run immediately.
   const guardedAction = useCallback((action: () => void) => {
@@ -1073,27 +1124,107 @@ export default function App() {
   }, [guardedAction, applyProject, adoptFileHandle])
 
   // Phase 11 (D4): the browser-resident project library. Saving is name-keyed
-  // with file semantics (same name overwrites); a failed explicit save is
-  // surfaced by the modal, never silent.
-  const handleSaveToBrowser = useCallback(async () => {
-    const meta = await saveStoredProject(projectName, buildProject(currentSlices()))
-    if (meta) {
-      isDirtyRef.current = false
-      projectSourceRef.current = 'browser'
-      // The library is the project's home now; drop any stale file link.
-      adoptFileHandle(null, projectName)
+  // with file semantics (same name overwrites) — but only the revision this tab
+  // loaded; another tab's newer write raises the conflict dialog instead of
+  // being flattened. A failed explicit save is surfaced by the modal, never
+  // silent.
+  const handleSaveToBrowser = useCallback(
+    () => saveToLibrary(projectName, expectedLibraryRev(projectName)),
+    [projectName, saveToLibrary, expectedLibraryRev],
+  )
+
+  // A conflict can be raised from *inside* the unsaved-changes dialog (Save →
+  // refused), which leaves that dialog stacked behind this one. Once the
+  // conflict is resolved by writing something, the save it was blocking has
+  // happened, so release the dialog and let the action it was guarding run.
+  const releaseSaveCheck = useCallback(
+    (runPending: boolean) => {
+      if (!showSaveCheck) return
+      setShowSaveCheck(false)
+      const pending = pendingActionRef.current
+      pendingActionRef.current = null
+      if (runPending) pending?.()
+    },
+    [showSaveCheck],
+  )
+
+  // The three ways out of a library save conflict. Each is a deliberate choice
+  // the user made in ProjectConflictModal; none of them runs on its own.
+  const resolveConflictOverwrite = useCallback(async () => {
+    const conflict = libraryConflict
+    if (!conflict) return
+    setLibraryConflict(null)
+    const status = await saveToLibrary(conflict.name, 'overwrite')
+    if (status === 'saved') {
+      notifications.show({
+        color: 'teal',
+        title: 'Saved',
+        message: `Replaced “${conflict.name}” in the browser library with this window’s version.`,
+      })
+      releaseSaveCheck(true)
     }
-    return meta !== null
-  }, [currentSlices, projectName, adoptFileHandle])
+  }, [libraryConflict, saveToLibrary, releaseSaveCheck])
+
+  const resolveConflictSaveCopy = useCallback(async () => {
+    const conflict = libraryConflict
+    if (!conflict) return
+    setLibraryConflict(null)
+    const taken = (await listStoredProjects()).map((p) => p.name)
+    const copy = copyName(conflict.name, taken)
+    // 'new' and not 'overwrite': if a third tab claimed that exact name in the
+    // last few milliseconds, refusing is still better than flattening it.
+    const status = await saveToLibrary(copy, 'new')
+    if (status === 'saved') {
+      setProjectName(copy)
+      notifications.show({
+        color: 'teal',
+        title: 'Saved as a copy',
+        message: `Both versions are kept — this window is now “${copy}”.`,
+      })
+      releaseSaveCheck(true)
+    }
+  }, [libraryConflict, saveToLibrary, releaseSaveCheck])
+
+  const resolveConflictTakeTheirs = useCallback(async () => {
+    const conflict = libraryConflict
+    if (!conflict) return
+    setLibraryConflict(null)
+    const loaded = await loadStoredProjectRev(conflict.name)
+    if (!loaded) {
+      notifications.show({
+        color: 'yellow',
+        title: 'Could not open browser project',
+        message: 'It may have been deleted in another tab.',
+      })
+      return
+    }
+    applyProject(loaded.project)
+    setProjectName(conflict.name)
+    projectSourceRef.current = 'browser'
+    libraryRevRef.current = { name: conflict.name, rev: loaded.rev }
+    adoptFileHandle(null, conflict.name)
+    notifications.show({
+      color: 'teal',
+      title: 'Loaded the other tab’s version',
+      message: `“${conflict.name}” now shows what the other tab saved.`,
+    })
+    // Deliberately NOT running the pending action: whatever it was (New
+    // Project, opening something else) would immediately discard the version
+    // just loaded, which is the opposite of what asking for it meant.
+    releaseSaveCheck(false)
+  }, [libraryConflict, applyProject, adoptFileHandle, releaseSaveCheck])
 
   const handleOpenFromBrowser = useCallback(
     (name: string) => {
       guardedAction(() => {
-        void loadStoredProject(name).then((p) => {
-          if (p) {
-            applyProject(p)
+        void loadStoredProjectRev(name).then((loaded) => {
+          if (loaded) {
+            applyProject(loaded.project)
             setProjectName(name)
             projectSourceRef.current = 'browser'
+            // Remember the revision read, so this tab's next save is checked
+            // against exactly what it opened.
+            libraryRevRef.current = { name, rev: loaded.rev }
             adoptFileHandle(null, name)
             setLibraryOpen(false)
           } else {
@@ -1131,6 +1262,7 @@ export default function App() {
 
   const performNewProject = useCallback(() => {
     projectSourceRef.current = null
+    libraryRevRef.current = null
     adoptFileHandle(null, 'untitled')
     suppressDirtyRef.current = true
     isDirtyRef.current = false
@@ -2913,6 +3045,18 @@ export default function App() {
         onClose={() => setLibraryOpen(false)}
         onSaveCurrent={handleSaveToBrowser}
         onOpenProject={handleOpenFromBrowser}
+      />
+
+      <ProjectConflictModal
+        opened={libraryConflict !== null}
+        projectName={libraryConflict?.name ?? ''}
+        theirSavedAt={
+          libraryConflict ? new Date(Date.parse(libraryConflict.theirs.savedAt)).toLocaleString() : ''
+        }
+        onOverwrite={() => void resolveConflictOverwrite()}
+        onSaveCopy={() => void resolveConflictSaveCopy()}
+        onTakeTheirs={() => void resolveConflictTakeTheirs()}
+        onCancel={() => setLibraryConflict(null)}
       />
 
       <SharedLinkModal

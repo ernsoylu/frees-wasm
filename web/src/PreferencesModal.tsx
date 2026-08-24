@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Button, Checkbox, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core'
+import { Button, Checkbox, Divider, Group, Modal, Select, Stack, Switch, Text, TextInput } from '@mantine/core'
 import {
   DEFAULT_STOP_CRITERIA,
   StopCriteria,
   UNIT_SYSTEM_OPTIONS,
   UnitSystem,
 } from './api'
+import { dropPrecache, readDataSaver, writeDataSaver } from './dataSaver'
 
 interface Props {
   criteria: StopCriteria
@@ -41,6 +42,10 @@ export default function PreferencesModal({ criteria, unitSystem, fillMissing, on
   const [system, setSystem] = useState<UnitSystem>(unitSystem)
   const [fillMissingState, setFillMissingState] = useState<boolean>(fillMissing)
   const [error, setError] = useState<string | null>(null)
+  // Data saver is a *device* setting, not a document one: it never enters a
+  // .frees project, so it is read from and written to localStorage here rather
+  // than routed through App's onSave (which persists project slices).
+  const [dataSaver, setDataSaver] = useState<boolean>(() => readDataSaver())
 
   function setField(key: StopCriteriaField, value: string) {
     setDraft((d) => ({ ...d, [key]: value }))
@@ -72,17 +77,38 @@ export default function PreferencesModal({ criteria, unitSystem, fillMissing, on
       setError('No. iterations must be a whole number.')
       return
     }
+    if (dataSaver !== readDataSaver()) {
+      writeDataSaver(dataSaver)
+      if (dataSaver) {
+        // Turning it on: stop the *next* precache now rather than at the next
+        // boot, and give this browser's storage back. Best-effort and
+        // deliberately not awaited — the page keeps working from the still-live
+        // worker until it is unloaded.
+        void dropPrecache({ serviceWorker: navigator.serviceWorker, caches: globalThis.caches })
+      }
+    }
     onSave({ ...criteria, ...parsed }, system, fillMissingState)
   }
 
   return (
-    <Modal opened onClose={onClose} title="Preferences — Stop Criteria" centered size="lg">
+    <Modal opened onClose={onClose} title="Preferences" centered size="lg">
       <Text size="sm" c="dimmed" mb="md">
         Calculation stops when any criterion is satisfied. Restore Defaults
         applies the frees defaults (tight tolerances for higher precision).
       </Text>
 
       <Stack gap="sm">
+        <Switch
+          label="Data saver"
+          description={
+            dataSaver
+              ? 'On — frees will not download itself for offline use. It arrives piece by piece as you open things, and it will not work without a connection. Takes effect on your next visit; turning it on now also frees the storage this browser already used.'
+              : 'Off — frees downloads itself once (about 9 MB) so the whole app, engine included, keeps working with no connection. Turn this on if you are on a metered connection; it takes effect on your next visit.'
+          }
+          checked={dataSaver}
+          onChange={(e) => setDataSaver(e.currentTarget.checked)}
+        />
+        <Divider />
         <Select
           label="Display unit system"
           description="Calculations always run in SI; results are converted for display"

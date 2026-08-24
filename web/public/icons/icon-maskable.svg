@@ -1,10 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <!-- Maskable variant: full-bleed background, glyph scaled into the safe
-       zone (the centre ~80%) so circular masks do not clip it. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="frees">
+  <!--
+    Full-bleed variant — the source for BOTH `icon-maskable-512.png` (Android
+    applies its own mask: circle, squircle, teardrop, whatever the launcher
+    uses) and `apple-touch-icon.png` (iOS applies its own squircle and paints
+    any transparency black, so it wants a full-bleed opaque square too).
+
+    Same bar geometry as icon.svg, unscaled: it was sized against the maskable
+    safe zone in the first place (see that file's note for the arithmetic), so
+    there is no shrink-to-fit transform here and the two marks read at the same
+    size. The only difference is the square corners.
+  -->
+  <defs>
+    <linearGradient id="freesBars" x1="106" y1="148" x2="406" y2="364" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7bedcd"/>
+      <stop offset="1" stop-color="#12b886"/>
+    </linearGradient>
+  </defs>
   <rect width="512" height="512" fill="#1a1b1e"/>
-  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
-    <text x="120" y="360" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="340" fill="#38d9a9">f</text>
-    <rect x="296" y="212" width="120" height="30" rx="15" fill="#38d9a9"/>
-    <rect x="296" y="282" width="120" height="30" rx="15" fill="#63e6be"/>
+  <g fill="url(#freesBars)">
+    <rect x="106" y="148" width="300" height="80" rx="40"/>
+    <rect x="106" y="284" width="300" height="80" rx="40"/>
   </g>
 </svg>

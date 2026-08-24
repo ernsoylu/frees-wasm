@@ -28,8 +28,6 @@ export const DOCS_TOPICS: { id: string; label: string }[] = [
   { id: `comp-cycle-plots`, label: `Cycle Plots & Diagnostics` },
   { id: `comp-wizard`, label: `The Component Wizard` },
   { id: `comp-troubleshooting`, label: `Troubleshooting Networks` },
-  { id: `analyzer`, label: `Data Analyzer (Measurements)` },
-  { id: `calc-signals`, label: `Calculated Signals` },
   { id: `plot-code`, label: `Plots in Code (PLOT)` },
   { id: `thermo`, label: `Thermophysical Properties Reference (CoolProp & Gas)` },
   { id: `solid-materials`, label: `Solid Material Properties Reference` },

@@ -713,8 +713,6 @@ const CATEGORIES: NavCategory[] = [
       { id: 'reports', label: 'Notes & Narrative', blurb: 'Structure a document with comment narrative; figures come from named PLOT blocks.', keywords: ['notes', 'narrative', 'comments', 'report', 'document', 'figures'] },
       { id: 'plot-code', label: 'Plots in Code (PLOT)', blurb: 'Declare XY, property, Bode, Nyquist and pole-zero figures in code.', keywords: ['plot', 'graph', 'chart', 'code', 'programmatic', 'xy', 'property', 'psychro'] },
       { id: 'digitizer-fit', label: 'Graph Digitizer & Curve Fit', blurb: 'Turn a chart image or a table into a fitted equation.', keywords: ['digitizer', 'curve', 'fit', 'table', 'regression', 'equation', 'graph'] },
-      { id: 'analyzer', label: 'Data Analyzer (Measurements)', blurb: 'Import CSV recordings — oscilloscope, cursors, events, statistics.', keywords: ['analyzer', 'measurement', 'csv', 'import', 'oscilloscope', 'cursor', 'events', 'scatter', 'histogram', 'offset', 'export', 'signals'] },
-      { id: 'calc-signals', label: 'Calculated Signals', blurb: 'frees formulas over measured data — properties, delta, integral, movavg, delay.', keywords: ['calculated', 'calc', 'signal', 'formula', 'delta', 'integral', 'movavg', 'delay', 'coolprop', 'property', 'raster', 'boolean', 'condition'] },
     ]
   },
   {

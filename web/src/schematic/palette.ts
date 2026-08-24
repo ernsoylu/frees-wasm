@@ -1,6 +1,6 @@
 // Line colors for the rendered schematic. Deliberately a separate palette from
-// the analyzer's signal colors (categorical, assigned by slot) and the plots'
-// property colors (isobars/isotherms): here the color carries MEANING — it
+// the plots' series colors (categorical, assigned by slot) and their property
+// colors (isobars/isotherms): here the color carries MEANING — it
 // names WHAT FLOWS in a line, so the same hue must always mean the same thing.
 // Hues are Mantine-scale *-3/*-5 values, tuned to stay legible on the dark
 // theme, and are literal hex rather than CSS variables because a serialized SVG

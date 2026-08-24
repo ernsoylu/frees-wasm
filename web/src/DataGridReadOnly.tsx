@@ -63,7 +63,8 @@ interface Props {
  * Map glide's theme onto Mantine tokens so a grid matches the rest of the app
  * and follows the active color scheme. Header text uses the same teal the
  * Mantine table headers used; cell backgrounds use the dark surface shades.
- * Exported for other read-only glide grids (e.g. the analyzer Table).
+ * Exported for the other glide grids (the Tables workbook, the per-table
+ * read-only windows).
  */
 export function useGlideTheme(): Partial<GdgTheme> {
   const theme = useMantineTheme()

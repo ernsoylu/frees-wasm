@@ -37,7 +37,7 @@ declare module 'plotly.js/lib/core' {
     hoverinfo?: string
     connectgaps?: boolean
     yaxis?: string
-    /** Histogram bin-count hint (analyzer Histogram instrument). */
+    /** Histogram bin-count hint (histogram plots, Monte Carlo). */
     nbinsx?: number
   }
 

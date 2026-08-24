@@ -29,8 +29,27 @@ export function isHostedTable(t: TableSpec): boolean {
  * leave the solver stale. The flush returns the up-to-date hosted specs
  * synchronously (React state lands a render later — too late for the
  * closure building the request). */
-export const tablesWorkbookSync: { flush: (() => TableSpec[]) | null } = { flush: null }
+export const tablesWorkbookSync: {
+  flush: (() => TableSpec[]) | null
+  openCsvImport: (() => void) | null
+  csvImportPending: boolean
+} = { flush: null, openCsvImport: null, csvImportPending: false }
 
 export function flushTablesWorkbook(): TableSpec[] | null {
   return tablesWorkbookSync.flush?.() ?? null
+}
+
+/**
+ * Asks the Tables workbook to open its Import CSV… dialog (decision D11: the
+ * Data Analyzer's CSV import lives here now, and the Spotlight action that
+ * used to add an analyzer points at it).
+ *
+ * The workbook is lazily loaded, so a caller that opens the window and calls
+ * straight away arrives a chunk-load too early. That request is left pending
+ * and the workbook consumes it in its mount effect, which makes this safe to
+ * call whether the window was already open or not.
+ */
+export function requestTablesCsvImport(): void {
+  if (tablesWorkbookSync.openCsvImport) tablesWorkbookSync.openCsvImport()
+  else tablesWorkbookSync.csvImportPending = true
 }

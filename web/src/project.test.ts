@@ -1,8 +1,11 @@
 // Project-file round-trip + migration tests.
 //
-// v2 `analyzers` slice (Data Analyzer template mode, todo.md Phase 2): the
-// .frees file stores layout + signal assignments + file signatures — refs
-// only, never samples.
+// v2 `analyzers` slice: written by the Data Analyzer in "template mode" —
+// layout + signal assignments + file signatures, refs only, never samples.
+// The FEATURE is removed (decision D11) and the slice is now **inert**: it is
+// parsed, carried and re-serialized untouched so an old session survives a
+// round-trip through a build that can no longer show it. That is what the
+// first group asserts, and it is the compatibility policy in test form.
 //
 // v3 `schematic` slice: where the user has dragged each block on the rendered
 // schematic. The drawing itself is always regenerated from the document, so
@@ -10,15 +13,16 @@
 
 import { describe, expect, it, beforeEach } from 'vitest'
 import { DEFAULT_STOP_CRITERIA } from './api'
-import type { AnalyzerSpec } from './analyzer/types'
 import {
   buildProject,
   loadProjectLocal,
   readProjectFile,
   saveProjectLocal,
+  type AnalyzerSpec,
   type ProjectSlices,
 } from './project'
 
+// A real Phase-2 analyzer session, in the shape the removed feature wrote it.
 const analyzer: AnalyzerSpec = {
   id: 'a1',
   name: 'Analyzer 1',
@@ -51,26 +55,23 @@ function asFile(payload: unknown): File {
 
 beforeEach(() => localStorage.clear())
 
-describe('project v2 analyzers slice', () => {
+describe('project v2 analyzers slice (inert since D11)', () => {
   it('buildProject carries the analyzers slice at the current version', () => {
     const p = buildProject(slices)
     expect(p.version).toBe(3)
-    expect(p.analyzers).toHaveLength(1)
-    expect(p.analyzers[0].files[0].signature.headerHash).toBe('ff00aa11')
+    expect(p.analyzers).toEqual([analyzer])
   })
 
-  it('round-trips through the local autosave (sanitize path)', () => {
+  it('round-trips through the local autosave whole and unchanged', () => {
     saveProjectLocal(buildProject(slices))
-    const back = loadProjectLocal()
-    expect(back?.analyzers).toHaveLength(1)
-    expect(back?.analyzers[0].strips[1].signals[0].channel).toBe('valve')
-    expect(back?.analyzers[0].strips[0].signals[0].color).toBe('#4dabf7')
+    // Deep equality, not a spot check: nothing renders these any more, so the
+    // only guarantee worth having is that every field comes back untouched.
+    expect(loadProjectLocal()?.analyzers).toEqual([analyzer])
   })
 
   it('reads a v2 file and preserves analyzer refs (never bulk data)', async () => {
     const p = await readProjectFile(asFile(buildProject(slices)))
-    expect(p.analyzers).toHaveLength(1)
-    expect(p.analyzers[0].files[0].measurementId).toBe('m1')
+    expect(p.analyzers).toEqual([analyzer])
     expect(JSON.stringify(p.analyzers)).not.toContain('samples')
   })
 

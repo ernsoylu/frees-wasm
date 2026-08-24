@@ -33,12 +33,10 @@
     "lodash": "^4.18.1",
     "lz-string": "^1.5.0",
     "marked": "^18.0.7",
-    "papaparse": "^5.5.4",
     "plotly.js": "^3.7.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-responsive-carousel": "^3.2.23",
-    "uplot": "^1.6.32"
+    "react-responsive-carousel": "^3.2.23"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -46,7 +44,6 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
-    "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",

@@ -11,10 +11,7 @@ import {
   TextInput,
 } from '@mantine/core'
 import { parameterFit, type ParameterFitResult, type StopCriteria, type VariableInfo, type FunctionTableDto } from './api'
-import { channelStore } from './analyzer/channelStore'
-import { offsetRawRange, offsetsOf } from './analyzer/offsets'
-import type { AnalyzerSpec } from './analyzer/types'
-import type { TableSpec } from './tables'
+import type { FunctionTableSpec, TableSpec } from './tables'
 import { formatValue } from './format'
 
 interface Bounds {
@@ -42,10 +39,30 @@ export function applyFittedParameters(text: string, names: string[], values: num
   return out
 }
 
+/** The (t, v) pairs of a 1-D function table, in row order. Non-numeric rows
+ *  are dropped — the Import CSV… path already skipped them, but a hand-edited
+ *  table can carry blanks. */
+function measuredSeries(spec: FunctionTableSpec): { t: number[]; v: number[] } {
+  const t: number[] = []
+  const v: number[] = []
+  for (const row of spec.rows) {
+    const x = Number(row.x)
+    const y = Number(row.ys[0])
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    t.push(x)
+    v.push(y)
+  }
+  return { t, v }
+}
+
 /**
  * Parameter estimation: fit chosen document parameters so a DYNAMIC column
- * matches a measured analyzer channel. Calibration closes the loop the
- * Compare instrument opens.
+ * matches a measured series.
+ *
+ * The measured side used to be an analyzer channel; since D11 removed the
+ * Data Analyzer it is a 1-D **function table** — which is what Import CSV…
+ * produces, so a recording still reaches this dialog in two clicks, and the
+ * same table is simultaneously callable from the equations.
  */
 export default function ParameterFitModal({
   opened,
@@ -54,7 +71,6 @@ export default function ParameterFitModal({
   stopCriteria,
   variableInfo,
   functionTables,
-  analyzers,
   tables,
   onApply,
 }: Readonly<{
@@ -64,27 +80,27 @@ export default function ParameterFitModal({
   stopCriteria: StopCriteria
   variableInfo: VariableInfo[]
   functionTables: FunctionTableDto[]
-  analyzers: AnalyzerSpec[]
   tables: TableSpec[]
   onApply: (nextText: string) => void
 }>) {
-  // Measured source: every non-table channel registered by any analyzer.
-  const measuredOptions = useMemo(() => {
-    const out: { value: string; label: string }[] = []
-    for (const an of analyzers) {
-      for (const file of an.files) {
-        const meta = channelStore.getMeta(file.measurementId)
-        if (!meta || meta.signature.headerHash.startsWith('table:')) continue
-        for (const ch of meta.channels) {
-          out.push({
-            value: `${an.id}|${file.measurementId}|${ch.name}`,
-            label: `${an.name}: ${ch.name} (${meta.signature.name})`,
-          })
-        }
-      }
-    }
-    return out
-  }, [analyzers])
+  // Measured source: every single-curve function table (imported from a CSV,
+  // digitized, swept, or typed). A curve family has no single y per x, so it
+  // cannot be a measured trace.
+  const measuredTables = useMemo(
+    () =>
+      tables.filter(
+        (t): t is FunctionTableSpec => t.kind === 'function' && t.columns.length === 1,
+      ),
+    [tables],
+  )
+  const measuredOptions = useMemo(
+    () =>
+      measuredTables.map((t) => ({
+        value: t.id,
+        label: `${t.name} (${t.rows.length} point${t.rows.length === 1 ? '' : 's'})`,
+      })),
+    [measuredTables],
+  )
 
   // Fit target: any solved DYNAMIC table column (time column excluded).
   const targetOptions = useMemo(() => {
@@ -141,12 +157,10 @@ export default function ParameterFitModal({
       lower.push(lo)
       upper.push(hi)
     }
-    const [anId, measId, channel] = measSel.split('|')
-    const an = analyzers.find((a) => a.id === anId)
-    const offset = an ? (offsetsOf(an).get(measId) ?? 0) : 0
-    const raw = offsetRawRange({ measurementId: measId, channel }, offset, null, null)
-    if (!raw) {
-      setError('The measured channel has no loaded samples — re-import the file first.')
+    const measured = measuredTables.find((t) => t.id === measSel)
+    const raw = measured ? measuredSeries(measured) : null
+    if (!raw || raw.t.length === 0) {
+      setError('The measured function table has no numeric points.')
       return
     }
     const [odeBlock, column] = targetSel.split('|')
@@ -162,8 +176,8 @@ export default function ParameterFitModal({
       upper,
       odeBlock,
       column,
-      measuredT: Array.from(raw.t),
-      measuredV: Array.from(raw.v),
+      measuredT: raw.t,
+      measuredV: raw.v,
     })
       .then((r) => {
         if (r.success) {
@@ -180,18 +194,23 @@ export default function ParameterFitModal({
     <Modal opened={opened} onClose={onClose} title="Parameter Estimation" size="lg" centered>
       <Stack gap="sm">
         <Text size="sm" c="dimmed">
-          Fits the chosen document parameters so a DYNAMIC column matches a measured channel —
-          each trial re-solves the model, and the residuals are reduced on the measurement raster
-          with the Compare instrument's rules.
+          Fits the chosen document parameters so a DYNAMIC column matches a measured series —
+          each trial re-solves the model and the residuals are reduced on the measured raster.
+          The measured side is a single-curve function table: import one from a .csv in the
+          Tables window (Import CSV…).
         </Text>
         <Group grow>
           <Select
-            label="Measured channel"
+            label="Measured series (function table)"
             searchable
             data={measuredOptions}
             value={measSel}
             onChange={setMeasSel}
-            placeholder={measuredOptions.length === 0 ? 'Import a measurement first' : 'Pick a channel'}
+            placeholder={
+              measuredOptions.length === 0
+                ? 'Import a CSV as a function table first'
+                : 'Pick a function table'
+            }
           />
           <Select
             label="Fit target (DYNAMIC column)"

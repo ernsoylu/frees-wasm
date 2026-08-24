@@ -14,13 +14,13 @@ import type { VariableDraft } from './VariableInfoModal'
 import type { TableSpec } from './tables'
 import type { PlotSpec } from './plots/types'
 import type { PinnedSlider } from './sliders'
-import type { AnalyzerSpec } from './analyzer/types'
 import type { SchematicOffsets } from './schematic/layout'
 
 // v2 (Data Analyzer Phase 2): + `analyzers` slice — layout, signal
 // assignments and measurement file REFS only ("template mode", §2.5b in
 // todo.md); bulk samples never enter the project file. v1 files migrate by
-// defaulting the slice to [].
+// defaulting the slice to []. Since D11 the slice is inert: parsed, carried
+// and re-serialized, never rendered (see AnalyzerSpec below).
 // v3: + `schematic` slice — where the user has dragged each block on the
 // rendered schematic. Earlier files migrate by defaulting it to {}, which is
 // exactly "nothing dragged yet".
@@ -52,6 +52,27 @@ export interface SpreadsheetSpec {
   /** SUPERSEDED even before D10 (the old one-off parametric↔sheet link);
    * kept parsed for downgrade safety. */
   linkedTableId?: string
+}
+
+/**
+ * One Data Analyzer window, as persisted in `.frees` files.
+ *
+ * The Data Analyzer FEATURE is removed (decision D11, Wave J) — nothing
+ * renders or edits these any more, and the strip/signal shape they described
+ * left with `src/analyzer/`. The slice stays because the data stays: a loaded
+ * project's `analyzers` array is carried inert through App and written back on
+ * save, never destroyed (the D10 `spreadsheets` precedent). App shows a
+ * one-time notice when a loaded project's array is non-empty.
+ *
+ * Only the two fields the notice and the window titles ever needed are typed;
+ * the rest of each spec (files, strips, signal colors, offsets) rides along as
+ * opaque JSON so a downgrade to a build that still has the Analyzer finds its
+ * sessions intact.
+ */
+export interface AnalyzerSpec {
+  id: string
+  name: string
+  [key: string]: unknown
 }
 
 // Child-owned localStorage keys bridged into the project file. These mirror the

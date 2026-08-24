@@ -48,6 +48,7 @@ import {
   IconArrowsSort,
   IconChartGridDots,
   IconDownload,
+  IconFileTypeCsv,
   IconMathFunction,
   IconPlus,
   IconSparkles,
@@ -68,6 +69,7 @@ import { tablesWorkbookSync } from './tablesWorkbookBridge'
 import { downloadValuesAsCsv } from './csv'
 import { applyFunctionSpecs } from './composeTables'
 import CreateFunctionModal from './CreateFunctionModal'
+import ImportCsvModal from './ImportCsvModal'
 import {
   appendRow,
   applyCellEdit,
@@ -131,6 +133,8 @@ export default function TablesGridTab({
   const [renameDraft, setRenameDraft] = useState('')
   // Sweep → Function (Wave H): the table id the create-function dialog targets.
   const [createFnFor, setCreateFnFor] = useState<string | null>(null)
+  // CSV → Function (D11): the Data Analyzer's CSV import, relocated here.
+  const [importCsvOpen, setImportCsvOpen] = useState(false)
 
   // The synchronous view of the table list. Grid commits update it in the
   // same tick (before React re-renders), which is what lets
@@ -150,8 +154,17 @@ export default function TablesGridTab({
 
   useEffect(() => {
     tablesWorkbookSync.flush = () => hostedOf(tablesRef.current)
+    tablesWorkbookSync.openCsvImport = () => setImportCsvOpen(true)
+    // A request raised before this lazily-loaded tab mounted (Spotlight's
+    // "Import CSV…" opens the window and asks in the same tick). Deferred a
+    // microtask so mounting the grid is not also a state update.
+    if (tablesWorkbookSync.csvImportPending) {
+      tablesWorkbookSync.csvImportPending = false
+      queueMicrotask(() => setImportCsvOpen(true))
+    }
     return () => {
       tablesWorkbookSync.flush = null
+      tablesWorkbookSync.openCsvImport = null
     }
   }, [])
 
@@ -490,6 +503,10 @@ export default function TablesGridTab({
               <Menu.Item leftSection={<IconChartGridDots size={14} />} onClick={() => addTable('function-2d')}>
                 Function Table (with Curve family)
               </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => setImportCsvOpen(true)}>
+                Import CSV… — a Function Table from measured data
+              </Menu.Item>
             </Menu.Dropdown>
           </Menu>
         </Group>
@@ -561,7 +578,8 @@ export default function TablesGridTab({
         {hosted.length === 0 && (
           <Text size="xs" c="dimmed">
             No tables yet. Add a Parametric Table to run the system over value sets, or a Function
-            Table to turn tabulated data into a function callable from the equations.
+            Table to turn tabulated data into a function callable from the equations — typed in,
+            swept from a solved table, or imported from a .csv.
           </Text>
         )}
       </Stack>
@@ -820,6 +838,14 @@ export default function TablesGridTab({
           />
         )
       })()}
+
+      {importCsvOpen && (
+        <ImportCsvModal
+          tables={tables}
+          onCreate={(spec) => handleCreateFunctions([spec])}
+          onClose={() => setImportCsvOpen(false)}
+        />
+      )}
     </Group>
   )
 }

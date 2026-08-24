@@ -208,7 +208,7 @@ $$ \\int_a^b f(x)\\,dx \\approx \\frac{b-a}{2}\\sum_{i=1}^{n} w_i\\,f\\!\\left(\
     examples: [`tank-draining`, `newton-cooling`],
     tags: [`calculus`, `integral`, `quadrature`, `ode`, `definite integral`],
     references: [],
-    guides: [`calculus`, `calc-signals`],
+    guides: [`calculus`],
     body: `Computes a **definite integral** of an expression with respect to a variable over a
 range. When the integrand references the result variable itself, frees detects the
 self-reference and integrates the corresponding **first-order initial-value ODE**
@@ -19272,7 +19272,7 @@ A humid-air property; supply the dry-bulb T, total pressure P, and one humidity 
     examples: [`rankine-cycle`, `state-tables-multifluid`, `rankine-cycle`, `refrigeration-vcr`],
     tags: [`enthalpy`, `property`, `fluid`, `coolprop`],
     references: [],
-    guides: [`debugging`, `errors`, `calc-signals`, `thermo`, `humidair`, `gs-repl`],
+    guides: [`debugging`, `errors`, `thermo`, `humidair`, `gs-repl`, `repl`],
     body: `Returns the **enthalpy** of a real fluid from any valid pair of independent state properties (CoolProp backend).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.

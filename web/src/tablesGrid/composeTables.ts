@@ -3,7 +3,10 @@
 // Pure conversions behind the Wave-H composition features (D10 phase 4):
 //   1. Sweep → Function      — parametric-table columns → a FunctionTableSpec
 //   2. Digitizer → Fit → Fn  — a sampled fitted curve → a FunctionTableSpec
-//   3. CSV → Function        — two analyzer channels → a FunctionTableSpec
+//   3. CSV → Function        — two columns of an imported .csv → a
+//                              FunctionTableSpec (D11 moved this route out of
+//                              the Data Analyzer and into ImportCsvModal; the
+//                              conversion below is unchanged)
 //
 // Everything here is data in / data out (no React, no store access) so every
 // edge — failed-row skipping, family-parameter mapping, decimation, name

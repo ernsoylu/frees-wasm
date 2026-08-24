@@ -1,5 +1,5 @@
 // Custom Plotly partial bundle: core (scatter) plus only the trace modules the
-// app actually renders (figure.ts / the analyzer instruments). Replaces the
+// app actually renders (figure.ts, MonteCarloModal). Replaces the
 // full plotly.js-dist-min bundle, which shipped maps, finance, polar, WebGL-2D
 // and every other trace family (~4.6 MB → ~2.6 MB; mesh3d drags the gl3d
 // stack and is the largest remaining piece — it backs the surface3d chart).

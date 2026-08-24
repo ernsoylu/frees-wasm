@@ -99,6 +99,15 @@ END
 g_per_kWh = Interpolate2D('bsfc', 2500, 0.6)   { same as bsfc(2500, 0.6) }
 ```
 
+## Tables you don't type
+A Function Table built in the **Tables** window is callable exactly like a `TABLE` block, so measured or swept data reaches the equations without being retyped:
+
+- **Import CSV…** (the `+` menu in the Tables window) reads a `.csv` **in your browser** — nothing is uploaded. Pick the x column, the y column and a function name; blank and non-numeric cells are skipped and counted, duplicate x values keep the first row, and a recording longer than the 5 000-row table cap is thinned uniformly (first and last point always kept).
+- **Create function…** does the same for two columns of a solved parametric or `DYNAMIC` table, optionally with a family-parameter column for a 2-D `name(x, param)`.
+- The **Graph Digitizer** exports its digitized points the same way.
+
+One rule holds for all three: if the document already defines a `TABLE` with that name, **the document's table wins** when the equations are solved — a GUI table never overrides it.
+
 [Related: tables-code, table-accessors, digitizer-fit]
 
 [Topic: table-accessors]

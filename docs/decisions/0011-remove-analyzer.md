@@ -68,5 +68,32 @@ Engine-side this is the first removal of *ported parity code* — the
 measurement module was a faithful Phase-10 port with its own oracle suites,
 so the decision is recorded here rather than in a status doc, and the corpus
 is untouched (no measurement fixture ever entered `fixtures/corpus`).
-Before/after measurements (dist, precache, wasm module, `node_modules`) are
-recorded at the purge step.
+
+### Measured at the web purge step (2026-08-24)
+
+Both builds on the same tree at the same commit base, so the deltas are the
+purge's alone. The wasm module is unchanged by this branch — the engine-side
+removal is measured on its own branch.
+
+|  | before | after | delta |
+|---|---|---|---|
+| `dist` total | 9,718,871 B (9.27 MiB), 101 files | 9,529,490 B (9.09 MiB), 94 files | **−189,381 B (−1.95 %)**, −7 files |
+| precache manifest | 104 entries (9,469.01 KiB) | 97 entries (9,284.44 KiB) | −7 entries, **−184.57 KiB (−1.95 %)** |
+| `node_modules` | 638 MB | 635 MB | **−3 MB** (5 packages: `uplot`, `papaparse`, `@types/papaparse` + transitives; `package-lock.json` −43 lines) |
+| vitest | 42 files / 448 tests | 32 files / 391 tests | −11 analyzer suites (−81 tests), +1 CSV-reader suite (+24 tests) |
+
+The seven dist files that left, by name: `DataAnalyzerTab.js` (108.12 kB raw
+/ 40.62 kB gzip), `SignalBrowser.js` (37.29 / 14.15), `csvImport.worker.js`
+(27.29), `DataAnalyzerTab.css` (1.65 / 0.71), and the three small chunks that
+existed only to serve them — `offsets.js` (0.70), `IconWand.js` (0.55),
+`IconChevronLeft.js` (0.33). **174.4 kB of the 189.4 kB delta is those
+chunks**; the rest is the two deleted help topics leaving `docs-data`
+(−4.9 kB), the App chunk shedding its analyzer wiring (−6.8 kB) and Mantine
+tree-shaking the launcher path (−7.2 kB), less the +5.9 kB the relocated CSV
+reader and Import dialog add to `TablesGridTab`.
+
+The honest reading of that number: **the Analyzer was never a bundle
+problem.** It was ~2 % of the app on the wire, and the case for removing it
+was always its ~6 000 lines of maintained UI surface and the engine-side
+measurement stack behind it, not its bytes. No dist file contains `uplot`
+or `papaparse` after the purge.

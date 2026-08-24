@@ -214,7 +214,8 @@ function scanWord(stream: StringStream): string | null {
 // A small line-oriented tokenizer for the frees language: {comments}, string
 // literals, numbers, keywords, and known built-in functions. Unknown
 // identifiers (user variables) are left unstyled.
-// Exported for other frees-DSL inputs (e.g. the analyzer CalcSignalModal).
+// Exported for other frees-DSL inputs (the REPL terminal, the component
+// wizard) — anywhere a field takes frees source rather than a bare number.
 export const freesLanguage = StreamLanguage.define<StreamState>({
   startState: () => ({ inComment: false }),
   token(stream, state) {

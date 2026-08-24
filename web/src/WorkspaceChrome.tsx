@@ -52,7 +52,6 @@ import {
   IconTrash,
   IconSearch,
   IconVariable,
-  IconWaveSine,
   IconLink,
   IconPrinter,
 } from '@tabler/icons-react'
@@ -85,7 +84,6 @@ const VIEWS = [
     tip: 'Schematic — auto-rendered component network',
     icon: IconSitemap,
   },
-  { value: 'analyzer', label: 'Analyzer', tip: 'Data Analyzer — explore imported measurement data', icon: IconWaveSine },
   { value: 'terminal', label: 'Terminal', tip: 'Terminal — REPL evaluated against the workspace', icon: IconTerminal2 },
 ]
 
@@ -109,13 +107,6 @@ interface RailProps {
   onClose?: (view: string) => void
   /** Rebuild the dock as a named layout preset (shows the Layout menu). */
   onApplyLayout?: (perspective: LayoutPerspective) => void
-  /** Data Analyzer windows available to open (measurement analysis). */
-  analyzers?: { id: string; name: string; deletable?: boolean }[]
-  /** Number of analyzer windows currently open. */
-  analyzerCount?: number
-  onOpenAnalyzer?: (id: string) => void
-  onNewAnalyzer?: () => void
-  onDeleteAnalyzer?: (id: string) => void
   onOpenPlot?: (id: string) => void
   onNewPlot?: (kind: 'xy' | 'property' | 'psychro') => void
   onDeletePlot?: (id: string) => void
@@ -371,11 +362,6 @@ export function Rail({
   onSelect,
   onClose,
   onApplyLayout,
-  analyzers,
-  analyzerCount = 0,
-  onOpenAnalyzer,
-  onNewAnalyzer,
-  onDeleteAnalyzer,
   onOpenPlot,
   onNewPlot,
   onDeletePlot,
@@ -434,23 +420,7 @@ export function Rail({
           onClick={toggle}
         />
         {VIEWS.map((view) =>
-          view.value === 'analyzer' && analyzers ? (
-            <InstanceLauncher
-              key={view.value}
-              expanded={expanded}
-              active={active === 'analyzer'}
-              count={analyzerCount}
-              idPrefix="analyzer:"
-              label="Analyzer"
-              newActions={[{ label: 'New analyzer', onClick: () => onNewAnalyzer?.() }]}
-              emptyLabel="No analyzers yet"
-              icon={<IconWaveSine size={iconSize} stroke={1.6} />}
-              items={analyzers}
-              openIds={openIdSet}
-              onOpen={onOpenAnalyzer}
-              onDelete={onDeleteAnalyzer}
-            />
-          ) : view.value === 'plots' && plots ? (
+          view.value === 'plots' && plots ? (
             <InstanceLauncher
               key={view.value}
               expanded={expanded}

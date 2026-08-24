@@ -33,12 +33,9 @@ UI with no engine.
 - `src/defaultExample.ts` — **done**: boots a document the browser engine
   solves; the EV COMPONENT model is kept as `EV_THERMAL_EXAMPLE_TEXT` for
   Phase 6.
-- `src/analyzer/measurementApi.ts` — **done (Phase 10), then narrowed
-  (D6)**: MDF4 reading is removed; the one surviving route is `calcSignal`,
-  stateless with inline inputs. The Data Analyzer is CSV-only — CSV parses on
-  the main thread and never leaves the tab; the analyzer's remote-source
-  variant (`channelStore`, `SignalBrowser` `.mf4` accepts) is deleted with
-  it. See docs/decisions/0006-remove-mdf4.md.
+- `src/analyzer/` — **gone (D11)**. Phase 10 ported `measurementApi.ts` onto
+  the wasm boundary, D6 narrowed it to CSV-only, and D11 deleted the whole
+  Data Analyzer. See the Analyzer purge section below.
 - `vite.config.ts` — forked: `buildInfoPlugin`, the vendor `manualChunks`
   split, `rollup-plugin-visualizer`, and (Phase 11) `vite-plugin-pwa`. The
   `/api` dev proxy is gone — nothing in `src/` calls a live endpoint.
@@ -112,6 +109,59 @@ dependencies (`@univerjs/*`, `rxjs`, the `lodash-es` override), keep
 `src/tablesGrid/` with the `App.tsx` Tables routing, and re-apply the
 forks listed above.** Measurements (−5.19 MiB dist, −265 MB node_modules)
 are in docs/decisions/0010-remove-spreadsheet.md's Consequences.
+
+## The Analyzer purge (decision D11, Wave J)
+
+**`src/analyzer/` is deleted in full** — 37 files (six instruments, the
+channel store, the papaparse CSV worker, decimation/stats/compare/offsets,
+calculated signals, the `.frees` table-import path and eleven vitest suites).
+With it went its dock windows, the Inspector `SignalBrowser` panel, the left
+rail's Analyzer launcher, the `analyzers` React state and the `uplot` +
+`papaparse` (+ `@types/papaparse`) dependencies. The engine side —
+`measurement_calc`, `crates/frees-wasm/src/measurement.rs`,
+`crates/frees-core/src/measurement/` — goes with it in the same wave.
+
+**The one capability that moved rather than died is CSV import.** It now
+produces a *function table*, which is strictly more than the Analyzer offered
+because the result is callable from the equations:
+`src/tablesGrid/ImportCsvModal.tsx` (Import CSV… in the Tables workbook's `+`
+menu, and the `import-csv` Spotlight action) reads a file through
+`src/tablesGrid/csv.ts::parseCsvTable` — a ~200-line reader written for this,
+**not** papaparse — and converts it with the same
+`composeTables.functionSpecFromXY` Wave H's `ChannelFunctionModal` used, so
+the 5 000-row decimation guard, the duplicate-x rule, the skipped-pair count
+and the `FunctionNameHints`/`FunctionPrecedenceNote` collision notices are
+unchanged behaviour. `tablesWorkbookBridge.ts` gained
+`requestTablesCsvImport()` so the Spotlight action survives the workbook's
+lazy chunk load.
+
+**Inert retention, exactly as D10 did for spreadsheets**: the `analyzers`
+array of a `.frees` file is still parsed and re-serialized untouched, the
+`AnalyzerSpec` type moved into `src/project.ts` as an opaque
+`{id, name, [key: string]: unknown}`, App carries it in a ref through to
+save, and `analyzerNotice()` shows a one-time "the data is preserved in the
+file but not shown" line through the same `loadNotice` mechanism.
+`src/project.test.ts`'s analyzer group is the contract, now asserting deep
+equality of a full session rather than spot-checking fields.
+
+Other forks the purge made: `src/App.tsx` (lazy imports, state, per-instance
+panels, dock kind, Spotlight entries, Inspector panel, boot notice),
+`src/WorkspaceChrome.tsx` (rail entry + launcher),
+`src/workspace/WorkspaceDock.tsx` (the `analyzer` tab icon),
+`src/ParameterFitModal.tsx` (its measured source is a 1-D function table now,
+not an analyzer channel), `src/HelpPage.tsx` and `src/docs/data_analyzer.md`
+(deleted — the `analyzer` and `calc-signals` help topics went with the
+feature; `src/docs/programming_logic.md` gained the "Tables you don't type"
+section in their place). `docsCatalog.ts` / `docsTopics.ts` /
+`referenceCatalog.ts` are **generated** by `npm run compile-docs` — edit the
+markdown, never those.
+
+**Future vendor rsyncs must: re-delete `src/analyzer/`, skip `uplot`,
+`papaparse` and `@types/papaparse`, keep `src/tablesGrid/csv.ts` +
+`ImportCsvModal.tsx` with the `+`-menu and Spotlight routing, re-delete
+`src/docs/data_analyzer.md` (and recompile the docs), and re-apply the forks
+listed above.** Measurements are in
+docs/decisions/0011-remove-analyzer.md's Consequences.
 
 ## Everything else stays in sync with upstream
 

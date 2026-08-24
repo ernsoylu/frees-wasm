@@ -37,7 +37,7 @@ import {
   IconTable,
   IconTemperature,
   IconVariable,
-  IconWaveSine,
+  IconFileTypeCsv,
   IconLink,
   IconPrinter,
   IconDatabase,
@@ -93,11 +93,10 @@ import type { DigitizedExport } from './DigitizerTab'
 import {
   flushTablesWorkbook,
   isHostedTable,
+  requestTablesCsvImport,
   TABLES_WORKBOOK_WINDOW_ID,
 } from './tablesGrid/tablesWorkbookBridge'
 import { applyColumnFill } from './tablesGrid/tableGridModel'
-import { newAnalyzer, type AnalyzerSpec } from './analyzer/types'
-import { channelStore } from './analyzer/channelStore'
 
 // The Digitizer tab is a large, self-contained editor that most
 // sessions never open, so they are code-split and only fetched when their tab
@@ -111,13 +110,6 @@ const DigitizerTab = lazy(() =>
 // it replaced the Univer-bound-sheets TablesWorkbookTab). Lazy so sessions
 // that never open it don't fetch the grid.
 const TablesWorkbookTab = lazy(() => import('./tablesGrid/TablesGridTab'))
-// The Data Analyzer (uPlot + papaparse) is code-split so the measurement
-// tooling is only fetched when an analyzer window opens.
-const DataAnalyzerTab = lazy(() => import('./analyzer/DataAnalyzerTab'))
-// The analyzer's variable/signal browser, hosted by the Inspector when an
-// analyzer window is focused (a measurement-suite-style dockable
-// variable-selection window).
-const SignalBrowser = lazy(() => import('./analyzer/SignalBrowser'))
 // Lazy: pulls the full 58 KB example catalog only when the picker opens.
 const ExamplesModal = lazy(() => import('./ExamplesModal'))
 
@@ -178,6 +170,7 @@ import {
   saveProject,
   saveProjectLocal,
   saveProjectToHandle,
+  type AnalyzerSpec,
   type SpreadsheetSpec,
   writeBridgedKeys,
 } from './project'
@@ -236,6 +229,19 @@ function spreadsheetNotice(spreadsheets: SpreadsheetSpec[] | undefined): string 
   return (
     `This project contains ${n} spreadsheet${n === 1 ? '' : 's'}; the spreadsheet ` +
     'feature was removed — the data is preserved in the file but not shown.'
+  )
+}
+
+/** The same one-time notice for D11's removed Data Analyzer: the `analyzers`
+ *  array is carried inert and written back on save, never destroyed.
+ *  Returns null when the project has no analyzer windows. */
+function analyzerNotice(analyzers: AnalyzerSpec[] | undefined): string | null {
+  const n = analyzers?.length ?? 0
+  if (n === 0) return null
+  return (
+    `This project contains ${n} analyzer window${n === 1 ? '' : 's'}; the Data Analyzer ` +
+    'was removed — the data is preserved in the file but not shown. Import a CSV as a ' +
+    'function table from the Tables window instead.'
   )
 }
 
@@ -648,30 +654,33 @@ export default function App() {
   // never destroyed (docs/decisions/0010-remove-spreadsheet.md, compatibility
   // policy). A one-time notice tells the user the data is preserved.
   const spreadsheetsRef = useRef<SpreadsheetSpec[]>(boot?.spreadsheets ?? [])
-  // Data Analyzer windows: the spec slice (layout + signal assignments +
-  // measurement file refs, never bulk data) rides the .frees project file
-  // ("template mode", §2.5b); samples live in the module-level ChannelStore
-  // and are re-picked on load via each window's "Locate file…" banner.
-  const [analyzers, setAnalyzers] = useState<AnalyzerSpec[]>(() => boot?.analyzers ?? [])
+  // D11: the Data Analyzer is removed, and its `analyzers` slice is carried
+  // the same inert way — held here, written back on save, never shown and
+  // never destroyed (docs/decisions/0011-remove-analyzer.md, compatibility
+  // policy). A one-time notice tells the user the data is preserved.
+  const analyzersRef = useRef<AnalyzerSpec[]>(boot?.analyzers ?? [])
   // Blocks the user has dragged on the rendered schematic, as offsets from the
   // auto-layout. The drawing itself is always derived from the document, so
   // this is the only part of it that has to be saved.
   const [schematicOffsets, setSchematicOffsets] = useState<SchematicOffsets>(
     () => boot?.schematic ?? {},
   )
-  // One-line self-dismissing notice (e.g. "N analyzer window(s) awaiting
-  // measurement files" after a project load).
+  // One-line self-dismissing notice (e.g. the D10/D11 "the data is preserved
+  // in the file but not shown" line after a project load).
   const [loadNotice, setLoadNotice] = useState<string | null>(null)
   useEffect(() => {
     if (loadNotice === null) return
     const id = setTimeout(() => setLoadNotice(null), 8000)
     return () => clearTimeout(id)
   }, [loadNotice])
-  // D10: the autosave-restored workspace gets the same one-time notice a
-  // project load does when it carries (inert, preserved) spreadsheet data.
+  // D10/D11: the autosave-restored workspace gets the same one-time notice a
+  // project load does when it carries (inert, preserved) spreadsheet or
+  // analyzer data.
   useEffect(() => {
-    const notice = spreadsheetNotice(boot?.spreadsheets)
-    if (notice) setLoadNotice(notice)
+    const notice = [spreadsheetNotice(boot?.spreadsheets), analyzerNotice(boot?.analyzers)]
+      .filter((n) => n !== null)
+      .join(' ')
+    if (notice !== '') setLoadNotice(notice)
     // Boot project only — runs once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -710,17 +719,17 @@ export default function App() {
       stateUnitIds,
       tables,
       plots,
-      // Inert retention (D10): the loaded project's spreadsheets ride along
-      // unchanged so saving never destroys them.
+      // Inert retention (D10/D11): the loaded project's spreadsheets and
+      // analyzer windows ride along unchanged so saving never destroys them.
       spreadsheets: spreadsheetsRef.current,
-      analyzers,
+      analyzers: analyzersRef.current,
       sliders: pinnedSliders,
       schematic: schematicOffsets,
     }),
     // `text` stays a dependency so the autosave effect keyed on this callback
     // still refreshes when the (deferred) editor document state lands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [text, varDrafts, stopCriteria, unitSystem, fillMissing, stateUnitIds, tables, plots, analyzers, pinnedSliders, schematicOffsets],
+    [text, varDrafts, stopCriteria, unitSystem, fillMissing, stateUnitIds, tables, plots, pinnedSliders, schematicOffsets],
   )
 
   // Debounced autosave of the entire workspace to a single localStorage key,
@@ -764,7 +773,7 @@ export default function App() {
     }
     isDirtyRef.current = true
 
-  }, [text, tables, plots, analyzers, varDrafts, schematicOffsets])
+  }, [text, tables, plots, varDrafts, schematicOffsets])
 
   // Apply an opened/loaded project to every workspace slice. Child-owned slices
   // are written back to their caches and the relevant tabs are remounted (epoch
@@ -780,25 +789,17 @@ export default function App() {
     setStateUnitIds(p.stateUnitIds ?? {})
     setTables(p.tables)
     setPlots(p.plots ?? [])
-    // Inert retention (D10): keep the array to write back on save, show nothing.
+    // Inert retention (D10/D11): keep the arrays to write back on save, show
+    // nothing.
     spreadsheetsRef.current = p.spreadsheets ?? []
-    // Template mode (§2.5b): analyzer layouts load with refs only — the
-    // measurement data itself is gone, so each window shows a "Locate file…"
-    // banner. Clear any stale samples from a previous project first.
-    channelStore.clear()
-    setAnalyzers(p.analyzers ?? [])
+    analyzersRef.current = p.analyzers ?? []
     setSchematicOffsets(p.schematic ?? {})
-    const awaiting = (p.analyzers ?? []).filter((a) => a.files.length > 0).length
-    const notices: string[] = []
-    if (awaiting > 0) {
-      notices.push(
-        `${awaiting} analyzer window${awaiting === 1 ? '' : 's'} awaiting measurement files — open them and use “Locate file…”.`,
-      )
-    }
-    // D10 compatibility notice: the spreadsheet feature is removed, but the
-    // data in the file is preserved (inert), never destroyed.
-    const ssNotice = spreadsheetNotice(p.spreadsheets)
-    if (ssNotice) notices.push(ssNotice)
+    // D10/D11 compatibility notices: the spreadsheet and Data Analyzer
+    // features are removed, but the data in the file is preserved (inert),
+    // never destroyed.
+    const notices = [spreadsheetNotice(p.spreadsheets), analyzerNotice(p.analyzers)].filter(
+      (n) => n !== null,
+    )
     setLoadNotice(notices.length > 0 ? notices.join(' ') : null)
     setResult(null)
     setCheckResult(null)
@@ -811,11 +812,6 @@ export default function App() {
     setWorkspaceEpoch((e) => e + 1)
     requestAnimationFrame(() => {
       dockRef.current?.restore(p.dockLayout)
-      // Surface the first analyzer, so its "Locate file…" banner is discoverable.
-      const firstAnalyzer = p.analyzers?.[0]
-      if (firstAnalyzer) {
-        dockRef.current?.openInstance(`analyzer:${firstAnalyzer.id}`, 'analyzer', firstAnalyzer.name)
-      }
     })
   }, [applyText])
 
@@ -1162,9 +1158,8 @@ export default function App() {
     setTables([])
     setPlots([])
     spreadsheetsRef.current = []
-    setAnalyzers([])
+    analyzersRef.current = []
     setSchematicOffsets({})
-    channelStore.clear()
     setResult(null)
     setCheckResult(null)
     setProjectName('untitled')
@@ -1331,9 +1326,8 @@ export default function App() {
     setTables([])
     setPlots([])
     spreadsheetsRef.current = []
-    setAnalyzers([])
+    analyzersRef.current = []
     setSchematicOffsets({})
-    channelStore.clear()
     setResult(null)
     setCheckResult(null)
     setLastSolvedWithFillMissing(false)
@@ -1908,13 +1902,12 @@ export default function App() {
       // Hosted tables (function + GUI parametric) live as sheets in the
       // single Tables workbook window; no per-table windows (decision 2).
       ...tables.filter((t) => !isHostedTable(t)).map((t) => `table:${t.id}`),
-      ...analyzers.map((a) => `analyzer:${a.id}`),
       ...(result?.stateTableDefs ?? checkResult?.stateTableDefs ?? []).map((s) => `state:${s.name}`),
     ])
     for (const w of openWindows) {
       if (!valid.has(w.id)) dockRef.current?.close(w.id)
     }
-  }, [mergedPlots, tables, analyzers, openWindows, result?.stateTableDefs, checkResult?.stateTableDefs])
+  }, [mergedPlots, tables, openWindows, result?.stateTableDefs, checkResult?.stateTableDefs])
 
   // Keep dock tab titles in sync with instance names (so renames in the
   // Inspector show on the tabs). Deferred out of the commit cycle so dockview's
@@ -1926,18 +1919,9 @@ export default function App() {
         if (isHostedTable(t)) continue // hosted in the Tables workbook
         dockRef.current?.setTitle(`table:${t.id}`, t.name)
       }
-      for (const a of analyzers) dockRef.current?.setTitle(`analyzer:${a.id}`, a.name)
     })
     return () => cancelAnimationFrame(raf)
-  }, [mergedPlots, tables, analyzers])
-
-  // Analyzers with an OPEN dock window are protected from the ChannelStore's
-  // over-ceiling LRU eviction (§2.5a) — tell the store which ones those are.
-  useEffect(() => {
-    channelStore.setOpenAnalyzers(
-      openWindows.filter((w) => w.kind === 'analyzer').map((w) => w.id.slice('analyzer:'.length)),
-    )
-  }, [openWindows])
+  }, [mergedPlots, tables])
 
   const baseVariables =
     solutions.length > 0 ? solutions[0].variables : result?.variables ?? []
@@ -1986,23 +1970,12 @@ export default function App() {
     setActiveTableId(t.id)
     requestAnimationFrame(() => openTableWindow(t))
   }
-  const createAnalyzer = () => {
-    const a = newAnalyzer(analyzers.length)
-    setAnalyzers((prev) => [...prev, a])
-    requestAnimationFrame(() => dockRef.current?.openInstance(`analyzer:${a.id}`, 'analyzer', a.name))
-  }
-  const openLatestOrNewAnalyzer = () => {
-    const a = analyzers[analyzers.length - 1]
-    if (a) dockRef.current?.openInstance(`analyzer:${a.id}`, 'analyzer', a.name)
-    else createAnalyzer()
-  }
-  // Release binds to analyzer DELETION, not window close (§2.5a): dropping the
-  // spec releases its measurements from the ChannelStore (shared entries are
-  // refcounted, so a second analyzer on the same file keeps its data).
-  const deleteAnalyzer = (id: string) => {
-    const a = analyzers.find((x) => x.id === id)
-    if (a) for (const f of a.files) channelStore.release(f.measurementId, a.id)
-    setAnalyzers((prev) => prev.filter((x) => x.id !== id))
+  // D11: measured data enters through Tables now. Opens the workbook window
+  // and asks it for the Import CSV… dialog — the request survives the lazy
+  // chunk load, so this works whether the window was open or not.
+  const importCsvAsFunctionTable = () => {
+    dockRef.current?.openInstance(TABLES_WORKBOOK_WINDOW_ID, 'table', 'Tables')
+    requestTablesCsvImport()
   }
   const openLatestOrNewTable = () => {
     const t = tables[tables.length - 1]
@@ -2056,7 +2029,6 @@ export default function App() {
         } },
         { id: 'view-digitizer', label: 'Graph Digitizer', leftSection: <IconChartGridDots size={18} />, onClick: () => dockRef.current?.open('digitizer') },
         { id: 'view-schematic', label: 'Schematic', description: 'Auto-rendered component network', leftSection: <IconSitemap size={18} />, onClick: () => dockRef.current?.open('schematic') },
-        { id: 'view-analyzer', label: 'Data Analyzer', description: 'Open the latest analyzer (or create one)', leftSection: <IconWaveSine size={18} />, onClick: openLatestOrNewAnalyzer },
         { id: 'view-inspector', label: 'Inspector', leftSection: <IconSettings size={18} />, onClick: () => dockRef.current?.open('inspector') },
       ],
     },
@@ -2067,7 +2039,7 @@ export default function App() {
         { id: 'new-xy-plot', label: 'Add graph (X-Y)', leftSection: <IconChartLine size={18} />, onClick: () => setNewPlotKind('xy') },
         { id: 'new-property-plot', label: 'Add property graph', leftSection: <IconTemperature size={18} />, onClick: () => setNewPlotKind('property') },
         { id: 'new-psychro-plot', label: 'Add psychrometric graph', leftSection: <IconTemperature size={18} />, onClick: () => setNewPlotKind('psychro') },
-        { id: 'new-analyzer', label: 'Add data analyzer', description: 'Import and explore measurement data (CSV/TSV)', leftSection: <IconWaveSine size={18} />, onClick: createAnalyzer },
+        { id: 'import-csv', label: 'Import CSV as function table', description: 'Two columns of a .csv become a function callable in the equations', leftSection: <IconFileTypeCsv size={18} />, onClick: importCsvAsFunctionTable },
         { id: 'new-state-table', label: 'Add fluid state table', description: 'Insert a STATE TABLE block (fluid-aware circuit) at the caret', leftSection: <IconTemperature size={18} />, onClick: () => insertFunction('STATE TABLE Circuit1(P1, T1, h2)\n  FLUID = Water\nEND\n') },
       ],
     },
@@ -2366,56 +2338,6 @@ export default function App() {
         )
       }
 
-      // Data Analyzer: rename + the signal browser (a measurement-suite-style
-      // dockable variable window) — import CSV or solved tables and assign channels to the
-      // selected strip without leaving the Inspector.
-      if (fw?.kind === 'analyzer') {
-        const an = analyzers.find((x) => `analyzer:${x.id}` === fw.id)
-        if (an) {
-          return (
-            <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: 10, paddingBottom: 4 }}>
-                <Stack gap="xs">
-                  <Text size="sm" fw={600} c="teal.4">Data Analyzer</Text>
-                  <TextInput
-                    size="xs"
-                    label="Analyzer name"
-                    value={an.name}
-                    onChange={(e) => {
-                      const value = e.currentTarget.value
-                      setAnalyzers((prev) => renameById(prev, an.id, value))
-                    }}
-                  />
-                </Stack>
-              </div>
-              <div style={{ flex: 1, minHeight: 0, padding: 10, paddingTop: 4 }}>
-                <Suspense fallback={lazyTabFallback}>
-                  <SignalBrowser
-                    spec={an}
-                    updateSpec={(mutate) =>
-                      setAnalyzers((prev) => prev.map((a) => (a.id === an.id ? mutate(a) : a)))
-                    }
-                    tables={tables}
-                    onCreateFunctionTable={(spec) => addFunctionTables([spec])}
-                  />
-                </Suspense>
-              </div>
-              <div style={{ padding: 10, paddingTop: 4 }}>
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="red"
-                  fullWidth
-                  onClick={() => deleteAnalyzer(an.id)}
-                >
-                  Delete analyzer
-                </Button>
-              </div>
-            </div>
-          )
-        }
-      }
-
       // Equations: surface the equation tools.
       if (fw?.kind === 'equations') {
         return (
@@ -2527,27 +2449,6 @@ export default function App() {
     terminal: 'Terminal',
     states: 'Fluid States',
     inspector: 'Inspector',
-  }
-
-  // Per-instance Data Analyzer windows ("analyzer:<id>"). Bulk samples live
-  // in the ChannelStore, never here.
-  for (const a of analyzers) {
-    const winId = `analyzer:${a.id}`
-    panelTitles[winId] = a.name
-    panelContent[winId] = (
-      <div style={{ height: '100%', minHeight: 0 }}>
-        <Suspense fallback={lazyTabFallback}>
-          <DataAnalyzerTab
-            key={`analyzer-${a.id}-${workspaceEpoch}`}
-            singleAnalyzerId={a.id}
-            analyzers={analyzers}
-            onAnalyzersChange={setAnalyzers}
-            tables={tables}
-            onCreateFunctionTable={(spec) => addFunctionTables([spec])}
-          />
-        </Suspense>
-      </div>
-    )
   }
 
   // Per-instance Plot windows: every plot (X-Y, property diagram, or
@@ -2745,14 +2646,6 @@ export default function App() {
         onSelect={(kind) => dockRef.current?.open(kind)}
         onClose={(kind) => dockRef.current?.close(kind)}
         onApplyLayout={(p) => dockRef.current?.applyPerspective(p)}
-        analyzers={analyzers.map((a) => ({ id: a.id, name: a.name, deletable: true }))}
-        analyzerCount={analyzers.length}
-        onOpenAnalyzer={(id) => {
-          const a = analyzers.find((x) => x.id === id)
-          if (a) dockRef.current?.openInstance(`analyzer:${id}`, 'analyzer', a.name)
-        }}
-        onNewAnalyzer={createAnalyzer}
-        onDeleteAnalyzer={deleteAnalyzer}
         onPreferences={() => setShowPreferences(true)}
         onAbout={() => setShowAbout(true)}
       />
@@ -2919,7 +2812,6 @@ export default function App() {
             stopCriteria={{ ...stopCriteria, complexMode }}
             variableInfo={buildVariableInfo()}
             functionTables={functionTableDtos()}
-            analyzers={analyzers}
             tables={tables}
             onApply={(next) => applyText(next)}
           />
@@ -3055,10 +2947,11 @@ export default function App() {
         onClose={() => setDialogError(null)}
       />
 
-      {/* Self-dismissing project-load summary (template mode, §2.5b). */}
+      {/* Self-dismissing project-load summary (the D10/D11 inert-slice
+          notices: data preserved in the file, feature no longer shown). */}
       {loadNotice !== null && (
         <Alert
-          icon={<IconWaveSine size={16} />}
+          icon={<IconInfoCircle size={16} />}
           color="teal"
           withCloseButton
           onClose={() => setLoadNotice(null)}

@@ -1,0 +1,7 @@
+MovingBoundaryEvaporator EV(fluid$=R134a, U_tp=2000, U_sh=200, D=0.01, L=5, eps_zone=0.01)
+TwoPhaseSource SRC(fluid$=R134a, mdot=0.02, P=350000, x=0.25)
+TwoPhaseSink SNK()
+ThermalSource WALL(T=283)
+connect(SRC.out, EV.in)
+connect(EV.out, SNK.in)
+connect(EV.wall, WALL.port)

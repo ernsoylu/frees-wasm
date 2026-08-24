@@ -1,0 +1,7 @@
+TwoPhaseSource SRC(fluid$=R134a, mdot=0.02, P=500000, x=0.3)
+TwoPhaseFlowRes LINE(fluid$=R134a, L=2, D=0.008)
+TwoPhaseSensor SEN(fluid$=R134a)
+TwoPhaseSink SNK()
+connect(SRC.out, LINE.in)
+connect(LINE.out, SEN.in)
+connect(SEN.out, SNK.in)

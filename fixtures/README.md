@@ -5,11 +5,11 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1271
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1279
 fixtures/corpus/*.tables.json  request-level Function Tables for the document
                                beside them (10 — the curvefn group; see below)
-fixtures/golden/*.json         what the Java engine produced for each     — 1271
-fixtures/corpus-pending/       the staging area: documents not yet promoted — 6
+fixtures/golden/*.json         what the Java engine produced for each     — 1279
+fixtures/corpus-pending/       the staging area: documents not yet promoted — 2
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -118,7 +118,7 @@ unspecified and differ between the JVM and Rust's libm.
 
 | Field | Rule |
 |---|---|
-| `variables` | relative tolerance `1e-9`; absolute `1e-12` near zero. A named fixture may declare a looser *relative* tolerance in `fixtures/tolerances.json` — see below |
+| `variables` | relative tolerance `1e-9`; absolute `1e-12` near zero. A named fixture may declare a looser *relative* tolerance in `fixtures/tolerances.json` — see below. A *named variable of a named fixture* may instead be graded by a declared **absolute** tolerance, for a quantity whose true value is a structurally exact zero — see *The absolute channel* below |
 | `display_names` | exact |
 | `block_count` | exact — a different blocking is a real divergence |
 | `error` | `type` exact; `message` **not** compared verbatim (see below) |
@@ -227,7 +227,7 @@ cfg that selects the property backend:
 | file | grades | entries |
 |---|---|---:|
 | `tolerances.json` | the D1 `(P,h)` `TableBackend` | 23 |
-| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 56 |
+| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 64 relative + 8 absolute |
 
 They cannot be merged, because the "dead tolerance" guard above is what makes
 them backend-specific: thirteen of the 23 entries exist only because of the
@@ -331,6 +331,84 @@ the steepest part of the correlation. The *operating point* sets that number:
 the same grid grades `sysdesign-ex11-liquid-cooling-loop`, which sits off the
 blend, at `1.310e-4`. A future fixture with a similar tolerance should be able
 to point at a similarly specific mechanism, or it is hiding something.
+
+#### The absolute channel — an exact zero has no denominator (Wave P1, 2026-08-24)
+
+`tolerances-rustprop.json` carries a third graded section, `absolute`, and it
+exists for a shape a relative measure cannot express at all: a quantity that is
+**identically zero by physics**. A condenser outlet still inside the dome makes
+`SC = Tcond − Temperature(P,h)` exactly 0; an evaporator outlet below `hg` makes
+`SH = Temperature(P,h) − Tsat` exactly 0. In every one of the eight fixtures that
+use the channel, the CoolProp 8.0.0 wheel returns *the same `f64`* for
+`Temperature(P,h_out)` and for `T_sat(P)` — difference exactly `0.0`, not merely
+small — and the golden's own `Tcond`/`tsat` is that same bit pattern. This engine returns `0` or one ulp of a
+~310 K temperature (`±5.7e-14`). The Java answers the same call from its
+`(P,Hmass)` interpolation table and returns `2.8e-7 … 1.5e-6` K, so **the golden
+asserts the oracle's own table error**, every such variable reads `rel ≈ 1.0` by
+denominator collapse, and no `relative` the harness accepts (`> 1e-9`, `< 1e-2`)
+can pass it. Like the decayed-signal measure above this is a *measure
+correction*, not a relaxation — it grades the thing that is actually being
+compared.
+
+It is deliberately **narrower than a relative entry in two ways**. It is **per
+variable**: an entry names the variables it covers, so every other variable in
+the document stays on the ordinary relative tolerance and a second divergence
+elsewhere still fails. `chgclosed-condensing-pressure-floats-with-ambient-and-charge`
+shows why that matters: `cnd.sc` is one of 21 variables there, and one number
+applied to all 21 at the ceiling would forgive `1e-4` kg/m³ on `cnd.rho_in`,
+whose **real** divergence is `4.48e-5` kg/m³ — the `(P,Hmass)→Dmass` gap the
+fixture exists to grade, passing silently. And it grades `variables` **only**:
+ODE row cells, `end_time` and event times keep the relative measure plus the
+Wave-G1 scale anchor, which is the same idea applied to a trajectory. All eight
+fixtures carry *both* kinds of entry — one variable absolute (two, in
+`two-phase-distributed-…-multi-cell-coil`), everything else on a measured
+`relative`.
+
+Its guards mirror the relative ones, with two the relative channel cannot have:
+
+* an entry whose fixture is absent from `fixtures/golden/` fails; an entry naming
+  a variable the golden does not have fails; so does one the replay never
+  reaches;
+* a covered variable that **passes at its fixture's relative tolerance** fails —
+  a dead channel dies like a dead tolerance;
+* `1e-12 < absolute < 1e-4`. Below the floor the harness already accepts the
+  difference. The ceiling is argued in kelvin because that is the unit every
+  instance is in: the smallest *legitimately* non-zero superheat this corpus
+  grades is `0.2522` K
+  (`chiller-higher-refrigerant-flow-delivers-more-cooling-2`, held open by a zone
+  ramp and agreed to four figures by both engines), so `1e-4` K is 2 500× below
+  the smallest real signal of this kind — and it also sits under the worst
+  `(P,Hmass)→T` table error the corpus has measured (`1.53e-4 … 1.56e-4` K, the
+  three chiller entries), so an entry needing more is claiming a bigger oracle
+  artifact than any yet measured and owes fresh evidence, not a bigger number.
+  The eight instances sit 44×…240× under it;
+* `absolute ≤ 2 · |golden|` for that variable, checked at replay. This is what
+  makes the channel self-limiting: where the true value is zero the golden **is**
+  the oracle's error, so forgiving more than twice it stops forgiving the
+  oracle's artifact and starts hiding this engine's — and the channel can never
+  be pointed at a healthy variable in order to widen it. The measured-×1.5 rule
+  leaves ~33 % of slack under the bound. One limit follows and is accepted: a
+  golden of exactly `0.0` admits no entry at all, because if the *port* returns
+  more than `1e-12` where the oracle returns a true zero, the artifact is on this
+  side;
+* a covered variable is kept **out of** the dead-relative-tolerance guard's
+  `worst`, since its `rel ≈ 1.0` would keep a dead `relative` on the same fixture
+  looking alive for ever.
+
+Validated red before it was used, the way the `ode_tables` comparison and the G1
+measure were: four deliberate breakages in one run on 2026-08-24 — a tolerance
+tightened under the measured gap, one raised over the `2 · |golden|` bound, one
+pointed at a healthy variable, one pointed at a variable that does not exist —
+each producing its own message in one `4/1257` run, then restored.
+`tests/parity.rs`'s module docs quote all four verbatim. The fourth also proved
+the channel is load-bearing rather than decorative: with its entry pointed at a
+misspelled name, the variable it should have covered fell through to the
+ordinary measure and failed there —
+
+```text
+  [accomp-air-coil-cools-and-dehumidifies] `coil.ev.sh` = 0 but Java got
+  -0.0000012156851880718025 (rel 1e0, tolerance 2e-7)
+```
 
 Error *messages* are not compared literally. The Java engine emits long,
 domain-specific guidance ("A common cause: an element chain with no constitutive
@@ -558,6 +636,40 @@ Extend it further from, in rough order of value:
      `moving-boundary-hx-transient-warmup-births-superheat-zone-on-ida`,
      `two-phase-distributed-temperature-glides-along-a-multi-cell-coil`,
      `two-phase-domain-two-phase-chain-computes-quality-void-and-pressure-glide`.
+
+     ***Four of the five promoted at Wave P1 (2026-08-24)***, once
+     `tests/parity.rs` had the **absolute channel** — see *The absolute
+     channel* under **Comparison policy**. They were re-harvested with
+     `tools/harvest-java-tests/harvest.py --out …` — it emits only what nothing
+     has staged, which was these eleven on the day, and it rewrote
+     `harvest-manifest.json` byte-identically — oracled with
+     `tools/golden-dumper/run.sh` into a scratch directory, and
+     leaf-probed against the CoolProp 8.0.0 wheel at the Java's own inputs.
+     In every one the wheel's `Temperature(P,h)` and its own `T_sat(P)` are the
+     same `f64`, difference exactly `0.0`, and the golden's own `tsat` is that
+     bit pattern — outlet qualities 0.2023, 0.2046, 0.3028, 0.4701, 0.6390, so
+     none is a dome-edge artifact. Each took an absolute entry plus a *very*
+     tight relative one, because outside the zero these documents are almost
+     bit-exact: `…-collapses-smoothly` and `…-undersized-evaporator` (`ev.sh`
+     absolute 2.1e-6 K, measured 1.378899e-6; relative **7.4e-9**, measured
+     4.956894e-9 on `ev.t_out` — the other 38 of their 40 variables agree with the
+     oracle inside the harness's own `1e-12` absolute floor), `two-phase-distributed-…-multi-cell-coil` (`s1.sh` 2.3e-6 K
+     and `s2.sh` 1.8e-6 K — **two** exact zeros, with the Java's tabulated
+     error carrying *opposite signs* at the two neighbouring pressures;
+     relative 8.0e-9, measured 5.306466e-9) and
+     `two-phase-domain-…-pressure-glide` (`sen.sh` 1.9e-6 K, measured
+     1.263309e-6; relative 6.6e-9, measured 4.380011e-9). Corpus 1257 → 1261.
+
+     **The fifth is still not staged**, and the absolute channel alone does not
+     reach it. `moving-boundary-hx-transient-warmup-births-superheat-zone-on-ida`
+     puts its exact zero in a *variable* the channel would cover — `sh_start =
+     MinValue('ev.sh')`, 0 here against 1.378899e-6 in the oracle — but its
+     `ida` trajectory also diverges on `ev$sh` at **1.62e-5 scale-anchored**
+     (row 11, ours 9.93351603859169 against 9.93330957310827), with `sh_final`
+     at 8.12e-6 and `lsh_final` at 6.08e-8. That is two decades larger than the
+     1.38e-6 K table error the algebraic siblings show, so it is not the same
+     mechanism read through a trajectory; separating `ida-adaptive-path` from
+     `oracle-ph-table` there needs its own measurement, which P1 did not do.
    * **5 not staged — engine divergences, not tolerances.** Each is a real
      behavioural difference and a fixture would pin the difference, not the
      behaviour. Two are the Water/zone-HX guess-landscape family the Wave-I
@@ -851,13 +963,41 @@ field.) If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 6 documents
+### What is pending today — 2 documents
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact). Re-measured 2026-08-23 after Wave G3's per-step caches: **~5.6 min** (339 s, upper bound — the first 147 s shared the machine with a replay), from A5's ~12 min, converging to the same `dk` at rel ~8e-16; the whole replay is ~145 s, so one document still costs ~2.3× the gate and the hold stands | 1 | `dyn_accessor_live` |
-| **The golden asserts a non-zero value where the true answer is a structurally exact zero** (Wave A1, 2026-08-24 — the residue of the Wave-I property-chain row, whose other 14 documents were probed and promoted the same day). In each of these four the two-phase plateau makes the quantity identically zero: a condenser outlet still inside the dome, so `SC = Tcond − Temperature(P,h)` is exactly 0, or an evaporator outlet below `hg`, so `SH = Temperature(P,h) − Tsat` is exactly 0. The CoolProp 8.0.0 wheel confirms it — `Temperature(P, h_out)` equals `T_sat(P)` **to the last bit** at all four states — and this port returns `0` or `±5.7e-14`, while the Java's `(P,Hmass)→T` table returns `2.798e-7` (`chgclosed-charge-chain`), `1.183e-6` (`chgclosed-condensing…`), `5.686e-7` (`tpcharge-charge-sets…`) and `−1.216e-6` K (`accomp-air-coil`, on `SH`). A relative measure has no denominator against an exact zero, so every one reads `rel ≈ 1.0` and **no `relative` the harness will accept (`> 1e-9`, `< 1e-2`) can pass them** — this is a golden-side artifact on an exact zero, not a divergence, and it is left here rather than papered over. Their *other* variables are ordinary `oracle-ph-table` gaps and would grade at 1.3e-7 … 3.8e-6; `chgclosed-charge-chain`'s `cnd.rho_in` at 3.767e-6 (wheel 70.35461467939413 vs golden 70.35487973927506, at 1.476 MPa / 435 kJ/kg) is the largest single R134a `Dmass` leaf error the corpus has measured. Closing them needs either an absolute-tolerance channel in `tests/parity.rs` (none exists, and adding one is a gate change, not a fixture change) or re-tuning the documents off the plateau and re-dumping — which would destroy the assertion each was harvested to make, since three of them are the zero-subcooling half of a deliberate pair | 4 | `accomp-air-coil-cools-and-dehumidifies`, `chgclosed-charge-chain-is-well-posed`, `chgclosed-condensing-pressure-floats-with-ambient-and-charge`, `tpcharge-charge-sets-condensing-pressure-and-subcooling` |
-| **The binding variable is not determined by the model** (Wave P2, 2026-08-24 — the one document of the Wave-J row that did not promote). Its property chain is an ordinary `oracle-ph-table` gap and grades at 2.6013e-6 on `cmp.w` behind a `cmp.s_in = Entropy(R1234yf, 350 kPa, 371807.7308757396)` leaf (wheel 1621.7136865052826, rustprop 1621.7136865049476, golden 1621.713895648847). Its **worst** variable is `rada.q_lat` at 5.4713e-6, and that is not a property gap at all. `MoistAirWallHX` clamps its outlet humidity with `out.W = 0.5·(in.W + W_sat − sqrt((in.W − W_sat)² + 1e-12))`; on the two **dry** coils here (`rada`, `conda`) the clamp never engages, so `in.W − out.W` is nothing but the `1e-12` regulariser — 5.07e-12 against an `in.W` of 0.01 — and `q_lat = mdot·2.501e6·(in.W − out.W)` divides by it, making **one ulp of `out.W` worth 3.4e-7 of `q_lat`**. The inputs are not the cause: `rada.t_out` is **bit-identical** between the engines and `rada.w_sat` agrees to 2.6e-15. `out.W` is a Newton unknown inside a ten-variable simultaneous block and the two iterates sit **16 ulps** apart; a plain double evaluation of the component's own clamp at the **Java's own** `W_sat` returns this port's `out.W` exactly, so the port is the self-consistent side — but neither value is *determined* to better than the solver's stop criterion (`1e-12` relative on a `1e-2`-scale residual, three orders looser than the gap being graded). The sibling `conda.q_lat` shows the volatility directly: **7.7832e-7 in the gate build and 6.2e-6 when the identical source is linked into `frees-cli` instead**. A declared relative tolerance would be pinning luck, so none is declared. The absolute gap is 6.2e-11 W, so an absolute channel would close it; re-tuning the document onto a wet coil would too (`evca`, the wet cabin coil in the same document, agrees at 3.1e-12). A wider relative number would not | 1 | `ev-tms-api-model-integrated-model-solves-with-plain-solver` |
+| **The same two mechanisms, from the Wave-J class sweep** (2026-08-24, growth item 3). Eighteen are `oracle-ph-table`: R134a/R1234yf/Water two-phase chains on `cmp.h_s`/`k.h_s`/`b1.q`/`cd.q_sc`/`ev.q_sh`/`rho_in`, three of them transient and graded scale-anchored. Worst divergence per fixture, measured uncapped at the corpus default: 4.71e-5 `moving-boundary-hx-condenser`, 1.98e-5 `moving-boundary-hx-evaporator`, 6.10e-6 each for the three rankine documents, 5.47e-6 `ev-tms-api-model`, 4.85e-6 `new-library-components`, 3.05e-6 `ev-tms-cabin-steady`, 2.50e-6 `dual-evap-debug`, 1.16e-6 `fluid-property-examples-example3-7`, 9.86e-7 `component-cycles-refrigeration`, 8.11e-7 `property-argument-seeding-subcritical`, 2.68e-7 and 8.72e-8 the two `component-variant-library-compressor` variants, 8.30e-8 `cooker-faithful`, 6.90e-9 `pressure-cooker-…-undersized-valve`, 2.02e-9 `real-fluid-properties-solves-vapor-compression-cycle`, 1.60e-9 `steady-by-integration-chiller-bridge`. The nineteenth is `ida-adaptive-path`'s explicit sibling and touches **no property**: a 4-node conduction rod through `ode45`, 274 diverging cells peaking at 1.40e-7 of the column range — pure adaptive-step interpolant noise. The last three sit within 10× of the corpus default and would very likely promote on a probe. Every one needs the same discipline as the row above: a per-entry wheel-vs-rustprop-vs-golden leaf probe, which this wave measured but did not perform | 19 | `component-cycles-rankine-components-solve`, `component-cycles-rankine-with-derived-property-boundaries-solves`, `component-cycles-refrigeration-components-solve`, `component-variant-library-compressor-defaults-to-isentropic-backward-compatible`, `component-variant-library-compressor-volumetric-variant-determines-mass-flow`, `cooker-faithful-reproduces-reference-with-electrical-heater`, `cycle-path-component-component-rankine-streams-produce-a-cycle-path`, `dual-evap-debug-check`, `dynamic-array-states-rod-with-ode45-also`, `ev-tms-api-model-integrated-model-solves-with-plain-solver`, `ev-tms-cabin-steady-operating-point`, `fluid-property-examples-example3-7-temperature-of-superheated-vapor`, `moving-boundary-hx-condenser-resolves-condensing-and-subcool-zones`, `moving-boundary-hx-evaporator-resolves-two-phase-and-superheat-zones`, `new-library-components-new-library-components-solve`, `pressure-cooker-cooker-over-pressurises-with-undersized-valve`, `property-argument-seeding-subcritical-inversion-across-dome-converges-from-default-guess`, `real-fluid-properties-solves-vapor-compression-cycle`, `steady-by-integration-chiller-bridge-reaches-consistent-steady-by-integration` |
+
+*(**The structurally-exact-zero row — the last four of the Wave-I
+property-chain 18 — left this table on 2026-08-24, Wave P1**, by a gate change
+rather than an engine change: `tests/parity.rs` grew an **absolute** channel
+(see *The absolute channel* under **Comparison policy** above), because the
+quantity those four assert is identically zero and a relative measure has no
+denominator against a zero. The four promoted with **two** entries each — one
+variable on the absolute channel, everything else on a measured `relative`:
+`accomp-air-coil-cools-and-dehumidifies` (`coil.ev.sh` absolute 1.8e-6 K,
+measured 1.215685e-6; relative 2.0e-7, measured 1.309431e-7 on `coil.ev.q_sh`),
+`chgclosed-charge-chain-is-well-posed` (`cnd.sc` absolute 4.2e-7 K, measured
+2.797688e-7; relative 5.7e-6, measured 3.767336e-6 on `cnd.rho_in` — still the
+largest single R134a `Dmass` leaf error the corpus has measured),
+`chgclosed-condensing-pressure-floats-with-ambient-and-charge` (`cnd.sc`
+absolute 1.8e-6 K, measured 1.183385e-6; relative 1.4e-6, measured 9.618416e-7)
+and `tpcharge-charge-sets-condensing-pressure-and-subcooling` (`cond.sc`
+absolute 8.5e-7 K, measured 5.685999e-7; relative 1.7e-6, measured 1.103548e-6).
+Every one was leaf-probed against the CoolProp 8.0.0 wheel at the **Java's own**
+inputs first, and in all four the wheel's `Temperature(P,h_out)` and its own
+`T_sat(P)` are the same `f64` — difference exactly `0.0` — with the golden's own
+`Tcond`/`tsat` that bit pattern too, so the golden's `2.8e-7 … 1.2e-6` K **is**
+the Java table's error at that state. Outlet qualities 0.0093, 0.0121, 0.0241
+and 0.935, so none of them is a dome-edge artifact either. `block_count` and
+`display_names` were exact on all four throughout.
+**The same channel also reached four documents the Wave-J sweep had left
+unstaged** — the "5 not staged — superheat ≈ 0" bullet under *Growing the
+corpus*, re-harvested and freshly oracled; that bullet carries their numbers
+and says why the fifth, a transient, still needs a measurement the absolute
+channel cannot supply. Corpus 1253 → 1261, pending 24 → 20.)*
 
 *(**Fourteen of the Wave-I property-chain row's 18 left this table on
 2026-08-24, Wave A1** — by probing, not by any engine change. Each was

@@ -6,7 +6,9 @@
 //! Rust engine and compares.
 //!
 //! Comparison policy (`fixtures/README.md`):
-//! * `variables` — relative tolerance `1e-9`, absolute `1e-12` near zero.
+//! * `variables` — relative tolerance `1e-9`, absolute `1e-12` near zero. A
+//!   *named variable of a named fixture* may instead be graded by a declared
+//!   **absolute** tolerance — see "The absolute channel" below.
 //!   Golden keys carry the Java first-seen spelling (`T_out`); the Rust engine
 //!   keys by lowercase canonical name, so keys are folded before matching.
 //!
@@ -108,6 +110,109 @@
 //!   exists and every catalogued mechanism must be named by an entry — see
 //!   [`declared_tolerances`].
 //!
+//! # The absolute channel (Wave P1)
+//!
+//! A relative measure has no denominator against an **exact zero**, and the
+//! corpus contains quantities that are identically zero by physics: a condenser
+//! outlet still inside the dome makes `SC = Tcond − Temperature(P,h)` exactly 0,
+//! an evaporator outlet below `hg` makes `SH = Temperature(P,h) − Tsat` exactly
+//! 0. The CoolProp 8.0.0 wheel confirms both — at all four states in
+//! `fixtures/tolerances-rustprop.json`'s `absolute` section, `Temperature(P,h)`
+//! equals `T_sat(P)` *to the last bit* — and this engine returns `0` or one ulp
+//! of a ~300 K temperature (`±5.7e-14`). The Java oracle answers the same call
+//! from its `(P,Hmass)` interpolation table and returns `2.8e-7 … 1.2e-6` K, so
+//! the golden asserts the oracle's own table error and every such variable reads
+//! `rel ≈ 1.0` by denominator collapse. Nothing is wrong with the engine; the
+//! *channel* was missing.
+//!
+//! So the tolerance file may carry an `absolute` section, and it is deliberately
+//! **narrower than a relative entry in two ways**:
+//!
+//! * it is **per variable**, not per fixture — an absolute entry names the
+//!   variables it covers, so a second divergence anywhere else in the same
+//!   document still fails at the ordinary relative tolerance;
+//! * it grades `variables` only. ODE row cells, `end_time` and event times keep
+//!   the relative measure plus the scale anchor above, which is the same idea
+//!   applied to a trajectory.
+//!
+//! A covered variable passes when `|a − e| ≤ absolute`, and is left **out of the
+//! `worst` accumulator** that feeds the dead-relative-tolerance guard — its
+//! `rel ≈ 1.0` would otherwise keep a dead relative entry looking alive
+//! forever.
+//!
+//! Five guards: four mirror the relative channel's, and the last is one the
+//! relative channel cannot have. [`declared_absolutes`] owns the checks that
+//! need only the file, [`replay`] the ones that need the golden value, and
+//! [`golden_corpus_parity`] the two stale-entry sweeps:
+//!
+//! * an entry whose fixture is not in `fixtures/golden/` fails;
+//! * an entry naming a variable the golden does not have fails, and so does one
+//!   the replay never reaches — a typo must not silently grade nothing;
+//! * a variable that passes at its fixture's relative tolerance fails, exactly
+//!   as a dead relative entry does;
+//! * `ABS_TOL < absolute < ABS_CEILING`. The floor is the harness's own
+//!   near-zero acceptance, below which the entry could not change an outcome.
+//!   `ABS_CEILING` is `1e-4`, and the number is argued in kelvin because that is
+//!   the unit every instance is in: the smallest *legitimately non-zero*
+//!   superheat this corpus grades is 0.2522 K
+//!   (`chiller-higher-refrigerant-flow-delivers-more-cooling-2`, held open by a
+//!   zone ramp and agreed to four figures by both engines), so `1e-4` K is
+//!   2 500× below the smallest real signal of this kind, and it also sits under
+//!   the worst `(P,Hmass)→T` table error the corpus has measured (1.53e-4 …
+//!   1.56e-4 K, the three chiller entries) — an entry needing more than the
+//!   ceiling is claiming a bigger oracle artifact than any yet measured and owes
+//!   fresh evidence rather than a bigger number;
+//! * `absolute ≤ 2 · |expected|`, checked per variable against the golden. This
+//!   is the bound that makes the channel self-limiting: where the true value is
+//!   exactly zero, `|expected|` *is* the oracle's error, so forgiving more than
+//!   twice it stops hiding the oracle's artifact and starts hiding the port's
+//!   own. It also means the channel can never be pointed at a healthy variable
+//!   to widen it. The file's measured-×1.5 rule leaves ~33 % of slack under it,
+//!   deliberately.
+//!
+//! One limit follows from that last bound and is accepted: a golden of exactly
+//! `0.0` admits no absolute entry at all. If the *port* returns more than
+//! `ABS_TOL` where the oracle returns a true zero, the artifact is on this side
+//! and deserves an investigation, not a widening.
+//!
+//! Validated red the way the decayed-signal measure and the `ode_tables`
+//! comparison were — by breaking it four ways in one run on 2026-08-24 and
+//! watching each report land, then restoring. Observed, in a `4/1257` run:
+//!
+//! ```text
+//!   [chgclosed-charge-chain-is-well-posed] `cnd.sc` = 0.00000000000005684341886080802
+//!   but Java got 0.00000027976881256108754 (abs 2.797687557176687e-7, declared
+//!   absolute tolerance 1e-7)
+//!
+//!   [tpcharge-charge-sets-condensing-pressure-and-subcooling] declares an absolute
+//!   tolerance for `cond.sc` of 2e-6, which is more than 2x the 0.0000005685998871740594
+//!   the golden itself asserts there. Where the true value is an exact zero the golden
+//!   IS the oracle's error, so a tolerance above twice it stops forgiving the oracle's
+//!   artifact and starts hiding this engine's
+//!
+//!   [chgclosed-condensing-pressure-floats-with-ambient-and-charge] declares an
+//!   absolute tolerance for `cnd.rho_out`, which passes at the fixture's relative
+//!   tolerance 1.4e-6 (rel 4.7017152870485336e-8). Delete the absolute entry rather
+//!   than leaving a dead channel in the file.
+//!
+//!   [accomp-air-coil-cools-and-dehumidifies] declares an absolute tolerance for
+//!   `coil.ev.superheat`, which is not a variable of the golden fixture
+//!   [accomp-air-coil-cools-and-dehumidifies] declares an absolute tolerance for
+//!   `coil.ev.superheat` in fixtures/tolerances-rustprop.json, which the replay
+//!   never reached
+//! ```
+//!
+//! The fourth breakage reports twice, by design: a misspelled variable both
+//! grades nothing and leaves the entry unreached. It also produced the proof
+//! that this channel is load-bearing rather than decorative — with the entry
+//! pointed elsewhere, the variable it should have covered fell through to the
+//! ordinary measure and failed there:
+//!
+//! ```text
+//!   [accomp-air-coil-cools-and-dehumidifies] `coil.ev.sh` = 0 but Java got
+//!   -0.0000012156851880718025 (rel 1e0, tolerance 2e-7)
+//! ```
+//!
 //! # This replay needs the `rustprop-backend` feature
 //!
 //! Since Wave-3 F6/F8 the corpus holds twelve documents the `(P,h)`
@@ -124,6 +229,12 @@ use frees_core::{solve_with_tables, FreesError, SolverSettings};
 
 const REL_TOL: f64 = 1e-9;
 const ABS_TOL: f64 = 1e-12;
+
+/// The loosest absolute tolerance the `absolute` section may declare, in the
+/// graded variable's own SI unit. Argued in the module docs; in one line, it is
+/// 2 500× below the smallest legitimately non-zero superheat this corpus grades
+/// and below the worst `(P,Hmass)→T` table error it has measured.
+const ABS_CEILING: f64 = 1e-4;
 
 fn golden_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/golden")
@@ -218,6 +329,11 @@ fixtures/README.md.";
 /// A file with no `mechanisms` object is unaffected. That is
 /// `fixtures/tolerances.json`, whose 23 entries describe the table backend and
 /// predate the catalogue.
+///
+/// The citation set spans **both** graded sections — `fixtures` and `absolute`
+/// — because a mechanism can perfectly well have all of its instances in one of
+/// them, and the orphan check lives here. `declared_absolutes` checks the other
+/// direction for its own entries; each direction has exactly one owner.
 fn declared_tolerances() -> BTreeMap<String, f64> {
     let path = tolerance_path();
     let raw = match fs::read_to_string(&path) {
@@ -273,6 +389,11 @@ fn declared_tolerances() -> BTreeMap<String, f64> {
             (name.clone(), rel)
         })
         .collect();
+    for entry in doc["absolute"].as_object().into_iter().flatten() {
+        if let Some(mechanism) = entry.1["mechanism"].as_str() {
+            cited.insert(mechanism.to_string());
+        }
+    }
     let orphans: Vec<&String> = catalogue.difference(&cited).collect();
     assert!(
         orphans.is_empty(),
@@ -339,6 +460,123 @@ fn declared_solver_floors() -> BTreeMap<String, f64> {
                 path.display()
             );
             (name.clone(), rel)
+        })
+        .collect()
+}
+
+/// Declared **absolute** tolerances, from the same file's optional `absolute`
+/// object: fixture stem → variable key (the golden's key, lowercased) → the
+/// tolerance in that variable's own SI unit.
+///
+/// This is the channel for a quantity whose true answer is a *structurally
+/// exact zero*, where a relative measure has no denominator at all. The module
+/// docs carry the physics, the scoping argument and the two bounds; this
+/// function owns the three checks that need only the file:
+///
+/// * every entry states a `unit`, a `mechanism` the catalogue defines and a
+///   `reason` carrying the evidence — which variable, which leaf call, what the
+///   third-party oracle says. The harness cannot verify a unit string, but an
+///   absolute number without one is unreadable, so the field is mandatory;
+/// * every covered variable states both the declared `absolute` and the
+///   `measured` gap it was drawn from, and the declaration must cover its own
+///   measurement (the file's rule is measured ×1.5, to two significant figures);
+/// * `ABS_TOL < absolute < ABS_CEILING`.
+///
+/// The two guards that need the golden — the per-variable `2 · |expected|`
+/// ceiling and the dead-entry check — are in [`replay`], and the "names a
+/// variable nothing replayed" guard is in [`golden_corpus_parity`].
+fn declared_absolutes() -> BTreeMap<String, BTreeMap<String, f64>> {
+    let path = tolerance_path();
+    let raw = match fs::read_to_string(&path) {
+        Ok(raw) => raw,
+        // Absent is legitimate: it means no fixture needs the channel.
+        Err(_) => return BTreeMap::new(),
+    };
+    let doc: serde_json::Value = serde_json::from_str(&raw)
+        .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()));
+    let catalogue: BTreeSet<String> = doc["mechanisms"]
+        .as_object()
+        .map(|m| m.keys().cloned().collect())
+        .unwrap_or_default();
+    let Some(entries) = doc["absolute"].as_object() else {
+        return BTreeMap::new();
+    };
+    entries
+        .iter()
+        .map(|(name, entry)| {
+            assert!(
+                entry["reason"].as_str().is_some_and(|r| r.len() > 40),
+                "{}: absolute `{name}` needs a `reason` giving the evidence that the true \
+                 value is an exact zero — which variable, which leaf call, what the \
+                 third-party oracle says — not a placeholder",
+                path.display()
+            );
+            assert!(
+                entry["unit"].as_str().is_some_and(|u| !u.is_empty()),
+                "{}: absolute `{name}` needs a `unit`. An absolute tolerance is a \
+                 dimensional quantity and the number is unreadable without it",
+                path.display()
+            );
+            if !catalogue.is_empty() {
+                let mechanism = entry["mechanism"].as_str().unwrap_or_else(|| {
+                    panic!(
+                        "{}: absolute `{name}` needs a `mechanism` naming one of {catalogue:?}",
+                        path.display()
+                    )
+                });
+                assert!(
+                    catalogue.contains(mechanism),
+                    "{}: absolute `{name}` names mechanism `{mechanism}`, which the file's \
+                     `mechanisms` catalogue does not define (it has {catalogue:?})",
+                    path.display()
+                );
+            }
+            let vars = entry["variables"].as_object().unwrap_or_else(|| {
+                panic!(
+                    "{}: absolute `{name}` needs a `variables` object naming the variables it \
+                     covers. An absolute entry never widens a whole fixture",
+                    path.display()
+                )
+            });
+            assert!(
+                !vars.is_empty(),
+                "{}: absolute `{name}` covers no variable",
+                path.display()
+            );
+            let vars = vars
+                .iter()
+                .map(|(var, decl)| {
+                    let abs = decl["absolute"].as_f64().unwrap_or_else(|| {
+                        panic!(
+                            "{}: absolute `{name}` variable `{var}` needs a numeric `absolute`",
+                            path.display()
+                        )
+                    });
+                    let measured = decl["measured"].as_f64().unwrap_or_else(|| {
+                        panic!(
+                            "{}: absolute `{name}` variable `{var}` needs a numeric `measured` — \
+                             the gap the tolerance was drawn from",
+                            path.display()
+                        )
+                    });
+                    assert!(
+                        abs >= measured,
+                        "{}: absolute `{name}` variable `{var}` declares {abs:e} but records a \
+                         measured gap of {measured:e}, which it does not cover",
+                        path.display()
+                    );
+                    assert!(
+                        abs > ABS_TOL && abs < ABS_CEILING,
+                        "{}: absolute `{name}` variable `{var}` declares {abs:e}; at or under \
+                         {ABS_TOL:e} the harness already accepts the difference and the entry \
+                         changes nothing, and at or above {ABS_CEILING:e} it is loose enough to \
+                         hide a real divergence in a quantity whose true value is zero",
+                        path.display()
+                    );
+                    (var.clone(), abs)
+                })
+                .collect();
+            (name.clone(), vars)
         })
         .collect()
 }
@@ -679,12 +917,15 @@ fn function_tables_of(v: &serde_json::Value) -> Vec<frees_core::parser::defs::Fu
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn replay(
     path: &Path,
     tolerances: &BTreeMap<String, f64>,
     floors: &BTreeMap<String, f64>,
+    absolutes: &BTreeMap<String, BTreeMap<String, f64>>,
     used: &mut BTreeSet<String>,
     used_floors: &mut BTreeSet<String>,
+    used_absolutes: &mut BTreeSet<(String, String)>,
     failures: &mut Vec<Failure>,
 ) {
     let name = path
@@ -772,25 +1013,77 @@ fn replay(
                 })
                 .collect();
 
+            // The variables this fixture grades by an absolute tolerance
+            // instead — see "The absolute channel" in the module docs.
+            let covered = absolutes.get(&name);
             let mut worst = 0.0f64;
             for (var, &expected) in &golden_vars {
                 match actual_vars.get(var) {
                     None => fail(format!("missing variable `{var}` (expected {expected})")),
-                    Some(&actual) => {
-                        worst = worst.max(rel_diff(actual, expected));
-                        if !close(actual, expected, rel_tol) {
-                            fail(format!(
-                                "`{var}` = {actual} but Java got {expected} (rel {:e}, \
-                                 tolerance {rel_tol:e})",
-                                rel_diff(actual, expected)
-                            ));
+                    Some(&actual) => match covered.and_then(|c| c.get(var)) {
+                        // The ordinary path: relative tolerance, and the
+                        // reading feeds the dead-relative-tolerance guard.
+                        None => {
+                            worst = worst.max(rel_diff(actual, expected));
+                            if !close(actual, expected, rel_tol) {
+                                fail(format!(
+                                    "`{var}` = {actual} but Java got {expected} (rel {:e}, \
+                                     tolerance {rel_tol:e})",
+                                    rel_diff(actual, expected)
+                                ));
+                            }
                         }
-                    }
+                        // The absolute channel. `worst` deliberately does NOT
+                        // see this variable: its rel is ~1.0 by denominator
+                        // collapse, which would keep a dead *relative* entry on
+                        // the same fixture looking alive for ever.
+                        Some(&abs_tol) => {
+                            used_absolutes.insert((name.clone(), var.clone()));
+                            let diff = (actual - expected).abs();
+                            if abs_tol > 2.0 * expected.abs() {
+                                fail(format!(
+                                    "declares an absolute tolerance for `{var}` of {abs_tol:e}, \
+                                     which is more than 2x the {expected} the golden itself \
+                                     asserts there. Where the true value is an exact zero the \
+                                     golden IS the oracle's error, so a tolerance above twice it \
+                                     stops forgiving the oracle's artifact and starts hiding this \
+                                     engine's"
+                                ));
+                            }
+                            if close(actual, expected, rel_tol) {
+                                fail(format!(
+                                    "declares an absolute tolerance for `{var}`, which passes at \
+                                     the fixture's relative tolerance {rel_tol:e} (rel {:e}). \
+                                     Delete the absolute entry rather than leaving a dead channel \
+                                     in the file.",
+                                    rel_diff(actual, expected)
+                                ));
+                            } else if diff > abs_tol {
+                                fail(format!(
+                                    "`{var}` = {actual} but Java got {expected} (abs {diff:e}, \
+                                     declared absolute tolerance {abs_tol:e})"
+                                ));
+                            }
+                        }
+                    },
                 }
             }
             for var in actual_vars.keys() {
                 if !golden_vars.contains_key(var) {
                     fail(format!("extra variable `{var}` not in the golden fixture"));
+                }
+            }
+            // A variable named in the `absolute` section that the golden does
+            // not have grades nothing at all, silently. That is the same
+            // failure mode the dead-entry guards exist to prevent, one level
+            // down: the scope of an absolute entry is its variable names, so a
+            // typo there is a scope error.
+            for var in covered.into_iter().flatten().map(|(var, _)| var) {
+                if !golden_vars.contains_key(var) {
+                    fail(format!(
+                        "declares an absolute tolerance for `{var}`, which is not a variable of \
+                         the golden fixture"
+                    ));
                 }
             }
 
@@ -887,18 +1180,39 @@ fn golden_corpus_parity() {
 
     let tolerances = declared_tolerances();
     let floors = declared_solver_floors();
+    let absolutes = declared_absolutes();
     let mut used = BTreeSet::new();
     let mut used_floors = BTreeSet::new();
+    let mut used_absolutes = BTreeSet::new();
     let mut failures = Vec::new();
     for path in &paths {
         replay(
             path,
             &tolerances,
             &floors,
+            &absolutes,
             &mut used,
             &mut used_floors,
+            &mut used_absolutes,
             &mut failures,
         );
+    }
+
+    // An absolute declaration the replay never reached grades nothing — the
+    // fixture failed before its variables were compared, or the variable does
+    // not exist. Either way it is dead, and dead entries do not accumulate.
+    for (fixture, vars) in &absolutes {
+        for var in vars.keys() {
+            if !used_absolutes.contains(&(fixture.clone(), var.clone())) {
+                failures.push(Failure {
+                    fixture: fixture.clone(),
+                    detail: format!(
+                        "declares an absolute tolerance for `{var}` in \
+                         fixtures/{TOLERANCE_FILE}, which the replay never reached"
+                    ),
+                });
+            }
+        }
     }
 
     // A declaration for a fixture that is not in the corpus is a stale entry, and
@@ -907,6 +1221,7 @@ fn golden_corpus_parity() {
         .keys()
         .map(|n| ("fixtures", n))
         .chain(floors.keys().map(|n| ("solver_floor", n)))
+        .chain(absolutes.keys().map(|n| ("absolute", n)))
     {
         if !paths
             .iter()
@@ -941,12 +1256,19 @@ fn golden_corpus_parity() {
     println!(
         "parity: {} fixtures match the Java oracle through {} \
          ({} at a declared tolerance from fixtures/{TOLERANCE_FILE}: {}) \
-         ({} at a declared stop-criterion floor: {})",
+         ({} at a declared stop-criterion floor: {}) \
+         ({} variable(s) on the absolute channel: {})",
         paths.len(),
         frees_core::props::propfun::backend_description(),
         used.len(),
         used.iter().cloned().collect::<Vec<_>>().join(", "),
         used_floors.len(),
-        used_floors.iter().cloned().collect::<Vec<_>>().join(", ")
+        used_floors.iter().cloned().collect::<Vec<_>>().join(", "),
+        used_absolutes.len(),
+        used_absolutes
+            .iter()
+            .map(|(fixture, var)| format!("{fixture}:{var}"))
+            .collect::<Vec<_>>()
+            .join(", ")
     );
 }

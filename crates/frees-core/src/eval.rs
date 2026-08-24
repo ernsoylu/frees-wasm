@@ -2021,7 +2021,10 @@ pub fn eval_in<'a>(expr: &'a Expr, env: &'a Env<'a>) -> Result<f64> {
     }
 }
 
-fn apply_binop(op: BinOp, l: f64, r: f64) -> Result<f64> {
+/// `pub(crate)` since Wave A2: [`crate::solver::slots`] compiles a block's
+/// arithmetic to slot-indexed postfix and must combine operands through this
+/// exact function, or its answers would not be the oracle's.
+pub(crate) fn apply_binop(op: BinOp, l: f64, r: f64) -> Result<f64> {
     // The four element-wise operators degenerate to their scalar forms.
     let op = op.scalar_equivalent();
     match op {

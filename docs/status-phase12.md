@@ -190,6 +190,99 @@ dearer — the F7 record) and A5's per-step cache (which took `transient_dyn`
 run: chromium quantizes `performance.now()` to 100 µs; single-call samples;
 shipped-artifact numbers, not wasm's ceiling.
 
+### Measured 2026-08-24 (Wave A2): where the per-step transient path's instructions actually go
+
+Round 4 of the per-step work, and the first time the **remaining** recorded
+lever — interned/indexed variable access — was measured rather than assumed.
+Callgrind, `--cache-sim=no --branch-sim=no`, against the binary at `9924b0f`.
+Instruction counts, not seconds: three other agents were compiling on this
+machine and wall-clock was useless (the *same* binary ran
+`docs_tutorials_05` in 8.99 s and 13.11 s twenty seconds apart).
+
+**The string-keyed `Scope` really is the cost — on exactly two of four
+workloads.** Every figure below is a share of that document's whole run:
+
+| workload | total Ir | hashing + probing + key compare |
+|---|---|---|
+| `hot-transient` (2 160-step ode45 stand-in) | 532.8 M | **27.8 %** |
+| `hot-stiff` (the hostile MAX_STEPS regime) | 4 256.4 M | **27.8 %** |
+| `ev-battery-cooling-pid` (span cut to 0..0.4, 2 points) | 24 264.6 M | **12.5 %** |
+| `pressure-cooker` (property-bound algebra) | 5 522.2 M | **0.2 %** |
+
+Broken out on `hot-transient`: reads through `Env::get` are 72.1 M (13.5 %)
+over 659 898 calls, **~109 Ir to fetch one `f64` by name**; writes through
+`HashMap::<String, f64>::get_mut` are 60.1 M (11.3 %) over 598 968 calls,
+~100 Ir each; the separable remainder inside `solve_block` and
+`PreparedPinnedSolver::solve` is 14.4 M (2.7 %). Disassembling `Env::get`
+accounts for its 71 Ir of *self* cost exactly: a six-register frame, an
+out-of-line `hash_one` call for a four-byte key, an indirect `bcmp` through
+the GOT, and **six register spills** LLVM inserts around that call because it
+clobbers the probe loop's state.
+
+The last two rows are the finding that bounds the lever. `pressure-cooker`
+spends **69.3 %** in `rustprop_heos::alphar_all` and 7.8 % in `pow`;
+`ev-battery-cooling-pid` spends 38.5 % in `alphar_all` and 8.7 % in libm.
+Property-bound documents are not scope-bound, and no amount of interning
+touches them. Worth recording alongside it: timing all 983 corpus documents
+individually, **`ev-battery-cooling-pid` alone is 92.2 s of user time** and
+the next-heaviest is 8.6 s — so the replay's own duration is one document,
+and that document is property-bound.
+
+**What was built** — `crates/frees-core/src/solver/slots.rs`, the scoped
+version: a block's residuals and derivative entries compile **once**, in the
+Wave-G3 block cache, to postfix programs over a dense slot vector, and
+`solve_block` fills that vector from the `Scope` once per call instead of
+per access. Arithmetic only (`Num`/`Var`/`Neg`/`Not`/`BinOp`/`Compare`/
+`Logical`); anything else — every `Call` included — refuses to compile and
+the block keeps the `Expr`/`Scope` path verbatim, so the two never mix. The
+module header carries the byte-identity argument. Measured, cumulative:
+
+| | `hot-transient` | `hot-stiff` |
+|---|---|---|
+| baseline (`9924b0f`) | 532 799 194 | 4 256 417 733 |
+| compiled blocks | 486 467 370 (−8.70 %) | 3 886 812 306 (−8.68 %) |
+| + fused `lhs − rhs`, caller-sized stack, pin-only literal refresh | **464 988 465 (−12.73 %)** | **3 708 586 185 (−12.87 %)** |
+
+The second increment is worth −4.4 % on its own: the first cut's postfix
+interpreter was *no cheaper* than the recursive tree walk it replaced
+(`eval_program` alone was 13.7 % of the run), because it evaluated `lhs` and
+`rhs` as two programs and pushed and popped through a growable `Vec`.
+
+**`dyn_accessor_live`, the corpus's last cost hold**, run as back-to-back
+base/new pairs on the same loaded machine (byte-identical output, same
+`md5sum`): 237.13 → 201.00 s user (−15.2 %) and 268.05 → 216.47 s
+(−19.2 %). Both base runs are well above I2's 183.5 s quiet-machine anchor,
+which is the load showing; scaling the anchor by the measured ratios puts
+the document at **~150–156 s**. That is a real cut and it is **not enough to
+promote the hold** — the gate it has to fall under is the replay's own
+~136 s, and it is still above it.
+
+**Three negative results, all measured, none kept:**
+
+1. **`#[inline]` on `Env::get`: −0.04 %.** Nothing. The probe is already the
+   cheapest part of it.
+2. **A `refill(buffer, n, value)` helper** replacing the five `clear();
+   resize(n, v)` pairs across `newton.rs` and `solve_block` (identical
+   postcondition, skipping the length/capacity bookkeeping a per-step solve
+   pays three times per call): **−1.5 %.** Real and reproducible, but under
+   the standing ~3 % bar, so it was reverted rather than carried. It is the
+   cheapest thing left on the list if the bar ever moves.
+3. **A measurement trap worth more than either.** `cargo build --release -p
+   frees-cli` does **not** unify features, so `frees-core` builds without
+   `rustprop-backend` and takes the (P,h) table path. `hot-transient` then
+   measures **604.4 M Ir — 13.4 % higher — with no source change at all**.
+   Always build the binary you are profiling with `--release --workspace`.
+
+**Where the floor is now.** The compiled path still pays exactly two hashed
+accesses per `solve_block` call — filling the slot vector, and writing the
+answer back — measured at 51.4 M, **11.1 % of the new total**. That is this
+design's floor, and the only way past it is for the prep's own `work_scope`
+to become slot-native, which is a much larger change than this one and was
+deliberately not attempted. The next-largest remaining items on
+`hot-transient` are the allocator at 10.6 % (the per-call `Vec<&Equation>`
+is one `malloc` per `solve_block` call, 211 322 of them) and `eval_program`
+itself at 12.6 %.
+
 ---
 
 ## 4. The worker-death path, finally tested

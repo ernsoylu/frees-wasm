@@ -98,6 +98,10 @@ use crate::solver::blocker::{block_system, unknowns, Block, BlockingReport};
 use crate::solver::newton::{
     newton_solve_problem, newton_solve_problem_with, NewtonProblem, NewtonWorkspace, SolverSettings,
 };
+// Aliased: `slots` is also the natural name for a slot *vector* here, and the
+// two would shadow each other inside `solve_block`.
+use crate::solver::slots as slotexpr;
+use crate::solver::slots::CompiledBlock;
 use crate::units::registry::UnitRegistry;
 
 /// Initial value for an unknown with no `GUESS`.
@@ -1139,6 +1143,13 @@ struct PinnedBlockStruct {
     derivs: Option<Vec<Vec<Option<Expr>>>>,
     /// [`NewtonProblem::row_dependencies`] for this block, computed once.
     row_deps: Vec<Vec<usize>>,
+    /// Wave A2: this block's residuals and derivatives compiled to
+    /// slot-indexed postfix, when every one of them is arithmetic — see
+    /// [`crate::solver::slots`] for why that removes the string-keyed `Scope`
+    /// from the whole Newton solve, and why it is byte-identical. `None` is a
+    /// cached answer ("this block needs the `Expr`/`Scope` evaluator"), not a
+    /// cache miss.
+    compiled: Option<CompiledBlock>,
     /// Wave I: this block's cross-call solver buffers — [`solve_block`]'s own
     /// per-call vectors plus the Newton workspace. Value-independent by
     /// construction: every buffer is fully rewritten before it is read (see
@@ -1162,23 +1173,43 @@ struct BlockScratch {
     x: Vec<f64>,
     /// The initial-point probe residuals (write-only sink).
     probe: Vec<f64>,
+    /// Wave A2, compiled path only: this block's slot vector, refilled from
+    /// the `Scope` at the top of every call.
+    slots: Vec<f64>,
+    /// Wave A2, compiled path only: the residual literals, refilled per call
+    /// by [`crate::solver::slots::refresh_consts`] because the pin equations'
+    /// values are rewritten between calls.
+    consts: Vec<f64>,
+    /// Wave A2, compiled path only: the postfix evaluation stack, cleared by
+    /// every [`crate::solver::slots::eval_program`].
+    stack: Vec<f64>,
 }
 
 /// Build [`PinnedBlockCache`] for a prep's blocking report — the same code
 /// paths [`solve_block`] and `row_dependencies` run per call, executed once.
+///
+/// `template_len` is where the prep's *pin* equations start in `subsystem`.
+/// Everything before it is template, which the prep's cache key re-checks for
+/// full structural equality on every call; everything from it on is rewritten
+/// in place per call. [`crate::solver::slots`] needs that split to know which
+/// literals it may bake.
 fn pinned_block_cache(
     blocks: &[Block],
     subsystem: &[Equation],
+    template_len: usize,
     specs: &BTreeMap<String, VarSpec>,
 ) -> PinnedBlockCache {
     let per_block = blocks
         .iter()
         .map(|block| {
-            let block_equations: Vec<&Equation> = block
-                .equations
-                .iter()
-                .filter_map(|&i| subsystem.get(i))
-                .collect();
+            let mut block_equations: Vec<&Equation> = Vec::with_capacity(block.equations.len());
+            let mut volatile: Vec<bool> = Vec::with_capacity(block.equations.len());
+            for &i in &block.equations {
+                if let Some(equation) = subsystem.get(i) {
+                    block_equations.push(equation);
+                    volatile.push(i >= template_len);
+                }
+            }
             let bounds: Vec<(f64, f64)> = block
                 .variables
                 .iter()
@@ -1204,10 +1235,17 @@ fn pinned_block_cache(
                         .collect()
                 })
                 .collect();
+            let compiled = slotexpr::compile_block(
+                &block_equations,
+                &volatile,
+                &block.variables,
+                derivs.as_ref(),
+            );
             PinnedBlockStruct {
                 bounds,
                 derivs,
                 row_deps,
+                compiled,
                 scratch: RefCell::new(BlockScratch::default()),
             }
         })
@@ -1244,7 +1282,8 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             let mut seeded = self.specs.clone();
             seed_property_argument_guesses(&subsystem, &mut seeded, Missing::Create);
             let unknown_names = unknowns(&subsystem, &knowns);
-            let block_cache = pinned_block_cache(&report.blocks, &subsystem, &seeded);
+            let block_cache =
+                pinned_block_cache(&report.blocks, &subsystem, ordinary.len(), &seeded);
             // Wave I: the value map, built once in the exact insertion order
             // the per-call build used (constants, then unknowns), so its
             // layout — and every clone's — matches the old fresh build. The
@@ -3129,6 +3168,90 @@ impl NewtonProblem for BlockProblem<'_> {
     }
 }
 
+/// [`BlockProblem`] for a block whose every expression compiled to
+/// slot-indexed postfix (Wave A2).
+///
+/// Same contract, same arithmetic, same evaluation order — the difference is
+/// that the iterate lives in a dense `Vec<f64>` instead of the string-keyed
+/// `Scope`, so a residual read costs an index rather than a hash, a probe and
+/// a `bcmp`. [`crate::solver::slots`] carries the parity argument;
+/// `solve_block` only ever builds one of these for a block the cache compiled,
+/// and loads the slot vector out of `values` before it does.
+struct SlotBlockProblem<'a> {
+    compiled: &'a CompiledBlock,
+    /// The block's values, indexed by `compiled.names`' slot order.
+    slots: &'a mut Vec<f64>,
+    /// This call's volatile literals (see
+    /// [`crate::solver::slots::refresh_consts`]).
+    consts: &'a [f64],
+    /// The postfix evaluation stack, sized once per call and reused across
+    /// every program.
+    stack: &'a mut [f64],
+    row_deps: &'a Vec<Vec<usize>>,
+    /// As [`BlockProblem::last_property_error`]. The compiled subset cannot
+    /// raise a property refusal, but the arm is kept so the two paths read the
+    /// same and a widened subset stays correct.
+    last_property_error: &'a mut Option<String>,
+}
+
+impl SlotBlockProblem<'_> {
+    /// The counterpart of `BlockProblem`'s `get_mut`-or-insert loop: place the
+    /// iterate where the compiled programs will read it.
+    fn write_iterate(&mut self, x: &[f64]) {
+        for (slot, value) in self.compiled.unknown_slots.iter().zip(x) {
+            self.slots[*slot as usize] = *value;
+        }
+    }
+}
+
+impl NewtonProblem for SlotBlockProblem<'_> {
+    /// [`residuals_lenient`] over compiled programs: an invalid state point
+    /// poisons only its own slot with `NaN`, and the message is recorded, in
+    /// exactly the same per-equation positions.
+    fn residual(&mut self, x: &[f64], out: &mut [f64]) -> Result<()> {
+        self.write_iterate(x);
+        for (slot, program) in out.iter_mut().zip(&self.compiled.residuals) {
+            let residual = slotexpr::eval_program(program, self.slots, self.consts, self.stack);
+            match residual {
+                Ok(value) => *slot = value,
+                Err(err @ (FreesError::Evaluation { .. } | FreesError::Property { .. })) => {
+                    *slot = f64::NAN;
+                    *self.last_property_error = Some(err.to_string_message());
+                }
+                Err(other) => return Err(other),
+            }
+        }
+        Ok(())
+    }
+
+    fn row_dependencies(&self) -> Option<Vec<Vec<usize>>> {
+        Some(self.row_deps.clone())
+    }
+
+    fn analytic_jacobian_into(&mut self, x: &[f64], out: &mut [Vec<f64>]) -> bool {
+        let Some(derivs) = &self.compiled.derivs else {
+            return false;
+        };
+        for (slot, value) in self.compiled.unknown_slots.iter().zip(x) {
+            self.slots[*slot as usize] = *value;
+        }
+        for row in out.iter_mut() {
+            row.fill(0.0);
+        }
+        for (i, row) in derivs.iter().enumerate() {
+            for (j, entry) in row.iter().enumerate() {
+                if let Some(program) = entry {
+                    match slotexpr::eval_program(program, self.slots, self.consts, self.stack) {
+                        Ok(value) => out[i][j] = value,
+                        Err(_) => return false,
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
 /// Pre-differentiate every dependent (equation, variable) pair of a block —
 /// the symbolic half of the Java `NewtonSolver.analyticalJacobian`: residual
 /// `lhs − rhs` differentiated w.r.t. each block variable, entries skipped for
@@ -3212,22 +3335,69 @@ fn solve_block(
     let mut probe_local: Vec<f64>;
     let mut x_local: Vec<f64>;
     let mut block_scratch = cache.map(|c| c.scratch.borrow_mut());
-    let (x, probe, ws): (&mut Vec<f64>, &mut Vec<f64>, Option<&mut NewtonWorkspace>) =
-        match block_scratch.as_deref_mut() {
-            Some(BlockScratch { ws, x, probe }) => {
-                probe.clear();
-                probe.resize(n, 0.0);
-                (x, probe, Some(ws))
+    type SlotBufs<'s> = Option<(&'s mut Vec<f64>, &'s mut Vec<f64>, &'s mut Vec<f64>)>;
+    let (x, probe, ws, slot_bufs): (
+        &mut Vec<f64>,
+        &mut Vec<f64>,
+        Option<&mut NewtonWorkspace>,
+        SlotBufs<'_>,
+    ) = match block_scratch.as_deref_mut() {
+        Some(BlockScratch {
+            ws,
+            x,
+            probe,
+            slots,
+            consts,
+            stack,
+        }) => {
+            probe.clear();
+            probe.resize(n, 0.0);
+            (x, probe, Some(ws), Some((slots, consts, stack)))
+        }
+        None => {
+            probe_local = vec![0.0; n];
+            x_local = Vec::new();
+            (&mut x_local, &mut probe_local, None, None)
+        }
+    };
+
+    // Wave A2: take the slot-indexed path when the cache compiled this block
+    // *and* this call's expressions still match what it compiled — the literal
+    // walk and the name resolution are both checked here, and either failing
+    // falls back to the `Expr`/`Scope` evaluator below with nothing observable
+    // changed (only scratch buffers have been touched). See
+    // [`crate::solver::slots`].
+    /// The compiled block plus the three buffers its evaluation needs: the
+    /// slot vector, this call's volatile literals, and the postfix stack.
+    type SlotState<'s> = Option<(
+        &'s CompiledBlock,
+        &'s mut Vec<f64>,
+        &'s mut Vec<f64>,
+        &'s mut [f64],
+    )>;
+    let mut slot_state: SlotState<'_> = None;
+    if let (Some(compiled), Some((slots, consts, stack))) =
+        (cache.and_then(|cached| cached.compiled.as_ref()), slot_bufs)
+    {
+        if slotexpr::refresh_consts(&block_equations, &compiled.volatile, consts)
+            && consts.len() == compiled.const_count
+            && fill_slots(&compiled.names, values, slots)
+        {
+            if stack.len() < compiled.depth {
+                stack.resize(compiled.depth, 0.0);
             }
-            None => {
-                probe_local = vec![0.0; n];
-                x_local = Vec::new();
-                (&mut x_local, &mut probe_local, None)
-            }
-        };
+            slot_state = Some((compiled, slots, consts, stack.as_mut_slice()));
+        }
+    }
 
     let mut last_property_error: Option<String> = None;
-    match residuals_into(&block_equations, values, ctx, probe) {
+    let probe_result = match &mut slot_state {
+        Some((compiled, slots, consts, stack)) => {
+            slot_residuals_into(compiled, slots, consts, stack, probe)
+        }
+        None => residuals_into(&block_equations, values, ctx, probe),
+    };
+    match probe_result {
         Ok(()) => {}
         Err(err @ FreesError::Property { .. }) => {
             last_property_error = Some(err.to_string_message());
@@ -3236,12 +3406,24 @@ fn solve_block(
     }
 
     x.clear();
-    x.extend(
-        block
-            .variables
-            .iter()
-            .map(|name| values.get(name).copied().unwrap_or(DEFAULT_GUESS)),
-    );
+    match &slot_state {
+        // The slot vector was filled from `values` moments ago and the probe
+        // does not write it, so these are the same numbers the string-keyed
+        // arm reads — and `fill_slots` refused the call outright if a name was
+        // missing, which is the only case `DEFAULT_GUESS` covers.
+        Some((compiled, slots, _, _)) => x.extend(
+            compiled
+                .unknown_slots
+                .iter()
+                .map(|slot| slots[*slot as usize]),
+        ),
+        None => x.extend(
+            block
+                .variables
+                .iter()
+                .map(|name| values.get(name).copied().unwrap_or(DEFAULT_GUESS)),
+        ),
+    }
 
     // Per-variable bounds from the specs — the Java IterationContext lo/hi
     // arrays, threaded into all three clamp sites inside `newton_solve`.
@@ -3273,21 +3455,37 @@ fn solve_block(
             derivs_local.as_ref()
         }
     };
-    let outcome = {
-        let problem = BlockProblem {
-            names,
-            equations: &block_equations,
-            scope: &mut *values,
-            ctx,
-            derivs,
-            row_deps: cache.map(|cached| &cached.row_deps),
-            last_property_error: &mut last_property_error,
-        };
-        match ws {
-            // The cached path hands Newton this block's cross-call buffers;
-            // the fresh path is the old allocate-per-call entry, verbatim.
-            Some(ws) => newton_solve_problem_with(problem, x, settings, Some(bounds), ws),
-            None => newton_solve_problem(problem, x, settings, Some(bounds)),
+    let outcome = match slot_state {
+        // Wave A2. A compiled block always came from the cache, so the
+        // workspace and the row dependencies are always there.
+        Some((compiled, slots, consts, stack)) => {
+            let problem = SlotBlockProblem {
+                compiled,
+                slots,
+                consts: consts.as_slice(),
+                stack,
+                row_deps: &cache.expect("a compiled block is a cached block").row_deps,
+                last_property_error: &mut last_property_error,
+            };
+            let ws = ws.expect("a compiled block is a cached block");
+            newton_solve_problem_with(problem, x, settings, Some(bounds), ws)
+        }
+        None => {
+            let problem = BlockProblem {
+                names,
+                equations: &block_equations,
+                scope: &mut *values,
+                ctx,
+                derivs,
+                row_deps: cache.map(|cached| &cached.row_deps),
+                last_property_error: &mut last_property_error,
+            };
+            match ws {
+                // The cached path hands Newton this block's cross-call buffers;
+                // the fresh path is the old allocate-per-call entry, verbatim.
+                Some(ws) => newton_solve_problem_with(problem, x, settings, Some(bounds), ws),
+                None => newton_solve_problem(problem, x, settings, Some(bounds)),
+            }
         }
     };
 
@@ -3325,6 +3523,38 @@ fn residuals_into(
 ) -> Result<()> {
     for (slot, equation) in out.iter_mut().zip(equations) {
         *slot = eval_with(&equation.lhs, scope, ctx)? - eval_with(&equation.rhs, scope, ctx)?;
+    }
+    Ok(())
+}
+
+/// Fill `slots` with the compiled block's variables, in slot order.
+///
+/// Answers `false` — and the caller keeps the ordinary path — the moment a
+/// name is not in `values`. That is what makes the compiled arm's `x` exactly
+/// the string-keyed arm's `x`: `DEFAULT_GUESS` and the `lookup_constant`
+/// fallback inside [`crate::eval::eval_in`] are the only behaviours a missing
+/// name could have triggered, and neither can be reached from here.
+fn fill_slots(names: &[String], values: &Scope, slots: &mut Vec<f64>) -> bool {
+    slots.clear();
+    for name in names {
+        match values.get(name) {
+            Some(value) => slots.push(*value),
+            None => return false,
+        }
+    }
+    true
+}
+
+/// [`residuals_into`] over compiled programs — same order, same first error.
+fn slot_residuals_into(
+    compiled: &CompiledBlock,
+    slots: &[f64],
+    consts: &[f64],
+    stack: &mut [f64],
+    out: &mut [f64],
+) -> Result<()> {
+    for (slot, program) in out.iter_mut().zip(&compiled.residuals) {
+        *slot = slotexpr::eval_program(program, slots, consts, stack)?;
     }
     Ok(())
 }

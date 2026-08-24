@@ -1216,8 +1216,21 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 /// Java list back verbatim.
 ///
 /// Since D9 the subset is rustprop's `served_fluids` — Water, R134a, R1234yf,
-/// `Air` and the two glycol families — and `backend` below reports rustprop
-/// rather than the table list.
+/// `Air`, `CO2` and the two glycol families — and `backend` below reports
+/// rustprop rather than the table list. Only the five with a `plot_fluids()`
+/// entry reach this export; the glycol families are served for property calls
+/// but have no dome to draw.
+///
+/// `CO2` joined on **2026-08-24 (Wave C1), by owner request**. Its per-fluid
+/// data had been linked since Wave G2 — that is what makes
+/// `MolarMass(CarbonDioxide)` answer — but linking data and serving full states
+/// are different claims, so the fluid was deliberately kept off the picker until
+/// the second one was measured. It now is: a complete dome, every quality line,
+/// isentrope and isobar, and `(P,h)`/`(P,s)` round trips to machine precision
+/// from the triple point out to 400 K / 20 MPa. One curve is missing on purpose
+/// (the 220 K isotherm) and one divergence was needed to get the isobars (the
+/// cold-anchor walk, ledger item 38) — both are written up in
+/// `props/diagrams.rs`, and the amendment in D9 has the numbers.
 ///
 /// `Air` is on that list again as of Wave-2 (2026-08-18). D9 had dropped it
 /// with the `air.fraux` transport grid it was the only backing for, because
@@ -2161,8 +2174,87 @@ P2 = 101325 [Pa]
         // pseudo-pure glide intact — measured at 80 K, Q=0 gives
         // s = 26.64 J/kg/K at 114.6 kPa and Q=1 gives 2601.32 J/kg/K at
         // 82.3 kPa. So the picker offering Air is correct, not a leak.
-        assert_eq!(names, ["Air", "R1234yf", "R134a", "Water"], "{listed}");
+        //
+        // `CO2` joined on 2026-08-24 (Wave C1) by owner request — its data had
+        // been linked since Wave G2 but the fluid was held off the picker until
+        // full states were verified rather than assumed. Note the spelling: the
+        // canonical name is `CO2`, not `CarbonDioxide` (a document alias).
+        assert_eq!(
+            names,
+            ["Air", "CO2", "R1234yf", "R134a", "Water"],
+            "{listed}"
+        );
         assert_eq!(listed["available"], Value::Bool(true));
+    }
+
+    /// CO2 is the picker's transcritical case, and the one most likely to be
+    /// drawn wrong: its critical point (304.13 K / 7.377 MPa) and triple point
+    /// (216.59 K / 0.518 MPa) put most CO2 engineering *above* the dome, where a
+    /// dome-based generator can quietly degrade.
+    ///
+    /// This pins what Wave C1 measured rather than trusting the fluid list: a
+    /// complete dome, every quality line and isentrope, and — because of the
+    /// cold-anchor walk (ledger item 38) — every isobar. Without that walk two
+    /// of the three isobars are empty arrays, since CO2's steep melting line
+    /// puts `Ttriple + 0.5 K` inside the **solid** region above ~2.9 MPa.
+    #[test]
+    fn the_co2_diagram_is_complete_through_the_transcritical_region() {
+        let _guard = backend_guard();
+        frees_core::props::tables::install_builtin_once();
+
+        // T–s: the dome plus all nine quality lines and all three isobars.
+        let ts = parsed(&property_diagram("CO2", "T-s"));
+        assert!(ts.get("error").is_none(), "{ts}");
+        let dome: Vec<Option<f64>> =
+            serde_json::from_value(ts["dome"][0]["y"].clone()).expect("y array");
+        let finite: Vec<f64> = dome.iter().flatten().copied().collect();
+        assert_eq!(finite.len(), dome.len(), "the CO2 dome has gaps in it");
+        let lo = finite.iter().cloned().fold(f64::INFINITY, f64::min);
+        let hi = finite.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            lo >= 216.59 && hi <= 304.13,
+            "CO2 dome T range {lo}..{hi} should sit between the triple and critical points"
+        );
+
+        let isolines = ts["isolines"].as_array().expect("isolines");
+        let empty = |family: &str| {
+            isolines
+                .iter()
+                .filter(|c| c["family"] == family)
+                .filter(|c| c["x"].as_array().is_some_and(|a| a.is_empty()))
+                .count()
+        };
+        let count = |family: &str| isolines.iter().filter(|c| c["family"] == family).count();
+        assert_eq!(count("quality"), 9);
+        assert_eq!(empty("quality"), 0);
+        // Three isobars is the whole list for CO2 — ptriple/pcrit span 14x,
+        // against water's 36000x — so an empty one costs a third of the chart.
+        assert_eq!(count("isobar"), 3);
+        assert_eq!(empty("isobar"), 0, "an isobar vanished: {ts}");
+
+        // P–h is the chart CO2 is actually read on. Seven of eight isotherms
+        // and all seven isentropes; the 220 K isotherm is deliberately absent
+        // (its whole pressure window is compressed liquid — see
+        // `props/diagrams.rs::isotherms`).
+        let ph = parsed(&property_diagram("CO2", "P-h"));
+        assert!(ph.get("error").is_none(), "{ph}");
+        let ph_isolines = ph["isolines"].as_array().expect("isolines");
+        let drawn = |family: &str| {
+            ph_isolines
+                .iter()
+                .filter(|c| c["family"] == family)
+                .filter(|c| c["x"].as_array().is_some_and(|a| !a.is_empty()))
+                .count()
+        };
+        assert_eq!(drawn("isentrope"), 7);
+        assert_eq!(drawn("isotherm"), 7, "{ph}");
+
+        // The critical marker is CoolProp's, to five significant figures.
+        let t_crit = ph["markers"][0]["y"].as_f64().expect("marker y");
+        assert!(
+            (t_crit - 7_377_298.4).abs() < 200.0,
+            "critical pressure marker {t_crit}, want 7.3773 MPa"
+        );
     }
 
     /// The end-to-end proof that the plot path is *wired*, not just shaped: with

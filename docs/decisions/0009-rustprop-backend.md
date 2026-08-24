@@ -815,6 +815,167 @@ Checked against the tree, found correct, changed nothing:
 * `RealFluid` still has the five methods D8 named, and `RustpropBackend`'s
   `served_fluids` is `Water, R134a, R1234yf, Air, INCOMP::MEG, INCOMP::MPG`.
   `crates/frees-wasm/src/lib.rs:1988` still asserts the published picker is
-  `["Air", "R1234yf", "R134a", "Water"]`.
+  `["Air", "R1234yf", "R134a", "Water"]`. *(Both superseded 2026-08-24 by the
+  Wave C1 amendment at the end of this record: `CO2` joined the list, and the
+  assertion is now `["Air", "CO2", "R1234yf", "R134a", "Water"]`.)*
 * `fixtures/humidair/reference.json` is still 912 points over six case groups
   at CoolProp 8.0.0, and still graded in full.
+
+## Amendment — Wave C1: `CarbonDioxide` joins `served_fluids`
+
+**Status:** implemented
+**Date:** 2026-08-24
+**Amends** this record's `served_fluids` list under *Consequences and open
+risks* and the Wave-4 F9 amendment's "Verified and unmoved" bullet that quotes
+it, plus the picker assertion in `crates/frees-wasm/src/lib.rs`.
+
+**Owner request.** This is not a technical re-derivation like the D6 `Air`
+amendment below — nothing in the engine changed to make CO2 possible. Its data
+has been linked since **Wave G2 (2026-08-23)**, which added the
+`carbondioxide` feature to `rustprop-data` at a measured +25.5 KiB to close the
+`docs_fluids_materials_03` linkage hold. That change deliberately stopped short
+of the picker, and said so in `Cargo.toml`: *"Deliberately NOT added to
+`served_fluids` — the diagram picker is a separate, deliberate list."* The owner
+has now asked for the fluid. What follows is what was measured before agreeing.
+
+### The list
+
+```
+Water, R134a, R1234yf, Air, CO2, INCOMP::MEG, INCOMP::MPG
+```
+
+`CO2` is the canonical spelling — `plot_fluids()` emits it and
+`plot_fluids_available()` filters against it, so `"CarbonDioxide"` (a document
+alias) would have matched nothing and silently changed no list. The published
+picker is now `["Air", "CO2", "R1234yf", "R134a", "Water"]`; the glycol families
+are served for property calls but have no dome to draw.
+
+### What was verified
+
+CO2 is the interesting case precisely because its critical point (304.128 K,
+7.3773 MPa) and triple point (216.592 K, 0.51796 MPa) put most CO2 engineering
+**above** the dome, where a dome-based generator can degrade quietly. So the
+diagram generator and the property surface were driven directly, not assumed:
+
+* **Constants land on CoolProp**: `Tcrit` 304.1282000029807 K, `pcrit`
+  7377298.373446752 Pa, `Ttriple` 216.592 K, `ptriple` 517964.34344772575 Pa,
+  `molar_mass` 0.0440098. Reachable under all four spellings the resolver
+  accepts (`CO2`, `CarbonDioxide`, `R744`, `co2`).
+* **The dome is complete**: 400/400 points across both branches, 216.592 K to
+  the critical nudge, on all six diagram kinds; 200/200 on the single-branch
+  `P-T`. Nine of nine quality lines and seven of seven isentropes are full at
+  120/120. The critical marker reads (1433.06 J/kg-K, 304.1279 K) on `T-s` and
+  (332075.0 J/kg, 7377246.5 Pa) on `P-h`.
+* **Ordinary states round-trip to machine precision.** Saturation `(T,Q)` at
+  217/230/250/270/290/300/304 K for Q = 0, 0.5, 1; subcooled liquid, superheated
+  vapour, near-critical (304.2 K / 7.4 MPa, where `cp` reaches 76.2 kJ/kg-K —
+  the critical anomaly, present and finite) and supercritical to 400 K / 20 MPa.
+  `T(P,h)`, `T(P,s)` and `P(T,D)` return the input to 0 … 1.6e-10 K absolute
+  across all of them. No refusal, no non-finite value, anywhere in that sweep.
+
+### The one thing that broke, and it is CoolProp's physics
+
+Two of CO2's three isobars came back as **empty arrays** on `T-s`, `T-v` and
+`h-s` — not lines of gaps, zero-length curves — and one of its eight isotherms
+did the same on `P-h`/`P-v`.
+
+The cause is named by the error itself:
+
+```
+For now, we don't support T [217.092 K] below Tmelt(p) [217.5460 K]
+```
+
+That is CoolProp's melting-line guard, ported verbatim into rustprop. The
+generator anchors every isobar's cold end at a fixed `Ttriple + 0.5 K`, which is
+a fluid state for water (whose melting line leans the other way) and for R134a
+(whose triple pressure is 390 Pa) — both were probed at their own anchors and
+both answer at 0.5×, 1× and 2.5× `pcrit`. CO2's melting line is steep out of a
+0.518 MPa triple point (`Tmelt` = 217.12 K at 3 MPa, 220.36 K at 18.44 MPa), so
+that anchor is **solid** above ~2.9 MPa. The Java oracle with real CoolProp
+would produce exactly the same empty curves; this is not a port defect.
+
+It still costs CO2 a third of its `T-s` chart, because `ptriple`/`pcrit` span
+14× for CO2 against water's 36000× and `nice_log_values` therefore yields only
+three isobars in total. So the port now walks the cold anchor up to the coldest
+temperature at that pressure the backend will serve, by bisecting the refusal
+boundary between the known-bad anchor and the known-good hot end — the predicate
+is monotone in `T` at fixed `P`, so it converges on the melting line, which is
+where a physical isobar starts. **Ledger item 38**, and strictly additive: it
+runs only after a refusal that the Java turns into an empty curve, so it can
+only replace nothing with something. All three CO2 isobars now draw 120/120.
+Water, R134a, R1234yf and Air answer at the first anchor and are untouched,
+which is pinned by
+`props/diagrams.rs::the_cold_anchor_walk_is_inert_for_the_fluids_that_answer_at_once`.
+
+**The 220 K isotherm is left absent on purpose.** Walking its dense anchor down
+would "work" and would still be worthless: `Psat(220 K)` is 0.599 MPa, below the
+dilute anchor at `ptriple*1.2` = 0.622 MPa, so the entire pressure window at
+220 K is compressed liquid spanning 1166 → ~1170 kg/m3. The recovered curve
+would be a near-vertical 0.4 % stub — a worse answer than the honest absence.
+The other seven isotherms (240–360 K) are complete.
+
+### Parity
+
+One fixture promoted: **`props_realfluid_co2_transcritical`** — a booster cycle
+whose gas cooler runs at 9 MPa / 308.15 K, above the critical pressure. Corpus
+983 → **984**.
+
+Thirteen of its 25 variables are **bit-identical** to the Java oracle running
+real CoolProp, including every dome value (`P1`, `h1`, `s1`, `d1`, `hf`), both
+transport calls, the molar mass, and the supercritical density `d3`. Exactly one
+leaf differs — `h2s = Enthalpy(CarbonDioxide, P = 9 MPa, s = s1)`, the `(P,Smass)`
+flash, at 2.5361e-10 — and `w_c = h2 - h1` amplifies it 9.4× to 2.3731e-9, which
+`cop` inherits. It therefore needs a tolerance entry at **3.6e-9** (measured
+×1.5, this file's rule), on the existing `upstream-ps-flash-residual` mechanism,
+which now has a second instance and says so.
+
+The evidence that the golden is the loose side needs no third library here.
+Evaluated **at CoolProp's own reported state** (T = 356.5829506828403 K,
+rho = 184.1525333317221 kg/m3), rustprop returns `s`, `h` and `p` bit-identical
+to it — 1898.4802265842322, 487203.2950423514, 9000000.000000004. The equation
+of state is not in question at all; only the flash's stopping point is. That
+state reproduces the requested **pressure** to 4.4e-16 but the requested
+**entropy** only to 3.78e-10, and CoolProp's own two enthalpies for the leaf
+(487203.29466312914 through the flash, 487203.2950423514 at the state the flash
+reports) differ by 7.78e-10 — **three times the gap being graded**. rustprop's
+flash reproduces the pressure exactly and the entropy to 5.99e-16, and its
+487203.2947866893 lies between CoolProp's two.
+
+Note the residual surfaces in **entropy** here where the R134a instance showed
+it in **pressure**; the mechanism catalogue now records both signatures, since
+its text read as though pressure were the thing that slips.
+
+### The bundle
+
+Adding a fluid to a *list* should cost nothing, because Wave G2 already paid for
+the data. Measured, `wasm-pack build --release --target web`, post-`wasm-opt`:
+
+| | raw | gzipped |
+|---|---:|---:|
+| before | 3 189 435 B (3114.7 KiB) | 1 300 309 B (1269.8 KiB) |
+| after | 3 189 577 B (3114.8 KiB) | 1 300 348 B (1269.9 KiB) |
+| **delta** | **+142 B (+0.14 KiB)** | **+39 B (+0.04 KiB)** |
+
+142 bytes: the `"CO2"` string, its `Vec` entry, and the cold-anchor bisection.
+**3114.8 KiB of the 4096 KiB budget, 981.2 KiB headroom.** If a future
+re-measurement of this kind shows more than a few hundred bytes, something other
+than the list changed.
+
+### Open
+
+* `Hydrogen` remains unlinked and unasked-for — the other half of the pair
+  `fixtures/README.md` has tracked since the Phase-6 triage.
+* The cold-anchor walk defends the isobars' cold end only. The hot anchor
+  (`Tcrit * 1.15`) sits comfortably inside every served fluid's EOS range and
+  never refused in this sweep, so it was left alone rather than defended
+  speculatively.
+* **`rustprop_warm.rs`'s `warm_t_of_p_hmass_costs_tens_of_microseconds` fails
+  on a loaded machine, and did so before this change.** It asserts a 50 µs
+  wall-clock median and measured 83.1 µs during this wave's gate run, at load
+  average 16.9 with concurrent agents on the box. Verified not to be this
+  change's doing by stashing the whole diff and re-running at HEAD: it fails
+  there too, at 85.8 µs. Nothing here touches the warm path — `served_fluids`
+  is consulted only by `plot_fluids_available`, never by `props_si`. This is
+  the zero-headroom timing assertion `docs/status-wave3-f7.md` already flags;
+  it has a one-shot retry built in and that is evidently not enough under this
+  kind of load.

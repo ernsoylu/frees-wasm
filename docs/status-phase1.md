@@ -550,6 +550,32 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     is untouched: no measurement fixture ever entered `fixtures/corpus`, and
     the replay still matches all **983** goldens.
 
+39. **A property diagram's cold isobar anchor is walked to the melting line
+    rather than fixed at `Ttriple + 0.5 K` (Wave C1, 2026-08-24).** The Java's
+    `PropertyDiagrams.sweepEntropyAtPressure` anchors every isobar's cold end at
+    a fixed `Ttriple + 0.5` and emits a **zero-length curve** — not a line of
+    gaps — when that single call fails. For water and R134a it never does. For
+    `CO2`, which reached `served_fluids` in the same wave, it fails for every
+    pressure above ~2.9 MPa: CO2's melting line is steep out of a 0.518 MPa
+    triple point (`Tmelt` = 217.12 K at 3 MPa, 220.36 K at 18.44 MPa), so the
+    anchor is a **solid** state and CoolProp refuses it by name (*"For now, we
+    don't support T [217.092 K] below Tmelt(p)"*). Two of CO2's three isobars
+    vanished — and three is the whole list, because `ptriple`/`pcrit` span 14×
+    for CO2 against water's 36000×. This port bisects the refusal boundary
+    between the known-bad anchor and the known-good hot end (the predicate is
+    monotone in `T` at fixed `P`) and anchors on the melting line instead, which
+    is where a physical isobar starts. **Strictly additive**: it runs only after
+    a refusal the Java turns into an empty curve, and Water, R134a, R1234yf and
+    Air all answer at the first anchor, unchanged and pinned by
+    `the_cold_anchor_walk_is_inert_for_the_fluids_that_answer_at_once`. The
+    matching failure on the `P-h`/`P-v` isotherms is deliberately **not** fixed:
+    CO2's 220 K isotherm loses its dense anchor to the same guard, but its whole
+    pressure window there is compressed liquid (`Psat` = 0.599 MPa sits below
+    the dilute anchor at 0.622 MPa), so a recovered curve would be a
+    near-vertical 0.4 % stub — worse than the honest absence. Written up in the
+    Wave C1 amendment to
+    [D9](decisions/0009-rustprop-backend.md).
+
 ## Commands
 
 ```bash

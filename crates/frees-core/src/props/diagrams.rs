@@ -301,10 +301,47 @@ impl Generator {
         out
     }
 
+    /// One isobar, swept in entropy between a cold and a hot anchor.
+    ///
+    /// The Java pins the cold anchor at `Ttriple + 0.5` and emits **no curve at
+    /// all** — a zero-length array, not a line of gaps — when that one call
+    /// fails. For every fluid the upstream picker offers that is harmless,
+    /// because `Ttriple + 0.5` is a fluid state at every pressure *if the
+    /// melting line leans the way water's and R134a's do*.
+    ///
+    /// CO2's does not, and the diagram is the poorer for it. Its triple point
+    /// sits at 0.518 MPa with a steep melting line (`Tmelt` = 217.12 K at 3 MPa,
+    /// 220.36 K at 18.44 MPa), so the cold anchor is inside the **solid** region
+    /// for every pressure above ~2.9 MPa, and CoolProp refuses it by name:
+    /// `"For now, we don't support T [217.092 K] below Tmelt(p) [217.55 K]"`.
+    /// Two of CO2's three isobars come back empty — on a diagram where three is
+    /// already the entire list, because `ptriple`/`pcrit` span 14x for CO2
+    /// against water's 36000x.
+    ///
+    /// So this port walks the cold anchor up to the coldest temperature at this
+    /// pressure the backend will actually answer, by bisecting the refusal
+    /// boundary between the known-bad anchor and the known-good hot end (see
+    /// `coldest_entropy_at_pressure`). That lands on the melting line, which is
+    /// where a physical isobar starts.
+    ///
+    /// **Deliberate divergence, and strictly additive** (ledger item 38): the
+    /// walk runs only after a refusal the Java turns into an empty curve, so it
+    /// can only replace nothing with something. Water, R134a, R1234yf and Air
+    /// all answer at the first anchor and are untouched — pinned by
+    /// `the_cold_anchor_walk_is_inert_for_the_fluids_that_answer_at_once`.
+    ///
+    /// The hot anchor is deliberately *not* given the same treatment: `Tcrit *
+    /// 1.15` sits comfortably inside every served fluid's EOS range, and never
+    /// refused in the Wave-C1 sweep. Only the end that actually breaks is
+    /// defended.
     fn sweep_entropy_at_pressure(&self, family: &str, label: &str, p: f64) -> Curve {
         let t_max = self.limits.t_crit * 1.15;
-        let s_low = props_si_or_nan("S", "P", p, "T", self.limits.t_triple + 0.5, &self.fluid);
+        let t_cold = self.limits.t_triple + 0.5;
+        let mut s_low = props_si_or_nan("S", "P", p, "T", t_cold, &self.fluid);
         let s_high = props_si_or_nan("S", "P", p, "T", t_max, &self.fluid);
+        if s_low.is_nan() && !s_high.is_nan() {
+            s_low = self.coldest_entropy_at_pressure(p, t_cold, t_max);
+        }
         let mut xs = Vec::new();
         let mut ys = Vec::new();
         if !s_low.is_nan() && !s_high.is_nan() {
@@ -321,6 +358,51 @@ impl Generator {
         }
     }
 
+    /// Entropy at the coldest temperature in `(t_refused, t_answered]` the
+    /// backend will serve at pressure `p`, or `NaN` if it never does.
+    ///
+    /// Bisection is sound here because the predicate is **monotone in `T` at
+    /// fixed `P`**: a state below the melting line is refused and every state
+    /// above it is served, so "answers" flips exactly once across the bracket.
+    /// The bracket starts known-bad/known-good, which is the invariant the loop
+    /// maintains. 40 halvings take CO2's 133 K span below a nanokelvin — far
+    /// finer than needed, and still only 40 flashes on a curve that would
+    /// otherwise not exist.
+    ///
+    /// The returned value is always one the backend actually produced (never an
+    /// extrapolation to the boundary), so a curve built on it is as real as any
+    /// other point on the sweep.
+    fn coldest_entropy_at_pressure(&self, p: f64, t_refused: f64, t_answered: f64) -> f64 {
+        let mut lo = t_refused;
+        let mut hi = t_answered;
+        let mut coldest = f64::NAN;
+        for _ in 0..40 {
+            let mid = 0.5 * (lo + hi);
+            let s = props_si_or_nan("S", "P", p, "T", mid, &self.fluid);
+            if s.is_nan() {
+                lo = mid;
+            } else {
+                hi = mid;
+                coldest = s;
+            }
+        }
+        coldest
+    }
+
+    /// The `P-h`/`P-v` isotherms, swept in density between a dilute and a dense
+    /// anchor.
+    ///
+    /// This end of the same melting-line collision is left exactly as the Java
+    /// wrote it, and the choice is deliberate. CO2's coldest isotherm (220 K)
+    /// loses its **dense** anchor — `Dmass(T=220 K, P=pcrit*2.5)` is solid and
+    /// refused — so the curve is empty. Walking that anchor down to the melting
+    /// pressure the way `sweep_entropy_at_pressure` (above) walks its cold one
+    /// would "work" and would still be worthless: `Psat(220 K)` is 0.599 MPa,
+    /// below the dilute anchor at `ptriple*1.2` = 0.622 MPa, so the *entire*
+    /// pressure window at 220 K is compressed liquid spanning 1166 -> ~1170
+    /// kg/m3. The recovered isotherm would be a near-vertical 0.4 % stub, which
+    /// is a worse answer than the honest absence. The other seven CO2 isotherms
+    /// (240-360 K) are complete.
     fn isotherms(&self) -> Vec<Curve> {
         let mut out = Vec::new();
         for t in nice_linear_values(self.limits.t_triple, self.limits.t_crit * 1.2, 8) {
@@ -728,6 +810,109 @@ mod tests {
             assert_eq!(d.dome[0].x.len(), DOME_POINTS);
             assert!(d.isolines.is_empty());
         });
+    }
+
+    /// The cold-anchor walk (ledger item 38) must not move an anchor that
+    /// already answers — that is what makes it strictly additive rather than a
+    /// change to every fluid's chart. `ToyFluid` answers everywhere, so every
+    /// isobar must still start at exactly `S(P, Ttriple + 0.5)`, the Java's
+    /// anchor, to the last bit.
+    #[test]
+    fn the_cold_anchor_walk_is_inert_for_the_fluids_that_answer_at_once() {
+        with_toy(|| {
+            let d = generate("Toy", "T-s").unwrap();
+            // The toy's Ttriple is 280.0, so the Java anchor is 280.5 K and the
+            // T-s x-axis carries the entropy fed into the (P,S) flash.
+            let java_anchor = 1000.0 * libm::log(280.5);
+            for isobar in d.isolines.iter().filter(|c| c.family == "isobar") {
+                assert_eq!(
+                    isobar.x[0],
+                    Some(java_anchor),
+                    "isobar '{}' moved off the Java cold anchor",
+                    isobar.label
+                );
+            }
+        });
+    }
+
+    /// ...and it must rescue a curve the Java drops, for a fluid whose melting
+    /// line refuses that anchor. `Frozen` is CO2's geometry in miniature: a
+    /// steep melting line out of a high-pressure triple point, refusing exactly
+    /// as CoolProp does.
+    #[test]
+    fn the_cold_anchor_walk_rescues_an_isobar_the_java_leaves_empty() {
+        struct Frozen;
+        impl Frozen {
+            /// `Tmelt(p)`: 280 K at the 5e5 Pa triple point, rising steeply.
+            fn t_melt(p: f64) -> f64 {
+                280.0 + (p - 5.0e5) / 1.0e6
+            }
+        }
+        impl RealFluid for Frozen {
+            fn props1_si(&self, _fluid: &str, param: &str) -> Result<f64> {
+                match param {
+                    "Ttriple" => Ok(280.0),
+                    "Tcrit" => Ok(500.0),
+                    "ptriple" => Ok(5.0e5),
+                    "pcrit" => Ok(4.0e6),
+                    other => Err(FreesError::property(format!("no {other}"))),
+                }
+            }
+            fn props_si(
+                &self,
+                output: &str,
+                n1: &str,
+                v1: f64,
+                n2: &str,
+                v2: f64,
+                fluid: &str,
+            ) -> Result<f64> {
+                // Refuse solid states on the (P,T) route, exactly as CoolProp
+                // does ("we don't support T below Tmelt(p)"); otherwise defer to
+                // the analytic toy.
+                let (p, t) = match (n1, n2) {
+                    ("P", "T") => (v1, v2),
+                    ("T", "P") => (v2, v1),
+                    _ => (f64::NAN, f64::NAN),
+                };
+                if t.is_finite() && t < Frozen::t_melt(p) {
+                    return Err(FreesError::property(format!(
+                        "we don't support T [{t} K] below Tmelt(p) [{} K]",
+                        Frozen::t_melt(p)
+                    )));
+                }
+                ToyFluid.props_si(output, n1, v1, n2, v2, fluid)
+            }
+        }
+
+        let _guard = propfun::test_swap_guard();
+        let previous = propfun::install(Arc::new(Frozen));
+        let d = generate("Frozen", "T-s").unwrap();
+        restore_after(previous);
+
+        let isobars: Vec<&Curve> = d.isolines.iter().filter(|c| c.family == "isobar").collect();
+        assert!(!isobars.is_empty());
+        // Every isobar is drawn, including the ones whose 280.5 K anchor is
+        // solid (any p above 1.5e6, where Tmelt > 280.5).
+        for c in &isobars {
+            assert_eq!(c.x.len(), CURVE_POINTS, "isobar '{}' is empty", c.label);
+            assert!(
+                c.x.iter().any(Option::is_some),
+                "isobar '{}' is all gaps",
+                c.label
+            );
+        }
+        // The rescued anchor sits on the melting line, not at the Java's fixed
+        // 280.5 K: for the 2 MPa isobar, Tmelt = 281.5 K.
+        let two_mpa = isobars
+            .iter()
+            .find(|c| c.label == "2 MPa")
+            .expect("a 2 MPa isobar");
+        let anchor_t = libm::exp(two_mpa.x[0].unwrap() / 1000.0);
+        assert!(
+            (anchor_t - 281.5).abs() < 1.0e-6,
+            "2 MPa isobar starts at {anchor_t} K, want Tmelt = 281.5 K"
+        );
     }
 
     /// The gap encoding is the whole reason a partial backend is safe: a point

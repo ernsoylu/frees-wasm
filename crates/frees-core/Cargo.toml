@@ -42,8 +42,15 @@ rustprop-data = { git = "https://github.com/ernsoylu/RustProp", tag = "v0.1.0", 
     # Wave G2 (2026-08-23): CO2, for `MolarMass(CarbonDioxide)` — the last
     # property-linkage hold in the pending set (docs_fluids_materials_03).
     # Measured cost on the wire: +25.5 KiB raw / +19.5 KiB gzipped (ci.yml
-    # header's dated entry has the full numbers). Deliberately NOT added to
-    # `served_fluids` — the diagram picker is a separate, deliberate list.
+    # header's dated entry has the full numbers).
+    #
+    # G2 added the data but deliberately NOT the picker entry, on the rule that
+    # linking a fluid's data and listing it in `served_fluids` are separate
+    # decisions. Wave C1 (2026-08-24) took the second one, by owner request and
+    # after verifying full states rather than assuming them: CO2 is on
+    # `served_fluids` now, at a measured +142 bytes raw / +39 gzipped — which is
+    # what "the data was already linked" looks like. See the Wave C1 amendment
+    # to docs/decisions/0009-rustprop-backend.md.
     "carbondioxide",
 ], optional = true }
 # rustprop-core carries the shared parameter types. The warm adapter

@@ -1,0 +1,68 @@
+{
+  "name": "props_realfluid_co2_transcritical",
+  "source": "{ Real-fluid CO2 through the transcritical region — the states a booster cycle\n  actually reaches. CO2's critical point (304.13 K, 7.377 MPa) sits low enough\n  that the gas cooler runs ABOVE the dome rather than condensing, which is\n  exactly where a dome-shaped property backend is most likely to be wrong. }\n\nT_evap = 263.15 [K]     { -10 C }\nP_gc   = 9.0e6 [Pa]     { gas cooler, above the 7.377 MPa critical pressure }\nT_gc   = 308.15 [K]     { 35 C — supercritical, so this never condenses }\neta_c  = 0.75\n\n{ 1: evaporator outlet, saturated vapour on the dome. }\nP1 = P_sat(CarbonDioxide, T=T_evap)\nh1 = Enthalpy(CarbonDioxide, T=T_evap, x=1)\ns1 = Entropy(CarbonDioxide, T=T_evap, x=1)\nd1 = Density(CarbonDioxide, T=T_evap, x=1)\n\n{ 2: compression straight through the critical pressure. }\nh2s = Enthalpy(CarbonDioxide, P=P_gc, s=s1)\nh2  = h1 + (h2s - h1) / eta_c\nT2  = Temperature(CarbonDioxide, P=P_gc, h=h2)\n\n{ 3: gas cooler outlet. Supercritical — a (P,T) state, not a saturation one. }\nh3  = Enthalpy(CarbonDioxide, P=P_gc, T=T_gc)\nd3  = Density(CarbonDioxide, P=P_gc, T=T_gc)\ns3  = Entropy(CarbonDioxide, P=P_gc, T=T_gc)\ncp3 = Cp(CarbonDioxide, P=P_gc, T=T_gc)\n\n{ 4: isenthalpic expansion back under the dome. }\nh4 = h3\nx4 = Quality(CarbonDioxide, P=P1, h=h4)\nT4 = Temperature(CarbonDioxide, P=P1, h=h4)\n\n{ Saturated liquid and the triple/critical constants, for the dome itself. }\nhf     = Enthalpy(CarbonDioxide, T=T_evap, x=0)\nmu_f   = Viscosity(CarbonDioxide, T=T_evap, x=0)\nk_f    = Conductivity(CarbonDioxide, T=T_evap, x=0)\nM_co2  = MolarMass(CarbonDioxide)\n\nq_L = h1 - h4\nw_c = h2 - h1\nCOP = q_L / w_c\n",
+  "expect": {
+    "variables": {
+      "COP": 1.9603158616131977,
+      "M_co2": 0.0440098,
+      "P1": 2648676.6706960876,
+      "P_gc": 9000000.0,
+      "T2": 367.9024199594291,
+      "T4": 263.15000001414865,
+      "T_evap": 263.15,
+      "T_gc": 308.15,
+      "cp3": 5696.451047334558,
+      "d1": 71.1847862984094,
+      "d3": 662.1304610932093,
+      "eta_c": 0.75,
+      "h1": 435135.4461887768,
+      "h2": 504559.24415457994,
+      "h2s": 487203.29466312914,
+      "h3": 299042.8738629829,
+      "h4": 299042.8738629829,
+      "hf": 176520.59310844308,
+      "k_f": 0.12098949620470198,
+      "mu_f": 1.1880261287811607E-4,
+      "q_L": 136092.5723257939,
+      "s1": 1898.4802258672528,
+      "s3": 1316.1801081282563,
+      "w_c": 69423.79796580313,
+      "x4": 0.47376351085479884
+    },
+    "display_names": {
+      "cop": "COP",
+      "cp3": "cp3",
+      "d1": "d1",
+      "d3": "d3",
+      "eta_c": "eta_c",
+      "h1": "h1",
+      "h2": "h2",
+      "h2s": "h2s",
+      "h3": "h3",
+      "h4": "h4",
+      "hf": "hf",
+      "k_f": "k_f",
+      "m_co2": "M_co2",
+      "mu_f": "mu_f",
+      "p1": "P1",
+      "p_gc": "P_gc",
+      "q_l": "q_L",
+      "s1": "s1",
+      "s3": "s3",
+      "t2": "T2",
+      "t4": "T4",
+      "t_evap": "T_evap",
+      "t_gc": "T_gc",
+      "w_c": "w_c",
+      "x4": "x4"
+    },
+    "block_count": 25,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

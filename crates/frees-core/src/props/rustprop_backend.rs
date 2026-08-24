@@ -187,6 +187,32 @@ impl RealFluid for RustpropBackend {
     /// `docs/decisions/0009-rustprop-backend.md`. It does not make `Air`
     /// unserved — a fluid whose every state failed would not belong here, and
     /// this is a sliver at 79 K.
+    ///
+    /// `CO2` joined the list on **2026-08-24 (Wave C1), by owner request**. Its
+    /// data had been linked since Wave G2 — `MolarMass(CarbonDioxide)` answers,
+    /// and `fixtures/corpus/docs_fluids_materials_03.frees` has proved it since
+    /// — but the fluid was held off this list because linking data and serving
+    /// *full states* are different claims. The claim is now measured, not
+    /// assumed: the constants land on CoolProp (`Tcrit` 304.1282 K, `pcrit`
+    /// 7.377298 MPa, `Ttriple` 216.592 K, `ptriple` 517.964 kPa), the dome draws
+    /// 400/400 points across 216.592-304.128 K, all nine quality lines and all
+    /// seven isentropes are complete, and `(P,h)`/`(P,s)`/`(T,D)` round-trip to
+    /// machine precision over saturated, subcooled, superheated, near-critical
+    /// (304.2 K / 7.4 MPa, where `cp` reaches 76.2 kJ/kg-K) and supercritical
+    /// (to 400 K / 20 MPa) states.
+    ///
+    /// Note the spelling: the canonical name here is `CO2`, which is what
+    /// [`super::propfun::plot_fluids`] emits and therefore what
+    /// [`super::propfun::plot_fluids_available`] filters against —
+    /// `"CarbonDioxide"` is a document *alias* and would match nothing.
+    ///
+    /// One limitation, and it is CoolProp's rather than this port's: CO2's
+    /// melting line is steep out of a 0.518 MPa triple point, so the diagram
+    /// generator's fixed cold anchor lands in the **solid** region above ~2.9
+    /// MPa and CoolProp refuses it by name. See
+    /// [`super::diagrams`]'s `sweep_entropy_at_pressure` for what this port does
+    /// about it (ledger item 38) and its `isotherms` for the one curve it leaves
+    /// absent on purpose.
     fn served_fluids(&self) -> Option<Vec<String>> {
         Some(
             [
@@ -194,6 +220,7 @@ impl RealFluid for RustpropBackend {
                 "R134a",
                 "R1234yf",
                 "Air",
+                "CO2",
                 "INCOMP::MEG",
                 "INCOMP::MPG",
             ]

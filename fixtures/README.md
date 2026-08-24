@@ -5,10 +5,10 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 997
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 998
 fixtures/corpus/*.tables.json  request-level Function Tables for the document
                                beside them (10 — the curvefn group; see below)
-fixtures/golden/*.json         what the Java engine produced for each     — 997
+fixtures/golden/*.json         what the Java engine produced for each     — 998
 fixtures/corpus-pending/       the staging area: documents not yet promoted — 5
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
@@ -227,7 +227,7 @@ cfg that selects the property backend:
 | file | grades | entries |
 |---|---|---:|
 | `tolerances.json` | the D1 `(P,h)` `TableBackend` | 23 |
-| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 37 |
+| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 38 |
 
 They cannot be merged, because the "dead tolerance" guard above is what makes
 them backend-specific: thirteen of the 23 entries exist only because of the
@@ -767,6 +767,19 @@ three variables at the corpus default with no tolerance entry.
 `served_fluids`, the diagram picker, is deliberately unchanged: linking a
 fluid's data and listing it in the picker are separate decisions. Corpus
 775 → 776, pending 2 → 1.)*
+
+> **The second of those decisions was taken on 2026-08-24 (Wave C1), by owner
+> request: `CO2` is on `served_fluids` and in the picker.** The paragraph above
+> is still the right rule — it is why the two changes are a wave apart — but its
+> last-but-one sentence no longer describes the tree. Because G2 had already
+> paid for the data, the picker entry cost **+142 bytes raw / +39 gzipped**.
+> Wave C1 also promoted `props_realfluid_co2_transcritical` (corpus 983 → 984),
+> which needs a `3.6e-9` entry in `tolerances-rustprop.json` on the
+> `upstream-ps-flash-residual` mechanism — that mechanism's *second* instance,
+> and the one where the residual shows in entropy rather than pressure. What was
+> verified through the transcritical region, and the one diagram curve left
+> absent on purpose, are in the Wave C1 amendment to
+> [`docs/decisions/0009-rustprop-backend.md`](../docs/decisions/0009-rustprop-backend.md).
 
 *(The decayed-through-zero row — three documents — left this table on
 2026-08-23, Wave G1, via the decayed-signal measure under **Comparison

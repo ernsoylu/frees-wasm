@@ -194,16 +194,20 @@ budget was raised **3072 → 4096 KiB** — owner-authorized, sanctioned by the
 CI header's own rule since D9 paid debt (1); the header's dated entry has
 the full lever-by-lever justification. Current headroom ≈ 1031 KiB.)* Thirteen of the 23 entries in `fixtures/tolerances.json` are
 retired: the rustprop configuration is graded by
-`fixtures/tolerances-rustprop.json` and its **thirty-seven** entries (ten
+`fixtures/tolerances-rustprop.json` and its **thirty-eight** entries (ten
 scalar since Wave-3 F5, Wave G1's two transient entries, Wave G4's eleven
-component-harvest entries — all 2026-08-23 — and Wave A1's fourteen
-two-phase-cycle entries, 2026-08-24), one file per
+component-harvest entries — all 2026-08-23 — Wave A1's fourteen
+two-phase-cycle entries and Wave C1's CO2 entry, 2026-08-24), one file per
 backend, chosen by the same `rustprop-backend` cfg that chooses the backend.
 `HAPropsSI` answers. `Air` left the property-diagram picker with the
 `air.fraux` grid it was the only backing for — *and came back at
 Wave-2/Wave-3, once rustprop's own pseudo-pure `HSU_P`/`(D,P)` flashes landed:
 `Air` is on `served_fluids` and in the picker, and the D6 amendment to D9
-records why.* **Still do not write a humid-air backend, an `air.phtab`, or
+records why.* **`CO2` joined both on 2026-08-24 (Wave C1), by owner request**
+— its data had been linked since Wave G2, so the picker entry cost a measured
++142 bytes; the Wave C1 amendment to D9 has what was verified through the
+transcritical region and the one curve that is still absent on purpose.
+**Still do not write a humid-air backend, an `air.phtab`, or
 further `FRAUX1` grids** — rustprop supersedes all three. Read D9 before
 touching `props/tables.rs`, `props/rustprop_backend.rs` or either tolerance
 file.
@@ -391,7 +395,18 @@ plain Cargo dependency with no external deps of its own, so `frees-core` stays
 clear of wasm-bindgen; per-fluid data is opt-in at the feature level and this
 build enables five (`water`, `r134a`, `r1234yf`, `air`, and — since Wave G2,
 2026-08-23, at a measured +25.5 KiB on the wire — `carbondioxide`) plus `heos`,
-`humid-air` and `incompressible`. `props::tables::install_builtin_once` — which
+`humid-air` and `incompressible`.
+
+**Linking a fluid's data and listing it in `served_fluids` are separate
+decisions**, and the difference is load-bearing: `served_fluids` gates the
+property-diagram picker only (`props_si` never consults it), so a fluid can
+answer `MolarMass` and still not be offered a chart. All five linked fluids are
+now on the list — `CO2` joined on 2026-08-24 (Wave C1), by owner request, for a
+measured +142 bytes, since G2 had already paid for the data. The glycol
+families are served but have no dome to draw, so the published picker is
+`["Air", "CO2", "R1234yf", "R134a", "Water"]`.
+
+`props::tables::install_builtin_once` — which
 every public entry point calls — installs `RustpropBackend`, and
 `frees-wasm` requires it, so the browser and the native gate get the same
 engine. **Decision [D9](docs/decisions/0009-rustprop-backend.md) is the

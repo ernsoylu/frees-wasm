@@ -440,7 +440,7 @@ Extend it further from, in rough order of value:
    CoolProp-computed template arguments — `he0 = propsSI(...)` — 10 unknown
    idents, 14 builder loops). Ten classes joined `CLASSES` and 99 candidates
    staged (65 from classes + 34 validation resources, item 5 below):
-   **77 promoted** — corpus 905 → 982, including all 10 `curvefn` request-table
+   **77 promoted** — corpus 905 → 982 on this branch (983 merged beside Wave I's CabinZone promotion), including all 10 `curvefn` request-table
    fixtures at the corpus default, bit-exact on the Java tests' own asserted
    values — 18 pending (property-chain holds, see the pending table) and 4
    dropped as new witnesses of ledger item 35 (`multiout-*-tilde-*`: the

@@ -724,7 +724,10 @@ impl<'a> DynamicSolver<'a> {
         let seed_y0 = self.y0.clone();
         let seed = self
             .solve_algebraic_at(self.system.options.t0, &seed_y0)
-            .ok();
+            .ok()
+            // One deliberate clone: the assembly owns its seed, and this runs
+            // once per DAE assembly, not per step.
+            .map(|values| Scope::clone(&values));
         Ok(AssemblySpec {
             block_name: self.system.name.clone(),
             time_var: self.time_var.clone(),
@@ -1379,7 +1382,14 @@ impl<'a> DynamicSolver<'a> {
     }
 
     /// Solve the algebraic block with time and the state vector pinned.
-    fn solve_algebraic_at(&self, t: f64, y: &[f64]) -> Result<Scope> {
+    ///
+    /// Returns a borrow of the stored warm start (Wave I): the solved scope
+    /// is stored once and handed back as a `Ref` instead of being cloned a
+    /// second time per step. Callers only read from it, and every caller
+    /// drops the borrow before the next per-step solve — the same
+    /// non-reentrancy this method's own `warm_start.borrow_mut()` below has
+    /// always required.
+    fn solve_algebraic_at(&self, t: f64, y: &[f64]) -> Result<std::cell::Ref<'_, Scope>> {
         // First call materialises `pin_map` verbatim (names, order and all);
         // later calls rewrite only the time and state slots. See
         // [`PinTemplate`] for why that is the identical pin list.
@@ -1418,9 +1428,10 @@ impl<'a> DynamicSolver<'a> {
         };
         match outcome {
             Ok(values) => {
-                let copy = values.clone();
                 *self.warm_start.borrow_mut() = Some(values);
-                Ok(copy)
+                Ok(std::cell::Ref::map(self.warm_start.borrow(), |warm| {
+                    warm.as_ref().expect("warm start stored above")
+                }))
             }
             Err(FreesError::Solver { message })
                 if message.contains("underspecified")

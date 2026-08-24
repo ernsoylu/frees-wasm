@@ -285,10 +285,47 @@ where
 /// [`newton_solve`] for a full [`NewtonProblem`] — the entry the engine uses,
 /// where the analytic-Jacobian source rides along with the residual.
 pub fn newton_solve_problem<P>(
+    problem: P,
+    x: &mut [f64],
+    settings: &SolverSettings,
+    bounds: Option<&[(f64, f64)]>,
+) -> Result<NewtonReport>
+where
+    P: NewtonProblem,
+{
+    // A fresh workspace per call is exactly the buffers this function
+    // allocated itself before Wave I, so every existing caller is untouched.
+    newton_solve_problem_with(
+        problem,
+        x,
+        settings,
+        bounds,
+        &mut NewtonWorkspace::default(),
+    )
+}
+
+/// [`newton_solve_problem`] with caller-owned cross-call buffers (Wave I).
+///
+/// The per-step transient path drives thousands of warm-started solves per
+/// integration, and most converge at iteration 0–1 (the G3b finding): what
+/// remained after per-iteration reuse was the four per-CALL vectors (`f`,
+/// `scale`, `lo`, `hi`) plus the lazily created [`Scratch`], all rebuilt on
+/// every call. This entry reuses them from `ws` across calls.
+///
+/// Soundness is the G3b rule extended across the call boundary: every buffer
+/// is fully rewritten before it is read. `f` is NaN-refilled here and
+/// NaN-poisoned again by [`eval_residual`], `scale` refilled with `1.0`,
+/// `lo`/`hi` refilled from `bounds` under the same validation and errors as
+/// before, and every [`Scratch`] use site zero-fills or overwrites before
+/// reading — the same property that already made iteration-to-iteration
+/// reuse sound. A workspace whose `Scratch` was sized for a different `n` is
+/// dropped and lazily rebuilt, so the entry stays safe for any caller.
+pub(crate) fn newton_solve_problem_with<P>(
     mut problem: P,
     x: &mut [f64],
     settings: &SolverSettings,
     bounds: Option<&[(f64, f64)]>,
+    ws: &mut NewtonWorkspace,
 ) -> Result<NewtonReport>
 where
     P: NewtonProblem,
@@ -306,15 +343,26 @@ where
         });
     }
 
-    // Java IterationContext: lo/hi arrays from the specs, ±∞ where absent.
-    let (lo, hi) = unpack_bounds(bounds, n)?;
+    let NewtonWorkspace {
+        lo,
+        hi,
+        f,
+        scale,
+        scratch: scratch_store,
+    } = ws;
 
-    let mut f = vec![f64::NAN; n];
-    eval_residual(&mut problem, x, &mut f)?;
-    let mut norm = l2_norm(&f);
+    // Java IterationContext: lo/hi arrays from the specs, ±∞ where absent.
+    unpack_bounds_into(bounds, n, lo, hi)?;
+    let (lo, hi): (&[f64], &[f64]) = (lo, hi);
+
+    f.clear();
+    f.resize(n, f64::NAN);
+    eval_residual(&mut problem, x, f)?;
+    let mut norm = l2_norm(f);
 
     // Stand-in for the Java |lhs| of every equation; see the module docs.
-    let mut scale = vec![1.0f64; n];
+    scale.clear();
+    scale.resize(n, 1.0);
     // Damping carried between iterations; 0 = pure Newton.
     let mut lambda = 0.0f64;
     // Consecutive damped iterations with near-flat progress.
@@ -324,11 +372,16 @@ where
     // G3b: every buffer below is reused across iterations and trials — and
     // created only when an iteration actually runs, so the warm-started
     // solves that pass `within_tolerance` at iteration 0 allocate nothing.
-    let mut scratch_store: Option<Scratch> = None;
+    // Wave I extends the reuse across calls when the caller keeps the
+    // workspace; a stale size (one workspace shared across differently sized
+    // blocks) is reset rather than trusted.
+    if scratch_store.as_ref().is_some_and(|s| s.step.len() != n) {
+        *scratch_store = None;
+    }
 
     for iteration in 0..settings.max_iterations {
-        if within_tolerance(&f, &scale, settings) {
-            return Ok(success(iteration, &f));
+        if within_tolerance(f, scale, settings) {
+            return Ok(success(iteration, f));
         }
         let scratch = scratch_store.get_or_insert_with(|| Scratch::new(n));
 
@@ -349,10 +402,10 @@ where
             numerical_jacobian_into(
                 &mut problem,
                 x,
-                &f,
+                f,
                 settings,
-                &lo,
-                &hi,
+                lo,
+                hi,
                 jacobian,
                 nj_probe,
                 nj_out,
@@ -370,19 +423,19 @@ where
             // means the iterate sits at a local minimum of the residual norm —
             // no damping escapes that, so stop instead of burning iterations.
             if creep >= CREEP_WINDOW {
-                return stalled(&f, &scale, settings, iteration, norm, linear_failure);
+                return stalled(f, scale, settings, iteration, norm, linear_failure);
             }
             scratch.ensure_rescue(n);
             match damped_rescue(
                 &mut problem,
                 &scratch.jacobian,
                 x,
-                &f,
+                f,
                 norm,
                 lambda / 3.0,
                 1.0,
-                &lo,
-                &hi,
+                lo,
+                hi,
                 RescueBufs {
                     jtj: &mut scratch.jtj,
                     jtr: &mut scratch.jtr,
@@ -393,7 +446,7 @@ where
                     candidate_residual: &mut scratch.candidate_residual,
                 },
             )? {
-                None => return stalled(&f, &scale, settings, iteration, norm, linear_failure),
+                None => return stalled(f, scale, settings, iteration, norm, linear_failure),
                 Some(rescue) => {
                     lambda = if rescue.lambda <= LM_LAMBDA_MIN {
                         0.0
@@ -421,7 +474,7 @@ where
                     step,
                     ..
                 } = &mut *scratch;
-                solve_linear_into(jacobian, &f, lin_d, lin_scaled, lin_b, lin_y, step)
+                solve_linear_into(jacobian, f, lin_d, lin_scaled, lin_b, lin_y, step)
             };
             match solved {
                 Ok(()) => {
@@ -439,8 +492,8 @@ where
                             step,
                             norm,
                             settings,
-                            &lo,
-                            &hi,
+                            lo,
+                            hi,
                             candidate,
                             candidate_residual,
                         )?
@@ -469,12 +522,12 @@ where
                         &mut problem,
                         &scratch.jacobian,
                         x,
-                        &f,
+                        f,
                         norm,
                         0.0,
                         1.0,
-                        &lo,
-                        &hi,
+                        lo,
+                        hi,
                         RescueBufs {
                             jtj: &mut scratch.jtj,
                             jtr: &mut scratch.jtr,
@@ -486,7 +539,7 @@ where
                         },
                     )? {
                         None => {
-                            return stalled(&f, &scale, settings, iteration, norm, linear_failure)
+                            return stalled(f, scale, settings, iteration, norm, linear_failure)
                         }
                         Some(rescue) => {
                             lambda = rescue.lambda;
@@ -510,20 +563,20 @@ where
         }
         f.copy_from_slice(&scratch.candidate_residual);
         norm = accepted.norm;
-        row_scale(&scratch.jacobian, x, &mut scale);
+        row_scale(&scratch.jacobian, x, scale);
 
         // Stop criterion: change in variables below the threshold. A damped step
         // is deliberately short, so its size says nothing about convergence —
         // only an undamped step may trigger this stop.
         if !damped && max_change < CHANGE_IN_VARIABLES {
-            if within_tolerance(&f, &scale, settings) {
-                return Ok(success(iteration + 1, &f));
+            if within_tolerance(f, scale, settings) {
+                return Ok(success(iteration + 1, f));
             }
             // Java NewtonSolver.handleConvergenceOrPinning: an iterate frozen
             // on a bound with the residuals still out of tolerance is a
             // *constrained* solution — the bounds, not the guesses, are what
             // the user must relax.
-            if at_bound(x, &lo, &hi) {
+            if at_bound(x, lo, hi) {
                 return Err(FreesError::solver(
                     "Constrained solution: a variable is pinned at its lower or upper bound \
                      and the residuals cannot be reduced further. \
@@ -542,8 +595,8 @@ where
         }
     }
 
-    if within_tolerance(&f, &scale, settings) {
-        return Ok(success(settings.max_iterations, &f));
+    if within_tolerance(f, scale, settings) {
+        return Ok(success(settings.max_iterations, f));
     }
     Err(FreesError::solver(format!(
         "Newton's method did not converge within {} iterations (residual norm {:e}). \
@@ -617,9 +670,23 @@ fn validate(settings: &SolverSettings) -> Result<()> {
 /// rejecting shapes that would poison every clamp: a length mismatch, a NaN
 /// bound, or `lo > hi` (the Java `VariableSpec` constructor refuses those
 /// upstream; this is the same guarantee at the solver's own door).
-fn unpack_bounds(bounds: Option<&[(f64, f64)]>, n: usize) -> Result<(Vec<f64>, Vec<f64>)> {
+///
+/// Wave I: fills the caller's buffers instead of allocating — same checks,
+/// same errors, in the same order. On an error the buffers are left
+/// part-filled, which is fine: every entry re-fills them from scratch.
+fn unpack_bounds_into(
+    bounds: Option<&[(f64, f64)]>,
+    n: usize,
+    lo: &mut Vec<f64>,
+    hi: &mut Vec<f64>,
+) -> Result<()> {
+    lo.clear();
+    hi.clear();
     match bounds {
-        None => Ok((vec![f64::NEG_INFINITY; n], vec![f64::INFINITY; n])),
+        None => {
+            lo.resize(n, f64::NEG_INFINITY);
+            hi.resize(n, f64::INFINITY);
+        }
         Some(pairs) => {
             if pairs.len() != n {
                 return Err(FreesError::solver(format!(
@@ -628,8 +695,8 @@ fn unpack_bounds(bounds: Option<&[(f64, f64)]>, n: usize) -> Result<(Vec<f64>, V
                     n
                 )));
             }
-            let mut lo = Vec::with_capacity(n);
-            let mut hi = Vec::with_capacity(n);
+            lo.reserve(n);
+            hi.reserve(n);
             for &(l, h) in pairs {
                 if l.is_nan() || h.is_nan() || l > h {
                     return Err(FreesError::solver(
@@ -639,9 +706,9 @@ fn unpack_bounds(bounds: Option<&[(f64, f64)]>, n: usize) -> Result<(Vec<f64>, V
                 lo.push(l);
                 hi.push(h);
             }
-            Ok((lo, hi))
         }
     }
+    Ok(())
 }
 
 /// Java `NewtonSolver.atBound`: any variable sitting exactly on its lower or
@@ -732,6 +799,23 @@ fn ulp(v: f64) -> f64 {
         // `a` is f64::MAX: step downwards instead of overflowing to infinity.
         a - f64::from_bits(bits - 1)
     }
+}
+
+/// Wave I: the buffers one [`newton_solve_problem_with`] call needs beyond
+/// [`Scratch`] — the per-call vectors that used to be freshly allocated at
+/// every entry — bundled so a caller on the per-step transient path can keep
+/// them alive across thousands of warm-started solves. See
+/// [`newton_solve_problem_with`] for the reuse-soundness argument.
+///
+/// `Default` is the correct "fresh" state: every field is filled (or, for
+/// `scratch`, lazily created) before use.
+#[derive(Default)]
+pub(crate) struct NewtonWorkspace {
+    lo: Vec<f64>,
+    hi: Vec<f64>,
+    f: Vec<f64>,
+    scale: Vec<f64>,
+    scratch: Option<Scratch>,
 }
 
 /// A candidate point, its residuals and their 2-norm.

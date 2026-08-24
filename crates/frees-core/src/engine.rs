@@ -82,6 +82,7 @@
 //! residual, which is the signal its Jacobian probing and step halving are
 //! already written to handle.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::ast::{Equation, Expr, Statement};
@@ -94,7 +95,9 @@ use crate::parser::defs::Definitions;
 use crate::parser::{parse_document, Document, GuessDirective};
 use crate::procedures::flatten_calls_counted;
 use crate::solver::blocker::{block_system, unknowns, Block, BlockingReport};
-use crate::solver::newton::{newton_solve_problem, NewtonProblem, SolverSettings};
+use crate::solver::newton::{
+    newton_solve_problem, newton_solve_problem_with, NewtonProblem, NewtonWorkspace, SolverSettings,
+};
 use crate::units::registry::UnitRegistry;
 
 /// Initial value for an unknown with no `GUESS`.
@@ -1087,10 +1090,24 @@ struct PinnedPrep {
     report: BlockingReport,
     /// `specs` cloned and property-argument seeded (`Missing::Create`).
     seeded: BTreeMap<String, VarSpec>,
-    constants: BTreeMap<String, f64>,
     unknowns: Vec<String>,
     /// Wave G3: the per-block value-independent pieces of [`solve_block`].
     block_cache: PinnedBlockCache,
+    /// Wave I: the value map `run_blocks` solves in, kept across calls
+    /// instead of being rebuilt from string-keyed inserts per step. The name
+    /// set is invariant per prep — the built-in constants and the unknowns
+    /// are fixed at build, and the uncertainty entries carried from the warm
+    /// start only ever re-add the warm chain's own keys (the warm start is
+    /// always a previous result of this same solver, so its key set is the
+    /// prep's own) — while the *values* rewrite per call: every unknown slot
+    /// is overwritten from the warm start or the initial guess before the
+    /// solve, constants never change, and `run_blocks` writes only block
+    /// variables (all unknowns). A failed call can leave stale iterate
+    /// values behind; the next call's full unknown rewrite erases them.
+    /// The caller receives a clone, which is the call's single full map
+    /// materialisation — it used to be two (this build plus the warm-start
+    /// clone in `solve_algebraic_at`).
+    work_scope: Scope,
 }
 
 /// Wave G3: what [`solve_block`] rebuilds on every call but never needs to —
@@ -1122,6 +1139,29 @@ struct PinnedBlockStruct {
     derivs: Option<Vec<Vec<Option<Expr>>>>,
     /// [`NewtonProblem::row_dependencies`] for this block, computed once.
     row_deps: Vec<Vec<usize>>,
+    /// Wave I: this block's cross-call solver buffers — [`solve_block`]'s own
+    /// per-call vectors plus the Newton workspace. Value-independent by
+    /// construction: every buffer is fully rewritten before it is read (see
+    /// [`crate::solver::newton::newton_solve_problem_with`]), so nothing can
+    /// leak from one per-step solve into the next.
+    ///
+    /// `RefCell` because the cache is threaded through the retry ladder as a
+    /// shared borrow. That is sound here: the per-step path is
+    /// single-threaded, and the ladder borrows the cell for one
+    /// `solve_block` call at a time — never reentrantly, because a nested
+    /// accessor solve builds its own prep with its own cells
+    /// ([`accessor_bridge`] constructs a fresh `pinned_solver` per run).
+    scratch: RefCell<BlockScratch>,
+}
+
+/// See [`PinnedBlockStruct::scratch`].
+#[derive(Default)]
+struct BlockScratch {
+    ws: NewtonWorkspace,
+    /// The Newton iterate (`solve_block`'s `x`).
+    x: Vec<f64>,
+    /// The initial-point probe residuals (write-only sink).
+    probe: Vec<f64>,
 }
 
 /// Build [`PinnedBlockCache`] for a prep's blocking report — the same code
@@ -1168,6 +1208,7 @@ fn pinned_block_cache(
                 bounds,
                 derivs,
                 row_deps,
+                scratch: RefCell::new(BlockScratch::default()),
             }
         })
         .collect();
@@ -1204,15 +1245,25 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             seed_property_argument_guesses(&subsystem, &mut seeded, Missing::Create);
             let unknown_names = unknowns(&subsystem, &knowns);
             let block_cache = pinned_block_cache(&report.blocks, &subsystem, &seeded);
+            // Wave I: the value map, built once in the exact insertion order
+            // the per-call build used (constants, then unknowns), so its
+            // layout — and every clone's — matches the old fresh build. The
+            // unknown slots hold placeholders: every call overwrites them
+            // below before anything reads the map.
+            let mut work_scope: Scope = Scope::default();
+            work_scope.extend(constants);
+            for name in &unknown_names {
+                work_scope.insert(name.clone(), 0.0);
+            }
             self.prep = Some(PinnedPrep {
                 template: ordinary.to_vec(),
                 pinned_names: pinned.iter().map(|(name, _)| name.clone()).collect(),
                 subsystem,
                 report,
                 seeded,
-                constants,
                 unknowns: unknown_names,
                 block_cache,
+                work_scope,
             });
         }
         let prep = self.prep.as_mut().expect("prep just ensured");
@@ -1244,30 +1295,36 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             use std::fmt::Write as _;
             let _ = write!(pin.source_text, "{name} = {value}");
         }
-        // The value-map build and the Newton drive — the tail of
-        // `solve_equation_list`, verbatim.
-        let mut values: Scope = Scope::default();
-        values.extend(prep.constants.iter().map(|(k, v)| (k.clone(), *v)));
+        // The value-map fill and the Newton drive — the tail of
+        // `solve_equation_list`, with the map's *allocation* hoisted into
+        // the prep (Wave I; see [`PinnedPrep::work_scope`]). Every unknown
+        // slot is overwritten here — including slots a failed previous call
+        // left mid-iterate — so entry state equals the old fresh build's.
         for name in &prep.unknowns {
             let guess = warm_start
                 .and_then(|warm| warm.get(name).copied())
                 .unwrap_or_else(|| initial_guess(name, &prep.seeded));
-            values.insert(name.clone(), guess);
+            match prep.work_scope.get_mut(name) {
+                Some(slot) => *slot = guess,
+                None => {
+                    prep.work_scope.insert(name.clone(), guess);
+                }
+            }
         }
         if let Some(warm) = warm_start {
-            crate::analysis::uncertainty::carry_uncertainty_entries(warm, &mut values);
+            crate::analysis::uncertainty::carry_uncertainty_entries(warm, &mut prep.work_scope);
         }
         run_blocks(
             &prep.report.blocks,
             &prep.subsystem,
-            &mut values,
+            &mut prep.work_scope,
             self.settings,
             &prep.seeded,
             self.ctx,
             Some(&prep.block_cache),
         )
         .map_err(|failure| failure.error)?;
-        Ok(values)
+        Ok(prep.work_scope.clone())
     }
 }
 
@@ -3148,9 +3205,29 @@ fn solve_block(
     // and the LM rescue walk out. The message is kept and re-attached below,
     // so a block that genuinely cannot be served (an untabulated output, an
     // unknown fluid) still reports its cause rather than "did not converge".
-    let mut probe = vec![0.0; n];
+    // Wave I: the per-call vectors (`probe`, `x`) and the Newton workspace
+    // come from the per-block cache when the caller has one, so a warm
+    // per-step solve allocates nothing here. Contents never carry over:
+    // `probe` is a write-only sink and `x` is rebuilt from `values` below.
+    let mut probe_local: Vec<f64>;
+    let mut x_local: Vec<f64>;
+    let mut block_scratch = cache.map(|c| c.scratch.borrow_mut());
+    let (x, probe, ws): (&mut Vec<f64>, &mut Vec<f64>, Option<&mut NewtonWorkspace>) =
+        match block_scratch.as_deref_mut() {
+            Some(BlockScratch { ws, x, probe }) => {
+                probe.clear();
+                probe.resize(n, 0.0);
+                (x, probe, Some(ws))
+            }
+            None => {
+                probe_local = vec![0.0; n];
+                x_local = Vec::new();
+                (&mut x_local, &mut probe_local, None)
+            }
+        };
+
     let mut last_property_error: Option<String> = None;
-    match residuals_into(&block_equations, values, ctx, &mut probe) {
+    match residuals_into(&block_equations, values, ctx, probe) {
         Ok(()) => {}
         Err(err @ FreesError::Property { .. }) => {
             last_property_error = Some(err.to_string_message());
@@ -3158,11 +3235,13 @@ fn solve_block(
         Err(other) => return Err(annotate(other, index, &block_equations)),
     }
 
-    let mut x: Vec<f64> = block
-        .variables
-        .iter()
-        .map(|name| values.get(name).copied().unwrap_or(DEFAULT_GUESS))
-        .collect();
+    x.clear();
+    x.extend(
+        block
+            .variables
+            .iter()
+            .map(|name| values.get(name).copied().unwrap_or(DEFAULT_GUESS)),
+    );
 
     // Per-variable bounds from the specs — the Java IterationContext lo/hi
     // arrays, threaded into all three clamp sites inside `newton_solve`.
@@ -3204,12 +3283,17 @@ fn solve_block(
             row_deps: cache.map(|cached| &cached.row_deps),
             last_property_error: &mut last_property_error,
         };
-        newton_solve_problem(problem, &mut x, settings, Some(bounds))
+        match ws {
+            // The cached path hands Newton this block's cross-call buffers;
+            // the fresh path is the old allocate-per-call entry, verbatim.
+            Some(ws) => newton_solve_problem_with(problem, x, settings, Some(bounds), ws),
+            None => newton_solve_problem(problem, x, settings, Some(bounds)),
+        }
     };
 
     // Write back before propagating: on failure the last iterate is what makes
     // a stall report actionable, and it is what the Java engine leaves behind.
-    for (name, value) in names.iter().zip(&x) {
+    for (name, value) in names.iter().zip(x.iter()) {
         match values.get_mut(name) {
             Some(slot) => *slot = *value,
             None => {

@@ -1,3 +1,4 @@
+import { helpUrl } from './helpUrl'
 import {
   ActionIcon,
   Anchor,
@@ -579,7 +580,7 @@ export function Rail({
           label="Help"
           tip="Help"
           expanded={expanded}
-          href="/help"
+          href={helpUrl()}
         />
       </Stack>
     </Stack>
@@ -605,8 +606,8 @@ interface PillContent {
 // from its cause-and-fix entry in the Errors & Diagnostics index.
 function helpHrefForMessage(msg: string): string {
   const m = msg.toLowerCase()
-  if (/component|connect|port|domain|stream|fluid family/.test(m)) return '/help#comp-troubleshooting'
-  return '/help#errors'
+  if (/component|connect|port|domain|stream|fluid family/.test(m)) return helpUrl('#comp-troubleshooting')
+  return helpUrl('#errors')
 }
 
 function solvePill(result: SolveResponse): PillContent {

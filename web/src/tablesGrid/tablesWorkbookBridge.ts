@@ -9,7 +9,8 @@
  * historical 'univer' spelling on purpose: it is persisted inside saved dock
  * layouts (`frees-dock-layout-v3`, bridged into `.frees` files), so renaming
  * it would silently drop the Tables window from every saved project layout
- * (D10 compatibility policy). Also hardcoded raw in MobileLayout.tsx. */
+ * (D10 compatibility policy). MobileLayout resolves it through
+ * `resolveTablePanelKey`, importing this constant. */
 export const TABLES_WORKBOOK_WINDOW_ID = 'table:univer-workbook'
 
 import type { TableSpec } from '../tables'

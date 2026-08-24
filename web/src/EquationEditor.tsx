@@ -1,3 +1,4 @@
+import { helpUrl } from './helpUrl'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useComputedColorScheme } from '@mantine/core'
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror'
@@ -450,7 +451,7 @@ const f1ContextualHelp = keymap.of([
       let end = col
       while (end < text.length && isWordChar(text[end])) end++
       const word = text.slice(start, end).toLowerCase()
-      globalThis.open(REFERENCE_SLUG_SET.has(word) ? `/help#refpage:${word}` : '/help', '_blank')
+      globalThis.open(REFERENCE_SLUG_SET.has(word) ? helpUrl(`#refpage:${word}`) : helpUrl(), '_blank')
       return true
     },
   },

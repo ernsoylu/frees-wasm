@@ -1,3 +1,4 @@
+import { helpUrl } from './helpUrl'
 import { Button, Group, Kbd, Modal, Paper, SimpleGrid, Stack, Text, ThemeIcon } from '@mantine/core'
 import { IconBook2, IconLayoutGrid, IconPlayerPlayFilled, IconShieldCheck } from '@tabler/icons-react'
 
@@ -52,14 +53,14 @@ export default function GettingStartedModal({ opened, onClose, onSolveExample, o
       title: 'Learn the basics',
       body: 'Seven short steps: your first solve, thinking declaratively, units and Check, tables and plots, the REPL, components.',
       action: 'Open the guide',
-      href: '/help#gs-first-solve',
+      href: helpUrl('#gs-first-solve'),
     },
     {
       icon: <IconShieldCheck size={18} />,
       title: 'Why trust the numbers',
       body: 'Every commit runs a validation suite of problems with independently derived answers — closed forms and public standards, not faith.',
       action: 'See the verification suite',
-      href: '/help#verification',
+      href: helpUrl('#verification'),
     },
   ]
 

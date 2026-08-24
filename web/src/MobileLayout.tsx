@@ -1,3 +1,4 @@
+import { helpUrl } from './helpUrl'
 import { useState, useEffect, ReactNode } from 'react'
 import { Flex, Group, Title, UnstyledButton, Text, Box, Paper, ActionIcon, Menu } from '@mantine/core'
 import {
@@ -16,10 +17,43 @@ import {
   IconTargetArrow
 } from '@tabler/icons-react'
 import { TableSpec } from './tables'
+import { TABLES_WORKBOOK_WINDOW_ID } from './tablesGrid/tablesWorkbookBridge'
+
+/** One selectable entry in the mobile Tables tab. */
+export interface MobileTableEntry {
+  id: string
+  name: string
+  /** True for a read-only STATE TABLE panel (`state:<name>`). */
+  state: boolean
+}
+
+/** The panelContent key the mobile Tables tab renders for an entry, or null
+ * when nothing is available. Pure and exported so the test can pin the key
+ * contract against App's panelContent ids — the 2026-08-24 audit found the
+ * old inline lookup silently ignoring the tapped table (workbook selection is
+ * App-level) and STATE TABLE panels missing from mobile entirely. */
+export function resolveTablePanelKey(
+  entry: MobileTableEntry,
+  has: (key: string) => boolean,
+): string | null {
+  if (entry.state) return has(entry.id) ? entry.id : null
+  if (has(`table:${entry.id}`)) return `table:${entry.id}`
+  return has(TABLES_WORKBOOK_WINDOW_ID) ? TABLES_WORKBOOK_WINDOW_ID : null
+}
 
 interface MobileLayoutProps {
   panelContent: Record<string, ReactNode>
   tables: TableSpec[]
+  /** Declared STATE TABLE blocks — read-only fluid-state panels
+   * (`state:<name>` in panelContent). The desktop rail lists these beside the
+   * tables; the mobile Tables tab now does too (2026-08-24 audit: they were
+   * unreachable on mobile while the solve produced them). */
+  stateTables: { id: string; name: string }[]
+  /** The App-level active table (the Tables workbook follows THIS — the
+   * workbook is one panel hosting many editable tables, so a local-only
+   * selection could never switch it; 2026-08-24 audit fix). */
+  activeTableId: string | null
+  onActiveTableId: (id: string) => void
   /** Plot windows, shown in the Plots tab (each renders panelContent['plot:<id>']). */
   plots: { id: string; name: string }[]
   projectName: string
@@ -45,6 +79,9 @@ interface MobileLayoutProps {
 export default function MobileLayout({
   panelContent,
   tables,
+  stateTables,
+  activeTableId,
+  onActiveTableId,
   plots,
   projectName,
   checking,
@@ -65,16 +102,25 @@ export default function MobileLayout({
   onOpenExamples,
 }: MobileLayoutProps) {
   const [activeTab, setActiveTab] = useState<'equations' | 'workspace' | 'plots' | 'table'>('equations')
-  const [activeTableId, setActiveTableId] = useState<string | null>(tables.length > 0 ? tables[0].id : null)
+  // One entry per selectable panel in the Tables tab: editable/code tables
+  // first (TableSpec ids), then the read-only STATE TABLE panels.
+  const tableEntries = [
+    ...tables.map((t) => ({ id: t.id, name: t.name, state: false })),
+    ...stateTables.map((st) => ({ id: st.id, name: st.name, state: true })),
+  ]
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(
+    activeTableId ?? (tableEntries.length > 0 ? tableEntries[0].id : null),
+  )
   const [activePlotId, setActivePlotId] = useState<string | null>(plots.length > 0 ? plots[0].id : null)
 
   useEffect(() => {
-    if (tables.length > 0 && (!activeTableId || !tables.find((t) => t.id === activeTableId))) {
-      setActiveTableId(tables[tables.length - 1].id)
-    } else if (tables.length === 0 && activeTableId !== null) {
-      setActiveTableId(null)
+    if (tableEntries.length > 0 && (!selectedEntryId || !tableEntries.find((e) => e.id === selectedEntryId))) {
+      setSelectedEntryId(tableEntries[tableEntries.length - 1].id)
+    } else if (tableEntries.length === 0 && selectedEntryId !== null) {
+      setSelectedEntryId(null)
     }
-  }, [tables, activeTableId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tables, stateTables, selectedEntryId])
 
   useEffect(() => {
     if (plots.length > 0 && (!activePlotId || !plots.find((p) => p.id === activePlotId))) {
@@ -103,21 +149,23 @@ export default function MobileLayout({
     }
   }
   if (activeTab === 'table') {
-    if (tables.length === 0) {
+    if (tableEntries.length === 0) {
       content = <Box p="md"><Text c="dimmed">No tables available.</Text></Box>
     } else {
-      const tId = activeTableId ?? tables[0].id
-      // Editable tables live in the single Tables workbook window; only
-      // read-only code/ODE tables still have per-table panels.
-      content = panelContent[`table:${tId}`]
-        || panelContent['table:univer-workbook']
-        || <Box p="md"><Text c="dimmed">Table not found.</Text></Box>
+      const entry = tableEntries.find((e) => e.id === selectedEntryId) ?? tableEntries[0]
+      // STATE TABLE panels are keyed directly; editable tables live in the
+      // single Tables workbook window (which follows the App-level
+      // activeTableId); read-only code/ODE tables have per-table panels.
+      const key = resolveTablePanelKey(entry, (k) => panelContent[k] != null)
+      content = (key && panelContent[key]) || <Box p="md"><Text c="dimmed">Table not found.</Text></Box>
     }
   }
 
-  const isTableActive = activeTab === 'table' && activeTableId !== null && tables.length > 0
-  const isChecking = isTableActive && activeTableId ? checkingTableId === activeTableId : checking
-  const isSolving = isTableActive && activeTableId ? solvingTableId === activeTableId : solving
+  const selectedTableId =
+    selectedEntryId && tables.some((t) => t.id === selectedEntryId) ? selectedEntryId : null
+  const isTableActive = activeTab === 'table' && selectedTableId !== null
+  const isChecking = isTableActive && selectedTableId ? checkingTableId === selectedTableId : checking
+  const isSolving = isTableActive && selectedTableId ? solvingTableId === selectedTableId : solving
 
   return (
     <Flex direction="column" h="100dvh" style={{ overflow: 'hidden' }}>
@@ -152,13 +200,13 @@ export default function MobileLayout({
               color="teal"
               loading={isChecking}
               onClick={() => {
-                if (isTableActive && activeTableId) {
-                  onCheckTable(activeTableId)
+                if (isTableActive && selectedTableId) {
+                  onCheckTable(selectedTableId)
                 } else {
                   onCheck()
                 }
               }}
-              title="Check (F4)"
+              title="Check"
             >
               <IconChecks size={18} />
             </ActionIcon>
@@ -168,8 +216,8 @@ export default function MobileLayout({
               loading={isSolving}
               onClick={async () => {
                 let res: 'workspace' | 'table' | void | boolean
-                if (isTableActive && activeTableId) {
-                  res = await onSolveTable(activeTableId)
+                if (isTableActive && selectedTableId) {
+                  res = await onSolveTable(selectedTableId)
                 } else {
                   res = await onSolve()
                 }
@@ -177,7 +225,7 @@ export default function MobileLayout({
                   setActiveTab(res)
                 }
               }}
-              title="Solve (F2)"
+              title="Solve"
             >
               <IconTargetArrow size={18} />
             </ActionIcon>
@@ -234,7 +282,7 @@ export default function MobileLayout({
                 </Menu.Item>
                 <Menu.Item
                   component="a"
-                  href="/help"
+                  href={helpUrl()}
                   target="_blank"
                   leftSection={<IconHelp size={14} />}
                 >
@@ -249,19 +297,25 @@ export default function MobileLayout({
       {/* Main Content Area — the editor fills edge-to-edge (it carries its own
           hairline padding); other tabs keep a comfortable inset. */}
       <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} p={activeTab === 'equations' ? 0 : 'xs'}>
-        {activeTab === 'table' && tables.length > 1 && (
+        {activeTab === 'table' && tableEntries.length > 1 && (
           <Group gap="xs" mb="sm" style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
-            {tables.map((t) => (
+            {tableEntries.map((e) => (
               <ActionIcon
-                key={t.id}
-                variant={activeTableId === t.id ? 'filled' : 'light'}
-                color="teal"
-                onClick={() => setActiveTableId(t.id)}
+                key={e.id}
+                variant={(selectedEntryId ?? tableEntries[0].id) === e.id ? 'filled' : 'light'}
+                color={e.state ? 'blue' : 'teal'}
+                onClick={() => {
+                  setSelectedEntryId(e.id)
+                  // The workbook panel shows the App-level active table, so a
+                  // hosted (editable) table must be selected THERE too — a
+                  // local-only selection left the workbook on the old table.
+                  if (!e.state && tables.some((t) => t.id === e.id)) onActiveTableId(e.id)
+                }}
                 size="lg"
-                title={t.name}
+                title={e.name}
               >
                 <Text size="xs" fw={700}>
-                  {t.name.slice(0, 2).toUpperCase()}
+                  {e.name.slice(0, 2).toUpperCase()}
                 </Text>
               </ActionIcon>
             ))}

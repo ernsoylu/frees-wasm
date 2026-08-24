@@ -1,3 +1,4 @@
+import { helpUrl } from './helpUrl'
 import { ChangeEvent, lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
 import {
   Alert,
@@ -1970,7 +1971,7 @@ export default function App() {
       group: 'Help',
       actions: [
         { id: 'shortcuts', label: 'Keyboard shortcuts', description: 'Show the hotkey reference (?)', leftSection: <IconKeyboard size={18} />, onClick: () => setShowShortcuts(true) },
-        { id: 'help', label: 'Help', leftSection: <IconHelp size={18} />, onClick: () => globalThis.open('/help', '_blank') },
+        { id: 'help', label: 'Help', leftSection: <IconHelp size={18} />, onClick: () => globalThis.open(helpUrl(), '_blank') },
       ],
     },
     // Every documentation guide page as a palette entry, deep-linked into the
@@ -1984,7 +1985,7 @@ export default function App() {
         description: 'Open this guide in the documentation portal',
         keywords: ['docs', 'documentation', 'guide', 'help'],
         leftSection: <IconHelp size={18} />,
-        onClick: () => globalThis.open(`/help#${t.id}`, '_blank'),
+        onClick: () => globalThis.open(helpUrl(`#${t.id}`), '_blank'),
       })),
     },
     // Every catalog function as a searchable palette entry: explanation plus a
@@ -2543,11 +2544,14 @@ export default function App() {
 
   return (
     <>
-      {isMobile ? (
+      {isMobile === undefined ? null : isMobile ? (
         <Suspense fallback={lazyTabFallback}>
           <MobileLayout
             panelContent={panelContent}
             tables={tables}
+            stateTables={declaredStateDefs.map((s) => ({ id: `state:${s.name}`, name: s.name }))}
+            activeTableId={activeTableId}
+            onActiveTableId={setActiveTableId}
             plots={mergedPlots}
             projectName={projectName}
             checking={checking}

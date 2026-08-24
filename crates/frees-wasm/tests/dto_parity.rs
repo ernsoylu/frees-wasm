@@ -417,17 +417,41 @@ fn a_failed_block_reports_its_zero_based_index() {
 
     // The enriched Java 422 envelope (`SolverException.partialResult`): the
     // full block structure with source-text equations, the finite residuals at
-    // the stalled iterate (block 0 solved, so `k = 1` reads 0.0 there), and
-    // populated stats — this is what the SolveDiagnostics tab renders.
+    // the stalled iterate, and populated stats — this is what the
+    // SolveDiagnostics tab renders.
+    //
+    // The residuals are the ORACLE's, probed directly (2026-08-25). This test
+    // used to assert `k = 1` reads 0.0 on the reasoning that block 0 had
+    // solved — an assumption about the Java that is simply false, and one this
+    // port only satisfied while it lacked the Java's SVD fallback
+    // (`NewtonSolver.solveLinear`'s `catch (SingularMatrixException)`, ported
+    // as `svd_fallback`, ledger item 40). WITH the fallback the merge rung has
+    // something to slide the pair with, so the pseudo-inverse moves BOTH
+    // unknowns off the upstream solution — and the reference does the same.
+    // `SolverException.partialResult()` on the reference classpath for this
+    // exact document:
+    //
+    //     EquationResidual[equation=k=1, residual=-0.5]
+    //     EquationResidual[equation=exp(x)=-k, residual=0.49999999999999994]
     let blocks = v["blocks"].as_array().unwrap();
     assert_eq!(blocks.len(), 2, "{v}");
     assert_eq!(blocks[1]["equations"][0], "exp(x) = -k", "{v}");
     let residuals = v["residuals"].as_array().unwrap();
-    assert!(
+    let residual_of = |equation: &str| -> f64 {
         residuals
             .iter()
-            .any(|r| r["equation"] == "k = 1" && r["value"] == 0.0),
-        "solved upstream residual missing: {v}"
+            .find(|r| r["equation"] == equation)
+            .unwrap_or_else(|| panic!("residual for {equation:?} missing: {v}"))["value"]
+            .as_f64()
+            .unwrap_or_else(|| panic!("residual for {equation:?} is not numeric: {v}"))
+    };
+    assert!(
+        (residual_of("k = 1") - -0.5).abs() <= 1e-12,
+        "upstream residual should match the oracle's -0.5: {v}"
+    );
+    assert!(
+        (residual_of("exp(x) = -k") - 0.49999999999999994).abs() <= 1e-12,
+        "stalled residual should match the oracle's 0.49999999999999994: {v}"
     );
     assert_eq!(v["stats"]["blocks"], 2, "{v}");
     assert_eq!(v["stats"]["unknowns"], 2, "{v}");

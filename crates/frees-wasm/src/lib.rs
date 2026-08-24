@@ -36,14 +36,7 @@ use serde_json::{json, Map, Value};
 use wasm_bindgen::prelude::*;
 
 mod analysis;
-mod measurement;
 mod repl;
-
-// The calculated-signal entry point lives in its own module; re-exported so
-// the crate's Rust-side surface is flat, as it is for everything else here.
-// (The `.mf4` open/window/close entry points were removed with the MDF4
-// feature — signals now reach `measurement_calc` inline.)
-pub use measurement::measurement_calc;
 
 // Wave B's wiring of the Phase-8 analysis layer behind the transcribed
 // controller caps: the Tables-workbook sweep (POST /api/solve/table), the

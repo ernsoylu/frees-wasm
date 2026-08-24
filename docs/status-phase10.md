@@ -1,5 +1,20 @@
 # Phase 10 — measured data, and the upload that stopped happening
 
+> **This document is history: the surface it describes no longer exists
+> (2026-08-24).** [D6](decisions/0006-remove-mdf4.md) removed the `.mf4`
+> reader; [D11](decisions/0011-remove-analyzer.md) removed the Data Analyzer
+> and with it the whole engine measurement stack —
+> `crates/frees-core/src/measurement/` (3,251 lines),
+> `crates/frees-wasm/src/measurement.rs` (1,184 lines), the `measurement_calc`
+> export, and the `measurement_parity` / `measurement_robustness` suites.
+> Measured data now enters a document as a CSV-imported **function table**
+> (Wave H), callable in equations. Nothing below describes the current engine.
+> The body is left exactly as written on 2026-08-01, because the gap list and
+> the fifteen-defect inventory are the record of what was removed and why it
+> was affordable to remove. Ledger items 26–30 in
+> [`status-phase1.md`](status-phase1.md) carry the same annotation; item 38
+> records the removal.
+
 **Read this after [`status-phase9.md`](status-phase9.md).** Phase 10 ports
 `backend/core/src/main/java/com/frees/backend/measurement/` (11 files, ~1.1k
 LOC) plus the two web controllers over it, and wires the result to the Data

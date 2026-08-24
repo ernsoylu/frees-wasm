@@ -109,13 +109,4 @@ describe('engineClient worker lifecycle', () => {
     w.onmessage?.({ data: { id: w.posted[1].id, ok: true, result: '0.1.0' } })
     await expect(good).resolves.toBe('0.1.0')
   })
-
-  it('a calc envelope resolves through the one remaining measurement call', async () => {
-    const { wasmMeasurementCalc } = await client()
-    const p = wasmMeasurementCalc('{"name":"c1"}')
-    const w = FakeWorker.instances[0]
-    expect(w.posted[0].method).toBe('measurementCalc')
-    w.onmessage?.({ data: { id: w.posted[0].id, ok: true, result: '{"ok":true,"name":"c1"}' } })
-    await expect(p).resolves.toEqual({ ok: true, name: 'c1' })
-  })
 })

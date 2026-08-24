@@ -39,7 +39,6 @@ pub mod integral;
 pub mod interp2;
 pub mod lexer;
 pub mod linalg;
-pub mod measurement;
 pub mod ode;
 pub mod parser;
 pub mod procedures;

@@ -204,44 +204,8 @@ export async function wasmPsychrometricChart(
   )
 }
 
-// ── measurement boundary ────────────────────────────────────────────────────
-//
-// One call remains after the MDF4 removal (decision D6): calculated signals.
-// It is stateless — every input series rides inline in the request, sampled
-// from the frontend's channelStore — and shares the plot calls' "problems are
-// data" convention: a failure comes back as a typed body, not a rejected
-// promise, so the caller can switch on `error.code`. Mapping those codes onto
-// anything user-facing is measurementApi.ts's job.
-
-/** Typed failure body. `code` is `MeasurementError::code()` in frees-core. */
-export interface MeasurementErrorBody {
-  code: string
-  message: string
-  /** Per-code extras, e.g. `actualPoints`/`suggestedDt` on RASTER_CAP_EXCEEDED. */
-  [key: string]: unknown
-}
-
-/** Success spreads the payload alongside `ok` — the wire shape, not a wrapper. */
-export type MeasurementEnvelope<T> =
-  | (T & { ok: true })
-  | { ok: false; error: MeasurementErrorBody }
-
-/** Parses one measurement envelope, defaulting a shapeless body to a failure. */
-function measurementEnvelope<T>(payload: string): MeasurementEnvelope<T> {
-  const parsed = JSON.parse(payload) as MeasurementEnvelope<T>
-  if (parsed?.ok === true || parsed?.ok === false) return parsed
-  return {
-    ok: false,
-    error: {
-      code: 'MEASUREMENT_PARSE_FAILED',
-      message: 'The measurement boundary returned an unrecognised response.',
-    },
-  }
-}
-
-/** Evaluates a calculated signal over a merged or fixed raster. */
-export async function wasmMeasurementCalc<T>(
-  requestJson: string,
-): Promise<MeasurementEnvelope<T>> {
-  return measurementEnvelope<T>(await call('measurementCalc', [requestJson]))
-}
+// The measurement boundary is gone. D6 removed MDF4 reading; D11 removed the
+// Data Analyzer and the engine's measurement stack behind it, so
+// `measurementCalc` — the last call here that was not about solving a
+// document — left with its only caller. Measured data now reaches a document
+// as a CSV-imported function table, which rides inside an ordinary solve.

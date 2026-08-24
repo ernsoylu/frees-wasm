@@ -6,7 +6,7 @@
 //                     'psychrometricChart' | 'replEvaluate' | 'replClear' |
 //                     'monteCarlo' | 'optimize' | 'optimizeMulti' |
 //                     'curveFit' | 'parameterFit' | 'pidTune' |
-//                     'extractPlant' | 'measurementCalc',
+//                     'extractPlant',
 //             args: string[]}
 //   response {id, ok: true, result: string} | {id, ok: false, error: string}
 //
@@ -15,11 +15,12 @@
 // 'version') — parsing happens on the client side, so the worker only ever
 // posts strings.
 //
-// MDF4 reading was removed (decision D6): the engine no longer holds opened
-// recordings, so the protocol is strings-only again. `measurementCalc`
-// remains — the Data Analyzer's calculated signals evaluate frees formulas
-// over inline series sampled from CSV imports held in the frontend's
-// channelStore.
+// The measured-data line is gone from this protocol entirely. D6 removed
+// MDF4 reading — which is why the protocol is strings-only rather than
+// carrying transferable byte buffers — and D11 removed the Data Analyzer and
+// the engine's measurement stack behind it, taking `measurementCalc` with
+// them. Measured data now reaches a document as a CSV-imported function
+// table, which travels inside an ordinary `solve` request.
 //
 // Failure discipline: nothing may kill the worker. The wasm boundary already
 // returns every *document* problem as data; this dispatch wraps the rest
@@ -30,7 +31,6 @@ import init, {
   curve_fit,
   extract_plant,
   fluids,
-  measurement_calc,
   property_diagram,
   psychrometric_chart,
   reference,
@@ -66,7 +66,6 @@ export interface EngineRequest {
     | 'psychrometricChart'
     | 'replEvaluate'
     | 'replClear'
-    | 'measurementCalc'
   args: string[]
 }
 
@@ -156,9 +155,6 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
       case 'replClear':
         repl_clear(args[0] ?? 'null')
         result = ''
-        break
-      case 'measurementCalc':
-        result = measurement_calc(args[0] ?? '')
         break
       default:
         throw new Error(`Unknown engine method: ${String(method)}`)

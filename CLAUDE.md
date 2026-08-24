@@ -38,7 +38,9 @@ Phase 12).** The `.mf4` reader, `mf4-rs` (and its `meval` → `nom 1.2.4`
 future-incompat debt — the build's only such warning, now zero), the
 boundary's opened-file registry, and the analyzer's remote-source path are
 gone; **the Data Analyzer is CSV-only** and `measurement_calc` survives,
-stateless, with inline inputs. The Phase 10 paragraph below is therefore
+stateless, with inline inputs. *(Superseded 2026-08-24: D11 removed the Data
+Analyzer and `measurement_calc` with it — nothing of the measurement surface
+survives. See the Phase 10 paragraph below.)* The Phase 10 paragraph below is therefore
 **historical**: its measurement surface shipped, was hardened, and was then
 deliberately removed — read D6 for why, and ledger item 37. The binary
 fixture it says must be committed no longer exists.
@@ -104,7 +106,18 @@ predate the phase (vendored) and are documented as such, honestly, in the
 status doc — read its "did not deliver" list before building on this layer;
 item 1 is that the optional remote-fallback adapter stays unwired by choice.
 
-**Phase 10 is implemented and wired.** `crates/frees-core/src/measurement/`
+**Phase 10 is *removed*, and this paragraph is history (decision
+[D11](docs/decisions/0011-remove-analyzer.md), 2026-08-24).** D6 took the
+`.mf4` reader; D11 takes the rest. `crates/frees-core/src/measurement/` (3,251
+lines), `crates/frees-wasm/src/measurement.rs` (1,184 lines), the
+`measurement_calc` export and the `measurement_parity` /
+`measurement_robustness` suites are gone with the Data Analyzer that was their
+only consumer — **the engine has no measurement surface at all**, and measured
+data now enters a document as a CSV-imported *function table* (Wave H),
+callable in equations. Read D11 and ledger item 38 before reviving any of it.
+What follows is what Phase 10 delivered, left as written on 2026-08-01:
+
+**Phase 10 was implemented and wired.** `crates/frees-core/src/measurement/`
 (MDF4 reading over `mf4-rs`, sampled series, envelope decimation, raster
 construction, calculated signals) and `crates/frees-wasm/src/measurement.rs`
 replace `/api/measurements/*`, and `web/src/analyzer/measurementApi.ts` now
@@ -314,8 +327,6 @@ cargo test -p frees-core --test dae_robustness         # the DAE API fuzz (Wave 
 cargo test -p frees-core --test dynamics_robustness    # the transient + analysis fuzz
                                        # (run this one in DEBUG too — the stack-overflow
                                        #  defect it found only reproduced unoptimised)
-cargo test -p frees-core --test measurement_robustness # the calc-signal/raster fuzz
-cargo test -p frees-core --test measurement_parity     # measurement vs the JDK oracle
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
 cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
 cargo fmt --all --check                                 # CI gate

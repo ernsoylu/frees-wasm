@@ -845,8 +845,9 @@ fn flatten_ss2ss<H: Host + ?Sized>(
 /// The corpus's real usage tops out below 10 states; 64 leaves an order of
 /// magnitude of margin while keeping the worst admissible case ~100× cheaper
 /// than the measured cliff. The Java has no ceiling here — a wasm-native
-/// guard in the `measurement.rs` MAX_INPUTS tradition, refusing loudly at
-/// parse time rather than spinning a worker.
+/// guard of the kind this port adds wherever the Java's real limit was a
+/// server and a queue, refusing loudly at parse time rather than spinning a
+/// worker.
 const MAX_SS2TF_STATES: usize = 64;
 
 fn check_ss2tf_states(n: usize) -> Result<()> {

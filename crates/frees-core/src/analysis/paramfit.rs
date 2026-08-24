@@ -411,12 +411,13 @@ fn clamp(value: f64, min: f64, max: f64) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
-// measurement/SampledSeries — the LINEAR half
+// The Java's measurement/SampledSeries — the LINEAR half
 // ---------------------------------------------------------------------------
 
-/// A sampled series with linear interpolation. Port of
+/// A sampled series with linear interpolation. Port of the Java's
 /// `measurement/SampledSeries` restricted to `Interp.LINEAR`, which is the mode
-/// `ParameterFit` constructs.
+/// `ParameterFit` constructs. This crate has no measurement module of its own
+/// — D11 removed it — so this is the only transcription of that class left.
 ///
 /// Two behaviours are load-bearing and are transcribed rather than
 /// approximated: the value **before the first sample is `NaN`** (there is
@@ -468,7 +469,7 @@ impl SampledSeries {
     }
 }
 
-/// First index whose value is `>= x`. Port of
+/// First index whose value is `>= x`. Port of the Java's
 /// `measurement/EnvelopeDecimator.lowerBound`.
 fn lower_bound(a: &[f64], x: f64) -> usize {
     let (mut lo, mut hi) = (0usize, a.len());

@@ -33,8 +33,7 @@ use crate::{
 // ---------------------------------------------------------------------------
 // Caps. The first two are the Java controller's, transcribed with their
 // values and messages; the third is wasm-native (no Java analogue — the Java
-// has a horizontal compute tier behind a queue, this build has one worker),
-// in the spirit of `measurement.rs`'s `MAX_INPUTS`.
+// has a horizontal compute tier behind a queue, this build has one worker).
 // ---------------------------------------------------------------------------
 
 /// `frees.solver.max-table-rows` (default) — `SolveController`.

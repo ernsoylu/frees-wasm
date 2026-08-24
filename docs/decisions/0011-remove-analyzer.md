@@ -97,3 +97,5 @@ problem.** It was ~2 % of the app on the wire, and the case for removing it
 was always its ~6 000 lines of maintained UI surface and the engine-side
 measurement stack behind it, not its bytes. No dist file contains `uplot`
 or `papaparse` after the purge.
+
+**wasm module** (measured 2026-08-24 on `j-engine`, `wasm-pack build crates/frees-wasm --release --target web`, gzip -9): **3114.7 KiB raw / 1269.8 KiB gzipped → 3053.6 / 1245.9**, i.e. **−61.1 KiB raw (−1.96 %) and −23.9 KiB gzipped (−1.88 %)**; headroom against the 4096 KiB budget is 1042.4 KiB.

@@ -2060,12 +2060,15 @@ fn apply_binop(op: BinOp, l: f64, r: f64) -> Result<f64> {
             // missing one, so C's answer is not merely a parity difference —
             // it is a wrong number that looks like a measurement.
             //
-            // The calc path fixes this at its own `^`
-            // (`measurement::calc::java_pow`), but a formula's *function
-            // arguments* are evaluated here instead, so `abs(b ^ e)` bypassed
-            // that and re-introduced the invented `1.0`. Same rule, second
-            // site. See `tests/measurement_parity.rs::
-            // a_gap_in_the_exponent_stays_a_gap_inside_a_call_argument`.
+            // Found twice, in the Phase-10 measurement calc tree and then
+            // again here, because a formula's *function arguments* are
+            // evaluated by this evaluator rather than compiled — so
+            // `abs(b ^ e)` re-introduced the invented `1.0` after the calc
+            // tree had removed it. The calc tree is gone (D11, 2026-08-24);
+            // this site is the engine-wide one and it stands. Pinned by
+            // `a_non_finite_exponent_answers_the_java_way`, which carries
+            // over the assertions the deleted `measurement_parity.rs::
+            // a_gap_in_the_exponent_stays_a_gap_inside_a_call_argument` made.
             if r.is_nan() || (r.is_infinite() && l.abs() == 1.0) {
                 return Ok(f64::NAN);
             }
@@ -5241,6 +5244,36 @@ mod tests {
         // Integral exponents on a negative base stay legal.
         assert_eq!(ev(&Expr::bin(BinOp::Pow, n(-2.0), n(3.0))), -8.0);
         assert_eq!(ev(&Expr::bin(BinOp::Pow, n(0.0), n(0.0))), 1.0);
+    }
+
+    /// `^` is Java's `Math.pow`, not C's — the ledger's one *closed* Phase-10
+    /// divergence, and the only part of that section that is still live code.
+    ///
+    /// C answers `1` for `pow(1, NaN)` and `pow(±1, ±∞)`; Java answers `NaN`,
+    /// and so does `ast/Evaluator`, so a document that raises exactly 1 to a
+    /// missing exponent must not have a sample invented for it. This test
+    /// carries over the assertions that
+    /// `measurement_parity.rs::a_gap_in_the_exponent_stays_a_gap_inside_a_call_argument`
+    /// made before D11 deleted that suite with its surface; the rule it pins
+    /// lives here, in the document evaluator, and is engine-wide.
+    #[test]
+    fn a_non_finite_exponent_answers_the_java_way() {
+        let pow = |l: f64, r: f64| ev(&Expr::bin(BinOp::Pow, n(l), n(r)));
+        // The two families C gets wrong.
+        assert!(pow(1.0, f64::NAN).is_nan());
+        assert!(pow(1.0, f64::INFINITY).is_nan());
+        assert!(pow(1.0, f64::NEG_INFINITY).is_nan());
+        assert!(pow(-1.0, f64::INFINITY).is_nan());
+        assert!(pow(-1.0, f64::NEG_INFINITY).is_nan());
+        // A NaN exponent is NaN whatever the base — including inside a call
+        // argument, which is the second site the rule was needed at.
+        assert!(pow(2.0, f64::NAN).is_nan());
+        assert!(c("abs", &[pow(1.0, f64::NAN)]).is_nan());
+        // Everything else keeps IEEE's answer: |base| ≠ 1 against ±∞ is not
+        // one of the two families, and must not be swept up by the guard.
+        assert_eq!(pow(2.0, f64::INFINITY), f64::INFINITY);
+        assert_eq!(pow(2.0, f64::NEG_INFINITY), 0.0);
+        assert_eq!(pow(0.5, f64::INFINITY), 0.0);
     }
 
     #[test]

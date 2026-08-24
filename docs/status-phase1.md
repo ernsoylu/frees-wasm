@@ -342,6 +342,18 @@ The measurement surface (`crates/frees-core/src/measurement/`,
 `crates/frees-core/tests/measurement_robustness.rs`. Full context in
 [`docs/status-phase10.md`](status-phase10.md).
 
+> **All five items below are moot as of 2026-08-24 (decision
+> [D11](decisions/0011-remove-analyzer.md)): the surface they describe was
+> removed, not fixed.** The measurement module, its wasm boundary, the
+> `measurement_calc` export and both pinning suites left with the Data
+> Analyzer that was their only consumer — so items 26–30 no longer name any
+> code, and no divergence from the Java remains to track, because the Java's
+> `measurement/` package has no counterpart here at all. They are kept as
+> written because they are the record of what a faithful port of that package
+> cost. See item 38. **One thing in this section is *not* moot**: the `^`
+> closure noted after item 30 is engine-wide, lives in `eval.rs`, and stands
+> — see the annotation there.
+
 26. **MDF4 format coverage narrows, and the `mdf-sidecar` rung has no
     successor.** The Java ran `Mf4Parser` (mdf4j, in-process) →
     `FallbackMeasurementParser` → the Python **`mdf-sidecar`** (asammdf), whose
@@ -426,7 +438,12 @@ which are not compiled and go to the document evaluator instead. The second fix
 is in `eval.rs::apply_binop`, so **every** frees document now answers `NaN` for
 `1^NaN` and `1^inf` where it previously answered `1`, which is what
 `ast/Evaluator` has always done. No corpus fixture changed. Two sites, one rule;
-both pinned in `measurement_parity.rs`.
+both pinned in `measurement_parity.rs`. *(Updated 2026-08-24, D11: one site
+survives — the calc tree went with the module, and the `eval.rs::apply_binop`
+half is engine-wide and untouched. Its assertions were carried over to
+`eval.rs::tests::a_non_finite_exponent_answers_the_java_way` when
+`measurement_parity.rs` was deleted, so the rule is still pinned. This is the
+only live code the Phase-10 section still names.)*
 
 Full detail: workflow output `wk1ueuu8a` findings list (items 1–12); Phase 6's
 items are recorded in `docs/status-phase6.md`, Phase 7's in
@@ -509,6 +526,29 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     the surface they defended. Divergence from the Java baseline is now
     total for this format rather than partial: where Phase 10 read a subset,
     this build reads none, and says so in the analyzer's Help page.
+
+38. **The measurement stack is removed entirely (decision D11, 2026-08-24),
+    and with it items 26–30.** `crates/frees-core/src/measurement/` (3,251
+    lines: sampled series, envelope decimation, raster construction,
+    calculated signals), `crates/frees-wasm/src/measurement.rs` (1,184
+    lines, the `measurement_calc` export), and the `measurement_parity` /
+    `measurement_robustness` suites (2,264 lines) left with the Data Analyzer
+    that was their only consumer. This is the **first removal of ported
+    parity code** in the project — item 37 removed a *format reader*, this
+    removes a faithful port of the Java's `measurement/` package together
+    with the oracle suites that graded it — so it is recorded as a decision
+    rather than a status note. Divergence from the Java is no longer partial
+    or deliberate here; there is nothing left to diverge, because the package
+    has no counterpart in this build at all. Measured data reaches a document
+    by the route Wave H opened instead: CSV → function table → callable in
+    equations. **One rule survives the deletion and is now pinned in its own
+    crate**: `^` is Java's `Math.pow` (`pow(±1, ±∞)` and `pow(1, NaN)` are
+    `NaN`, not `1`) — the divergence closed under item 30, which was only
+    ever *found* in the calc tree and always *lived* in `eval.rs`. Its
+    assertions moved to
+    `eval.rs::tests::a_non_finite_exponent_answers_the_java_way`. The corpus
+    is untouched: no measurement fixture ever entered `fixtures/corpus`, and
+    the replay still matches all **983** goldens.
 
 ## Commands
 

@@ -1,0 +1,24 @@
+// CabinZone pulldown (the component's natural transient): a 3 m3 cabin
+// starting warm and humid (27 C, W = 0.010) is ventilated with 0.12 kg/s of
+// cool supply air (15 C, W = 0.007) against two occupants (70 W sensible,
+// 15 mg/s moisture each), 300 W of solar/auxiliary load and a 15 W/K shell
+// to a 305 K ambient. Both zone states relax with tau ~ m_air/mdot ~ 26 s
+// toward Tz ~ 293 K and Wz = W_in + n_occ*mw_occ/mdot = 0.00725, so 120 s
+// is ~4.7 thermal time constants. The steady CabinZone document stalls the
+// ORACLE at default guesses (its humidity-ratio unknown seeds into
+// HAPropsSI's NaN region — fixtures/README growth item 4); here Tz and Wz
+// are integrator STATES seeded from init(T0/W0), which sidesteps the
+// guess landscape entirely.
+MoistAirSource SUP(P = 101325, T = 288.15, W = 0.007, mdot = 0.12)
+CabinZone      ZONE(Vz = 3, T0 = 300.15, W0 = 0.010, n_occ = 2, q_sens = 70, mw_occ = 1.5e-5, Q_aux = 300)
+MoistAirSink   SNK()
+Convection     SHELL(htc = 5, area = 3)
+ThermalSource  AMB(T = 305)
+connect(SUP.out, ZONE.in)
+connect(ZONE.out, SNK.in)
+connect(ZONE.wall, SHELL.a)
+connect(SHELL.b, AMB.port)
+DYNAMIC pulldown(method = ode23s, time = 0 .. 120, points = 21)
+END
+t_end = FinalValue('zone.tz')
+w_end = FinalValue('zone.wz')

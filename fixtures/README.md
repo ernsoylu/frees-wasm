@@ -5,8 +5,8 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 905
-fixtures/golden/*.json    what the Java engine produced for each      — 905
+fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 906
+fixtures/golden/*.json    what the Java engine produced for each      — 906
 fixtures/corpus-pending/  the staging area: documents not yet promoted — 1
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
@@ -430,11 +430,51 @@ Extend it further from, in rough order of value:
    region; this port solves the document) and no in-document guess syntax
    exists to steer it, so the component stays uncovered rather than pinning
    an oracle guess-landscape artifact as a golden. **Component coverage is
-   now 294 of 295.** Corpus 776 → 905. The agents' authoring insights
-   (all-or-none port binding, one-connect-per-electrical-node, the der→0
-   steady branch carrying most stateful components, `time` pinning for
+   now 294 of 295** *(closed 2026-08-24, Wave I — see the CabinZone note
+   below; coverage is 295 of 295)*. Corpus 776 → 905. The agents' authoring
+   insights (all-or-none port binding, one-connect-per-electrical-node, the
+   der→0 steady branch carrying most stateful components, `time` pinning for
    steady signal rigs) are recorded in the G4 commit message — the batch
-   `NOTES.md` files lived in a session scratchpad and are not preserved
+   `NOTES.md` files lived in a session scratchpad and are not preserved.
+
+   **Oracle verdict on the Water zone-HX stall (2026-08-24, Wave I).** G4's
+   one engine lead — TwoZoneHX/ThreeZoneHX/HeatExchanger "deterministically
+   stall on Water: unsolved intermediate enthalpies start at the ~1 J/kg
+   default guess, one joule above Water's triple-point property cliff" — was
+   never put to the oracle. It has been now: water-to-water TwoZoneHX and
+   ThreeZoneHX documents at the `components_g4_heatexchanger` conditions
+   (360 K / 200 kPa hot, 300 K / 150 kPa cold, UA = 2500 W/K) were authored,
+   confirmed to stall this engine (Newton non-convergence after 27.9 s /
+   stall after 52.3 s of retry ladder), and run through golden-dumper —
+   **the Java fails identically.** TwoZoneHX: `SolverException: Block 26 did
+   not converge within 250 iterations (residual norm 13854.5)` against this
+   engine's block 27 at norm 14078; ThreeZoneHX: `Newton iteration stalled
+   in block 40` against this engine's stall in block 41. Both Java errors
+   bottom out on the same cliff this port hits — CoolProp's
+   `HSU_P_flash_singlephase_Brent … Hmolar is below the minimum value of
+   2.46802437917 J/mol` on a `("P", "Hmass", "Water")` call, with the very
+   `Tmin=273.144, Tmax=393.36` bracket rustprop's refusal quotes. **The
+   stall is a faithful port of the Java guess landscape, not a seeding
+   bug** — no engine change, and the Water documents stay unpromoted (an
+   error-message golden would pin block numbering and residual noise, not
+   behavior). A future *joint* seeding improvement remains possible but
+   belongs upstream-of-parity; the G4 "a future seeding improvement could
+   close this" note now carries this boundary.
+
+   **CabinZone is covered (2026-08-24, Wave I): coverage 294 → 295, corpus
+   905 → 906.** The G4 drop was the *steady* document — the oracle stalls
+   when the der→0 branch makes `Wz` an algebraic unknown whose default guess
+   seeds `HAPropsSI` into its NaN region. The transient hypothesis held: in
+   a `DYNAMIC` document `Tz`/`Wz` are integrator states seeded from
+   `init(T0/W0)`, so neither engine ever visits the guess landscape.
+   `components_i_cabinzone_dynamic` (a 120 s ventilation pulldown, ode23s,
+   21 points, wall coupled through `Convection` to a `ThermalSource`
+   ambient) solves in both engines and the pair is **bit-identical** —
+   every value of the 21×35 `ode_tables` grid, both `FinalValue` anchors
+   (`t_end` 292.33696797339354 K, `w_end` 0.007298792069508541),
+   `end_time` and `stopped` — promoted at the corpus default with no
+   tolerance entry. `component_families.rs`'s measured group floor
+   re-raised 262 → 263 per its never-lower rule.
 
 Add the document to `corpus/`, rerun `run.sh`, and commit both the source and
 the generated golden file. **Review the generated fixture before committing** —
@@ -442,12 +482,13 @@ it encodes whatever the Java engine does, including any bug.
 
 ### The `components_*` group (Phase 6)
 
-175 fixtures whose stem starts with `components_` (46 until Wave G4,
-2026-08-23), in four provenance classes:
+176 fixtures whose stem starts with `components_` (46 until Wave G4,
+2026-08-23), in five provenance classes:
 
 | Prefix | Count | Where it came from |
 |---|---|---|
 | `components_g4_<type>` | 129 | **The Wave G4 library sweep** (growth-source item 4 above): one minimal document per previously-uncovered built-in, authored by four parallel agents, oracle-solved and promoted under the standard rule — 118 at the corpus default, 11 with `oracle-ph-table` entries. Raised `component_families.rs`'s measured group-coverage floor 120 → 262 of 295. |
+| `components_i_cabinzone_dynamic` | 1 | **Wave I (2026-08-24)** closing G4's one drop: the `DYNAMIC` CabinZone pulldown that sidesteps the oracle's steady-guess stall (item 4 above has the full story). Bit-identical to the golden; floor 262 → 263. |
 | `components_family_<domain>` | 12 | **Hand-authored here**, one per domain family (`ac`, `electrical`, `fluid`, `heat`, `hydraulic`, `liquid`, `mechanical`, `moistair`, `pneumatic`, `powertrain`, `signal`, `twophase`). `control.frees` ships one component, `PIThermostat`, which rides the heat bond and is exercised from `components_family_heat`. |
 | `components_<wave>_<name>` | 31 | **Harvested** from `../frEES/backend/core/src/test/resources/component-fixtures/`, renamed `<directory>_<stem>`. Only documents that reproduce the Java answer are here; the reference set's transient (`DYNAMIC`) documents are not, because the ODE engine is Phase 7/8. |
 | `components_definition_*`, `components_user_defined_type` | 3 | Edge cases: a template that is never instantiated (empty document, and beside an unrelated scalar), and a user-declared `COMPONENT` shadowing nothing. |

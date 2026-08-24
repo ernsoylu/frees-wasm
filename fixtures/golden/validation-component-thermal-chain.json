@@ -1,0 +1,48 @@
+{
+  "name": "validation-component-thermal-chain",
+  "source": "// VALIDATION: Series conduction chain (component network)\n// AREA: Component modeling - thermal\n// BASIS: Resistances L/(k*A) are 0.5 and 0.25 K/W; Q = 100/0.75 = 133.333 W,\n// so the interface sits at 400 - 0.5*Q = 333.33333 K.\n// EXPECT t_mid = 333.33333 tol 1e-3\nThermalSource HOT(T=400)\nThermalSource COLD(T=300)\nConduction C1(k=1, area=1, L=0.5)\nConduction C2(k=1, area=1, L=0.25)\nconnect(HOT.port, C1.a)\nconnect(C1.b, C2.a)\nconnect(C2.b, COLD.port)\nt_mid = C1.b.T\n",
+  "expect": {
+    "variables": {
+      "c1.a.qdot": 133.33333333333334,
+      "c1.a.t": 400.0,
+      "c1.b.qdot": -133.33333333333334,
+      "c1.b.t": 333.3333333333333,
+      "c1.q": 133.33333333333334,
+      "c2.a.qdot": 133.33333333333334,
+      "c2.a.t": 333.3333333333333,
+      "c2.b.qdot": -133.33333333333334,
+      "c2.b.t": 300.0,
+      "c2.q": 133.33333333333334,
+      "cold.port.qdot": 133.33333333333334,
+      "cold.port.t": 300.0,
+      "hot.port.qdot": -133.33333333333334,
+      "hot.port.t": 400.0,
+      "t_mid": 333.3333333333333
+    },
+    "display_names": {
+      "c1$a$qdot": "c1.a.qdot",
+      "c1$a$t": "c1.a.t",
+      "c1$b$qdot": "c1.b.qdot",
+      "c1$b$t": "c1.b.t",
+      "c1$q": "c1.q",
+      "c2$a$qdot": "c2.a.qdot",
+      "c2$a$t": "c2.a.t",
+      "c2$b$qdot": "c2.b.qdot",
+      "c2$b$t": "c2.b.t",
+      "c2$q": "c2.q",
+      "cold$port$qdot": "cold.port.qdot",
+      "cold$port$t": "cold.port.t",
+      "hot$port$qdot": "hot.port.qdot",
+      "hot$port$t": "hot.port.t",
+      "t_mid": "t_mid"
+    },
+    "block_count": 10,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

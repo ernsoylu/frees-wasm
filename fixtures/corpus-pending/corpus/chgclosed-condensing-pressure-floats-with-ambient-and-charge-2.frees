@@ -1,0 +1,6 @@
+TwoPhaseEnthalpySource DIS(mdot=0.02, h=435000)
+TwoPhaseCondenserUA CND(fluid$=R134a, UA=400, T_amb=320.000000, V=0.002)
+TwoPhaseSink SNK()
+connect(DIS.out, CND.in)
+connect(CND.out, SNK.in)
+CND.m = 1.200000

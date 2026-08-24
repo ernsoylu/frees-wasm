@@ -1,0 +1,32 @@
+{
+  "name": "callauto-eigenvalues-sized-from-matrix-dimension",
+  "source": "A = [2, 0; 0, 3]\nCALL Eigenvalues(A : lambda)\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 2.0,
+      "A[1,2]": 0.0,
+      "A[2,1]": 0.0,
+      "A[2,2]": 3.0,
+      "lambda[1]": 2.0,
+      "lambda[2]": 3.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "lambda": "lambda",
+      "lambda[1]": "lambda[1]",
+      "lambda[2]": "lambda[2]"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

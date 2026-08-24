@@ -1,0 +1,38 @@
+{
+  "name": "validation-stats-linfit-exact",
+  "source": "// VALIDATION: Least-squares line through exactly collinear points\n// AREA: Statistics\n// BASIS: (1,3), (2,5), (3,7) lie exactly on y = 2x + 1, so the fit returns\n// slope 2, intercept 1, R^2 = 1.\n// EXPECT slope = 2 tol 1e-9\n// EXPECT intercept = 1 tol 1e-9\n// EXPECT r2 = 1 tol 1e-9\nx[1:3] = [1, 2, 3]\ny[1:3] = [3, 5, 7]\nCALL LinFit(x[1:3], y[1:3] : slope, intercept, r2)\n",
+  "expect": {
+    "variables": {
+      "intercept": 1.0,
+      "r2": 1.0,
+      "slope": 2.0,
+      "x[1]": 1.0,
+      "x[2]": 2.0,
+      "x[3]": 3.0,
+      "y[1]": 3.0,
+      "y[2]": 5.0,
+      "y[3]": 7.0
+    },
+    "display_names": {
+      "intercept": "intercept",
+      "r2": "r2",
+      "slope": "slope",
+      "x": "x",
+      "x[1]": "x[1]",
+      "x[2]": "x[2]",
+      "x[3]": "x[3]",
+      "y": "y",
+      "y[1]": "y[1]",
+      "y[2]": "y[2]",
+      "y[3]": "y[3]"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

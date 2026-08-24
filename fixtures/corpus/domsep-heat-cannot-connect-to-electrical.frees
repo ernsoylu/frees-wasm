@@ -1,0 +1,3 @@
+ThermalSource TS(T=300)
+Resistor      R(R=10)
+connect(TS.port, R.a)

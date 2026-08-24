@@ -1,0 +1,18 @@
+{
+  "name": "eqsys-solves-with-complex-helpers",
+  "source": "z = 3 + 4i\nreal_z = real(z)\nimag_z = imag(z)\nz_conj = conj(z)\nz_mag = magnitude(z)\nz_angle = anglerad(z)\nz_angle_deg = angledeg(z)\nz_cis = cis(z_angle)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "The equations contain complex literals (e.g. 1i): enable Complex mode to solve them."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

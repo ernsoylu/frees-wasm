@@ -1,0 +1,26 @@
+{
+  "name": "validation-fluid-isentropic-flow",
+  "source": "// VALIDATION: Isentropic compressible-flow ratios at Mach 2\n// AREA: Compressible flow\n// BASIS: T0/T = 1 + (gamma-1)/2 * M^2 = 1.8 exactly;\n// P0/P = (T0/T)^(gamma/(gamma-1)) = 1.8^3.5 = 5.832*sqrt(1.8) = 7.824449.\n// EXPECT TR = 1.8 tol 1e-9\n// EXPECT PR = 7.824449 tol 1e-4\ngamma = 1.4\nM = 2\nTR = 1 + (gamma - 1) / 2 * M^2\nPR = TR^(gamma / (gamma - 1))\n",
+  "expect": {
+    "variables": {
+      "M": 2.0,
+      "PR": 7.824449066867263,
+      "TR": 1.7999999999999998,
+      "gamma": 1.4
+    },
+    "display_names": {
+      "gamma": "gamma",
+      "m": "M",
+      "pr": "PR",
+      "tr": "TR"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

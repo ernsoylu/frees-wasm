@@ -1,0 +1,30 @@
+{
+  "name": "validation-fluid-poiseuille",
+  "source": "// VALIDATION: Laminar fully-developed pipe pressure drop (Hagen-Poiseuille)\n// AREA: Fluid mechanics\n// BASIS: dp = 128*mu*L*Q / (pi*d^4) = 1.28e-6 / (pi * 1e-8) = 40.743665 Pa.\n// EXPECT dp = 40.743665 tol 1e-4\npi_val = 3.14159265358979\nmu = 0.001\nL = 10\nQ = 1e-6\nd = 0.01\ndp = 128 * mu * L * Q / (pi_val * d^4)\n",
+  "expect": {
+    "variables": {
+      "L": 10.0,
+      "Q": 1.0E-6,
+      "d": 0.01,
+      "dp": 40.74366543152525,
+      "mu": 0.001,
+      "pi_val": 3.14159265358979
+    },
+    "display_names": {
+      "d": "d",
+      "dp": "dp",
+      "l": "L",
+      "mu": "mu",
+      "pi_val": "pi_val",
+      "q": "Q"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

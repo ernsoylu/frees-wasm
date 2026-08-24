@@ -1,0 +1,32 @@
+{
+  "name": "validation-matrix-eigen-symmetric",
+  "source": "// VALIDATION: Eigenvalues of a symmetric 2x2\n// AREA: Linear algebra\n// BASIS: [[2,1],[1,2]] has characteristic roots 2 +/- 1, i.e. 1 and 3\n// (reported ascending).\n// EXPECT lambda[1] = 1 tol 1e-8\n// EXPECT lambda[2] = 3 tol 1e-8\nA = [2 1; 1 2]\nCALL Eigenvalues(A[1:2,1:2] : lambda[1:2])\n",
+  "expect": {
+    "variables": {
+      "A[1,1]": 2.0,
+      "A[1,2]": 1.0,
+      "A[2,1]": 1.0,
+      "A[2,2]": 2.0,
+      "lambda[1]": 1.0000000000000002,
+      "lambda[2]": 3.0
+    },
+    "display_names": {
+      "a": "A",
+      "a[1,1]": "A[1,1]",
+      "a[1,2]": "A[1,2]",
+      "a[2,1]": "A[2,1]",
+      "a[2,2]": "A[2,2]",
+      "lambda": "lambda",
+      "lambda[1]": "lambda[1]",
+      "lambda[2]": "lambda[2]"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,5 @@
+TwoPhasePressureSource HI(fluid$=R134a, P=900000, x=0)
+EXV V(fluid$=R134a, CdA_max=2e-6, u=1.000000)
+TwoPhasePressureSink LO(P=350000)
+connect(HI.out, V.in)
+connect(V.out, LO.in)

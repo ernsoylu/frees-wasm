@@ -1,0 +1,54 @@
+{
+  "name": "validation-signal-fft-impulse",
+  "source": "// VALIDATION: FFT of a unit impulse\n// AREA: Signal processing\n// BASIS: The DFT of [1,0,0,0] is 1 at every bin (flat spectrum) with zero\n// imaginary part, under either sign convention.\n// EXPECT outRe[1] = 1 tol 1e-12\n// EXPECT outRe[2] = 1 tol 1e-12\n// EXPECT outRe[3] = 1 tol 1e-12\n// EXPECT outRe[4] = 1 tol 1e-12\n// EXPECT outIm[3] = 0 tol 1e-12\nre[1:4] = [1, 0, 0, 0]\nim[1:4] = [0, 0, 0, 0]\nCALL FFT(re[1:4], im[1:4] : outRe[1:4], outIm[1:4])\n",
+  "expect": {
+    "variables": {
+      "im[1]": 0.0,
+      "im[2]": 0.0,
+      "im[3]": 0.0,
+      "im[4]": 0.0,
+      "outIm[1]": 0.0,
+      "outIm[2]": 0.0,
+      "outIm[3]": 0.0,
+      "outIm[4]": 0.0,
+      "outRe[1]": 1.0,
+      "outRe[2]": 1.0,
+      "outRe[3]": 1.0,
+      "outRe[4]": 1.0,
+      "re[1]": 1.0,
+      "re[2]": 0.0,
+      "re[3]": 0.0,
+      "re[4]": 0.0
+    },
+    "display_names": {
+      "im": "im",
+      "im[1]": "im[1]",
+      "im[2]": "im[2]",
+      "im[3]": "im[3]",
+      "im[4]": "im[4]",
+      "outim": "outIm",
+      "outim[1]": "outIm[1]",
+      "outim[2]": "outIm[2]",
+      "outim[3]": "outIm[3]",
+      "outim[4]": "outIm[4]",
+      "outre": "outRe",
+      "outre[1]": "outRe[1]",
+      "outre[2]": "outRe[2]",
+      "outre[3]": "outRe[3]",
+      "outre[4]": "outRe[4]",
+      "re": "re",
+      "re[1]": "re[1]",
+      "re[2]": "re[2]",
+      "re[3]": "re[3]",
+      "re[4]": "re[4]"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

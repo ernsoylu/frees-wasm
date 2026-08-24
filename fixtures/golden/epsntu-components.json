@@ -1,0 +1,18 @@
+{
+  "name": "epsntu-components",
+  "source": "// ε-NTU condenser, saturated-liquid outlet, CONDENSING PRESSURE FLOATS.\n// Cr→0 (phase-changing refrigerant) => ε = 1 − exp(−UA/C_sec).\nCOMPONENT CondNTUFloat(in, out, wall)\n  PARAM fluid$, UA, Csec, domain$ = twophase\n  out.mdot = in.mdot\n  out.P    = in.P\n  Tcond    = T_sat(fluid$, P=in.P)\n  hf       = Enthalpy(fluid$, P=in.P, x=0)\n  out.h    = hf\n  eps      = 1 - exp(-UA / Csec)\n  Q        = in.mdot * (in.h - out.h)\n  Q        = eps * Csec * (Tcond - wall.T)\n  wall.Qdot = -Q\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

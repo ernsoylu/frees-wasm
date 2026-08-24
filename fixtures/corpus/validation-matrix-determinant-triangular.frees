@@ -1,0 +1,8 @@
+// VALIDATION: Determinant of a triangular matrix (LU intrinsic path)
+// AREA: Linear algebra
+// BASIS: The determinant of a triangular matrix is the product of its
+// diagonal: 1*2*3*4*5 = 120. A 5x5 exercises the runtime LU path (above 3x3
+// the closed-form cofactor expansion is not used).
+// EXPECT d = 120 tol 1e-8
+A = [1 1 1 1 1; 0 2 1 1 1; 0 0 3 1 1; 0 0 0 4 1; 0 0 0 0 5]
+d = Determinant(A[1:5,1:5])

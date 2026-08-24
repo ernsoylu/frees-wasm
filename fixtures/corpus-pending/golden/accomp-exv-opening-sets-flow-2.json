@@ -1,0 +1,45 @@
+{
+  "name": "accomp-exv-opening-sets-flow-2",
+  "source": "TwoPhasePressureSource HI(fluid$=R134a, P=900000, x=0)\nEXV V(fluid$=R134a, CdA_max=2e-6, u=1.000000)\nTwoPhasePressureSink LO(P=350000)\nconnect(HI.out, V.in)\nconnect(V.out, LO.in)\n",
+  "expect": {
+    "variables": {
+      "hi.out.h": 249779.7946448451,
+      "hi.out.mdot": 0.07160706512032267,
+      "hi.out.p": 900000.0,
+      "lo.in.h": 249779.7946448451,
+      "lo.in.mdot": 0.07160706512032267,
+      "lo.in.p": 350000.0,
+      "v.in.h": 249779.7946448451,
+      "v.in.mdot": 0.07160706512032267,
+      "v.in.p": 900000.0,
+      "v.out.h": 249779.7946448451,
+      "v.out.mdot": 0.07160706512032267,
+      "v.out.p": 350000.0,
+      "v.rho_in": 1165.3572216241205
+    },
+    "display_names": {
+      "hi$out$h": "hi.out.h",
+      "hi$out$mdot": "hi.out.mdot",
+      "hi$out$p": "hi.out.p",
+      "lo$in$h": "lo.in.h",
+      "lo$in$mdot": "lo.in.mdot",
+      "lo$in$p": "lo.in.p",
+      "r134a": "R134a",
+      "v$in$h": "v.in.h",
+      "v$in$mdot": "v.in.mdot",
+      "v$in$p": "v.in.p",
+      "v$out$h": "v.out.h",
+      "v$out$mdot": "v.out.mdot",
+      "v$out$p": "v.out.p",
+      "v$rho_in": "v.rho_in"
+    },
+    "block_count": 13,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

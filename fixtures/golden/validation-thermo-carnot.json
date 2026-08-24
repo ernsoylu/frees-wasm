@@ -1,0 +1,24 @@
+{
+  "name": "validation-thermo-carnot",
+  "source": "// VALIDATION: Carnot efficiency\n// AREA: Thermodynamics\n// BASIS: Closed form eta = 1 - T_cold/T_hot = 1 - 300/600 = 0.5 exactly.\n// EXPECT eta = 0.5 tol 1e-12\nT_hot = 600\nT_cold = 300\neta = 1 - T_cold / T_hot\n",
+  "expect": {
+    "variables": {
+      "T_cold": 300.0,
+      "T_hot": 600.0,
+      "eta": 0.5
+    },
+    "display_names": {
+      "eta": "eta",
+      "t_cold": "T_cold",
+      "t_hot": "T_hot"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

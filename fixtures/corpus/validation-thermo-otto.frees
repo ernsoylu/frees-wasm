@@ -1,0 +1,8 @@
+// VALIDATION: Air-standard Otto-cycle efficiency
+// AREA: Thermodynamics
+// BASIS: eta = 1 - r^(1-gamma); with r = 8, gamma = 1.4:
+// 8^0.4 = 2^1.2 = 2.2973967, so eta = 1 - 1/2.2973967 = 0.5647247.
+// EXPECT eta = 0.5647247 tol 1e-6
+r = 8
+gamma = 1.4
+eta = 1 - r^(1 - gamma)

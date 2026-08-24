@@ -1,0 +1,11 @@
+// VALIDATION: Bilinear (Tustin) discretization of an integrator
+// AREA: Control systems
+// BASIS: 1/s under s = (2/Ts)(z-1)/(z+1) becomes (Ts/2)(z+1)/(z-1); with
+// Ts = 0.1 the coefficients are exactly [0.05, 0.05] / [1, -1].
+// EXPECT numz[1] = 0.05 tol 1e-12
+// EXPECT numz[2] = 0.05 tol 1e-12
+// EXPECT denz[1] = 1 tol 1e-12
+// EXPECT denz[2] = -1 tol 1e-12
+num = [1]
+den = [1, 0]
+CALL c2d(num[1:1], den[1:2], 0.1, 'tustin' : numz[1:2], denz[1:2])

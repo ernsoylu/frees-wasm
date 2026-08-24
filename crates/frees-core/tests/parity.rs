@@ -120,7 +120,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use frees_core::{solve, FreesError, SolverSettings};
+use frees_core::{solve_with_tables, FreesError, SolverSettings};
 
 const REL_TOL: f64 = 1e-9;
 const ABS_TOL: f64 = 1e-12;
@@ -624,6 +624,61 @@ fn compare_ode_tables(
     }
 }
 
+/// The fixture's optional `function_tables` field as solver extra defs.
+///
+/// The field is the harvester's `.tables.json` sidecar embedded verbatim by
+/// the dumper (which installed the same tables on the Java side), in the
+/// core def shape: `name` (already trimmed + lowercased, as
+/// `SolveDtos.functionDefsOf` keys them), `arg_names`, `x_log`/`y_log`, and
+/// `curves` of `{param, xs, ys}`. No units travel on this channel — the
+/// Java's 5-argument `FunctionTableDef` constructor.
+fn function_tables_of(v: &serde_json::Value) -> Vec<frees_core::parser::defs::FunctionTableDef> {
+    let Some(tables) = v.as_array() else {
+        return Vec::new();
+    };
+    let strings = |v: &serde_json::Value| -> Vec<String> {
+        v.as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|s| s.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let floats = |v: &serde_json::Value| -> Vec<f64> {
+        v.as_array()
+            .map(|a| a.iter().map(as_f64).collect())
+            .unwrap_or_default()
+    };
+    tables
+        .iter()
+        .map(|t| frees_core::parser::defs::FunctionTableDef {
+            name: t["name"]
+                .as_str()
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase(),
+            arg_names: strings(&t["arg_names"]),
+            x_log: t["x_log"].as_bool().unwrap_or(false),
+            y_log: t["y_log"].as_bool().unwrap_or(false),
+            curves: t["curves"]
+                .as_array()
+                .map(|cs| {
+                    cs.iter()
+                        .map(|c| frees_core::parser::defs::Curve {
+                            param: c["param"].as_f64(),
+                            xs: floats(&c["xs"]),
+                            ys: floats(&c["ys"]),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            output_unit: None,
+            arg_units: None,
+        })
+        .collect()
+}
+
 fn replay(
     path: &Path,
     tolerances: &BTreeMap<String, f64>,
@@ -645,6 +700,15 @@ fn replay(
     let expect = &fixture["expect"];
     let expected_error = &expect["error"];
 
+    // Request-level Function Tables (the GUI channel, decision D10): the
+    // harvester stages them as a `.tables.json` sidecar, the dumper installs
+    // them on the Java side and embeds them here, and the replay hands them to
+    // `solve_with_tables` — the same merge position every solving endpoint
+    // uses. An absent field is the empty slice, which is byte-for-byte
+    // `solve`, so every table-less fixture replays exactly as before.
+    let extra_tables = function_tables_of(&fixture["function_tables"]);
+    let run = |settings: &SolverSettings| solve_with_tables(source, settings, &[], &extra_tables);
+
     // A declared stop-criterion floor is a claim that the default cannot be
     // reached, so it is verified before it is used — exactly as a declared
     // numeric tolerance is. A fixture that solves at the default has a dead
@@ -652,7 +716,7 @@ fn replay(
     let settings = match floors.get(&name) {
         None => SolverSettings::default(),
         Some(&rel_tolerance) => {
-            if solve(source, &SolverSettings::default()).is_ok() {
+            if run(&SolverSettings::default()).is_ok() {
                 failures.push(Failure {
                     fixture: name.clone(),
                     detail: format!(
@@ -678,7 +742,7 @@ fn replay(
         });
     };
 
-    match solve(source, &settings) {
+    match run(&settings) {
         Ok(solution) => {
             if !expected_error.is_null() {
                 fail(format!(

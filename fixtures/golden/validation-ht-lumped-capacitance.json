@@ -1,0 +1,36 @@
+{
+  "name": "validation-ht-lumped-capacitance",
+  "source": "// VALIDATION: Lumped-capacitance transient cooling (algebraic form)\n// AREA: Heat transfer\n// BASIS: T = T_inf + (T_i - T_inf)*exp(-t/tau) with tau = m*c/(h*A)\n// = 500/2.5 = 200 s; at t = 100 s, exp(-0.5) = 0.60653066, so T = 360.65307.\n// EXPECT tau = 200 tol 1e-9\n// EXPECT T = 360.65307 tol 1e-3\nm = 1\nc = 500\nh = 25\nA = 0.1\ntau = m * c / (h * A)\nT_inf = 300\nT_i = 400\nt1 = 100\nT = T_inf + (T_i - T_inf) * exp(-t1 / tau)\n",
+  "expect": {
+    "variables": {
+      "A": 0.1,
+      "T": 360.65306597126335,
+      "T_i": 400.0,
+      "T_inf": 300.0,
+      "c": 500.0,
+      "h": 25.0,
+      "m": 1.0,
+      "t1": 100.0,
+      "tau": 200.0
+    },
+    "display_names": {
+      "a": "A",
+      "c": "c",
+      "h": "h",
+      "m": "m",
+      "t": "T",
+      "t1": "t1",
+      "t_i": "T_i",
+      "t_inf": "T_inf",
+      "tau": "tau"
+    },
+    "block_count": 9,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

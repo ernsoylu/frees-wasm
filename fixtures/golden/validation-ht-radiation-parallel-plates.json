@@ -1,0 +1,30 @@
+{
+  "name": "validation-ht-radiation-parallel-plates",
+  "source": "// VALIDATION: Radiation exchange between large parallel gray plates\n// AREA: Heat transfer\n// BASIS: q = sigma*(T1^4 - T2^4) / (1/eps1 + 1/eps2 - 1); the denominator is\n// 1.5 and T1^4 - T2^4 = 3.471e11 exactly, so\n// q = 5.670374419e-8 * 3.471e11 / 1.5 = 13121.25 W/m^2.\n// EXPECT q = 13121.25 tol 0.05\nsigma = 5.670374419e-8\nT1 = 800\nT2 = 500\neps1 = 0.8\neps2 = 0.8\nq = sigma * (T1^4 - T2^4) / (1/eps1 + 1/eps2 - 1)\n",
+  "expect": {
+    "variables": {
+      "T1": 800.0,
+      "T2": 500.0,
+      "eps1": 0.8,
+      "eps2": 0.8,
+      "q": 13121.246405566,
+      "sigma": 5.670374419E-8
+    },
+    "display_names": {
+      "eps1": "eps1",
+      "eps2": "eps2",
+      "q": "q",
+      "sigma": "sigma",
+      "t1": "T1",
+      "t2": "T2"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

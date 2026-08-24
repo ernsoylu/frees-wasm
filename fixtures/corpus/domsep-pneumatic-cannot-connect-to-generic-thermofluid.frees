@@ -1,0 +1,7 @@
+COMPONENT PSink(in)
+  PARAM P
+  in.P = P
+END
+PneumaticSupply SUP(fluid$=Air, P=700000, T=300)
+PSink           SNK(P=100000)
+connect(SUP.out, SNK.in)

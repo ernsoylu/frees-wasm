@@ -1,0 +1,8 @@
+// VALIDATION: Hydrostatic column pressure
+// AREA: Fluid mechanics
+// BASIS: P = rho*g*h = 13546 * 9.80665 * 0.76 = 100959.07 Pa.
+// EXPECT P = 100959.07 tol 0.05
+rho = 13546
+g = 9.80665
+h = 0.76
+P = rho * g * h

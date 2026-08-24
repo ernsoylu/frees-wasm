@@ -1,0 +1,6 @@
+// VALIDATION: Monotone cubic, unique real root
+// AREA: Nonlinear algebra
+// BASIS: x^3 + x is strictly increasing (derivative 3x^2 + 1 > 0), so the
+// root of x^3 + x = 10 is unique; x = 2 satisfies it exactly (8 + 2 = 10).
+// EXPECT x = 2 tol 1e-9
+x^3 + x = 10

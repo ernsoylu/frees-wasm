@@ -1,0 +1,12 @@
+TwoPhaseSource SRC(fluid$=R1234yf, mdot=0.025, P=350000, x=0.2)
+TwoPhaseEvaporator EVP(fluid$=R1234yf, SH_set=8, dP=0)
+TwoPhaseCompressor CMP(fluid$=R1234yf, eta=0.7)
+TwoPhaseCondenser CND(fluid$=R1234yf, SC_set=5, dP=0)
+TwoPhaseExpansionValve EXV(fluid$=R1234yf, Cv=5e-7)
+TwoPhaseSink SNK()
+connect(SRC.out, EVP.in)
+connect(EVP.out, CMP.in)
+connect(CMP.out, CND.in)
+connect(CND.out, EXV.in)
+connect(EXV.out, SNK.in)
+CMP.out.P = 1500000

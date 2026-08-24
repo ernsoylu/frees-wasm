@@ -1,0 +1,20 @@
+{
+  "name": "validation-algebra-transcendental",
+  "source": "// VALIDATION: Transcendental equation with exact root\n// AREA: Nonlinear algebra\n// BASIS: x*exp(x) is strictly increasing for x > -1; x = 2 satisfies\n// x*exp(x) = 2*exp(2) exactly.\n// EXPECT x = 2 tol 1e-8\nx * exp(x) = 2 * exp(2)\n",
+  "expect": {
+    "variables": {
+      "x": 2.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

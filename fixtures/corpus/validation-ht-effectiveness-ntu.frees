@@ -1,0 +1,8 @@
+// VALIDATION: Counterflow heat-exchanger effectiveness (closed form)
+// AREA: Heat transfer
+// BASIS: eps = (1 - exp(-NTU*(1-Cr))) / (1 - Cr*exp(-NTU*(1-Cr)));
+// NTU = 2, Cr = 0.5 gives exp(-1) = 0.36787944 and eps = 0.7746003.
+// EXPECT eps = 0.7746003 tol 1e-5
+NTU = 2
+Cr = 0.5
+eps = (1 - exp(-NTU * (1 - Cr))) / (1 - Cr * exp(-NTU * (1 - Cr)))

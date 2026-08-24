@@ -1,0 +1,28 @@
+{
+  "name": "validation-fluid-reynolds",
+  "source": "// VALIDATION: Reynolds number\n// AREA: Fluid mechanics\n// BASIS: Re = rho*V*D/mu = 998*2*0.05/0.001 = 99800 exactly.\n// EXPECT Re = 99800 tol 1e-6\nrho = 998\nV = 2\nD = 0.05\nmu = 0.001\nRe = rho * V * D / mu\n",
+  "expect": {
+    "variables": {
+      "D": 0.05,
+      "Re": 99800.00000000001,
+      "V": 2.0,
+      "mu": 0.001,
+      "rho": 998.0
+    },
+    "display_names": {
+      "d": "D",
+      "mu": "mu",
+      "re": "Re",
+      "rho": "rho",
+      "v": "V"
+    },
+    "block_count": 5,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

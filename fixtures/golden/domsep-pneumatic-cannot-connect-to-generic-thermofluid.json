@@ -1,0 +1,18 @@
+{
+  "name": "domsep-pneumatic-cannot-connect-to-generic-thermofluid",
+  "source": "COMPONENT PSink(in)\n  PARAM P\n  in.P = P\nEND\nPneumaticSupply SUP(fluid$=Air, P=700000, T=300)\nPSink           SNK(P=100000)\nconnect(SUP.out, SNK.in)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "connect(sup.out, snk.in): cannot connect a 'gas' line (sup.out) to a 'fluid' line (snk.in). Thermofluid ('fluid'), liquid ('liquid'), two-phase ('twophase'), pneumatic ('gas'), hydraulic ('oil') and humid-air ('moistair') are incompatible fluid connector types; couple them only through a heat exchanger."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,4 +1,6 @@
+import com.frees.backend.ast.ProcDef;
 import com.frees.backend.core.EquationSystemSolver;
+import com.frees.backend.core.SolverSettings;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -6,7 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -56,7 +60,16 @@ public final class GoldenDumper {
         for (Path doc : documents) {
             String name = doc.getFileName().toString().replaceFirst("\\.frees$", "");
             String source = Files.readString(doc, StandardCharsets.UTF_8);
-            String json = dump(name, source);
+            // A `<name>.tables.json` sidecar carries request-level Function
+            // Tables (the GUI channel, `SolveDtos.functionTables`): they are
+            // installed as extra defs exactly as `SolveController` does and
+            // embedded in the fixture for `tests/parity.rs` to replay through
+            // `solve_with_tables`.
+            Path sidecar = corpus.resolve(name + ".tables.json");
+            String tablesJson = Files.exists(sidecar)
+                    ? Files.readString(sidecar, StandardCharsets.UTF_8)
+                    : null;
+            String json = dump(name, source, tablesJson);
             Files.writeString(outDir.resolve(name + ".json"), json, StandardCharsets.UTF_8);
             if (json.contains("\"error\": null")) {
                 solved++;
@@ -70,15 +83,23 @@ public final class GoldenDumper {
     }
 
     /** Run one document through the engine and render the fixture JSON. */
-    private static String dump(String name, String source) {
+    private static String dump(String name, String source, String tablesJson) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("  \"name\": ").append(quote(name)).append(",\n");
         sb.append("  \"source\": ").append(quote(source)).append(",\n");
+        if (tablesJson != null) {
+            // Verbatim: the value parity.rs replays is byte-identical to what
+            // the harvester staged beside the corpus document.
+            sb.append("  \"function_tables\": ").append(tablesJson.strip()).append(",\n");
+        }
         sb.append("  \"expect\": {\n");
 
         try {
-            EquationSystemSolver.Result result = new EquationSystemSolver().solve(source);
+            Map<String, ProcDef> defs =
+                    tablesJson == null ? Map.of() : tableDefs(tablesJson);
+            EquationSystemSolver.Result result = new EquationSystemSolver()
+                    .solve(source, SolverSettings.DEFAULTS, Map.of(), defs);
 
             Map<String, Double> vars = new TreeMap<>(result.variables());
             if (vars.size() > MAX_VARIABLES) {
@@ -218,6 +239,181 @@ public final class GoldenDumper {
         }
         out.append('"');
         return out.toString();
+    }
+
+    /**
+     * A `.tables.json` sidecar as solver extra defs — the shape
+     * {@code SolveDtos.functionDefsOf} produces: one entry per table, keyed by
+     * the trimmed lowercased name (later tables of a name win), the 5-argument
+     * {@link ProcDef.FunctionTableDef} constructor (no declared units on this
+     * channel). Curve samples are used exactly as written; the harvester
+     * records what the Java test constructed, already ascending in x.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, ProcDef> tableDefs(String json) {
+        Map<String, ProcDef> defs = new LinkedHashMap<>();
+        for (Object t : (List<Object>) Json.parse(json)) {
+            Map<String, Object> table = (Map<String, Object>) t;
+            String name = ((String) table.get("name")).trim().toLowerCase(Locale.ROOT);
+            List<String> argNames = ((List<Object>) table.getOrDefault("arg_names", List.of()))
+                    .stream().map(o -> (String) o).toList();
+            List<ProcDef.Curve> curves = new ArrayList<>();
+            for (Object c : (List<Object>) table.get("curves")) {
+                Map<String, Object> curve = (Map<String, Object>) c;
+                curves.add(new ProcDef.Curve((Double) curve.get("param"),
+                        doubles(curve.get("xs")), doubles(curve.get("ys"))));
+            }
+            defs.put(name, new ProcDef.FunctionTableDef(name, argNames,
+                    Boolean.TRUE.equals(table.get("x_log")),
+                    Boolean.TRUE.equals(table.get("y_log")), curves));
+        }
+        return defs;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static double[] doubles(Object o) {
+        List<Object> l = (List<Object>) o;
+        double[] out = new double[l.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = (Double) l.get(i);
+        }
+        return out;
+    }
+
+    /**
+     * Minimal recursive-descent JSON reader for the sidecar files. Objects
+     * become {@link LinkedHashMap}, arrays {@link ArrayList}, numbers
+     * {@link Double}; this tool stays dependency-free (see the class doc), and
+     * the writer side is the harvester, so the input shape is known.
+     */
+    private static final class Json {
+        private final String s;
+        private int i;
+
+        private Json(String s) {
+            this.s = s;
+        }
+
+        static Object parse(String s) {
+            Json j = new Json(s);
+            Object v = j.value();
+            j.ws();
+            if (j.i < j.s.length()) {
+                throw new IllegalArgumentException("trailing JSON at offset " + j.i);
+            }
+            return v;
+        }
+
+        private void ws() {
+            while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
+                i++;
+            }
+        }
+
+        private void expect(char c) {
+            ws();
+            if (i >= s.length() || s.charAt(i) != c) {
+                throw new IllegalArgumentException("expected '" + c + "' at offset " + i);
+            }
+            i++;
+        }
+
+        private Object value() {
+            ws();
+            char c = s.charAt(i);
+            if (c == '{') {
+                i++;
+                Map<String, Object> m = new LinkedHashMap<>();
+                ws();
+                if (s.charAt(i) == '}') {
+                    i++;
+                    return m;
+                }
+                while (true) {
+                    ws();
+                    String k = (String) value();
+                    expect(':');
+                    m.put(k, value());
+                    ws();
+                    if (s.charAt(i) == ',') {
+                        i++;
+                        continue;
+                    }
+                    expect('}');
+                    return m;
+                }
+            }
+            if (c == '[') {
+                i++;
+                List<Object> l = new ArrayList<>();
+                ws();
+                if (s.charAt(i) == ']') {
+                    i++;
+                    return l;
+                }
+                while (true) {
+                    l.add(value());
+                    ws();
+                    if (s.charAt(i) == ',') {
+                        i++;
+                        continue;
+                    }
+                    expect(']');
+                    return l;
+                }
+            }
+            if (c == '"') {
+                return string();
+            }
+            if (s.startsWith("true", i)) {
+                i += 4;
+                return Boolean.TRUE;
+            }
+            if (s.startsWith("false", i)) {
+                i += 5;
+                return Boolean.FALSE;
+            }
+            if (s.startsWith("null", i)) {
+                i += 4;
+                return null;
+            }
+            int start = i;
+            while (i < s.length() && "+-.eE0123456789".indexOf(s.charAt(i)) >= 0) {
+                i++;
+            }
+            return Double.parseDouble(s.substring(start, i));
+        }
+
+        private String string() {
+            StringBuilder b = new StringBuilder();
+            i++; // opening quote
+            while (true) {
+                char c = s.charAt(i++);
+                if (c == '"') {
+                    return b.toString();
+                }
+                if (c != '\\') {
+                    b.append(c);
+                    continue;
+                }
+                char e = s.charAt(i++);
+                switch (e) {
+                    case '"' -> b.append('"');
+                    case '\\' -> b.append('\\');
+                    case '/' -> b.append('/');
+                    case 'n' -> b.append('\n');
+                    case 't' -> b.append('\t');
+                    case 'r' -> b.append('\r');
+                    case 'b' -> b.append('\b');
+                    case 'f' -> b.append('\f');
+                    case 'u' -> {
+                        b.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+                        i += 4;
+                    }
+                    default -> throw new IllegalArgumentException("bad escape \\" + e);
+                }
+            }
+        }
     }
 
     private GoldenDumper() {

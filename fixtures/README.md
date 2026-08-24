@@ -5,15 +5,31 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees   the documents (hand-authored + harvested)   — 906
-fixtures/golden/*.json    what the Java engine produced for each      — 906
-fixtures/corpus-pending/  the staging area: documents not yet promoted — 1
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 983
+fixtures/corpus/*.tables.json  request-level Function Tables for the document
+                               beside them (10 — the curvefn group; see below)
+fixtures/golden/*.json         what the Java engine produced for each     — 983
+fixtures/corpus-pending/       the staging area: documents not yet promoted — 19
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
 tools/table-gen/          the Java side that generates fixtures/proptables
 tools/aux-gen/            the Java side that generates fixtures/auxtables
 ```
+
+**A `<name>.tables.json` sidecar carries the request-level Function Tables of
+the document beside it** — the GUI channel (`SolveDtos.functionTables`, wired
+end-to-end by Wave H / decision D10). The harvester writes it when the Java
+test passed `extraDefs` into `solve(...)`; `tools/golden-dumper` installs the
+tables on the Java side (`SolveDtos.functionDefsOf`'s rules: keyed by the
+trimmed lowercased name, the 5-argument `FunctionTableDef` constructor) *and*
+embeds the sidecar verbatim in the fixture as a top-level `function_tables`
+field; `tests/parity.rs` replays that field through core's
+`solve_with_tables`, the same merge position every solving endpoint uses. An
+absent field is the empty slice — byte-for-byte the plain `solve` — so the
+rest of the corpus replays exactly as before. These ten fixtures are the only
+oracle-graded coverage of the request-tables channel; everything else about
+them (tolerances, promotion, error rules) is ordinary.
 
 ## How properties are answered — read this before the tolerance sections
 
@@ -405,10 +421,39 @@ Extend it further from, in rough order of value:
    review, **170 promoted**, 21 pending with classified blockers *(as of the
    Phase-12 harvest; **9 of those 21 remain** — twelve have been promoted since,
    four on 2026-08-06 and eight by the rustprop backend, 5 in Wave-3 F6 and 3 in
-   Wave-3 F8, all recorded at the end of this file)*. The
+   Wave-3 F8, all recorded at the end of this file)*. ~~The
    remaining Java documents are the ones the harvester cannot represent:
    tests that pass extra `solve(...)` arguments (complex mode, `ProcDef`
-   function tables), `String.format` templates, and cross-file constants
+   function tables), `String.format` templates, and cross-file constants~~
+   *(Re-harvested 2026-08-24, Wave I — the representable-document boundary,
+   status-phase12 "did not deliver" item 1. The resolver grew: `.formatted`/
+   `String.format` with literal arguments, in-file helper-method inlining
+   (parameter binding per literal-argument call site), a cross-file
+   `static final String` registry, and `ProcDef.FunctionTableDef` extra-defs
+   evaluated into `.tables.json` sidecars (the `function_tables` chain above).
+   An inventory over **all 197** test classes measured the blockers: of 540
+   solve-call documents, 504 now resolve; blocker (b) was 8 direct-`formatted`
+   + 44 helper-carried documents, blocker (a-tables) 11 call sites — all in
+   `CurveFunctionTest` — and blocker **(c), cross-file constants, is empty**:
+   the registry resolves nothing because no solve site references another
+   class's constants. Unresolvable remainder: 36 call sites (12
+   CoolProp-computed template arguments — `he0 = propsSI(...)` — 10 unknown
+   idents, 14 builder loops). Ten classes joined `CLASSES` and 99 candidates
+   staged (65 from classes + 34 validation resources, item 5 below):
+   **77 promoted** — corpus 905 → 982, including all 10 `curvefn` request-table
+   fixtures at the corpus default, bit-exact on the Java tests' own asserted
+   values — 18 pending (property-chain holds, see the pending table) and 4
+   dropped as new witnesses of ledger item 35 (`multiout-*-tilde-*`: the
+   oracle's JVM-batch-global `~ignored~N` sink counter makes their goldens
+   unreproducible — unfreezable by design, not pending). The remaining
+   un-harvested test-class documents are now dominated by ~100 classes that
+   were simply never in `CLASSES` (about 340 text blocks and 400+ resolvable
+   solve-call docs tree-wide, many duplicated across both counts and against
+   the existing corpus) — a sweep-sized follow-up, not a representability
+   problem; the truly unrepresentable are the 9 a-complex sites (complex mode:
+   count-only, out of scope), 28 a-specs sites (`VariableSpec` guess/bounds
+   overrides — a fixture-format gap nothing currently needs), 10 a-settings
+   sites, and the 36 unresolvable arguments above.)*
 4. `../frEES/backend/core/src/main/resources/components/*.frees` — all 295
    library components. **Swept 2026-08-23 (Wave G4).** A coverage inventory
    found 165 of the 295 component types already exercised by the corpus and
@@ -475,6 +520,16 @@ Extend it further from, in rough order of value:
    `end_time` and `stopped` — promoted at the corpus default with no
    tolerance entry. `component_families.rs`'s measured group floor
    re-raised 262 → 263 per its never-lower rule.
+5. `../frEES/backend/core/src/test/resources/validation/*.frees` — the
+   reference's **published verification suite** (`ValidationSuiteTest`): 34
+   closed-form physics/numerics problems whose `// EXPECT` directives are
+   ordinary frees comments, so each file is a complete document as-is.
+   **Harvested 2026-08-24 (Wave I)**, discovered during the Wave-I inventory:
+   all 34 staged verbatim (`validation-<stem>`), the oracle solved all 34,
+   **34 promoted at the corpus default with no tolerance entry** — including
+   the four transient ones (`validation-ode-*`), whose ODE tables compare
+   row-for-row. The one growth source that was free: the documents already
+   existed and every one cleared
 
 Add the document to `corpus/`, rerun `run.sh`, and commit both the source and
 the generated golden file. **Review the generated fixture before committing** —
@@ -640,15 +695,19 @@ gate red.
 (`cargo run -qp frees-cli --features rustprop-backend -- solve <file>`) and
 compare against its golden using the tolerance table above — `variables` by
 relative tolerance, `display_names` and `block_count` exactly, `error` by
-classification. If it agrees, move *both* files into `corpus/` and `golden/`. If
+classification. (A document with a `.tables.json` sidecar cannot be graded by
+the CLI one-liner — the CLI has no request-table channel; use the scratch
+`parity.rs` procedure below, which replays the fixture's `function_tables`
+field.) If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 1 document, a cost hold
+### What is pending today — 19 documents
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact). Re-measured 2026-08-23 after Wave G3's per-step caches: **~5.6 min** (339 s, upper bound — the first 147 s shared the machine with a replay), from A5's ~12 min, converging to the same `dk` at rel ~8e-16; the whole replay is ~145 s, so one document still costs ~2.3× the gate and the hold stands | 1 | `dyn_accessor_live` |
+| **Property-chain divergences awaiting per-fixture leaf probes** (Wave I harvest, 2026-08-24). Every failure is numeric, on two-phase R134a/R1234yf/Water property chains (`cmp.h_s`, `cond.in.p`, `ch.cl.out.h`, `rho_in`, EXV `mdot` ∝ √ρ), leaf-level ~7.2e-7 … 2.1e-6 with amplified downstream worsts to 5.9e-4 — the `oracle-ph-table` signature (`tolerances-rustprop.json`'s catalogue): the leaf magnitudes sit in the Java `(P,Hmass)` table's established 7.8e-10…1.8e-6 band and the EXV pair lands at √(the `components_family_ac` Dmass leaf). Promotion needs that file's evidence discipline — a wheel-vs-rustprop-vs-golden probe *per entry* — which this wave measured but did not probe. Five of the 18 also amplify through a near-zero difference (subcooling/superheat ≈ 0 reads rel 1.0 by denominator collapse), so those five cannot pass under any declarable tolerance as authored; a probe would still establish which side is nearer the physics | 18 | `accomp-air-coil-cools-and-dehumidifies`, `accomp-exv-opening-sets-flow`(+`-2`), `accomp-txv-relaxes-toward-its-superheat-target`, `accomp-volumetric-compressor-scales-flow-with-rpm`(+`-2`), `chgclosed-charge-chain-is-well-posed`, `chgclosed-condensing-pressure-floats-with-ambient-and-charge`(+`-2`), `chiller-chiller-cools-the-coolant-loop`, `chiller-higher-refrigerant-flow-delivers-more-cooling`(+`-2`), `closedloop-measure-dof-6`, `closedloop-measure-dof-7`, `tpcharge-charge-sets-condensing-pressure-and-subcooling`(+`-2`), `tpcycle-cop-drops-versus-isobaric-baseline`, `tpcycle-non-isobaric-cycle-has-suction-below-evaporating-pressure-and-plausible-cop` |
 
 *(The fluid-linkage row left this table on 2026-08-23, Wave G2: the
 `carbondioxide` feature joined `rustprop-data`'s list in

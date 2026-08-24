@@ -1,0 +1,6 @@
+TwoPhaseSource SRC(fluid$=R134a, mdot=0.02, P=900000, x=0.05)
+TwoPhaseReceiver RCV(fluid$=R134a, V=0.002)
+TwoPhaseSink SNK()
+connect(SRC.out, RCV.in)
+connect(RCV.out, SNK.in)
+RCV.m = 1.000000

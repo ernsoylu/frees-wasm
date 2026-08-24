@@ -1,0 +1,15 @@
+// VALIDATION: RC first-order step response
+// AREA: Dynamics (ODE)
+// BASIS: dV/dt = (Vs - V)/(R*C) with tau = R*C = 1 s, so
+// V(1) = 10*(1 - exp(-1)) = 6.3212056.
+// EXPECT v_end = 6.3212056 tol 1e-4
+R = 1000
+C = 0.001
+Vs = 10
+
+DYNAMIC rc (method = ode45, time = 0 .. 1, points = 101)
+  der(V) = (Vs - V) / (R * C)
+  V(0) = 0
+END
+
+v_end = FinalValue('V')

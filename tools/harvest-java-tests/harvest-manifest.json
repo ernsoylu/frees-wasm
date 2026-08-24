@@ -1,4 +1,136 @@
 {
+  "accomp-air-coil-cools-and-dehumidifies": {
+    "class": "AcComponentsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "airCoilCoolsAndDehumidifies"
+  },
+  "accomp-exv-opening-sets-flow": {
+    "class": "AcComponentsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "exvOpeningSetsFlow"
+  },
+  "accomp-exv-opening-sets-flow-2": {
+    "class": "AcComponentsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "exvOpeningSetsFlow"
+  },
+  "accomp-txv-relaxes-toward-its-superheat-target": {
+    "class": "AcComponentsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "txvRelaxesTowardItsSuperheatTarget"
+  },
+  "accomp-volumetric-compressor-scales-flow-with-rpm": {
+    "class": "AcComponentsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "volumetricCompressorScalesFlowWithRpm"
+  },
+  "accomp-volumetric-compressor-scales-flow-with-rpm-2": {
+    "class": "AcComponentsTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "volumetricCompressorScalesFlowWithRpm"
+  },
+  "callauto-eigenvalues-sized-from-matrix-dimension": {
+    "class": "CallAutoSizeOutputTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "eigenvaluesSizedFromMatrixDimension"
+  },
+  "callauto-eigenvalues-sized-from-matrix-dimension-2": {
+    "class": "CallAutoSizeOutputTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "eigenvaluesSizedFromMatrixDimension"
+  },
+  "chgclosed-charge-chain-is-well-posed": {
+    "class": "ChargeClosedCycleTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "chargeChainIsWellPosed"
+  },
+  "chgclosed-condensing-pressure-floats-with-ambient-and-charge": {
+    "class": "ChargeClosedCycleTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "condensingPressureFloatsWithAmbientAndCharge"
+  },
+  "chgclosed-condensing-pressure-floats-with-ambient-and-charge-2": {
+    "class": "ChargeClosedCycleTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "condensingPressureFloatsWithAmbientAndCharge"
+  },
+  "chiller-chiller-cools-the-coolant-loop": {
+    "class": "ChillerTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "chillerCoolsTheCoolantLoop"
+  },
+  "chiller-higher-refrigerant-flow-delivers-more-cooling": {
+    "class": "ChillerTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "higherRefrigerantFlowDeliversMoreCooling"
+  },
+  "chiller-higher-refrigerant-flow-delivers-more-cooling-2": {
+    "class": "ChillerTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "higherRefrigerantFlowDeliversMoreCooling"
+  },
+  "closedloop-measure-dof": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "measureDof"
+  },
+  "closedloop-measure-dof-2": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "measureDof"
+  },
+  "closedloop-measure-dof-3": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "measureDof"
+  },
+  "closedloop-measure-dof-4": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "measureDof"
+  },
+  "closedloop-measure-dof-5": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "measureDof"
+  },
+  "closedloop-measure-dof-6": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "measureDof"
+  },
+  "closedloop-measure-dof-7": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "measureDof"
+  },
+  "closedloop-rel": {
+    "class": "ClosedLoopDiagnosisTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "REL"
+  },
   "codetable-check-accepts-code-table": {
     "class": "CodeTableTest.java",
     "in_assert_throws": false,
@@ -349,57 +481,153 @@
   },
   "curvefn-adjusts-outof-range-guesses-to-range-average": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "adjustsOutofRangeGuessesToRangeAverage"
   },
+  "curvefn-check-accepts-curve-function-calls": {
+    "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "checkAcceptsCurveFunctionCalls"
+  },
   "curvefn-clamps-outside-the-tabulated-range": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "clampsOutsideTheTabulatedRange"
   },
   "curvefn-clamps-outside-the-tabulated-range-2": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "clampsOutsideTheTabulatedRange"
   },
   "curvefn-curve-functions-work-inside-larger-systems": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
-    "kind": "textblock",
+    "kind": "solvecall",
     "method": "curveFunctionsWorkInsideLargerSystems"
   },
   "curvefn-family-parameter-clamps-to-outer-curves": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "familyParameterClampsToOuterCurves"
   },
   "curvefn-family-parameter-clamps-to-outer-curves-2": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "familyParameterClampsToOuterCurves"
   },
   "curvefn-interpolates-across-the-curve-family-parameter": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "interpolatesAcrossTheCurveFamilyParameter"
   },
   "curvefn-interpolates-single-curve-linearly": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "interpolatesSingleCurveLinearly"
   },
   "curvefn-log-axes-interpolate-as-power-laws": {
     "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "flow"
+    ],
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "logAxesInterpolateAsPowerLaws"
+  },
+  "domsep-fluid-cannot-connect-to-mechanical-shaft": {
+    "class": "ComponentDomainSeparationTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "fluidCannotConnectToMechanicalShaft"
+  },
+  "domsep-heat-cannot-connect-to-electrical": {
+    "class": "ComponentDomainSeparationTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "heatCannotConnectToElectrical"
+  },
+  "domsep-pneumatic-cannot-connect-to-generic-thermofluid": {
+    "class": "ComponentDomainSeparationTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "pneumaticCannotConnectToGenericThermofluid"
+  },
+  "domsep-pneumatic-cannot-connect-to-hydraulic": {
+    "class": "ComponentDomainSeparationTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "pneumaticCannotConnectToHydraulic"
+  },
+  "epsntu-components": {
+    "class": "EpsNtuFloatingTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "COMPONENTS"
+  },
+  "epsntu-condensing-pressure-floats-with-ambient": {
+    "class": "EpsNtuFloatingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "condensingPressureFloatsWithAmbient"
+  },
+  "epsntu-condensing-pressure-floats-with-ambient-2": {
+    "class": "EpsNtuFloatingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "condensingPressureFloatsWithAmbient"
+  },
+  "epsntu-evap-float": {
+    "class": "EpsNtuFloatingTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "EVAP_FLOAT"
+  },
+  "epsntu-evaporating-pressure-floats-with-load": {
+    "class": "EpsNtuFloatingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaporatingPressureFloatsWithLoad"
+  },
+  "epsntu-evaporating-pressure-floats-with-load-2": {
+    "class": "EpsNtuFloatingTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaporatingPressureFloatsWithLoad"
   },
   "eqsys-bounds-select-root": {
     "class": "EquationSystemSolverTest.java",
@@ -515,6 +743,12 @@
     "kind": "solvecall",
     "method": "evaluatesUncertaintyOfFromCode"
   },
+  "eqsys-failed-solve-carries-block-diagnostics": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "failedSolveCarriesBlockDiagnostics"
+  },
   "eqsys-guess-value-selects-root": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
@@ -551,11 +785,23 @@
     "kind": "solvecall",
     "method": "respectsIterationLimitFromStopCriteria"
   },
+  "eqsys-single-output-eigenvalues-rejects-complex-spectrum-with-hint": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "singleOutputEigenvaluesRejectsComplexSpectrumWithHint"
+  },
   "eqsys-solves-claude-md-reference-system": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "solvesClaudeMdReferenceSystem"
+  },
+  "eqsys-solves-complex-eigenvalues-via-two-output-form": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesComplexEigenvaluesViaTwoOutputForm"
   },
   "eqsys-solves-duplicate-loop-system": {
     "class": "EquationSystemSolverTest.java",
@@ -658,6 +904,18 @@
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "solvesWithPiecewiseAndRounding"
+  },
+  "eqsys-two-output-eigenvalues-on-real-spectrum-has-zero-imaginary-parts": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "twoOutputEigenvaluesOnRealSpectrumHasZeroImaginaryParts"
+  },
+  "eqsys-uncertainty-contributions-carry-per-source-breakdown": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "textblock",
+    "method": "uncertaintyContributionsCarryPerSourceBreakdown"
   },
   "eqsys-underdetermined-system-fails-with-clear-message": {
     "class": "EquationSystemSolverTest.java",
@@ -1270,5 +1528,251 @@
     "in_assert_throws": false,
     "kind": "textblock",
     "method": "ex20_zeotropicBlend"
+  },
+  "tpcharge-charge-sets-condensing-pressure-and-subcooling": {
+    "class": "TwoPhaseChargeTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "chargeSetsCondensingPressureAndSubcooling"
+  },
+  "tpcharge-charge-sets-condensing-pressure-and-subcooling-2": {
+    "class": "TwoPhaseChargeTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "chargeSetsCondensingPressureAndSubcooling"
+  },
+  "tpcharge-inventory-mass-uses-void-weighted-density": {
+    "class": "TwoPhaseChargeTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "inventoryMassUsesVoidWeightedDensity"
+  },
+  "tpcharge-receiver-buffers-charge-in-its-level": {
+    "class": "TwoPhaseChargeTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "receiverBuffersChargeInItsLevel"
+  },
+  "tpcharge-receiver-buffers-charge-in-its-level-2": {
+    "class": "TwoPhaseChargeTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "receiverBuffersChargeInItsLevel"
+  },
+  "tpcycle-cop-drops-versus-isobaric-baseline": {
+    "class": "TwoPhaseCycleTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "copDropsVersusIsobaricBaseline"
+  },
+  "tpcycle-non-isobaric-cycle-has-suction-below-evaporating-pressure-and-plausible-cop": {
+    "class": "TwoPhaseCycleTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "nonIsobaricCycleHasSuctionBelowEvaporatingPressureAndPlausibleCop"
+  },
+  "validation-algebra-canonical-pair": {
+    "class": "validation/algebra-canonical-pair.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "algebra-canonical-pair"
+  },
+  "validation-algebra-cubic-unique-root": {
+    "class": "validation/algebra-cubic-unique-root.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "algebra-cubic-unique-root"
+  },
+  "validation-algebra-transcendental": {
+    "class": "validation/algebra-transcendental.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "algebra-transcendental"
+  },
+  "validation-component-thermal-chain": {
+    "class": "validation/component-thermal-chain.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "component-thermal-chain"
+  },
+  "validation-component-voltage-divider": {
+    "class": "validation/component-voltage-divider.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "component-voltage-divider"
+  },
+  "validation-control-c2d-tustin": {
+    "class": "validation/control-c2d-tustin.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "control-c2d-tustin"
+  },
+  "validation-control-error-constants": {
+    "class": "validation/control-error-constants.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "control-error-constants"
+  },
+  "validation-control-routh-stable": {
+    "class": "validation/control-routh-stable.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "control-routh-stable"
+  },
+  "validation-control-routh-unstable": {
+    "class": "validation/control-routh-unstable.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "control-routh-unstable"
+  },
+  "validation-fluid-hydrostatic": {
+    "class": "validation/fluid-hydrostatic.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "fluid-hydrostatic"
+  },
+  "validation-fluid-isentropic-flow": {
+    "class": "validation/fluid-isentropic-flow.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "fluid-isentropic-flow"
+  },
+  "validation-fluid-poiseuille": {
+    "class": "validation/fluid-poiseuille.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "fluid-poiseuille"
+  },
+  "validation-fluid-reynolds": {
+    "class": "validation/fluid-reynolds.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "fluid-reynolds"
+  },
+  "validation-fluid-standard-atmosphere": {
+    "class": "validation/fluid-standard-atmosphere.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "fluid-standard-atmosphere"
+  },
+  "validation-ht-critical-radius": {
+    "class": "validation/ht-critical-radius.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ht-critical-radius"
+  },
+  "validation-ht-effectiveness-ntu": {
+    "class": "validation/ht-effectiveness-ntu.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ht-effectiveness-ntu"
+  },
+  "validation-ht-fin-efficiency": {
+    "class": "validation/ht-fin-efficiency.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ht-fin-efficiency"
+  },
+  "validation-ht-lumped-capacitance": {
+    "class": "validation/ht-lumped-capacitance.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ht-lumped-capacitance"
+  },
+  "validation-ht-radiation-parallel-plates": {
+    "class": "validation/ht-radiation-parallel-plates.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ht-radiation-parallel-plates"
+  },
+  "validation-matrix-determinant-triangular": {
+    "class": "validation/matrix-determinant-triangular.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "matrix-determinant-triangular"
+  },
+  "validation-matrix-eigen-symmetric": {
+    "class": "validation/matrix-eigen-symmetric.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "matrix-eigen-symmetric"
+  },
+  "validation-matrix-solvelinear": {
+    "class": "validation/matrix-solvelinear.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "matrix-solvelinear"
+  },
+  "validation-ode-exponential-decay": {
+    "class": "validation/ode-exponential-decay.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ode-exponential-decay"
+  },
+  "validation-ode-harmonic-oscillator": {
+    "class": "validation/ode-harmonic-oscillator.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ode-harmonic-oscillator"
+  },
+  "validation-ode-logistic": {
+    "class": "validation/ode-logistic.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ode-logistic"
+  },
+  "validation-ode-rc-step": {
+    "class": "validation/ode-rc-step.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "ode-rc-step"
+  },
+  "validation-signal-fft-impulse": {
+    "class": "validation/signal-fft-impulse.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "signal-fft-impulse"
+  },
+  "validation-stats-linfit-exact": {
+    "class": "validation/stats-linfit-exact.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "stats-linfit-exact"
+  },
+  "validation-thermo-brayton": {
+    "class": "validation/thermo-brayton.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "thermo-brayton"
+  },
+  "validation-thermo-carnot": {
+    "class": "validation/thermo-carnot.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "thermo-carnot"
+  },
+  "validation-thermo-isentropic-compression": {
+    "class": "validation/thermo-isentropic-compression.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "thermo-isentropic-compression"
+  },
+  "validation-thermo-isothermal-work": {
+    "class": "validation/thermo-isothermal-work.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "thermo-isothermal-work"
+  },
+  "validation-thermo-otto": {
+    "class": "validation/thermo-otto.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "thermo-otto"
+  },
+  "validation-uncertainty-product-rss": {
+    "class": "validation/uncertainty-product-rss.frees",
+    "in_assert_throws": false,
+    "kind": "resource",
+    "method": "uncertainty-product-rss"
   }
 }

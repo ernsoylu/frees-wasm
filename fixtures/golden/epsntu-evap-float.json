@@ -1,0 +1,18 @@
+{
+  "name": "epsntu-evap-float",
+  "source": "COMPONENT EvapNTUFloat(in, out, wall)\n  PARAM fluid$, UA, Csec, domain$ = twophase\n  out.mdot = in.mdot\n  out.P    = in.P\n  Tevap    = T_sat(fluid$, P=in.P)\n  hg       = Enthalpy(fluid$, P=in.P, x=1)\n  out.h    = hg\n  eps      = 1 - exp(-UA / Csec)\n  Q        = in.mdot * (out.h - in.h)\n  Q        = eps * Csec * (wall.T - Tevap)\n  wall.Qdot = Q\nEND\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "No equations to solve."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

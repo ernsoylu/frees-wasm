@@ -1,0 +1,43 @@
+{
+  "name": "curvefn-log-axes-interpolate-as-power-laws",
+  "source": "y = flow(100)\n",
+  "function_tables": [
+ {
+  "name": "flow",
+  "arg_names": [
+   "re"
+  ],
+  "x_log": true,
+  "y_log": true,
+  "curves": [
+   {
+    "param": null,
+    "xs": [
+     10.0,
+     1000.0
+    ],
+    "ys": [
+     10.0,
+     1000.0
+    ]
+   }
+  ]
+ }
+],
+  "expect": {
+    "variables": {
+      "y": 100.0
+    },
+    "display_names": {
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

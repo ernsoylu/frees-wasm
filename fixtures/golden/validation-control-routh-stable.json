@@ -1,0 +1,31 @@
+{
+  "name": "validation-control-routh-stable",
+  "source": "// VALIDATION: Routh-Hurwitz on a stable cubic\n// AREA: Control systems\n// BASIS: s^3 + 2s^2 + 3s + 1 has Routh first column 1, 2, 2.5, 1 — no sign\n// change, so 0 right-half-plane poles.\n// EXPECT nRHP = 0 tol 1e-9\n// EXPECT stable = 1 tol 1e-9\nden = [1, 2, 3, 1]\nCALL routh(den[1:4] : nRHP, stable)\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "den[2]": 2.0,
+      "den[3]": 3.0,
+      "den[4]": 1.0,
+      "nRHP": 0.0,
+      "stable": 1.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "den[4]": "den[4]",
+      "nrhp": "nRHP",
+      "stable": "stable"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

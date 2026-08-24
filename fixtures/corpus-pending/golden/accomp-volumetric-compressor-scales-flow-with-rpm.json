@@ -1,0 +1,58 @@
+{
+  "name": "accomp-volumetric-compressor-scales-flow-with-rpm",
+  "source": "TwoPhasePressureSource SUC(fluid$=R134a, P=350000, x=1)\nTwoPhaseCompressor CMP(fluid$=R134a, eta=0.7, model$=volumetric, eta_v=0.9, disp=2e-5, rpm=1000.000000)\nTwoPhaseSink DIS()\nconnect(SUC.out, CMP.in)\nconnect(CMP.out, DIS.in)\nCMP.out.P = 900000\n",
+  "expect": {
+    "variables": {
+      "cmp.h_s": 421105.34424688737,
+      "cmp.in.h": 401508.3387584498,
+      "cmp.in.mdot": 0.005144127639059184,
+      "cmp.in.p": 350000.0,
+      "cmp.out.h": 429504.06088478916,
+      "cmp.out.mdot": 0.005144127639059184,
+      "cmp.out.p": 900000.0,
+      "cmp.rho_in": 17.14709213019728,
+      "cmp.s_in": 1724.4479874659305,
+      "cmp.w": 144.0135679655229,
+      "dis.h": 429504.06088478916,
+      "dis.in.h": 429504.06088478916,
+      "dis.in.mdot": 0.005144127639059184,
+      "dis.in.p": 900000.0,
+      "dis.mdot": 0.005144127639059184,
+      "dis.p": 900000.0,
+      "suc.out.h": 401508.3387584498,
+      "suc.out.mdot": 0.005144127639059184,
+      "suc.out.p": 350000.0
+    },
+    "display_names": {
+      "cmp$h_s": "cmp.h_s",
+      "cmp$in$h": "cmp.in.h",
+      "cmp$in$mdot": "cmp.in.mdot",
+      "cmp$in$p": "cmp.in.p",
+      "cmp$out$h": "cmp.out.h",
+      "cmp$out$mdot": "cmp.out.mdot",
+      "cmp$out$p": "cmp.out.p",
+      "cmp$rho_in": "cmp.rho_in",
+      "cmp$s_in": "cmp.s_in",
+      "cmp$w": "cmp.w",
+      "dis$h": "dis.h",
+      "dis$in$h": "dis.in.h",
+      "dis$in$mdot": "dis.in.mdot",
+      "dis$in$p": "dis.in.p",
+      "dis$mdot": "dis.mdot",
+      "dis$p": "dis.p",
+      "r134a": "R134a",
+      "suc$out$h": "suc.out.h",
+      "suc$out$mdot": "suc.out.mdot",
+      "suc$out$p": "suc.out.p",
+      "volumetric": "volumetric"
+    },
+    "block_count": 19,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

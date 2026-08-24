@@ -1,0 +1,5 @@
+TwoPhaseSource SRC(fluid$=R134a, mdot=0.02, P=500000, x=0.5)
+TwoPhaseInventory INV(fluid$=R134a, V=0.001)
+TwoPhaseSink SNK()
+connect(SRC.out, INV.in)
+connect(INV.out, SNK.in)

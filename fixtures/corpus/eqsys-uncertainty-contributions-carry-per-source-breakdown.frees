@@ -1,0 +1,5 @@
+x = 3
+y = 4
+UncertaintyOf(x) = 0.1
+UncertaintyOf(y) = 0.2
+f = x * y

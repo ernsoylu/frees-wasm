@@ -1,0 +1,9 @@
+// VALIDATION: Reynolds number
+// AREA: Fluid mechanics
+// BASIS: Re = rho*V*D/mu = 998*2*0.05/0.001 = 99800 exactly.
+// EXPECT Re = 99800 tol 1e-6
+rho = 998
+V = 2
+D = 0.05
+mu = 0.001
+Re = rho * V * D / mu

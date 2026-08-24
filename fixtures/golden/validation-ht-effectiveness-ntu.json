@@ -1,0 +1,24 @@
+{
+  "name": "validation-ht-effectiveness-ntu",
+  "source": "// VALIDATION: Counterflow heat-exchanger effectiveness (closed form)\n// AREA: Heat transfer\n// BASIS: eps = (1 - exp(-NTU*(1-Cr))) / (1 - Cr*exp(-NTU*(1-Cr)));\n// NTU = 2, Cr = 0.5 gives exp(-1) = 0.36787944 and eps = 0.7746003.\n// EXPECT eps = 0.7746003 tol 1e-5\nNTU = 2\nCr = 0.5\neps = (1 - exp(-NTU * (1 - Cr))) / (1 - Cr * exp(-NTU * (1 - Cr)))\n",
+  "expect": {
+    "variables": {
+      "Cr": 0.5,
+      "NTU": 2.0,
+      "eps": 0.7746003264394359
+    },
+    "display_names": {
+      "cr": "Cr",
+      "eps": "eps",
+      "ntu": "NTU"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

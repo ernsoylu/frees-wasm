@@ -1,0 +1,23 @@
+[
+ {
+  "name": "htc",
+  "arg_names": [
+   "re"
+  ],
+  "x_log": false,
+  "y_log": false,
+  "curves": [
+   {
+    "param": null,
+    "xs": [
+     1000.0,
+     2000.0
+    ],
+    "ys": [
+     50.0,
+     80.0
+    ]
+   }
+  ]
+ }
+]

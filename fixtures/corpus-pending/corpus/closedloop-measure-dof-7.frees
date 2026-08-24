@@ -1,0 +1,32 @@
+COMPONENT CompDh(in, out)
+  PARAM mdot0, dh, domain$ = twophase
+  in.mdot = mdot0
+  out.mdot = in.mdot
+  out.h = in.h + dh
+END
+COMPONENT CondFloat(in, out)
+  PARAM fluid$, UA, Csec, Tair, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = (1 - exp(-UA / Csec)) * Csec * (Tcond - Tair)
+END
+COMPONENT EvapFloat(in, out)
+  PARAM fluid$, UA, Csec, Tcab, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tevap    = T_sat(fluid$, P=in.P)
+  out.h    = Enthalpy(fluid$, P=in.P, x=1)
+  Q        = in.mdot * (out.h - in.h)
+  Q        = (1 - exp(-UA / Csec)) * Csec * (Tcab - Tevap)
+END
+CompDh    CMP(mdot0=0.025, dh=45000)
+CondFloat CND(fluid$=R1234yf, UA=900, Csec=600, Tair=318)
+TwoPhaseExpansionValve TH(fluid$=R1234yf, Cv=8e-7)
+EvapFloat EVP(fluid$=R1234yf, UA=500, Csec=350, Tcab=298)
+connect(CMP.out, CND.in)
+connect(CND.out, TH.in)
+connect(TH.out, EVP.in)
+connect(EVP.out, CMP.in)

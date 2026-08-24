@@ -1,0 +1,20 @@
+{
+  "name": "validation-algebra-cubic-unique-root",
+  "source": "// VALIDATION: Monotone cubic, unique real root\n// AREA: Nonlinear algebra\n// BASIS: x^3 + x is strictly increasing (derivative 3x^2 + 1 > 0), so the\n// root of x^3 + x = 10 is unique; x = 2 satisfies it exactly (8 + 2 = 10).\n// EXPECT x = 2 tol 1e-9\nx^3 + x = 10\n",
+  "expect": {
+    "variables": {
+      "x": 2.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

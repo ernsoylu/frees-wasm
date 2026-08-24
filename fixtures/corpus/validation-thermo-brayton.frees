@@ -1,0 +1,7 @@
+// VALIDATION: Ideal Brayton-cycle efficiency
+// AREA: Thermodynamics
+// BASIS: eta = 1 - 1/PR^((gamma-1)/gamma) = 1 - 1/1.9306977 = 0.4820525.
+// EXPECT eta = 0.4820525 tol 1e-6
+PR = 10
+gamma = 1.4
+eta = 1 - 1 / PR^((gamma - 1) / gamma)

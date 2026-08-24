@@ -1,0 +1,6 @@
+TwoPhaseEnthalpySource SRC(mdot=0.02, h=435000)
+TwoPhaseCondenserUA COND(fluid$=R134a, UA=400, T_amb=305, V=0.002)
+TwoPhaseSink SNK()
+connect(SRC.out, COND.in)
+connect(COND.out, SNK.in)
+COND.m = 0.800000

@@ -1,0 +1,12 @@
+TwoPhaseSource SRC(fluid$=R134a, mdot=0.02, P=350000, x=0.2)
+TwoPhaseEvaporator EVAP(fluid$=R134a, SH_set=8, dP=15000.000000)
+TwoPhaseCompressor CMP(fluid$=R134a, eta=0.7)
+TwoPhaseCondenser COND(fluid$=R134a, SC_set=5, dP=20000.000000)
+TwoPhaseExpansionValve EXV(fluid$=R134a, Cv=5.7e-7)
+TwoPhaseSink SNK()
+connect(SRC.out, EVAP.in)
+connect(EVAP.out, CMP.in)
+connect(CMP.out, COND.in)
+connect(COND.out, EXV.in)
+connect(EXV.out, SNK.in)
+CMP.out.P = 900000

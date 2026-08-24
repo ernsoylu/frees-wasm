@@ -1,0 +1,22 @@
+{
+  "name": "validation-ht-fin-efficiency",
+  "source": "// VALIDATION: Straight-fin efficiency, adiabatic tip\n// AREA: Heat transfer\n// BASIS: eta = tanh(mL)/(mL); at mL = 2, tanh(2) = 0.96402758, so\n// eta = 0.48201379.\n// EXPECT eta = 0.48201379 tol 1e-6\nmL = 2\neta = tanh(mL) / mL\n",
+  "expect": {
+    "variables": {
+      "eta": 0.48201379003790845,
+      "mL": 2.0
+    },
+    "display_names": {
+      "eta": "eta",
+      "ml": "mL"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

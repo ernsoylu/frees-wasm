@@ -1,0 +1,23 @@
+[
+ {
+  "name": "flow",
+  "arg_names": [
+   "re"
+  ],
+  "x_log": true,
+  "y_log": true,
+  "curves": [
+   {
+    "param": null,
+    "xs": [
+     10.0,
+     1000.0
+    ],
+    "ys": [
+     10.0,
+     1000.0
+    ]
+   }
+  ]
+ }
+]

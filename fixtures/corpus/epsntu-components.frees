@@ -1,0 +1,14 @@
+// ε-NTU condenser, saturated-liquid outlet, CONDENSING PRESSURE FLOATS.
+// Cr→0 (phase-changing refrigerant) => ε = 1 − exp(−UA/C_sec).
+COMPONENT CondNTUFloat(in, out, wall)
+  PARAM fluid$, UA, Csec, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  hf       = Enthalpy(fluid$, P=in.P, x=0)
+  out.h    = hf
+  eps      = 1 - exp(-UA / Csec)
+  Q        = in.mdot * (in.h - out.h)
+  Q        = eps * Csec * (Tcond - wall.T)
+  wall.Qdot = -Q
+END

@@ -271,6 +271,22 @@ gating the new dev-dependencies off the wasm target in the manifest.
    growth sources: `../frEES/frontend/src/docs/*.md` snippets and the 295
    component library sources. A follow-up needs harvester features, not more
    sweat.
+   *(Closed 2026-08-24, Wave I — with one correction. The harvester grew the
+   features: `.formatted`/`String.format` evaluation, helper-method inlining,
+   a cross-file constant registry, and `FunctionTableDef` extra-defs staged
+   as `.tables.json` sidecars that flow dumper → fixture `function_tables`
+   field → `tests/parity.rs` → core's `solve_with_tables` (the Wave-H
+   channel). 77 promoted, corpus 905 → 982 — including all 10
+   `CurveFunctionTest` request-table documents, the item's "biggest block",
+   bit-exact at the corpus default. The correction: an inventory over all
+   197 test classes showed the three named shapes were never the bulk of the
+   remainder — cross-file constants resolve **zero** solve sites, complex
+   mode is 9 sites and formatted templates ~52 documents, while ~100 classes
+   with plain representable documents were simply never in the harvester's
+   class list. The docs snippets and component sources were separately
+   closed by Waves D1 and G4. `fixtures/README.md` growth item 3 has the
+   full accounting, the 18 property-chain pendings, and the four new
+   ledger-35 witnesses.)*
 2. **`CALL eigenvalues`/`eigen` found unwired and left unwired.** This was a
    hardening phase; wiring a new CALL belongs with the Phase 8 backlog. The
    three documents wait in `corpus-pending/` as the acceptance test.

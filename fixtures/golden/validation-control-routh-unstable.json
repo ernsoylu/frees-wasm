@@ -1,0 +1,31 @@
+{
+  "name": "validation-control-routh-unstable",
+  "source": "// VALIDATION: Routh-Hurwitz on an unstable cubic\n// AREA: Control systems\n// BASIS: s^3 + s^2 - s + 2 factors as (s+2)(s^2 - s + 1); the quadratic pair\n// has real part +0.5, so exactly 2 right-half-plane poles.\n// EXPECT nRHP = 2 tol 1e-9\n// EXPECT stable = 0 tol 1e-9\nden = [1, 1, -1, 2]\nCALL routh(den[1:4] : nRHP, stable)\n",
+  "expect": {
+    "variables": {
+      "den[1]": 1.0,
+      "den[2]": 1.0,
+      "den[3]": -1.0,
+      "den[4]": 2.0,
+      "nRHP": 2.0,
+      "stable": 0.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "den[4]": "den[4]",
+      "nrhp": "nRHP",
+      "stable": "stable"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

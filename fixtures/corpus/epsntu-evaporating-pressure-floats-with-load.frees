@@ -1,0 +1,19 @@
+COMPONENT EvapNTUFloat(in, out, wall)
+  PARAM fluid$, UA, Csec, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tevap    = T_sat(fluid$, P=in.P)
+  hg       = Enthalpy(fluid$, P=in.P, x=1)
+  out.h    = hg
+  eps      = 1 - exp(-UA / Csec)
+  Q        = in.mdot * (out.h - in.h)
+  Q        = eps * Csec * (wall.T - Tevap)
+  wall.Qdot = Q
+END
+TwoPhaseEnthalpySource LIQ(mdot=0.04, h=250000)
+EvapNTUFloat EVAP(fluid$=R1234yf, UA=500, Csec=350)
+ThermalSource SEC(T=303.000000)
+TwoPhaseSink VAP()
+connect(LIQ.out, EVAP.in)
+connect(EVAP.wall, SEC.port)
+connect(EVAP.out, VAP.in)

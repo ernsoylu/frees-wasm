@@ -1,0 +1,12 @@
+// VALIDATION: FFT of a unit impulse
+// AREA: Signal processing
+// BASIS: The DFT of [1,0,0,0] is 1 at every bin (flat spectrum) with zero
+// imaginary part, under either sign convention.
+// EXPECT outRe[1] = 1 tol 1e-12
+// EXPECT outRe[2] = 1 tol 1e-12
+// EXPECT outRe[3] = 1 tol 1e-12
+// EXPECT outRe[4] = 1 tol 1e-12
+// EXPECT outIm[3] = 0 tol 1e-12
+re[1:4] = [1, 0, 0, 0]
+im[1:4] = [0, 0, 0, 0]
+CALL FFT(re[1:4], im[1:4] : outRe[1:4], outIm[1:4])

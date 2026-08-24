@@ -1,0 +1,24 @@
+{
+  "name": "validation-thermo-brayton",
+  "source": "// VALIDATION: Ideal Brayton-cycle efficiency\n// AREA: Thermodynamics\n// BASIS: eta = 1 - 1/PR^((gamma-1)/gamma) = 1 - 1/1.9306977 = 0.4820525.\n// EXPECT eta = 0.4820525 tol 1e-6\nPR = 10\ngamma = 1.4\neta = 1 - 1 / PR^((gamma - 1) / gamma)\n",
+  "expect": {
+    "variables": {
+      "PR": 10.0,
+      "eta": 0.4820525320768788,
+      "gamma": 1.4
+    },
+    "display_names": {
+      "eta": "eta",
+      "gamma": "gamma",
+      "pr": "PR"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

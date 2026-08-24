@@ -1,0 +1,10 @@
+// VALIDATION: Isentropic compressible-flow ratios at Mach 2
+// AREA: Compressible flow
+// BASIS: T0/T = 1 + (gamma-1)/2 * M^2 = 1.8 exactly;
+// P0/P = (T0/T)^(gamma/(gamma-1)) = 1.8^3.5 = 5.832*sqrt(1.8) = 7.824449.
+// EXPECT TR = 1.8 tol 1e-9
+// EXPECT PR = 7.824449 tol 1e-4
+gamma = 1.4
+M = 2
+TR = 1 + (gamma - 1) / 2 * M^2
+PR = TR^(gamma / (gamma - 1))

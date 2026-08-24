@@ -1,0 +1,10 @@
+// VALIDATION: Laminar fully-developed pipe pressure drop (Hagen-Poiseuille)
+// AREA: Fluid mechanics
+// BASIS: dp = 128*mu*L*Q / (pi*d^4) = 1.28e-6 / (pi * 1e-8) = 40.743665 Pa.
+// EXPECT dp = 40.743665 tol 1e-4
+pi_val = 3.14159265358979
+mu = 0.001
+L = 10
+Q = 1e-6
+d = 0.01
+dp = 128 * mu * L * Q / (pi_val * d^4)

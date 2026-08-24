@@ -1,0 +1,8 @@
+// VALIDATION: Routh-Hurwitz on a stable cubic
+// AREA: Control systems
+// BASIS: s^3 + 2s^2 + 3s + 1 has Routh first column 1, 2, 2.5, 1 — no sign
+// change, so 0 right-half-plane poles.
+// EXPECT nRHP = 0 tol 1e-9
+// EXPECT stable = 1 tol 1e-9
+den = [1, 2, 3, 1]
+CALL routh(den[1:4] : nRHP, stable)

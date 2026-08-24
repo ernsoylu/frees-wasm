@@ -1,0 +1,26 @@
+{
+  "name": "validation-thermo-isothermal-work",
+  "source": "// VALIDATION: Isothermal ideal-gas expansion work\n// AREA: Thermodynamics\n// BASIS: W = m*R*T*ln(V2/V1) = 1 * 287 * 300 * ln(2) = 86100 * 0.69314718\n// = 59679.97 J.\n// EXPECT W = 59679.97 tol 0.05\nm = 1\nR = 287\nT = 300\nW = m * R * T * ln(2)\n",
+  "expect": {
+    "variables": {
+      "R": 287.0,
+      "T": 300.0,
+      "W": 59679.97224621129,
+      "m": 1.0
+    },
+    "display_names": {
+      "m": "m",
+      "r": "R",
+      "t": "T",
+      "w": "W"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

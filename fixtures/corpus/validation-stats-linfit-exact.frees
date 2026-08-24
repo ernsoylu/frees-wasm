@@ -1,0 +1,10 @@
+// VALIDATION: Least-squares line through exactly collinear points
+// AREA: Statistics
+// BASIS: (1,3), (2,5), (3,7) lie exactly on y = 2x + 1, so the fit returns
+// slope 2, intercept 1, R^2 = 1.
+// EXPECT slope = 2 tol 1e-9
+// EXPECT intercept = 1 tol 1e-9
+// EXPECT r2 = 1 tol 1e-9
+x[1:3] = [1, 2, 3]
+y[1:3] = [3, 5, 7]
+CALL LinFit(x[1:3], y[1:3] : slope, intercept, r2)

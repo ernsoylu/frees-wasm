@@ -1,0 +1,18 @@
+{
+  "name": "eqsys-single-output-eigenvalues-rejects-complex-spectrum-with-hint",
+  "source": "A[1,1] = 0; A[1,2] = -1\nA[2,1] = 1; A[2,2] = 0\nCALL Eigenvalues(A[1:2,1:2] : lambda[1:2])\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "IllegalStateException",
+      "message": "Matrix has complex eigenvalues; this form supports real spectra only (symmetric matrices always qualify). Use the two-output form CALL Eigenvalues(A : re, im) to get a complex spectrum as real/imaginary parts."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

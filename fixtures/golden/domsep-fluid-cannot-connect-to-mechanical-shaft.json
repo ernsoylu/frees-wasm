@@ -1,0 +1,18 @@
+{
+  "name": "domsep-fluid-cannot-connect-to-mechanical-shaft",
+  "source": "COMPONENT FSrc(out)\n  PARAM mdot, P, h0\n  out.mdot = mdot\n  out.P    = P\n  out.h    = h0\nEND\nFSrc        SRC(mdot=1, P=100000, h0=0)\nMechGround  G()\nconnect(SRC.out, G.port)\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "connect(src.out, g.port): cannot connect a fluid port (src.out) to a mechanical port (g.port) — different physical domains. Couple domains through a transducer component (a motor, pump, heating resistor, …), not a direct connect."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

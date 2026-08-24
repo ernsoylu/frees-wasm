@@ -1,0 +1,43 @@
+COMPONENT RelComp(in, out)
+  PARAM mdot0, dh, domain$ = twophase
+  in.mdot  = mdot0
+  out.mdot = in.mdot
+  out.h    = in.h + dh
+END
+COMPONENT RelCond(in, out)
+  PARAM fluid$, UA, Csec, Tair, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tcond    = T_sat(fluid$, P=in.P)
+  Q        = (1 - exp(-UA / Csec)) * Csec * (Tcond - Tair)
+  out.h    = in.h - Q / in.mdot
+END
+COMPONENT RelEvap(in, out)
+  PARAM fluid$, UA, Csec, Tcab, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  Tevap    = T_sat(fluid$, P=in.P)
+  Q        = (1 - exp(-UA / Csec)) * Csec * (Tcab - Tevap)
+  out.h    = in.h + Q / in.mdot
+END
+COMPONENT Thr(in, out)
+  PARAM domain$ = twophase
+  out.mdot = in.mdot
+  out.h    = in.h
+END
+COMPONENT SatCond(in, out)
+  PARAM fluid$, domain$ = twophase
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.h    = Enthalpy(fluid$, P=in.P, x=0)
+END
+RelComp CMP(mdot0=0.025, dh=45000)
+SatCond CND(fluid$=R1234yf)
+Thr     TH()
+RelEvap EVP(fluid$=R1234yf, UA=500, Csec=350, Tcab=298)
+connect(CMP.out, CND.in)
+connect(CND.out, TH.in)
+connect(TH.out, EVP.in)
+connect(EVP.out, CMP.in)
+CMP.in.P  = 350000
+CMP.out.P = 1500000

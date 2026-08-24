@@ -1,0 +1,26 @@
+{
+  "name": "validation-fluid-hydrostatic",
+  "source": "// VALIDATION: Hydrostatic column pressure\n// AREA: Fluid mechanics\n// BASIS: P = rho*g*h = 13546 * 9.80665 * 0.76 = 100959.07 Pa.\n// EXPECT P = 100959.07 tol 0.05\nrho = 13546\ng = 9.80665\nh = 0.76\nP = rho * g * h\n",
+  "expect": {
+    "variables": {
+      "P": 100959.06948399999,
+      "g": 9.80665,
+      "h": 0.76,
+      "rho": 13546.0
+    },
+    "display_names": {
+      "g": "g",
+      "h": "h",
+      "p": "P",
+      "rho": "rho"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

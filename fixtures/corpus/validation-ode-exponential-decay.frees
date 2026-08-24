@@ -1,0 +1,11 @@
+// VALIDATION: First-order exponential decay
+// AREA: Dynamics (ODE)
+// BASIS: dy/dt = -y, y(0) = 1 has the exact solution y(t) = exp(-t);
+// y(1) = 0.36787944.
+// EXPECT y_end = 0.36787944 tol 1e-4
+DYNAMIC decay (method = ode45, time = 0 .. 1, points = 101)
+  der(y) = -y
+  y(0) = 1
+END
+
+y_end = FinalValue('y')

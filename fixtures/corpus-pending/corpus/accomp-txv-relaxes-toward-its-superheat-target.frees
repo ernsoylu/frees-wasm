@@ -1,0 +1,12 @@
+TwoPhasePressureSource HI(fluid$=R134a, P=900000, x=0)
+TXV V(fluid$=R134a, Kv=1e-8, SH_set=5, CdA0=2e-6, tau_valve=2, tau_bulb=5)
+TwoPhasePressureSink LO(P=350000)
+ThermalSource BULB(T=290)
+connect(HI.out, V.in)
+connect(V.out, LO.in)
+connect(V.bulb, BULB.port)
+DYNAMIC tune(method = ida, time = 0 .. 40, points = 40, rtol = 1e-6, atol = 1e-9)
+END
+SHb_final = FinalValue('v.sh_b')
+CdA_final = FinalValue('v.cda')
+CdA_start = MinValue('v.cda')

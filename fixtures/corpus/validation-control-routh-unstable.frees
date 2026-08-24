@@ -1,0 +1,8 @@
+// VALIDATION: Routh-Hurwitz on an unstable cubic
+// AREA: Control systems
+// BASIS: s^3 + s^2 - s + 2 factors as (s+2)(s^2 - s + 1); the quadratic pair
+// has real part +0.5, so exactly 2 right-half-plane poles.
+// EXPECT nRHP = 2 tol 1e-9
+// EXPECT stable = 0 tol 1e-9
+den = [1, 1, -1, 2]
+CALL routh(den[1:4] : nRHP, stable)

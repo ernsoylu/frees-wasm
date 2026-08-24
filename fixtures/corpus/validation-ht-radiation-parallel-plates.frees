@@ -1,0 +1,12 @@
+// VALIDATION: Radiation exchange between large parallel gray plates
+// AREA: Heat transfer
+// BASIS: q = sigma*(T1^4 - T2^4) / (1/eps1 + 1/eps2 - 1); the denominator is
+// 1.5 and T1^4 - T2^4 = 3.471e11 exactly, so
+// q = 5.670374419e-8 * 3.471e11 / 1.5 = 13121.25 W/m^2.
+// EXPECT q = 13121.25 tol 0.05
+sigma = 5.670374419e-8
+T1 = 800
+T2 = 500
+eps1 = 0.8
+eps2 = 0.8
+q = sigma * (T1^4 - T2^4) / (1/eps1 + 1/eps2 - 1)

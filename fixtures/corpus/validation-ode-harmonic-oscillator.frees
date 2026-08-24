@@ -1,0 +1,15 @@
+// VALIDATION: Undamped harmonic oscillator over one full period
+// AREA: Dynamics (ODE)
+// BASIS: x'' + omega^2*x = 0 with omega = 2*pi has x(t) = cos(omega*t), so
+// after exactly one period (t = 1 s) x returns to 1.
+// EXPECT x_end = 1 tol 2e-3
+omega2 = 39.478417604357434
+
+DYNAMIC shm (method = ode45, time = 0 .. 1, points = 201)
+  der(x) = v
+  der(v) = -omega2 * x
+  x(0) = 1
+  v(0) = 0
+END
+
+x_end = FinalValue('x')

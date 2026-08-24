@@ -1,0 +1,15 @@
+// VALIDATION: Lumped-capacitance transient cooling (algebraic form)
+// AREA: Heat transfer
+// BASIS: T = T_inf + (T_i - T_inf)*exp(-t/tau) with tau = m*c/(h*A)
+// = 500/2.5 = 200 s; at t = 100 s, exp(-0.5) = 0.60653066, so T = 360.65307.
+// EXPECT tau = 200 tol 1e-9
+// EXPECT T = 360.65307 tol 1e-3
+m = 1
+c = 500
+h = 25
+A = 0.1
+tau = m * c / (h * A)
+T_inf = 300
+T_i = 400
+t1 = 100
+T = T_inf + (T_i - T_inf) * exp(-t1 / tau)

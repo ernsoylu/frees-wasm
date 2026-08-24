@@ -1,0 +1,7 @@
+// VALIDATION: Carnot efficiency
+// AREA: Thermodynamics
+// BASIS: Closed form eta = 1 - T_cold/T_hot = 1 - 300/600 = 0.5 exactly.
+// EXPECT eta = 0.5 tol 1e-12
+T_hot = 600
+T_cold = 300
+eta = 1 - T_cold / T_hot

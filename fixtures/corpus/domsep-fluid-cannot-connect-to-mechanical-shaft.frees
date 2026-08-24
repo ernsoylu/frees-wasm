@@ -1,0 +1,9 @@
+COMPONENT FSrc(out)
+  PARAM mdot, P, h0
+  out.mdot = mdot
+  out.P    = P
+  out.h    = h0
+END
+FSrc        SRC(mdot=1, P=100000, h0=0)
+MechGround  G()
+connect(SRC.out, G.port)

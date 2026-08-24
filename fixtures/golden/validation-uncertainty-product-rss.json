@@ -1,0 +1,24 @@
+{
+  "name": "validation-uncertainty-product-rss",
+  "source": "// VALIDATION: First-order uncertainty of a product\n// AREA: Uncertainty propagation\n// BASIS: f = x*y with x = 3 +/- 0.1 and y = 4 +/- 0.2:\n// sigma_f = sqrt(y^2*0.1^2 + x^2*0.2^2) = sqrt(0.16 + 0.36) = 0.7211103.\n// EXPECT f = 12 tol 1e-9\n// EXPECT-UNC f = 0.7211103 tol 1e-4\nx = 3\ny = 4\nUncertaintyOf(x) = 0.1\nUncertaintyOf(y) = 0.2\nf = x * y\n",
+  "expect": {
+    "variables": {
+      "f": 12.0,
+      "x": 3.0,
+      "y": 4.0
+    },
+    "display_names": {
+      "f": "f",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

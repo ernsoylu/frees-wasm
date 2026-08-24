@@ -1,0 +1,7 @@
+// VALIDATION: Straight-fin efficiency, adiabatic tip
+// AREA: Heat transfer
+// BASIS: eta = tanh(mL)/(mL); at mL = 2, tanh(2) = 0.96402758, so
+// eta = 0.48201379.
+// EXPECT eta = 0.48201379 tol 1e-6
+mL = 2
+eta = tanh(mL) / mL

@@ -1,0 +1,8 @@
+// VALIDATION: Eigenvalues of a symmetric 2x2
+// AREA: Linear algebra
+// BASIS: [[2,1],[1,2]] has characteristic roots 2 +/- 1, i.e. 1 and 3
+// (reported ascending).
+// EXPECT lambda[1] = 1 tol 1e-8
+// EXPECT lambda[2] = 3 tol 1e-8
+A = [2 1; 1 2]
+CALL Eigenvalues(A[1:2,1:2] : lambda[1:2])

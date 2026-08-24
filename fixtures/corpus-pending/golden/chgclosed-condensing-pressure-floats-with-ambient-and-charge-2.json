@@ -1,0 +1,61 @@
+{
+  "name": "chgclosed-condensing-pressure-floats-with-ambient-and-charge-2",
+  "source": "TwoPhaseEnthalpySource DIS(mdot=0.02, h=435000)\nTwoPhaseCondenserUA CND(fluid$=R134a, UA=400, T_amb=320.000000, V=0.002)\nTwoPhaseSink SNK()\nconnect(DIS.out, CND.in)\nconnect(CND.out, SNK.in)\nCND.m = 1.200000\n",
+  "expect": {
+    "variables": {
+      "cnd.in.h": 435000.0,
+      "cnd.in.mdot": 0.02,
+      "cnd.in.p": 1506164.668202755,
+      "cnd.m": 1.2,
+      "cnd.out.h": 263969.2716005596,
+      "cnd.out.mdot": 0.02,
+      "cnd.out.p": 1506164.668202755,
+      "cnd.q": 3420.6145679888086,
+      "cnd.rho_in": 72.07490652310598,
+      "cnd.rho_out": 1127.925093476895,
+      "cnd.sc": 10.31954780770792,
+      "cnd.tcond": 328.551536419972,
+      "dis.out.h": 435000.0,
+      "dis.out.mdot": 0.02,
+      "dis.out.p": 1506164.668202755,
+      "snk.h": 263969.2716005596,
+      "snk.in.h": 263969.2716005596,
+      "snk.in.mdot": 0.02,
+      "snk.in.p": 1506164.668202755,
+      "snk.mdot": 0.02,
+      "snk.p": 1506164.668202755
+    },
+    "display_names": {
+      "cnd$in$h": "cnd.in.h",
+      "cnd$in$mdot": "cnd.in.mdot",
+      "cnd$in$p": "cnd.in.p",
+      "cnd$m": "cnd.m",
+      "cnd$out$h": "cnd.out.h",
+      "cnd$out$mdot": "cnd.out.mdot",
+      "cnd$out$p": "cnd.out.p",
+      "cnd$q": "cnd.q",
+      "cnd$rho_in": "cnd.rho_in",
+      "cnd$rho_out": "cnd.rho_out",
+      "cnd$sc": "cnd.sc",
+      "cnd$tcond": "cnd.tcond",
+      "dis$out$h": "dis.out.h",
+      "dis$out$mdot": "dis.out.mdot",
+      "dis$out$p": "dis.out.p",
+      "r134a": "R134a",
+      "snk$h": "snk.h",
+      "snk$in$h": "snk.in.h",
+      "snk$in$mdot": "snk.in.mdot",
+      "snk$in$p": "snk.in.p",
+      "snk$mdot": "snk.mdot",
+      "snk$p": "snk.p"
+    },
+    "block_count": 15,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "validation-fluid-standard-atmosphere",
+  "source": "// VALIDATION: Standard atmosphere at 11 km (tropopause)\n// AREA: Atmosphere\n// BASIS: U.S. Standard Atmosphere 1976 published values at 11,000 m\n// geopotential altitude: T = 216.65 K, P = 22632 Pa, rho = 0.36392 kg/m^3.\n// EXPECT T = 216.65 tol 0.01\n// EXPECT P = 22632 tol 5\n// EXPECT rho = 0.36392 tol 5e-4\nT = isa_T(11000)\nP = isa_P(11000)\nrho = isa_rho(11000)\n",
+  "expect": {
+    "variables": {
+      "P": 22632.646369333983,
+      "T": 216.64999999999998,
+      "rho": 0.36392089311454473
+    },
+    "display_names": {
+      "p": "P",
+      "rho": "rho",
+      "t": "T"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

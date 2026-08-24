@@ -1,0 +1,6 @@
+// VALIDATION: Transcendental equation with exact root
+// AREA: Nonlinear algebra
+// BASIS: x*exp(x) is strictly increasing for x > -1; x = 2 satisfies
+// x*exp(x) = 2*exp(2) exactly.
+// EXPECT x = 2 tol 1e-8
+x * exp(x) = 2 * exp(2)

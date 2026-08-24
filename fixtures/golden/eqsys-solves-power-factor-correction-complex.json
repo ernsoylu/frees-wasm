@@ -1,0 +1,18 @@
+{
+  "name": "eqsys-solves-power-factor-correction-complex",
+  "source": "V_rms = 230 + 0i\nf = 50 [Hz]\nomega = 2 * pi# * f\n\nR_load = 15 [ohm]\nL_load = 0.05 [H]\nZ_load = R_load + 1i * omega * L_load\n\nI_load = V_rms / Z_load\nS_uncorrected = V_rms * (real(I_load) - 1i * imag(I_load))\nP_active = real(S_uncorrected)\nQ_reactive_old = imag(S_uncorrected)\nPF_old = P_active / abs(S_uncorrected)\n\nPF_new = 0.98\nS_corrected_mag = P_active / PF_new\nQ_reactive_new = sqrt(S_corrected_mag^2 - P_active^2)\n\nQ_c = Q_reactive_old - Q_reactive_new\n\nQ_c = abs(V_rms)^2 / abs(Z_c)\nZ_c = -1i / (omega * C_corr)\n\nx + y = 3\ny = z - 4\nz = x^2 - 3\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "The equations contain complex literals (e.g. 1i): enable Complex mode to solve them."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

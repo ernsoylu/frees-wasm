@@ -1,0 +1,11 @@
+// VALIDATION: First-order uncertainty of a product
+// AREA: Uncertainty propagation
+// BASIS: f = x*y with x = 3 +/- 0.1 and y = 4 +/- 0.2:
+// sigma_f = sqrt(y^2*0.1^2 + x^2*0.2^2) = sqrt(0.16 + 0.36) = 0.7211103.
+// EXPECT f = 12 tol 1e-9
+// EXPECT-UNC f = 0.7211103 tol 1e-4
+x = 3
+y = 4
+UncertaintyOf(x) = 0.1
+UncertaintyOf(y) = 0.2
+f = x * y

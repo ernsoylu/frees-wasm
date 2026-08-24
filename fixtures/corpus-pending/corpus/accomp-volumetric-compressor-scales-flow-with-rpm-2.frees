@@ -1,0 +1,6 @@
+TwoPhasePressureSource SUC(fluid$=R134a, P=350000, x=1)
+TwoPhaseCompressor CMP(fluid$=R134a, eta=0.7, model$=volumetric, eta_v=0.9, disp=2e-5, rpm=2500.000000)
+TwoPhaseSink DIS()
+connect(SUC.out, CMP.in)
+connect(CMP.out, DIS.in)
+CMP.out.P = 900000

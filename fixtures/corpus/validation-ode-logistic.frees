@@ -1,0 +1,11 @@
+// VALIDATION: Logistic growth
+// AREA: Dynamics (ODE)
+// BASIS: dy/dt = y*(1-y), y(0) = 0.1 has the exact solution
+// y(t) = 1/(1 + 9*exp(-t)); y(5) = 1/(1 + 9*exp(-5)) = 0.9428256.
+// EXPECT y_end = 0.9428256 tol 1e-4
+DYNAMIC logistic (method = ode45, time = 0 .. 5, points = 201)
+  der(y) = y * (1 - y)
+  y(0) = 0.1
+END
+
+y_end = FinalValue('y')

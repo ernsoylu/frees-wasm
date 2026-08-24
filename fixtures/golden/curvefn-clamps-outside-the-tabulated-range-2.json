@@ -1,0 +1,43 @@
+{
+  "name": "curvefn-clamps-outside-the-tabulated-range-2",
+  "source": "U = htc(1)\n",
+  "function_tables": [
+ {
+  "name": "htc",
+  "arg_names": [
+   "re"
+  ],
+  "x_log": false,
+  "y_log": false,
+  "curves": [
+   {
+    "param": null,
+    "xs": [
+     1000.0,
+     2000.0
+    ],
+    "ys": [
+     50.0,
+     80.0
+    ]
+   }
+  ]
+ }
+],
+  "expect": {
+    "variables": {
+      "U": 50.0
+    },
+    "display_names": {
+      "u": "U"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

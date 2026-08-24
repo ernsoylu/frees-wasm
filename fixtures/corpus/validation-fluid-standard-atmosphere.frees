@@ -1,0 +1,10 @@
+// VALIDATION: Standard atmosphere at 11 km (tropopause)
+// AREA: Atmosphere
+// BASIS: U.S. Standard Atmosphere 1976 published values at 11,000 m
+// geopotential altitude: T = 216.65 K, P = 22632 Pa, rho = 0.36392 kg/m^3.
+// EXPECT T = 216.65 tol 0.01
+// EXPECT P = 22632 tol 5
+// EXPECT rho = 0.36392 tol 5e-4
+T = isa_T(11000)
+P = isa_P(11000)
+rho = isa_rho(11000)

@@ -1,0 +1,7 @@
+// VALIDATION: Critical insulation radius (cylinder)
+// AREA: Heat transfer
+// BASIS: r_cr = k/h = 0.5/25 = 0.02 m exactly.
+// EXPECT r_cr = 0.02 tol 1e-9
+k = 0.5
+h = 25
+r_cr = k / h

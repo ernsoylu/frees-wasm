@@ -483,7 +483,12 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     oracle's `display_names` with a JVM-batch-global `N` — unreproducible
     across dump runs, so such fixtures can never be frozen (this port's
     per-document counter is better behaved and will never match). Oracle-side
-    hazard, recorded in `fixtures/README.md`; not a Rust defect.
+    hazard, recorded in `fixtures/README.md`; not a Rust defect. *(Four more
+    witnesses, 2026-08-24, Wave I: the extended harvester resolved the
+    remaining `MultiOutputDestructuringTest` documents and every `~`-carrying
+    one diverged exactly here — `~ignored~2/3/5/7` in the batch-dumped
+    goldens against this port's `~ignored~0`. Dropped, not staged; the item
+    stands as written.)*
 
 36. **The dead-end analysis UI is clipped (decision D5, 2026-08-05).** The
     Min/Max, Curve Fit, PID Tuner, Monte Carlo and Parameter Estimation

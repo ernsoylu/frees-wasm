@@ -1,0 +1,13 @@
+// VALIDATION: Series conduction chain (component network)
+// AREA: Component modeling - thermal
+// BASIS: Resistances L/(k*A) are 0.5 and 0.25 K/W; Q = 100/0.75 = 133.333 W,
+// so the interface sits at 400 - 0.5*Q = 333.33333 K.
+// EXPECT t_mid = 333.33333 tol 1e-3
+ThermalSource HOT(T=400)
+ThermalSource COLD(T=300)
+Conduction C1(k=1, area=1, L=0.5)
+Conduction C2(k=1, area=1, L=0.25)
+connect(HOT.port, C1.a)
+connect(C1.b, C2.a)
+connect(C2.b, COLD.port)
+t_mid = C1.b.T

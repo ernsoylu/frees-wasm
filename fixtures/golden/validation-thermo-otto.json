@@ -1,0 +1,24 @@
+{
+  "name": "validation-thermo-otto",
+  "source": "// VALIDATION: Air-standard Otto-cycle efficiency\n// AREA: Thermodynamics\n// BASIS: eta = 1 - r^(1-gamma); with r = 8, gamma = 1.4:\n// 8^0.4 = 2^1.2 = 2.2973967, so eta = 1 - 1/2.2973967 = 0.5647247.\n// EXPECT eta = 0.5647247 tol 1e-6\nr = 8\ngamma = 1.4\neta = 1 - r^(1 - gamma)\n",
+  "expect": {
+    "variables": {
+      "eta": 0.5647247183519378,
+      "gamma": 1.4,
+      "r": 8.0
+    },
+    "display_names": {
+      "eta": "eta",
+      "gamma": "gamma",
+      "r": "r"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

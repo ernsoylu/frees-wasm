@@ -1,0 +1,24 @@
+{
+  "name": "eqsys-uncertainty-contributions-carry-per-source-breakdown",
+  "source": "x = 3\ny = 4\nUncertaintyOf(x) = 0.1\nUncertaintyOf(y) = 0.2\nf = x * y\n",
+  "expect": {
+    "variables": {
+      "f": 12.0,
+      "x": 3.0,
+      "y": 4.0
+    },
+    "display_names": {
+      "f": "f",
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

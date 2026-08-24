@@ -1,0 +1,55 @@
+{
+  "name": "curvefn-interpolates-across-the-curve-family-parameter",
+  "source": "U = htc(5, 150)\n",
+  "function_tables": [
+ {
+  "name": "htc",
+  "arg_names": [
+   "re",
+   "t"
+  ],
+  "x_log": false,
+  "y_log": false,
+  "curves": [
+   {
+    "param": 100.0,
+    "xs": [
+     0.0,
+     10.0
+    ],
+    "ys": [
+     0.0,
+     10.0
+    ]
+   },
+   {
+    "param": 200.0,
+    "xs": [
+     0.0,
+     10.0
+    ],
+    "ys": [
+     0.0,
+     30.0
+    ]
+   }
+  ]
+ }
+],
+  "expect": {
+    "variables": {
+      "U": 10.0
+    },
+    "display_names": {
+      "u": "U"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

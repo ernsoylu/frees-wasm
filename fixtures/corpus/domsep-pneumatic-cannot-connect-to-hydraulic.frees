@@ -1,0 +1,3 @@
+PneumaticSupply  SUP(fluid$=Air, P=700000, T=300)
+HydraulicTank    TNK(P=0)
+connect(SUP.out, TNK.port)

@@ -1,0 +1,36 @@
+{
+  "name": "validation-control-error-constants",
+  "source": "// VALIDATION: Static error constants of a type-0 plant\n// AREA: Control systems\n// BASIS: G(s) = (8s + 16)/(s^2 + 5s + 4): Kp = G(0) = 16/4 = 4 exactly; a\n// type-0 system has Kv = 0 and Ka = 0.\n// EXPECT Kp = 4 tol 1e-9\n// EXPECT Kv = 0 tol 1e-9\n// EXPECT Ka = 0 tol 1e-9\nnum = [8, 16]\nden = [1, 5, 4]\nCALL errorconst(num[1:2], den[1:3] : Kp, Kv, Ka)\n",
+  "expect": {
+    "variables": {
+      "Ka": 0.0,
+      "Kp": 4.0,
+      "Kv": 0.0,
+      "den[1]": 1.0,
+      "den[2]": 5.0,
+      "den[3]": 4.0,
+      "num[1]": 8.0,
+      "num[2]": 16.0
+    },
+    "display_names": {
+      "den": "den",
+      "den[1]": "den[1]",
+      "den[2]": "den[2]",
+      "den[3]": "den[3]",
+      "ka": "Ka",
+      "kp": "Kp",
+      "kv": "Kv",
+      "num": "num",
+      "num[1]": "num[1]",
+      "num[2]": "num[2]"
+    },
+    "block_count": 8,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

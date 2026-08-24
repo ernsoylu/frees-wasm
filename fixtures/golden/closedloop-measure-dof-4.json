@@ -1,0 +1,18 @@
+{
+  "name": "closedloop-measure-dof-4",
+  "source": "COMPONENT RelComp(in, out)\n  PARAM mdot0, dh, domain$ = twophase\n  in.mdot  = mdot0\n  out.mdot = in.mdot\n  out.h    = in.h + dh\nEND\nCOMPONENT RelCond(in, out)\n  PARAM fluid$, UA, Csec, Tair, domain$ = twophase\n  out.mdot = in.mdot\n  out.P    = in.P\n  Tcond    = T_sat(fluid$, P=in.P)\n  Q        = (1 - exp(-UA / Csec)) * Csec * (Tcond - Tair)\n  out.h    = in.h - Q / in.mdot\nEND\nCOMPONENT RelEvap(in, out)\n  PARAM fluid$, UA, Csec, Tcab, domain$ = twophase\n  out.mdot = in.mdot\n  out.P    = in.P\n  Tevap    = T_sat(fluid$, P=in.P)\n  Q        = (1 - exp(-UA / Csec)) * Csec * (Tcab - Tevap)\n  out.h    = in.h + Q / in.mdot\nEND\nCOMPONENT Thr(in, out)\n  PARAM domain$ = twophase\n  out.mdot = in.mdot\n  out.h    = in.h\nEND\nRelComp CMP(mdot0=0.025, dh=45000)\nRelCond CND(fluid$=R1234yf, UA=900, Csec=600, Tair=318)\nThr     TH()\nRelEvap EVP(fluid$=R1234yf, UA=500, Csec=350, Tcab=298)\nconnect(CMP.out, CND.in)\nconnect(CND.out, TH.in)\nconnect(TH.out, EVP.in)\nconnect(EVP.out, CMP.in)\nCMP.in.P  = 350000\nCMP.out.P = 1500000\nCMP.in.h = 410000\nCND.out.h = 250000\n",
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "The equation system is structurally singular: no complete assignment of equations to variables exists. There are 28 equations and 28 variables. The problem is overspecified and cannot be solved. Redundant relation (no free variable left to determine): CMP.in.h=410000. A common cause: the same physics stated twice — a boundary pinning a quantity a component already defines (a re-equated mixer pressure, a T-pinned wall state), or two property calls restating one relation."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -200,6 +200,19 @@ outside the cache-storage API; every hashed asset is in.
    library-opened project to the library — with a confirming toast — and
    keeps meaning the file picker otherwise. The `FileSystemFileHandle`
    half, re-saving to the same file without a picker, stays open.)*
+   *(Handle half closed 2026-08-24, Wave I: opening or saving through the
+   FS Access API keeps the `FileSystemFileHandle` (Open now prefers
+   `showOpenFilePicker` where it exists), and plain Save writes back to that
+   file via `createWritable()` after `queryPermission`/`requestPermission` —
+   falling back to the picker when the API is absent (Firefox/Safari) or
+   permission is refused, with a toast either way. The decision is pure and
+   vitest-graded (`src/saveTarget.ts`: `saveTarget(provenance, hasHandle,
+   permission)` → library/handle/picker); the handle is structured-cloned
+   into IndexedDB beside the autosave (`projectStore`'s file link), so a
+   reload keeps Save pickerless after the browser's permission re-prompt.
+   Save As always picks — and the picked file becomes the new home. The
+   save-check dialog's Save now routes through the same decision; it used
+   to always open the picker even for a library project.)*
 3. **The precache-everything call has no opt-out.** A metered-connection user
    pays 30 MB on first visit. Workbox supports runtime-caching strategies
    that would precache the boot path (~4 MB) and cache the rest on use; that
@@ -214,6 +227,26 @@ outside the cache-storage API; every hashed asset is in.
    against `import.meta.env.BASE_URL`, trailing-slash tolerant, so a
    `vite build --base` sub-path deploy routes correctly. The service-worker
    scope under a sub-path remains unverified.)*
+   *(SW-scope half verified 2026-08-24, Wave I — the PWA machinery **works
+   under a sub-path**; one non-PWA fix was needed. Method: `vite build
+   --base /frees-test/` into a scratch dist, served by a scratch server that
+   404s everything outside `/frees-test/`, driven headless (chromium via
+   Playwright). Measured: the SW registers at `/frees-test/sw.js` with scope
+   `http://…/frees-test/`; the manifest gets `scope: "/frees-test/"` from the
+   plugin and its relative `start_url: "."`/icon srcs resolve against the
+   manifest URL; the precache (`workbox-precache-v2-…/frees-test/`, 99 cache
+   keys from the 104-entry manifest — `includeAssets` icons dedupe into the
+   glob) fills, and the app boots, reloads and renders **fully offline under
+   the prefix** with zero same-origin requests escaping it. Workbox's
+   relative precache URLs and `navigateFallback: 'index.html'` resolve
+   against the SW script URL, so none of the PWA options needed changing.
+   What WAS broken: `buildInfoPlugin` injected a hardcoded
+   `/build-info.js` — the one root-absolute URL in the built page; it now
+   prefixes the resolved `config.base` (vite.config.ts). One recorded
+   nuance, not fixed: `navigateFallbackDenylist: [/^\/api\//]` is anchored
+   at the origin root, so it denies nothing under a prefix — moot while the
+   remote adapter (gap 1) stays unwired and `VITE_API_BASE` names an
+   absolute origin, but whoever wires it under a sub-path must revisit.)*
 5. **No multi-tab coordination for the library.** Two tabs can save under the
    same name; last write wins, silently. IndexedDB gives the primitives
    (`versionchange` is handled; `BroadcastChannel` is not used). The autosave

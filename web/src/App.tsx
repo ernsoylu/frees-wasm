@@ -170,24 +170,30 @@ import { FUNCTION_CATEGORIES, catalogFunctionNames } from './functionCatalog'
 import {
   buildProject,
   clearProjectLocal,
+  FREES_FILE_TYPES,
   FreesProject,
   loadProjectLocal,
   ProjectSlices,
   readProjectFile,
   saveProject,
   saveProjectLocal,
+  saveProjectToHandle,
   type SpreadsheetSpec,
   writeBridgedKeys,
 } from './project'
 import {
   clearAutosaveMirror,
+  clearFileLink,
   loadStoredProject,
   mirrorIsNewer,
   readAutosaveMirror,
+  readFileLink,
   saveStoredProject,
   subscribeLibraryChanges,
   writeAutosaveMirror,
+  writeFileLink,
 } from './projectStore'
+import { queryWritePermission, saveTarget, type SaveProvenance } from './saveTarget'
 import { ProjectLibraryModal } from './ProjectLibraryModal'
 
 const STOP_CRITERIA_KEY = 'frees.stopCriteria'
@@ -851,6 +857,101 @@ export default function App() {
     })
   }, [sharedBoot, applyProject])
 
+  // Wave E (closing Phase 11's gap 2): where this project lives. Opened from
+  // the browser library => Save re-saves there; opened or saved as a file
+  // through the File System Access API => Save writes back to that same file
+  // (Wave I — the handle half); otherwise Save keeps meaning the file picker.
+  const projectSourceRef = useRef<SaveProvenance>(null)
+  // The FileSystemFileHandle behind a 'file' provenance, when the FS Access
+  // API produced one (Chromium). Firefox/Safari have no FS Access pickers, so
+  // no handle ever exists there and Save degrades to today's picker/download.
+  // Mirrored to IndexedDB (projectStore's file link) beside the autosave that
+  // holds the workspace it belongs to, so it survives a reload.
+  const projectHandleRef = useRef<FileSystemFileHandle | null>(null)
+
+  /** Adopt (or clear) the current file handle, keeping the persisted link in step. */
+  const adoptFileHandle = useCallback((handle: FileSystemFileHandle | null, name: string) => {
+    projectHandleRef.current = handle
+    if (handle) void writeFileLink(name, handle)
+    else void clearFileLink()
+  }, [])
+
+  // Wave I: restore the file link after a reload. The autosaved workspace the
+  // app just booted from is the state of the linked file's project, so a
+  // persisted handle means Save keeps writing back to that file — after the
+  // permission re-prompt the browser requires post-reload. Skipped for share
+  // links and fresh sessions, whose workspace is not that project; the
+  // provenance guard keeps a slow read from clobbering an open/save that
+  // happened first.
+  useEffect(() => {
+    if (sharedBoot !== null || boot === null) return
+    let cancelled = false
+    void readFileLink().then((link) => {
+      if (cancelled || link === null) return
+      if (projectSourceRef.current !== null) return
+      projectSourceRef.current = 'file'
+      projectHandleRef.current = link.handle
+      setProjectName(link.name)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [sharedBoot, boot])
+
+  // The one Save. Decides where this project re-saves (saveTarget.ts: browser
+  // library / its own file via the kept handle / the picker) and performs it;
+  // a refused handle write falls back to the picker rather than failing the
+  // save. Returns false only when nothing was saved (unavailable library,
+  // cancelled picker) so callers can keep the dirty flag and any pending
+  // destructive action on hold.
+  const performSave = useCallback(async (): Promise<boolean> => {
+    const project = buildProject(currentSlices())
+    const handle = projectHandleRef.current
+    const permission = handle ? await queryWritePermission(handle) : 'unsupported'
+    const target = saveTarget(projectSourceRef.current, handle !== null, permission)
+
+    if (target === 'library') {
+      const meta = await saveStoredProject(projectName, project)
+      if (!meta) return false
+      isDirtyRef.current = false
+      notifications.show({
+        color: 'teal',
+        title: 'Saved',
+        message: `Saved “${projectName}” to the browser library.`,
+      })
+      return true
+    }
+
+    if (target === 'handle' && handle) {
+      const outcome = await saveProjectToHandle(project, handle)
+      if (outcome === 'saved') {
+        isDirtyRef.current = false
+        void writeFileLink(projectName, handle)
+        notifications.show({
+          color: 'teal',
+          title: 'Saved',
+          message: `Saved “${handle.name}” back to its file — no picker needed.`,
+        })
+        return true
+      }
+      // Permission refused, or the file is gone: say so, then let the picker
+      // choose a fresh destination instead of failing the save.
+      notifications.show({
+        color: 'yellow',
+        title: outcome === 'denied' ? 'File access not granted' : 'Could not write the file',
+        message: `Choose where to save “${projectName}” instead.`,
+      })
+    }
+
+    const saved = await saveProject(project, projectName)
+    if (saved.saved) {
+      isDirtyRef.current = false
+      projectSourceRef.current = 'file'
+      adoptFileHandle(saved.handle, projectName)
+    }
+    return saved.saved
+  }, [currentSlices, projectName, adoptFileHandle])
+
   // If the project is dirty, show the save-check dialog; otherwise run immediately.
   const guardedAction = useCallback((action: () => void) => {
     if (isDirtyRef.current) {
@@ -862,15 +963,16 @@ export default function App() {
   }, [])
 
   const onSaveCheckSave = useCallback(async () => {
-    const saved = await saveProject(buildProject(currentSlices()), projectName)
-    // If the user cancelled the save picker, keep the project (and the pending
-    // destructive action, e.g. opening another project) on hold.
+    // The same provenance-aware Save as the menu (Wave I — this dialog used
+    // to always open the picker, even for a library project). If nothing was
+    // saved, keep the project (and the pending destructive action, e.g.
+    // opening another project) on hold.
+    const saved = await performSave()
     if (!saved) return
     setShowSaveCheck(false)
-    isDirtyRef.current = false
     pendingActionRef.current?.()
     pendingActionRef.current = null
-  }, [currentSlices, projectName])
+  }, [performSave])
 
   const onSaveCheckDiscard = useCallback(() => {
     setShowSaveCheck(false)
@@ -906,30 +1008,9 @@ export default function App() {
     })
   }, [projectName])
 
-  // Wave E (closing Phase 11's gap 2): where this project lives. Opened from
-  // the browser library => Save re-saves there; opened from a file (or never
-  // saved anywhere) => Save keeps meaning the file picker, as before.
-  const projectSourceRef = useRef<'file' | 'browser' | null>(null)
-
   const handleSaveProject = useCallback(async () => {
-    if (projectSourceRef.current === 'browser') {
-      const meta = await saveStoredProject(projectName, buildProject(currentSlices()))
-      if (meta) {
-        isDirtyRef.current = false
-        notifications.show({
-          color: 'teal',
-          title: 'Saved',
-          message: `Saved “${projectName}” to the browser library.`,
-        })
-      }
-      return
-    }
-    const saved = await saveProject(buildProject(currentSlices()), projectName)
-    if (saved) {
-      isDirtyRef.current = false
-      projectSourceRef.current = 'file'
-    }
-  }, [currentSlices, projectName])
+    await performSave()
+  }, [performSave])
 
   const handleRenameProject = useCallback(() => setRenameOpen(true), [])
 
@@ -940,20 +1021,60 @@ export default function App() {
 
   const handleSaveProjectAs = useCallback(() => setSaveAsOpen(true), [])
 
+  // Save As always picks (never the kept handle) — but the file it picks
+  // becomes the project's new home, so a following Save writes there.
   const submitSaveAs = useCallback(
     async (name: string) => {
       const clean = name.trim() || 'untitled'
       setProjectName(clean)
       const saved = await saveProject(buildProject(currentSlices()), clean)
-      if (saved) isDirtyRef.current = false
+      if (saved.saved) {
+        isDirtyRef.current = false
+        projectSourceRef.current = 'file'
+        adoptFileHandle(saved.handle, clean)
+      }
       setSaveAsOpen(false)
     },
-    [currentSlices],
+    [currentSlices, adoptFileHandle],
   )
 
+  // Open via the FS Access picker where it exists, so the handle can be kept
+  // for pickerless re-saving (Wave I); otherwise (Firefox/Safari, embeds that
+  // refuse the API) the hidden <input type=file> path, exactly as before.
   const handleOpenProject = useCallback(() => {
-    guardedAction(() => projectFileRef.current?.click())
-  }, [guardedAction])
+    guardedAction(() => {
+      const picker = (window as unknown as {
+        showOpenFilePicker?: (opts: unknown) => Promise<FileSystemFileHandle[]>
+      }).showOpenFilePicker
+      if (typeof picker !== 'function') {
+        projectFileRef.current?.click()
+        return
+      }
+      void (async () => {
+        let handle: FileSystemFileHandle | undefined
+        try {
+          ;[handle] = await picker({ types: FREES_FILE_TYPES, multiple: false })
+        } catch (err) {
+          // Cancelled => nothing to do; the API refusing for any other
+          // reason degrades to the input element.
+          if (!(err instanceof DOMException && err.name === 'AbortError')) projectFileRef.current?.click()
+          return
+        }
+        if (!handle) return
+        try {
+          const file = await handle.getFile()
+          const p = await readProjectFile(file)
+          applyProject(p)
+          const name = file.name.replace(/\.frees$/i, '')
+          setProjectName(name)
+          projectSourceRef.current = 'file'
+          adoptFileHandle(handle, name)
+        } catch (err) {
+          setDialogError(err instanceof Error ? err.message : 'Could not open project file.')
+        }
+      })()
+    })
+  }, [guardedAction, applyProject, adoptFileHandle])
 
   // Phase 11 (D4): the browser-resident project library. Saving is name-keyed
   // with file semantics (same name overwrites); a failed explicit save is
@@ -963,9 +1084,11 @@ export default function App() {
     if (meta) {
       isDirtyRef.current = false
       projectSourceRef.current = 'browser'
+      // The library is the project's home now; drop any stale file link.
+      adoptFileHandle(null, projectName)
     }
     return meta !== null
-  }, [currentSlices, projectName])
+  }, [currentSlices, projectName, adoptFileHandle])
 
   const handleOpenFromBrowser = useCallback(
     (name: string) => {
@@ -975,6 +1098,7 @@ export default function App() {
             applyProject(p)
             setProjectName(name)
             projectSourceRef.current = 'browser'
+            adoptFileHandle(null, name)
             setLibraryOpen(false)
           } else {
             notifications.show({
@@ -986,7 +1110,7 @@ export default function App() {
         })
       })
     },
-    [guardedAction, applyProject],
+    [guardedAction, applyProject, adoptFileHandle],
   )
 
   const onProjectFileSelected = useCallback(
@@ -997,17 +1121,21 @@ export default function App() {
       try {
         const p = await readProjectFile(file)
         applyProject(p)
-        setProjectName(file.name.replace(/\.frees$/i, ''))
+        const name = file.name.replace(/\.frees$/i, '')
+        setProjectName(name)
         projectSourceRef.current = 'file'
+        // An <input type=file> read has no handle — any kept one is stale.
+        adoptFileHandle(null, name)
       } catch (err) {
         setDialogError(err instanceof Error ? err.message : 'Could not open project file.')
       }
     },
-    [applyProject],
+    [applyProject, adoptFileHandle],
   )
 
   const performNewProject = useCallback(() => {
     projectSourceRef.current = null
+    adoptFileHandle(null, 'untitled')
     suppressDirtyRef.current = true
     isDirtyRef.current = false
     clearProjectLocal()
@@ -1042,7 +1170,7 @@ export default function App() {
     setProjectName('untitled')
     setWorkspaceEpoch((e) => e + 1)
     requestAnimationFrame(() => dockRef.current?.reset())
-  }, [stopCriteria, unitSystem, fillMissing, applyText])
+  }, [stopCriteria, unitSystem, fillMissing, applyText, adoptFileHandle])
 
   const handleNewProject = useCallback(() => guardedAction(performNewProject), [guardedAction, performNewProject])
 

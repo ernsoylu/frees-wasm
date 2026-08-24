@@ -9,13 +9,21 @@ import pkg from './package.json'
 // at container start by the nginx entrypoint (see docker-entrypoint.d/).
 // Injecting it via transformIndexHtml avoids Vite's "can't be bundled without
 // type=module" warning that occurs when the tag is in the static index.html.
+// The src is prefixed with the resolved base: injected markup bypasses Vite's
+// own base rewriting, and a hardcoded '/build-info.js' was the one root-
+// absolute URL a `vite build --base /prefix/` deploy still emitted (found by
+// the Wave I sub-path verification; everything else derives from base).
 function buildInfoPlugin() {
+  let base = '/'
   return {
     name: 'inject-build-info',
+    configResolved(config: { base: string }) {
+      base = config.base
+    },
     transformIndexHtml(html: string) {
       return html.replace(
         '</head>',
-        '  <script src="/build-info.js"></script>\n  </head>',
+        `  <script src="${base}build-info.js"></script>\n  </head>`,
       )
     },
   }

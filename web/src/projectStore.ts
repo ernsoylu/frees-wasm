@@ -19,9 +19,14 @@ const DB_NAME = 'frees'
 const DB_VERSION = 1
 /** Named projects, keyed by display name. */
 const PROJECTS_STORE = 'projects'
-/** Single-row store for the autosave mirror. */
+/**
+ * Out-of-line-keyed store holding the autosave mirror and (Wave I) the file
+ * link — the FileSystemFileHandle behind a file-provenance project, persisted
+ * beside the workspace it belongs to so a reload keeps Save pickerless.
+ */
 const AUTOSAVE_STORE = 'autosave'
 const AUTOSAVE_KEY = 'workspace'
+const FILE_LINK_KEY = 'fileLink'
 
 /** What the library list shows; the document itself stays on disk until opened. */
 export interface StoredProjectMeta {
@@ -259,6 +264,62 @@ export async function clearAutosaveMirror(): Promise<void> {
   if (!db) return
   try {
     await await_(db.transaction(AUTOSAVE_STORE, 'readwrite').objectStore(AUTOSAVE_STORE).delete(AUTOSAVE_KEY))
+  } catch {
+    // Best-effort.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wave I (closing Phase 11's gap 2, the FileSystemFileHandle half): the file
+// link. A FileSystemFileHandle is structured-cloneable, so IndexedDB can hold
+// it across reloads — which localStorage cannot. All three functions are
+// best-effort by the autosave-mirror rule: the in-memory handle already made
+// this session's Save pickerless, persistence only extends that across a
+// reload, and a browser that refuses to clone the handle just degrades there.
+// ---------------------------------------------------------------------------
+
+/** The persisted link between the open workspace and the file it came from. */
+export interface StoredFileLink {
+  /** The project display name at link time (the handle's name keeps the extension). */
+  name: string
+  handle: FileSystemFileHandle
+}
+
+export async function writeFileLink(name: string, handle: FileSystemFileHandle): Promise<void> {
+  const db = await openDb()
+  if (!db) return
+  try {
+    const link: StoredFileLink = { name, handle }
+    await await_(db.transaction(AUTOSAVE_STORE, 'readwrite').objectStore(AUTOSAVE_STORE).put(link, FILE_LINK_KEY))
+  } catch {
+    // Best-effort: a handle that will not clone leaves this session's
+    // in-memory handle working and the next session on the picker.
+  }
+}
+
+export async function readFileLink(): Promise<StoredFileLink | null> {
+  const db = await openDb()
+  if (!db) return null
+  try {
+    const raw = await await_(
+      db.transaction(AUTOSAVE_STORE, 'readonly').objectStore(AUTOSAVE_STORE).get(FILE_LINK_KEY),
+    )
+    if (raw == null || typeof raw !== 'object') return null
+    const { name, handle } = raw as Partial<StoredFileLink>
+    // Storage is outside the trust boundary: require the shape we wrote. The
+    // handle's own permission state is the app's problem at Save time.
+    if (typeof name !== 'string' || handle == null || typeof handle !== 'object') return null
+    return { name, handle }
+  } catch {
+    return null
+  }
+}
+
+export async function clearFileLink(): Promise<void> {
+  const db = await openDb()
+  if (!db) return
+  try {
+    await await_(db.transaction(AUTOSAVE_STORE, 'readwrite').objectStore(AUTOSAVE_STORE).delete(FILE_LINK_KEY))
   } catch {
     // Best-effort.
   }

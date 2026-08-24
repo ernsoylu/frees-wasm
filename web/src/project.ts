@@ -8,6 +8,7 @@
 // `frees.project`; the legacy keys remain only as a one-time migration source.
 
 import { DEFAULT_STOP_CRITERIA } from './api'
+import { writeToHandle } from './saveTarget'
 import type { StopCriteria, UnitSystem } from './api'
 import type { VariableDraft } from './VariableInfoModal'
 import type { TableSpec } from './tables'
@@ -292,42 +293,65 @@ function downloadProject(project: FreesProject, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+export interface SaveViaPickerResult {
+  /** True if the project was saved (or a download was triggered). */
+  saved: boolean
+  /**
+   * The picked file's handle when the FS Access API produced one (Chromium) —
+   * Wave I keeps it so plain Save can write back without a picker. Null on
+   * the download fallback and on cancel.
+   */
+  handle: FileSystemFileHandle | null
+}
+
+/** The picker/handle file-type filter — one definition for save and open. */
+export const FREES_FILE_TYPES = [
+  { description: 'frees project', accept: { 'application/json': ['.frees'] } },
+]
+
 /**
  * Save the project, letting the user choose the destination via the File System
  * Access API (showSaveFilePicker) where supported. Falls back to a plain browser
  * download (fixed Downloads folder) on browsers without the API (e.g. Firefox).
  *
- * Returns true if the project was saved (or a download was triggered), false if
- * the user cancelled the picker — so callers can keep the dirty flag set.
+ * `saved` is false only when the user cancelled the picker — so callers can
+ * keep the dirty flag set.
  */
-export async function saveProject(project: FreesProject, filename: string): Promise<boolean> {
+export async function saveProject(project: FreesProject, filename: string): Promise<SaveViaPickerResult> {
   const json = JSON.stringify(project, null, 2)
   const suggestedName = sanitizeFilename(filename)
   const picker = (window as unknown as {
-    showSaveFilePicker?: (opts: unknown) => Promise<{
-      createWritable: () => Promise<{ write: (data: string) => Promise<void>; close: () => Promise<void> }>
-    }>
+    showSaveFilePicker?: (opts: unknown) => Promise<FileSystemFileHandle>
   }).showSaveFilePicker
 
   if (typeof picker === 'function') {
     try {
-      const handle = await picker({
-        suggestedName,
-        types: [{ description: 'frees project', accept: { 'application/json': ['.frees'] } }],
-      })
+      const handle = await picker({ suggestedName, types: FREES_FILE_TYPES })
       const writable = await handle.createWritable()
       await writable.write(json)
       await writable.close()
-      return true
+      return { saved: true, handle }
     } catch (err) {
       // The user dismissed the picker — leave the project unsaved (and dirty).
-      if (err instanceof DOMException && err.name === 'AbortError') return false
+      if (err instanceof DOMException && err.name === 'AbortError') return { saved: false, handle: null }
       // Any other failure (permissions, unsupported) falls back to a download.
     }
   }
 
   downloadProject(project, filename)
-  return true
+  return { saved: true, handle: null }
+}
+
+/**
+ * Wave I: re-save to the file the project came from, no picker. Serializes
+ * exactly like `saveProject` and defers the permission dance to
+ * `writeToHandle`; the caller falls back to the picker on 'denied'/'failed'.
+ */
+export async function saveProjectToHandle(
+  project: FreesProject,
+  handle: FileSystemFileHandle,
+): Promise<'saved' | 'denied' | 'failed'> {
+  return writeToHandle(handle, JSON.stringify(project, null, 2))
 }
 
 /** Read and validate an opened `.frees` file. */

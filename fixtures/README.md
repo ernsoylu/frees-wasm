@@ -5,11 +5,11 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 983
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 997
 fixtures/corpus/*.tables.json  request-level Function Tables for the document
                                beside them (10 — the curvefn group; see below)
-fixtures/golden/*.json         what the Java engine produced for each     — 983
-fixtures/corpus-pending/       the staging area: documents not yet promoted — 19
+fixtures/golden/*.json         what the Java engine produced for each     — 997
+fixtures/corpus-pending/       the staging area: documents not yet promoted — 5
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -227,12 +227,21 @@ cfg that selects the property backend:
 | file | grades | entries |
 |---|---|---:|
 | `tolerances.json` | the D1 `(P,h)` `TableBackend` | 23 |
-| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 10 |
+| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 37 |
 
 They cannot be merged, because the "dead tolerance" guard above is what makes
 them backend-specific: thirteen of the 23 entries exist only because of the
 tables' own interpolation error, and under rustprop — which *is* CoolProp 8.0.0
 — those fixtures match at `1e-11…1e-16` and their entries would fail.
+
+*(The rustprop file's count is a corpus-growth number, not a quality one: F5
+re-baselined it at **ten**, Wave G1 added the first two transients, Wave G4's
+component sweep added eleven, and Wave A1 (2026-08-24) added fourteen from the
+Wave-I two-phase-cycle harvest — **37**. Thirty-five of the 37 are
+`oracle-ph-table`, i.e. the Java's own run-time `(P,Hmass)` interpolation
+table, and each entry carries its own evidence in `reason`; Wave A1's fourteen
+were every one leaf-probed against the CoolProp 8.0.0 wheel at the Java's own
+inputs before they were written.)*
 
 #### Running the gate — the corpus has exactly one servable backend
 
@@ -442,7 +451,11 @@ Extend it further from, in rough order of value:
    staged (65 from classes + 34 validation resources, item 5 below):
    **77 promoted** — corpus 905 → 982 on this branch (983 merged beside Wave I's CabinZone promotion), including all 10 `curvefn` request-table
    fixtures at the corpus default, bit-exact on the Java tests' own asserted
-   values — 18 pending (property-chain holds, see the pending table) and 4
+   values — 18 pending (property-chain holds, see the pending table; **14 of
+   the 18 promoted 2026-08-24, Wave A1**, at declared `oracle-ph-table`
+   tolerances measured ×1.5 and leaf-probed against the CoolProp 8.0.0 wheel —
+   corpus 983 → 997 — leaving the 4 whose true answer is a structurally exact
+   zero) and 4
    dropped as new witnesses of ledger item 35 (`multiout-*-tilde-*`: the
    oracle's JVM-batch-global `~ignored~N` sink counter makes their goldens
    unreproducible — unfreezable by design, not pending). The remaining
@@ -702,12 +715,48 @@ field.) If it agrees, move *both* files into `corpus/` and `golden/`. If
 it diverges, leave it here. A pending document that starts passing because
 someone fixed the engine is the point.
 
-### What is pending today — 19 documents
+### What is pending today — 5 documents
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact). Re-measured 2026-08-23 after Wave G3's per-step caches: **~5.6 min** (339 s, upper bound — the first 147 s shared the machine with a replay), from A5's ~12 min, converging to the same `dk` at rel ~8e-16; the whole replay is ~145 s, so one document still costs ~2.3× the gate and the hold stands | 1 | `dyn_accessor_live` |
-| **Property-chain divergences awaiting per-fixture leaf probes** (Wave I harvest, 2026-08-24). Every failure is numeric, on two-phase R134a/R1234yf/Water property chains (`cmp.h_s`, `cond.in.p`, `ch.cl.out.h`, `rho_in`, EXV `mdot` ∝ √ρ), leaf-level ~7.2e-7 … 2.1e-6 with amplified downstream worsts to 5.9e-4 — the `oracle-ph-table` signature (`tolerances-rustprop.json`'s catalogue): the leaf magnitudes sit in the Java `(P,Hmass)` table's established 7.8e-10…1.8e-6 band and the EXV pair lands at √(the `components_family_ac` Dmass leaf). Promotion needs that file's evidence discipline — a wheel-vs-rustprop-vs-golden probe *per entry* — which this wave measured but did not probe. Five of the 18 also amplify through a near-zero difference (subcooling/superheat ≈ 0 reads rel 1.0 by denominator collapse), so those five cannot pass under any declarable tolerance as authored; a probe would still establish which side is nearer the physics | 18 | `accomp-air-coil-cools-and-dehumidifies`, `accomp-exv-opening-sets-flow`(+`-2`), `accomp-txv-relaxes-toward-its-superheat-target`, `accomp-volumetric-compressor-scales-flow-with-rpm`(+`-2`), `chgclosed-charge-chain-is-well-posed`, `chgclosed-condensing-pressure-floats-with-ambient-and-charge`(+`-2`), `chiller-chiller-cools-the-coolant-loop`, `chiller-higher-refrigerant-flow-delivers-more-cooling`(+`-2`), `closedloop-measure-dof-6`, `closedloop-measure-dof-7`, `tpcharge-charge-sets-condensing-pressure-and-subcooling`(+`-2`), `tpcycle-cop-drops-versus-isobaric-baseline`, `tpcycle-non-isobaric-cycle-has-suction-below-evaporating-pressure-and-plausible-cop` |
+| **The golden asserts a non-zero value where the true answer is a structurally exact zero** (Wave A1, 2026-08-24 — the residue of the Wave-I property-chain row, whose other 14 documents were probed and promoted the same day). In each of these four the two-phase plateau makes the quantity identically zero: a condenser outlet still inside the dome, so `SC = Tcond − Temperature(P,h)` is exactly 0, or an evaporator outlet below `hg`, so `SH = Temperature(P,h) − Tsat` is exactly 0. The CoolProp 8.0.0 wheel confirms it — `Temperature(P, h_out)` equals `T_sat(P)` **to the last bit** at all four states — and this port returns `0` or `±5.7e-14`, while the Java's `(P,Hmass)→T` table returns `2.798e-7` (`chgclosed-charge-chain`), `1.183e-6` (`chgclosed-condensing…`), `5.686e-7` (`tpcharge-charge-sets…`) and `−1.216e-6` K (`accomp-air-coil`, on `SH`). A relative measure has no denominator against an exact zero, so every one reads `rel ≈ 1.0` and **no `relative` the harness will accept (`> 1e-9`, `< 1e-2`) can pass them** — this is a golden-side artifact on an exact zero, not a divergence, and it is left here rather than papered over. Their *other* variables are ordinary `oracle-ph-table` gaps and would grade at 1.3e-7 … 3.8e-6; `chgclosed-charge-chain`'s `cnd.rho_in` at 3.767e-6 (wheel 70.35461467939413 vs golden 70.35487973927506, at 1.476 MPa / 435 kJ/kg) is the largest single R134a `Dmass` leaf error the corpus has measured. Closing them needs either an absolute-tolerance channel in `tests/parity.rs` (none exists, and adding one is a gate change, not a fixture change) or re-tuning the documents off the plateau and re-dumping — which would destroy the assertion each was harvested to make, since three of them are the zero-subcooling half of a deliberate pair | 4 | `accomp-air-coil-cools-and-dehumidifies`, `chgclosed-charge-chain-is-well-posed`, `chgclosed-condensing-pressure-floats-with-ambient-and-charge`, `tpcharge-charge-sets-condensing-pressure-and-subcooling` |
+
+*(**Fourteen of the Wave-I property-chain row's 18 left this table on
+2026-08-24, Wave A1** — by probing, not by any engine change. Each was
+re-checked with the scratch-harness procedure below (goldens from
+`corpus-pending/golden`, tolerance path aimed at a non-existent file so the
+grade is the bare `1e-9`), its worst variable traced to a leaf property call,
+and that leaf asked of the **CoolProp 8.0.0 wheel** in rustprop's
+`tools/golden-gen/.venv` at the *Java's own inputs*. In all fourteen rustprop
+reproduces the wheel to between 0 (bit-identical — the compressors' `Dmass`
+and `Smass`) and 1.1e-11 (the subcooled-liquid `Dmass` in `tpcharge-*-2`, the
+one leaf near the dome edge) while the golden sits 4.8e-8…1.4e-6 away — four
+to five orders at every leaf — so every entry is `oracle-ph-table` and the
+port is the nearer of the two to the physics. The interception boundary shows up
+inside the fixtures themselves: every `(P,Q)` call in them (`hf`, `hg`,
+`T_sat`, the condensers' `Tcond`) and every `(P,Smass)` call (both
+compressors' `h_s`, asked at the golden's own tabulated entropy) is
+**bit-identical** between golden and wheel — only `(P,Hmass) → T/Dmass/Smass`
+diverges. Declared tolerances, measured ×1.5: `accomp-exv-opening-sets-flow`
+(+`-2`) and `accomp-txv-relaxes-toward-its-superheat-target` 1.1e-6 (measured
+7.1497e-7, one shared R134a 900 kPa/`hf` `Dmass` leaf, undiluted);
+`accomp-volumetric-compressor-scales-flow-with-rpm`(+`-2`) 3.1e-6 (2.0907e-6);
+`chgclosed-condensing-pressure-floats-with-ambient-and-charge-2` 6.9e-6
+(4.6118e-6); `chiller-chiller-cools-the-coolant-loop` 1.9e-5 (1.2487e-5);
+`chiller-higher-refrigerant-flow-delivers-more-cooling` 9.5e-6 (6.3190e-6) and
+`-2` 8.9e-4 (5.9320e-4 — one 1.5e-4 K tabulated-`T` error over a 0.252 K
+superheat, the file's loosest entry and a denominator, not a defect);
+`closedloop-measure-dof-6` 1.1e-5 (7.4616e-6); `closedloop-measure-dof-7`
+3.3e-6 (2.1731e-6); `tpcharge-charge-sets-condensing-pressure-and-subcooling-2`
+5.6e-5 (3.7321e-5); `tpcycle-cop-drops-versus-isobaric-baseline` 4.0e-6
+(2.6898e-6); `tpcycle-non-isobaric-cycle-has-suction-below-evaporating-pressure-and-plausible-cop`
+1.4e-5 (9.3646e-6). The TXV fixture is the wave's only transient and needs
+**no** `ida-adaptive-path` component: only five of its table columns diverge
+at all — `v$rho_in` and the four `mdot` copies that read √ρ of it — by the
+same amount in all 40 rows, while the integrated states `SH_b`/`CdA` and the
+`FinalValue`/`MinValue` scalars taken off them stay under the `1e-9` default.
+Corpus 983 → 997, pending 19 → 5.)*
 
 *(The fluid-linkage row left this table on 2026-08-23, Wave G2: the
 `carbondioxide` feature joined `rustprop-data`'s list in

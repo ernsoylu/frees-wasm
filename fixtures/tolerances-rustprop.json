@@ -115,7 +115,48 @@
     "what the harness's dead-entry guard computes; their pointwise worsts are",
     "denominator-collapse readings on near-zero samples and are quoted in each",
     "reason. Reproduce with the entry deleted, as above: every failing cell",
-    "prints both measures."
+    "prints both measures.",
+    "",
+    "== WAVE A1 (2026-08-24): THE ACAUSAL-CYCLE HARVEST ENTRIES ===============",
+    "",
+    "Fourteen entries out of the 18 two-phase-cycle documents Wave I staged in",
+    "corpus-pending/, all oracle-ph-table. Every one was leaf-probed against the",
+    "CoolProp 8.0.0 wheel at the JAVA's own inputs, and the finding is the same",
+    "in all fourteen: rustprop reproduces the wheel to between 0 (bit-identical",
+    "-- the compressors' Dmass and Smass) and 1.1e-11 (the subcooled-liquid",
+    "Dmass in tpcharge-*-2, the one leaf near the dome edge), while the golden",
+    "sits 4.8e-8 .. 1.4e-6 away. Four to five orders, at every leaf.",
+    "",
+    "The interception boundary is visible INSIDE these fixtures instead of being",
+    "inferred from the Java source. Every (P,Q) call in them -- the sources'",
+    "hf/hg, T_sat, the condensers' Tcond, the evaporators' hg -- is BIT-IDENTICAL",
+    "between golden and wheel, and so is every (P,Smass) call (both compressors'",
+    "h_s, asked at the golden's own tabulated entropy). Only (P,Hmass) ->",
+    "T/Dmass/Smass diverges. That is PhTableRegistry's TABLE_OUTPUTS x (P,Hmass)",
+    "rule read off the data rather than off props/PropertyFunctions.java:406.",
+    "",
+    "Five operating points serve the fourteen, and the shared ones say so:",
+    "  * R134a (900 kPa, hf = 249779.7946448451) Dmass -- both EXV documents",
+    "    and the TXV transient, one bit-identical 1165.3580548148163",
+    "  * R134a (350 kPa, hg = 401508.3387584498) Dmass AND Smass -- the two",
+    "    volumetric-compressor documents; the same enthalpy is the chiller",
+    "    trio's own `hg`",
+    "  * R134a (350 kPa, superheated h) -> T -- the three chiller documents,",
+    "    where the tabulated T is 1.53e-4 .. 1.56e-4 K low at all three and only",
+    "    the superheat denominator changes (9.15 K, 14.66 K, 0.252 K)",
+    "  * R134a condenser (P, h_out) -> T and Dmass -- chgclosed-*-2, tpcharge-*-2",
+    "  * R1234yf and R134a cycle leaves -- the closedloop and tpcycle pairs",
+    "",
+    "FOUR of the 18 are NOT promoted, and must not be forced. In each of them",
+    "the true answer is a STRUCTURALLY EXACT ZERO: a condenser outlet still",
+    "inside the dome, where SC = Tcond - Temperature(P,h) is identically 0, or",
+    "an evaporator outlet below hg, where SH = Temperature(P,h) - Tsat is",
+    "identically 0. The wheel confirms it -- Temperature(P,h_out) equals",
+    "T_sat(P) to the last bit at all four states -- and this port returns 0 or",
+    "5.7e-14, while the Java's table returns 2.8e-7 .. 1.2e-6 K. A relative",
+    "measure has no denominator there, so no declarable `relative` passes them",
+    "and none was invented. fixtures/README.md's pending table carries the four",
+    "with exactly this reason."
   ],
   "mechanisms": {
     "oracle-ph-table": [
@@ -196,11 +237,77 @@
     ]
   },
   "fixtures": {
+    "accomp-exv-opening-sets-flow": {
+      "relative": 1.1e-06,
+      "measured": 7.149654e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "The worst variable IS the leaf, undiluted: v.rho_in = Density(R134a, P = 900 kPa, h = 249779.7946448451) -- the (P,Hmass)->Dmass shape PhTableRegistry intercepts. The wheel says 1165.358054814817, rustprop 1165.3580548148163 (5.9e-16), the golden 1165.3572216241205 (7.15e-7). The inlet enthalpy is a (P,x=0) call the Java does NOT intercept, and the golden's hi.out.h is bit-identical to the wheel's hf(900 kPa), so this one fixture shows both sides of the interception boundary. mdot ~ sqrt(rho_in), so the four flow variables read half the leaf (3.57e-7) and nothing amplifies past it."
+    },
+    "accomp-exv-opening-sets-flow-2": {
+      "relative": 1.1e-06,
+      "measured": 7.149654e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "The same document at valve opening u = 1.0 instead of 0.5, and therefore the same R134a (900 kPa, hf) inlet state: v.rho_in is the identical 1165.3580548148163 against the golden's identical 1165.3572216241205, measured to seven figures the same 7.149654e-7. One shared operating point, deliberately, so the pair cross-checks -- the opening only scales mdot and leaves every relative error untouched."
+    },
+    "accomp-txv-relaxes-toward-its-superheat-target": {
+      "relative": 1.1e-06,
+      "measured": 7.149654e-07,
+      "mechanism": "oracle-ph-table",
+      "reason": "A method = ida transient over the SAME R134a (900 kPa, hf) inlet as the two EXV documents: v$rho_in is 1165.3580548148163 in every row against the golden's 1165.3572216241205 (wheel 1165.358054814817). Only five of the table's columns diverge at all -- v$rho_in and the four mdot copies that read sqrt of it at 3.57e-7 -- and they diverge by the same amount in all 40 rows. The integrated states SH_b and CdA, and the FinalValue/MinValue scalars taken off them, agree at or under the 1e-9 default, so there is NO ida-adaptive-path component here: the divergence is the algebraic property leaf, present already at row 0."
+    },
+    "accomp-volumetric-compressor-scales-flow-with-rpm": {
+      "relative": 3.1e-06,
+      "measured": 2.090726e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The suction state is R134a (P = 350 kPa, h = hg = 401508.3387584498) and BOTH intercepted outputs are exercised there: the wheel gives Dmass 17.14709853603316 and Smass 1724.4478329864326, rustprop reproduces both BIT-IDENTICALLY, and the golden says 17.14709213019728 (3.74e-7) and 1724.4479874659305 (8.96e-8). h_s = Enthalpy(R134a, 900 kPa, s_in) is a (P,Smass) call the Java does not intercept -- asked at the GOLDEN's own s_in the wheel answers 421105.34424688737, the golden's h_s to the last bit -- so the entropy table is the only way in. cmp.W = mdot*(h_out - h_in) then combines the two leaves with OPPOSITE signs: the isentropic rise is 21.5x smaller than the h_s it is made of, carrying the Smass error to -2.46e-6, while mdot ~ rho_in adds +3.74e-7, netting the measured 2.09e-6."
+    },
+    "accomp-volumetric-compressor-scales-flow-with-rpm-2": {
+      "relative": 3.1e-06,
+      "measured": 2.090726e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The same rig at rpm = 2500 instead of 1000. rpm multiplies the displacement flow and cancels out of every relative error, so this fixture measures the same 2.090726e-6 on cmp.W off the same bit-identical suction leaves (Dmass 17.14709853603316, Smass 1724.4478329864326, both equal to the CoolProp 8.0.0 wheel; golden 17.14709213019728 and 1724.4479874659305). The pair exists to show the flow scaling, and the tolerance pair shows the error does not."
+    },
     "adv_cyclepath_rankine_order": {
       "relative": 7.1e-06,
       "measured": 4.70671e-06,
       "mechanism": "oracle-ph-table",
       "reason": "Turbine TU calls Entropy(Water, P = 3 MPa, h = 3.2 MJ/kg) for tu.s_in. The wheel says 6875.8853309733604 and so does rustprop, bit-identically; the golden says 6875.8942338679017, off by 1.29e-6. Enthalpy(Water, P, s) carries that into tu.h_s and the turbine work tu.w = 0.85*(h_in - h_s) amplifies it 3.6x to 4.71e-6. Reconstructing w_t from the wheel alone gives 599317.89272939134 against rustprop's 599317.89272939321 (3e-15) and the golden's 599315.07191367587 (4.71e-6) -- the whole gap is the Java table."
+    },
+    "chgclosed-condensing-pressure-floats-with-ambient-and-charge-2": {
+      "relative": 6.9e-06,
+      "measured": 4.611811e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "TwoPhaseCondenserUA closes its charge constraint m = V/2*(rho_in + rho_out) on two intercepted Density(R134a, P, Hmass) calls, so the Java's table moves the solved (P, h_out) pair and cnd.SC = Tcond - Temperature(R134a, P, h_out) reads what is left. At the JAVA's own state (P = 1506164.668202755 Pa) the wheel gives rho_in = 72.074818885932 against the golden's 72.07490652310598 (1.22e-6) and rho_out = 1127.9243623925865 against 1127.925093476895 (6.48e-7); rustprop reproduces both wheel values to 7e-16. Temperature at the same (P, h_out = 263969.2716005596) is 318.23221881680115 on the wheel and 318.23221881680104 on rustprop, while T_sat(P) = 328.551536419972 is bit-identical on all three sides -- so the wheel's own subcooling there is 10.319317603170873 against the golden's 10.31954780770792, i.e. 2.23e-5 of tabulated-T error at the Java's own outlet. Our solve lands on a slightly different h_out and 4.61e-6 survives."
+    },
+    "chiller-chiller-cools-the-coolant-loop": {
+      "relative": 1.9e-05,
+      "measured": 1.248692e-05,
+      "mechanism": "oracle-ph-table",
+      "reason": "MovingBoundaryEvaporator's SH = T_out - Tsat subtracts an exact saturation temperature from an intercepted one -- the same shape components_family_twophase probed at another state. T_out = Temperature(R134a, P = 350 kPa, h) is the (P,Hmass) call; Tsat = T_sat(P) is a (P,Q) call the Java does not intercept and is BIT-IDENTICAL on all three sides (278.17807211793064). At the Java's own outlet enthalpy 409863.3680809776 the wheel says 287.3289796212185 and rustprop 287.3289796211537 (2.3e-13), while the golden says 287.32882345744446 -- 1.5617e-4 K low, 5.44e-7 relative. Our own solve's ch.ev.T_out then sits 3.977e-7 from the golden's and the 9.1508 K superheat amplifies that by 287.33/9.15 = 31.4x, giving 1.2487e-5 -- the measured error to five figures. ch.ev.Q_sh inherits 4.52e-6."
+    },
+    "chiller-higher-refrigerant-flow-delivers-more-cooling": {
+      "relative": 9.5e-06,
+      "measured": 6.318997e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The same chiller at mdot = 0.015 instead of 0.020, so the same Temperature(R134a, P = 350 kPa, h) leaf lands on a 14.657 K superheat. At the Java's own h = 414856.2556728013 the wheel gives 292.8353392488395, rustprop 292.83533924883943 (2.0e-16), the golden 292.8351841561966 -- 1.551e-4 K low, 5.30e-7 relative -- with Tsat again the bit-identical 278.17807211793064. Our ch.ev.T_out sits 3.163e-7 from the golden's and 292.8/14.66 = 20.0x amplifies that onto ch.ev.SH: 6.319e-6, the measured error to four figures."
+    },
+    "chiller-higher-refrigerant-flow-delivers-more-cooling-2": {
+      "relative": 8.9e-04,
+      "measured": 5.932039e-04,
+      "mechanism": "oracle-ph-table",
+      "reason": "The third chiller point, mdot = 0.030, where the two-phase zone only just completes and the superheat is 0.2522 K -- the same 1.5e-4 K tabulated-T error over a denominator 36x smaller than the -cools sibling's and 58x smaller than the mdot = 0.015 one's. At the Java's own h = 401740.58576085843 the wheel says 278.4303960791226, rustprop 278.4303960791227, the golden 278.43024325657905 (1.528e-4 K low, 5.49e-7 relative); Tsat is the bit-identical 278.17807211793064. Our ch.ev.T_out sits 5.376e-7 from the golden's and 278.43/0.2522 = 1104x amplifies that to 5.932e-4, the measured error to four figures. This is the loosest entry in the file and it is a denominator, not a defect -- and it is NOT a denominator collapse: the 0.25 K superheat is real, held open by the zone_ramp, and both engines agree on it to four figures. The three chiller entries share one leaf call at one pressure (Temperature(R134a, 350 kPa, h)) whose tabulated error is 1.53e-4 .. 1.56e-4 K at all three, and differ only in the superheat they divide it by."
+    },
+    "closedloop-measure-dof-6": {
+      "relative": 1.1e-05,
+      "measured": 7.461597e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "R1234yf, two intercepted leaves. cmp.s_in = Entropy(R1234yf, P = 350 kPa, h = 372965.70278493856): wheel 1625.796893946988, rustprop 1625.7968939467269 (1.6e-13), golden 1625.7971097168015 (1.33e-7). exv.rho_in = Density(R1234yf, P = 1.5 MPa, h = 271490.94634112937): wheel 987.5581679091036, rustprop 987.5581679091047 (1.1e-15), golden 987.5568041758926 (1.38e-6). The valve law mdot^2 = Cv^2*2*rho_in*(P_in - P_out) turns the density error into a pressure-drop error, and because the drop (1.266 MPa) is 5.4x the outlet pressure it reads 7.46e-6 on exv.out.P, the worst variable. cmp.h_s = Enthalpy(R1234yf, P_out, s_in) is a (P,Smass) call that falls through: at the GOLDEN's own s_in the wheel answers 399852.20415306365, the golden's h_s bit for bit."
+    },
+    "closedloop-measure-dof-7": {
+      "relative": 3.3e-06,
+      "measured": 2.173146e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "A user-defined R1234yf loop whose ONLY intercepted leaf is th.rho_in = Density(R1234yf, P = 955598.9841238817 Pa, h = 251410.34382632736): wheel 1043.757257335194, rustprop 1043.7572573351952 (1.1e-15), golden 1043.7569067211316 (3.36e-7). Everything else it calls falls through and is bit-identical between golden and wheel -- cnd.out.h to hf(P), cnd.Tcond to T_sat(P), evp.out.h to hg(487787.7084755204) = 372135.4550033625. The chain is arithmetic from there: the expansion-valve law carries 3.36e-7 of density into the condensing pressure (1.94e-7 = 0.185 Pa), T_sat maps that onto Tcond (7.52e-6 K), the condenser duty Q = 466.12*(Tcond - T_air) turns it into 3.50 mW, and cmp.in.h = cnd.in.h - 45000 = 69517 J/kg is what survives the subtraction -- 0.1511 J/kg on a small denominator, the measured 2.17e-6. (0.14013 J/kg of that 0.1511 is the duty term and 0.01092 the outlet enthalpy: the sum closes to five figures.)"
     },
     "components_family_ac": {
       "relative": 1.2e-06,
@@ -333,6 +440,24 @@
       "measured": 2.023233e-09,
       "mechanism": "upstream-ps-flash-residual",
       "reason": "The only fixture in the corpus with no table shape anywhere in it -- P_sat, (T,x), (P,x) and (P,s) all fall through the Java to the native library -- so every golden here is a real CoolProp 8.0.0 value, and p1, p2, s1 and t_evap are bit-identical between the engines. The gap is at h2s = Enthalpy(R134a, P = p2, s = s1), where the wheel's flash leaves its own state 4.06e-9 in pressure from what was asked and evaluates h there: golden 426479.692738112, rustprop 426479.6926696968, and the wheel's own converged (T, rho) re-evaluated gives 426479.69266969804 -- i.e. rustprop matches the state (to 2.9e-15), the golden matches the flash (bitwise). w_c = (h2s - h1)/eta amplifies 12.6x to 2.02e-9 and cop = q_L/w_c inherits it unchanged. Previous measurement was 2.96951e-9; Wave-2's TOMS748 work moved it to 2.02e-9 by tightening rustprop's side further, which is the opposite direction from a regression."
+    },
+    "tpcharge-charge-sets-condensing-pressure-and-subcooling-2": {
+      "relative": 5.6e-05,
+      "measured": 3.732070e-05,
+      "mechanism": "oracle-ph-table",
+      "reason": "The same TwoPhaseCondenserUA charge chain as chgclosed-condensing-pressure-floats-with-ambient-and-charge-2, at a subcooling 4.6x smaller so the amplification is that much larger. At the Java's own state (P = 1040884.787598735 Pa, h_out = 254337.87889946194): wheel rho_in 46.92619531779844 vs golden 46.926220173599354 (5.30e-7), wheel rho_out 1153.072910834378 vs golden 1153.0737798264008 (7.54e-7), wheel Temperature 311.7662327840749 vs rustprop 311.76623278697974 (9.3e-12), and T_sat(P) = 314.0331060550269 bit-identical between wheel, rustprop and golden. The wheel's own subcooling at the Java's outlet is therefore 2.2668732709520327 against the golden's 2.2671705318065847 -- 1.31e-4 relative of tabulated-T error spread over a 2.267 K subcooling. cond.SC is the worst variable at 3.73e-5, and cond.Q inherits 1.63e-6."
+    },
+    "tpcycle-cop-drops-versus-isobaric-baseline": {
+      "relative": 4.0e-06,
+      "measured": 2.689783e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "cmp.s_in = Entropy(R134a, P = 350 kPa, h = 408817.94417848374) is the intercepted (P,Hmass)->Smass shape: wheel 1750.3545889812158, rustprop 1750.354588979688 (8.7e-13), golden 1750.3547611656327 (9.84e-8). h_s = Enthalpy(R134a, 900 kPa, s_in) falls through -- at the golden's own s_in the wheel answers 429287.38761899713, the golden's h_s bit for bit -- so the entropy table is the only entry point. cmp.W = mdot*(h_out - h_in) then amplifies 15x, because the isentropic rise (29.24 kJ/kg) is 15x smaller than the enthalpy it is a difference of: the measured 2.69e-6. exv.rho_in = Density(R134a, 900 kPa, 242479.23957943343) is the second intercepted leaf at 7.28e-7 (wheel 1186.1986568928169, rustprop 1186.1986568928064, golden 1186.1995209906224) and reaches exv.out.P at 9.92e-7."
+    },
+    "tpcycle-non-isobaric-cycle-has-suction-below-evaporating-pressure-and-plausible-cop": {
+      "relative": 1.4e-05,
+      "measured": 9.364611e-06,
+      "mechanism": "oracle-ph-table",
+      "reason": "The same cycle with evaporator/condenser dP of 15 kPa / 20 kPa, so the compressor suction sits at 335 kPa and the intercepted Entropy(R134a, P = 335 kPa, h = 408054.78756430943) lands on a coarser part of the Java's 96 x 48 (P, dh) grid: wheel 1750.9417276420077, rustprop 1750.9417276406750 (7.6e-13), golden 1750.9411004966178 (3.58e-7) -- 3.6x the isobaric sibling's leaf, at a state 15 kPa away. h_s again falls through and is bit-identical to the wheel (429474.8874681546) at the golden's own s_in; the isentropic rise (30.60 kJ/kg out of 438.65) amplifies 14x more, giving cmp.W at the measured 9.36e-6."
     }
   },
   "solver_floor": {}

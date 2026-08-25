@@ -336,6 +336,46 @@ resolver-v2 unifies it onto `frees-core`; the run prints *"&lt;count&gt; fixture
 match the Java oracle through rustprop (CoolProp 8.0.0)"* with the live corpus
 count.
 
+#### Sharding the gate (Wave Q2, 2026-08-25)
+
+The replay is the longest gate in the project and it grows with the corpus, so
+it can be split across processes by two environment variables — `PARITY_SHARD_COUNT`
+and `PARITY_SHARD_INDEX` (`0 <= index < count`):
+
+```bash
+PARITY_SHARD_COUNT=4 PARITY_SHARD_INDEX=1 cargo test --workspace --test parity -- --nocapture
+```
+
+With neither set the replay is exactly what it always was — one process, all
+1281 fixtures. With both set, this process replays the fixtures at
+`i % count == index` of the *sorted* golden listing, which is a partition: every
+fixture is in exactly one shard and the union is the corpus. Every run prints a
+census line, `parity-shard: index=… count=… replayed=… corpus=…`, so the union
+is checked rather than assumed — sum `replayed` over the shards and it must
+equal `corpus`. CI runs four shards and fails the workflow if any of them fails.
+
+**The gate is not weaker across the union**, and `tests/parity.rs`'s module docs
+carry the argument in full. In one paragraph: the "declared here but no such
+fixture" sweep is a property of the corpus, so it still reads the whole
+directory listing in *every* shard (it opens no fixture, so repeating it is
+free), and the `mechanisms` catalogue check reads only the tolerance file and is
+likewise whole-file everywhere. The guards that need a replayed value — a dead
+relative tolerance, a dead `solver_floor`, a dead or misspelled `absolute`
+entry — run where their fixture runs, which is exactly one shard, so each is
+graded exactly once across the union. Every under-replaying configuration
+(half-set variables, a zero or non-numeric count, an out-of-range index, a
+stride that selects nothing) panics rather than reporting green.
+
+**One fixture is 61 % of this gate.** Timed per fixture on 2026-08-25 (release,
+317.4 s inside the replay loop), `ev-battery-cooling-pid` alone costs 193.0 s
+and the top 20 of 1281 account for 89.4 % — reproduced by a second independent
+run at 191.3 s of 316.8 s (60.4 %). No partition splits a fixture, so
+193 s is the floor for any shard count — the measured longest shard is 273.8 s
+at N=2, 227.7 s at N=4 and 202.7 s at N=8. Four is chosen for growth headroom,
+not for today's 1.39×: the largest non-critical shard is 46.1 s, so the corpus
+can roughly quadruple before wall clock moves again. If this job needs to get
+genuinely faster, the lever is that one transient, not more runners.
+
 **The single-package form without the feature refuses, on purpose.**
 `cargo test -p frees-core` (or `… --test parity`) does not unify anything, and
 until Wave-4 F9 it failed on those twelve with an error that named nothing: a

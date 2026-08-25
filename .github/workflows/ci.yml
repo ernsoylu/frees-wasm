@@ -253,23 +253,80 @@ jobs:
         run: npx --no-install playwright test
 
   parity:
-    name: parity corpus
+    name: parity corpus ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
     # The golden fixtures are generated from the Java engine, which is not
     # available in CI (it needs ../frEES and its Gradle cache). Fixtures are
     # committed, so CI replays them without regenerating.
+    #
+    # 2026-08-25, Wave Q2: SHARDED. This is the longest gate in the workflow and
+    # it grows with the corpus — 983 fixtures / ~145 s (release, dev box) two
+    # waves ago, 1281 / ~362 s now, and ~15 min of wall clock in this job, which
+    # runs a debug build. The replay is embarrassingly parallel across fixtures,
+    # so it is split over `i % 4 == shard` of the SORTED golden listing;
+    # crates/frees-core/tests/parity.rs owns the partition, refuses every
+    # configuration that could under-replay, and prints a `parity-shard:` census
+    # line whose `replayed` values must sum to `corpus`.
+    #
+    # FOUR, and the reason is a measurement rather than a round number. Timed
+    # per fixture (release, 317.4 s inside the replay loop), the cost is
+    # concentrated in ONE document: ev-battery-cooling-pid is 193.0 s, 60.8% of
+    # the whole gate, and the top 20 of 1281 are 89.4%. No partition splits one
+    # fixture, so 193 s is the floor for every shard count. Measured longest
+    # shard: N=2 273.8 s, N=4 227.7 s, N=8 202.7 s, ideal-with-an-oracle 193.0 s.
+    # Four takes the longest shard from 317.4 to 227.7 s and leaves the others at
+    # 33.0/10.6/46.1 s; eight buys 25 s more for four more runners. The value of
+    # four is not today's 1.39x, it is that the gate stays BOUNDED as the corpus
+    # grows: the largest non-critical shard has room for ~4x growth (to ~5400
+    # fixtures) before it reaches the critical path and wall clock moves again.
+    #
+    # Read that table as the finding it is: the parity gate's real lever is not
+    # sharding, it is that one transient fixture is 61% of it.
+    strategy:
+      # Each shard reports its own divergences. A parity failure is a LIST of
+      # fixtures, and cancelling the siblings on the first red would hide three
+      # quarters of it — the point of the gate is the whole list. The workflow
+      # still fails: a failed matrix leg fails its job, and a failed job fails
+      # the run.
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      # Must equal the length of `matrix.shard` above, and it is self-guarding:
+      # parity.rs panics when the index is outside 0..count, so adding a fifth
+      # matrix entry without bumping this fails loudly instead of skipping a
+      # quarter of the corpus.
+      PARITY_SHARD_COUNT: 4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          # One cache for all four shards: they build the identical artifact, so
+          # keying per matrix leg (the default) would build it four times over
+          # and store four copies of it. Only shard 0 writes.
+          shared-key: parity
+          save-if: ${{ matrix.shard == 0 }}
 
-      - name: Replay golden corpus
+      - name: Replay golden corpus (shard ${{ matrix.shard }} of 4)
+        env:
+          PARITY_SHARD_INDEX: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           count=$(find fixtures/golden -name '*.json' | wc -l)
-          echo "replaying ${count} golden fixtures"
+          echo "replaying shard ${PARITY_SHARD_INDEX}/${PARITY_SHARD_COUNT} of ${count} golden fixtures"
           if (( count == 0 )); then
             echo "::error::no fixtures found — the parity harness is not wired"
             exit 1
           fi
-          cargo test --workspace --test parity -- --nocapture
+          cargo test --workspace --test parity -- --nocapture | tee "$RUNNER_TEMP/parity-shard.log"
+          # Surface the census line so a human can sum the four legs and see
+          # that the union was the corpus. Not decorative: grep failing here
+          # means a green replay printed no census, which would mean the count
+          # is unverifiable, so it fails the step.
+          {
+            echo "### Parity shard ${PARITY_SHARD_INDEX}/${PARITY_SHARD_COUNT}"
+            echo '```'
+            grep '^parity-shard:' "$RUNNER_TEMP/parity-shard.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

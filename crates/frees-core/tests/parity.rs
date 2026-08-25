@@ -245,6 +245,130 @@
 //! backend. Rather than fail twelve times with an error that names nothing,
 //! [`golden_corpus_parity`] refuses up front and prints the command that
 //! works — see [`WRONG_BACKEND`].
+//!
+//! # Sharding — keeping a growing gate bounded (Wave Q2)
+//!
+//! This is the project's longest gate and it grows with every wave: 983
+//! fixtures at ~145 s two waves ago, **1 281 at ~362 s** now (release, this
+//! box; 317.4 s of it inside the replay loop), and ~15 min of CI wall clock.
+//! The replay is embarrassingly parallel across fixtures — each one is an
+//! independent `solve` against its own golden — so two environment variables
+//! may split it across processes:
+//!
+//! * `PARITY_SHARD_COUNT` — how many processes are replaying the corpus;
+//! * `PARITY_SHARD_INDEX` — which one this is, `0 <= index < count`.
+//!
+//! **With neither set the replay is exactly what it always was**: one process,
+//! every fixture, every comparison unchanged. With both set this process
+//! replays the fixtures whose position in the *sorted* golden listing satisfies
+//! `i % count == index`.
+//!
+//! Sorted-then-strided is a **partition**: every fixture lands in exactly one
+//! shard and the union over `index in 0..count` is the whole corpus, by
+//! construction rather than by convention. Striding rather than slicing is
+//! deliberate — the listing is sorted by name and adjacent names are usually
+//! the same family (the two-phase-cycle `chgclosed-*` documents, the `dyn_*`
+//! transients), so a contiguous slice would hand one shard every expensive
+//! document while another finished in seconds.
+//!
+//! ## How many shards — and the ceiling one fixture puts on all of them
+//!
+//! Measured per fixture on 2026-08-25 (release, an instrumented run over the
+//! 1 281 fixtures, 317.4 s inside the replay loop, mean 248 ms), the cost is not
+//! merely skewed, it is **concentrated in one document**:
+//!
+//! ```text
+//!   ev-battery-cooling-pid                193.0 s   60.8 % of the whole replay
+//!   component-port-units-fan-duct          12.0 s
+//!   component-networks-fan-duct-real       11.1 s
+//!   docs_tutorials_05                       8.3 s
+//!   odelib-p20-stiff-reaction-chain-ode15s  6.1 s
+//!   … top 20 of 1 281 = 89.4 % of the total
+//! ```
+//!
+//! Read the *shares* rather than the seconds: this box is shared with other
+//! agents and whole-run wall clock was seen anywhere between 178 s and 406 s.
+//! The shape is the stable part, and it was measured twice to establish that —
+//! a second independent instrumented run put the same fixture at 191.3 s of
+//! 316.8 s (60.4 %), the top 20 at 90.0 %, and every partition figure below
+//! within 2 % of the numbers quoted.
+//!
+//! No partition can put that fixture in two places, so **193 s is the floor for
+//! any shard count** and the useful range of `N` is small. Measured against
+//! that distribution:
+//!
+//! | strategy | N=2 | N=4 | N=8 |
+//! |---|---:|---:|---:|
+//! | stride over the sorted names (what this does) | 273.8 s | **227.7 s** | 202.7 s |
+//! | greedy bin-pack by golden file size | 269.5 s | 209.8 s | 213.6 s |
+//! | greedy bin-pack by *measured* cost (the oracle) | 193.0 s | 193.0 s | 193.0 s |
+//!
+//! **N = 4**, and the plain stride. Four takes the longest shard from 317.4 s
+//! to 227.7 s and leaves the other three at 33.0 / 10.6 / 46.1 s; eight buys a
+//! further 25 s for four more runners, and the file-size bin-pack — the only
+//! cost proxy available without committing a cost table that would go stale —
+//! is worth 8 % at N=4 and *negative* at N=8 (Spearman 0.74 against true cost:
+//! good enough to rank, not good enough to pack; `component-port-units-fan-duct`
+//! is a 1 KiB golden and 12 s of solve).
+//!
+//! The point of four is not today's 1.39×, it is the mandate: **the gate stays
+//! bounded while the corpus grows.** New fixtures spread across four bins while
+//! the critical path stays where it is, so the largest non-critical shard
+//! (46.1 s) has room for the corpus to grow ~4× — 1 281 → ~5 400 fixtures —
+//! before it reaches 193 s and the wall clock starts moving again.
+//!
+//! The honest reading of that table is that the parity gate's real lever is not
+//! sharding at all: **one fixture is 61 % of it.** `ev-battery-cooling-pid` is a
+//! PID-controlled transient graded through `ode_tables`, and until it gets
+//! cheaper no amount of parallelism takes this job below ~3 min of replay.
+//!
+//! ## Why the gate is not weaker across the union
+//!
+//! Three things could make a shard assert less than a whole run does, and each
+//! is closed:
+//!
+//! * **A shard that silently replays nothing.** Half a configuration (one
+//!   variable set, the other absent or empty), a non-numeric count, a zero
+//!   count, an index outside `0..count`, or a stride that selects no fixture
+//!   all **panic**. There is no input to [`declared_shard`] that yields a green
+//!   run over an empty set — which is the whole reason the split is safe to
+//!   make.
+//! * **The "declared in the tolerance file but no such fixture" sweep.** That
+//!   is a property of the *corpus*, not of a slice of it, so it keeps reading
+//!   the corpus: `paths` stays the full sorted directory listing and only the
+//!   replay loop is strided. Every shard runs the sweep over all 1 281 stems —
+//!   it reads a directory listing and not one fixture, so repeating it costs
+//!   nothing — which means a stale entry fails `count` times rather than
+//!   escaping into the shard nobody looked at.
+//! * **The dead-entry guards** — a `fixtures` tolerance whose fixture matches
+//!   at the default, a `solver_floor` whose fixture converges at the default,
+//!   an `absolute` entry that passes relatively or names a variable the golden
+//!   lacks. Each needs the replayed *value*, so each can only run where its
+//!   fixture runs. That is exactly right: a fixture is in exactly one shard, so
+//!   across the union every such entry is graded **exactly once** — never zero
+//!   times, and never (as a whole-file check would under sharding) declared
+//!   dead merely because this process did not replay it. The one that needed
+//!   changing is the "the replay never reached this absolute entry" sweep in
+//!   [`golden_corpus_parity`], which now considers only entries whose fixture
+//!   is in *this* shard; every other entry is another shard's business. An
+//!   entry naming a fixture that does not exist at all is not lost by that
+//!   scoping — it belongs to no shard, and the whole-corpus sweep above already
+//!   fails it in every shard.
+//!
+//! The `mechanisms` catalogue check ([`declared_tolerances`]) is untouched and
+//! stays whole-file: every entry must name a catalogued slug and every
+//! catalogued slug must be named by an entry. It reads only the tolerance file,
+//! so it is as true in a shard as in a whole run, and it runs in all of them.
+//!
+//! Every run — sharded or not — prints a machine-readable census line
+//!
+//! ```text
+//!   parity-shard: index=0 count=4 replayed=321 corpus=1281
+//! ```
+//!
+//! so the union can be *checked* rather than assumed: sum `replayed` across the
+//! shards and it must equal `corpus`. Measured that way on 2026-08-25 at N=4:
+//! 321 + 320 + 320 + 320 = 1 281, and the unsharded run replayed 1 281.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -332,6 +456,66 @@ Run the gate with the backend the corpus was promoted against:
 The first is what CI runs: frees-wasm requires the feature, and resolver-v2 \
 unifies it onto frees-core. See docs/decisions/0009-rustprop-backend.md and \
 fixtures/README.md.";
+
+/// The two variables that split the corpus across processes. See "Sharding" in
+/// the module docs; both must be set, or neither.
+const SHARD_INDEX_VAR: &str = "PARITY_SHARD_INDEX";
+const SHARD_COUNT_VAR: &str = "PARITY_SHARD_COUNT";
+
+/// Which slice of the sorted corpus this process replays.
+///
+/// `{ index: 0, count: 1 }` is the unsharded default and selects everything, so
+/// every expression below that mentions a shard reduces to the whole corpus
+/// when nothing is configured.
+struct Shard {
+    index: usize,
+    count: usize,
+}
+
+/// Read the shard from the environment, refusing every configuration that could
+/// under-replay.
+///
+/// The refusals are the point. A gate that can be handed a stride and quietly
+/// assert less than it claims is the same failure mode as a `required-features`
+/// key that makes the whole replay vanish ([`CORPUS_IS_SERVABLE`]), so a
+/// half-set, malformed, zero or out-of-range configuration panics rather than
+/// falling back to "replay something". The only silent behaviour is the one
+/// that replays *more*: both variables absent means the whole corpus.
+fn declared_shard() -> Shard {
+    // Empty counts as absent: a workflow that interpolates an undefined matrix
+    // value sets the variable to "", and that must not read as shard 0.
+    let var = |name: &str| {
+        std::env::var(name)
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    };
+    let number = |name: &str, raw: &str| -> usize {
+        raw.parse()
+            .unwrap_or_else(|e| panic!("{name}={raw:?} is not a whole number: {e}"))
+    };
+    match (var(SHARD_INDEX_VAR), var(SHARD_COUNT_VAR)) {
+        (None, None) => Shard { index: 0, count: 1 },
+        (Some(index), Some(count)) => {
+            let count = number(SHARD_COUNT_VAR, &count);
+            let index = number(SHARD_INDEX_VAR, &index);
+            assert!(count > 0, "{SHARD_COUNT_VAR}=0 would replay nothing at all");
+            assert!(
+                index < count,
+                "{SHARD_INDEX_VAR}={index} is outside 0..{count}. That shard replays no \
+                 fixture, so the union of the shards would not be the corpus — and a gate \
+                 that covers less than it claims is worse than no gate"
+            );
+            Shard { index, count }
+        }
+        (index, count) => panic!(
+            "the parity replay is half-sharded: {SHARD_INDEX_VAR}={index:?}, \
+             {SHARD_COUNT_VAR}={count:?}. Set both (to replay one shard of the corpus) or \
+             neither (to replay all of it in one process) — a partial configuration is \
+             exactly the silent under-replay this gate must never do."
+        ),
+    }
+}
 
 /// Declared relative tolerance per fixture stem, from `fixtures/tolerances.json`.
 ///
@@ -1277,6 +1461,34 @@ fn golden_corpus_parity() {
         dir.display()
     );
 
+    // The shard this process replays (see "Sharding" in the module docs).
+    // `paths` deliberately stays WHOLE: the stale-declaration sweep at the
+    // bottom is a property of the corpus, not of this slice, and it is what
+    // makes the union of the shards as strong as one run. Only the replay loop
+    // is strided.
+    let shard = declared_shard();
+    let mine: Vec<&PathBuf> = paths
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i % shard.count == shard.index)
+        .map(|(_, p)| p)
+        .collect();
+    assert!(
+        !mine.is_empty(),
+        "shard {}/{} selected 0 of the {} golden fixtures in {}. A shard that replays \
+         nothing must fail rather than report green — reduce {SHARD_COUNT_VAR}.",
+        shard.index,
+        shard.count,
+        paths.len(),
+        dir.display()
+    );
+    // This shard's fixture stems, for scoping the one guard that cannot be
+    // whole-corpus (the unreached-absolute-entry sweep below).
+    let mine_stems: BTreeSet<String> = mine
+        .iter()
+        .filter_map(|p| p.file_stem()?.to_str().map(str::to_string))
+        .collect();
+
     let tolerances = declared_tolerances();
     let floors = declared_solver_floors();
     let absolutes = declared_absolutes();
@@ -1284,7 +1496,7 @@ fn golden_corpus_parity() {
     let mut used_floors = BTreeSet::new();
     let mut used_absolutes = BTreeSet::new();
     let mut failures = Vec::new();
-    for path in &paths {
+    for path in &mine {
         replay(
             path,
             &tolerances,
@@ -1300,7 +1512,14 @@ fn golden_corpus_parity() {
     // An absolute declaration the replay never reached grades nothing — the
     // fixture failed before its variables were compared, or the variable does
     // not exist. Either way it is dead, and dead entries do not accumulate.
-    for (fixture, vars) in &absolutes {
+    //
+    // This is the one guard that had to become shard-local: an entry whose
+    // fixture is not in this shard was never *offered* to the replay, which is
+    // not the same as unreachable. It belongs to exactly one shard and is
+    // graded there. An entry whose fixture is in no shard at all — because it
+    // has no fixture — falls to the whole-corpus sweep below, which every shard
+    // runs.
+    for (fixture, vars) in absolutes.iter().filter(|(f, _)| mine_stems.contains(*f)) {
         for var in vars.keys() {
             if !used_absolutes.contains(&(fixture.clone(), var.clone())) {
                 failures.push(Failure {
@@ -1316,6 +1535,11 @@ fn golden_corpus_parity() {
 
     // A declaration for a fixture that is not in the corpus is a stale entry, and
     // the "dead entry" guards above cannot see it — nothing replays it.
+    //
+    // Whole-corpus on purpose, in EVERY shard: it is checked against `paths`,
+    // not `mine`, so a stale entry cannot hide in the slice this process did
+    // not take. It reads the directory listing and no fixture, so running it
+    // `count` times is free.
     for (section, name) in tolerances
         .keys()
         .map(|n| ("fixtures", n))
@@ -1337,14 +1561,24 @@ fn golden_corpus_parity() {
     }
 
     if !failures.is_empty() {
+        let scope = if shard.count == 1 {
+            String::new()
+        } else {
+            format!(
+                " (shard {}/{} of {})",
+                shard.index,
+                shard.count,
+                paths.len()
+            )
+        };
         let mut report = format!(
-            "\n{}/{} fixtures diverged from the Java oracle:\n",
+            "\n{}/{} fixtures diverged from the Java oracle{scope}:\n",
             failures
                 .iter()
                 .map(|f| f.fixture.as_str())
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            paths.len()
+            mine.len()
         );
         for f in &failures {
             report.push_str(&format!("  [{}] {}\n", f.fixture, f.detail));
@@ -1352,12 +1586,22 @@ fn golden_corpus_parity() {
         panic!("{report}");
     }
 
+    // The census line, machine-readable and printed on every green run: summing
+    // `replayed` across the shards must give `corpus`. It is how the union is
+    // checked rather than assumed — see "Sharding" in the module docs.
+    println!(
+        "parity-shard: index={} count={} replayed={} corpus={}",
+        shard.index,
+        shard.count,
+        mine.len(),
+        paths.len()
+    );
     println!(
         "parity: {} fixtures match the Java oracle through {} \
          ({} at a declared tolerance from fixtures/{TOLERANCE_FILE}: {}) \
          ({} at a declared stop-criterion floor: {}) \
          ({} variable(s) on the absolute channel: {})",
-        paths.len(),
+        mine.len(),
         frees_core::props::propfun::backend_description(),
         used.len(),
         used.iter().cloned().collect::<Vec<_>>().join(", "),

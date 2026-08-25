@@ -807,6 +807,7 @@ pub fn solve_with_parametric_tables(
         &specs,
         ctx,
         None,
+        None,
     ) {
         Ok(block_iterations) => stepping_iterations + block_iterations,
         Err(BlockLoopFailure {
@@ -1070,6 +1071,8 @@ fn pinned_solver<'a>(
         specs,
         ctx,
         prep: None,
+        watch: Vec::new(),
+        pending: false,
     })
 }
 
@@ -1079,6 +1082,17 @@ struct PreparedPinnedSolver<'a> {
     specs: &'a BTreeMap<String, VarSpec>,
     ctx: EvalContext<'a>,
     prep: Option<PinnedPrep>,
+    /// Wave R3: the names the caller reads out of every solve
+    /// ([`crate::ode::dynamic::AlgebraicSolve::watch`]). Non-empty means the
+    /// caller has taken on the deferred contract, so a dense solve may leave
+    /// the map unbuilt; the dense slots behind them are resolved per prep, in
+    /// [`PinnedPrep::watch_slots`].
+    watch: Vec<String>,
+    /// A solve's result is in `dense_values` and has not been written into the
+    /// caller's buffer. Only ever true under the dense path — the string-keyed
+    /// path publishes as it always did, so nothing downstream of it can read a
+    /// stale map.
+    pending: bool,
 }
 
 /// The structural half of one `solve_pinned` call, reusable while the
@@ -1112,6 +1126,28 @@ struct PinnedPrep {
     /// materialisation — it used to be two (this build plus the warm-start
     /// clone in `solve_algebraic_at`).
     work_scope: Scope,
+    /// Wave R3: the dense mirror of [`Self::work_scope`]'s key set, when every
+    /// block of this prep compiled ([`dense_plan`]). `None` means this prep
+    /// runs the string-keyed path exactly as it did before, with no dense
+    /// bookkeeping anywhere.
+    dense: Option<DensePlan>,
+    /// The last **successful** dense state. Under the deferred contract this
+    /// is the warm chain itself — the caller's buffer is no longer read — so
+    /// it is written only on success, and only when the caller is running a
+    /// chain at all (a `warm` of `None` is the linearizer asking for a
+    /// one-shot solve, which must not disturb a trajectory's warm start; it
+    /// did not disturb it before this wave either, because that path passes a
+    /// local buffer).
+    dense_last: Vec<f64>,
+    /// [`PreparedPinnedSolver::watch`] resolved against this prep's layout.
+    /// `None` = one of the names is not a `work_scope` key, so the caller must
+    /// keep reading the map.
+    watch_slots: Option<Vec<u32>>,
+    /// The values behind [`Self::dense`], indexed by dense slot. Constants are
+    /// written once at build and never move (a block variable is never a
+    /// known); every unknown is overwritten at the top of each call, from the
+    /// warm start or the initial guess, exactly as the `work_scope` fill does.
+    dense_values: Vec<f64>,
 }
 
 /// Wave G3: what [`solve_block`] rebuilds on every call but never needs to —
@@ -1150,6 +1186,11 @@ struct PinnedBlockStruct {
     /// cached answer ("this block needs the `Expr`/`Scope` evaluator"), not a
     /// cache miss.
     compiled: Option<CompiledBlock>,
+    /// Wave R3: where this block's compiled names and unknowns live in the
+    /// prep's dense vector — the same two lists [`CompiledBlock::names`] and
+    /// `block.variables` name, resolved to indices once. `None` whenever the
+    /// prep has no dense plan (see [`dense_plan`]).
+    dense: Option<BlockDense>,
     /// Wave I: this block's cross-call solver buffers — [`solve_block`]'s own
     /// per-call vectors plus the Newton workspace. Value-independent by
     /// construction: every buffer is fully rewritten before it is read (see
@@ -1183,6 +1224,140 @@ struct BlockScratch {
     /// Wave A2, compiled path only: the postfix evaluation stack, cleared by
     /// every [`crate::solver::slots::eval_program`].
     stack: Vec<f64>,
+}
+
+/// Wave R3: the prep's `work_scope` key set, resolved to dense indices once.
+///
+/// Wave A2 made the *inside* of a block's Newton solve slot-indexed and left a
+/// measured floor behind it: the compiled path still paid two string-keyed
+/// passes per `solve_block` call — filling the slot vector out of the `Scope`
+/// and writing the answer back into it — plus the per-call seeding of the map
+/// itself. On the `hot-transient` stand-in that floor was 30 hashed reads and
+/// 32 hashed writes per integrator step, ~14 % of the whole run, and A2 and Q3
+/// both recorded it as "needs the `work_scope` to become slot-native".
+///
+/// This is that change, and it does **not** require the `Scope` to stop being
+/// a `Scope`. The prep's key set is fixed at build (built-in constants, then
+/// the subsystem's unknowns), so every name the per-step path touches can be
+/// resolved to an index once, here; the per-step call then runs entirely on
+/// `dense_values` and materialises the string-keyed map **once, at the end**,
+/// for the caller — which is the same single materialisation Wave Q3's
+/// in-place refresh already performed. The `&Scope` the caller indexes by name
+/// is therefore unchanged, in content *and* in layout.
+struct DensePlan {
+    /// Dense index → name, in `work_scope`'s own iteration order. That order
+    /// is what makes the end-of-call export the same *sequence* of writes the
+    /// Q3 refresh made, not merely the same set.
+    names: Vec<String>,
+    /// Dense index of each entry of [`PinnedPrep::unknowns`], in that order.
+    unknown_idx: Vec<u32>,
+}
+
+/// See [`PinnedBlockStruct::dense`].
+struct BlockDense {
+    /// Dense index of each [`CompiledBlock::names`] entry, in slot order.
+    fill: Vec<u32>,
+    /// Dense index of each `block.variables` entry, in block-variable order.
+    write: Vec<u32>,
+}
+
+/// One per-step call's dense state, threaded down the block loop.
+///
+/// `live` is the authority flag, and it is what keeps this byte-identical: the
+/// dense vector answers for the values only while every block has been able to
+/// use it. The moment one cannot — a block that did not compile, a
+/// `refresh_consts` refusal, a block that failed and must go through the retry
+/// ladder — [`DenseRun::hand_over`] copies the dense values into the `Scope`,
+/// which is exactly the state the string-keyed path would have been in at that
+/// point, and the rest of the call proceeds on the `Scope` as before.
+struct DenseRun<'a> {
+    plan: &'a DensePlan,
+    values: &'a mut Vec<f64>,
+    live: bool,
+}
+
+impl DenseRun<'_> {
+    /// Give the `Scope` the values and the authority. Idempotent by
+    /// construction, and only ever called while `live`.
+    fn hand_over(&mut self, scope: &mut Scope) {
+        dense_export(self.plan, self.values, scope);
+        self.live = false;
+    }
+}
+
+/// Copy every dense value into `scope` under its own name.
+///
+/// The `insert` arm cannot fire from a plan built against this very `scope`;
+/// it is there because [`DensePlan`] outlives one call and a `Scope` the retry
+/// ladder has been through may have lost nothing but is not *proven* to have.
+fn dense_export(plan: &DensePlan, values: &[f64], scope: &mut Scope) {
+    for (name, value) in plan.names.iter().zip(values) {
+        match scope.get_mut(name) {
+            Some(slot) => *slot = *value,
+            None => {
+                scope.insert(name.clone(), *value);
+            }
+        }
+    }
+}
+
+/// Resolve a prep's `work_scope` to [`DensePlan`] and fill in each block's
+/// [`BlockDense`], or answer `None` — which leaves the prep on the Wave-Q3
+/// path with no dense bookkeeping at all.
+///
+/// The gate is deliberately all-or-nothing: **every** block with unknowns must
+/// have compiled, and every name it mentions must be a `work_scope` key. A
+/// prep with one uncompiled block would otherwise pay a full `hand_over` per
+/// step to reach the block that cannot use the dense vector, which is a
+/// regression for documents that were never going to benefit — property-bearing
+/// blocks refuse to compile at all (Wave A2), and those are the documents
+/// where the property backend, not the map, is the cost.
+///
+/// A missing name cannot merely be skipped: `fill_slots` answers `false` for
+/// one and the block falls back, so a plan that pretended otherwise would
+/// evaluate against a slot that was never filled.
+fn dense_plan(
+    blocks: &[Block],
+    cache: &mut PinnedBlockCache,
+    work_scope: &Scope,
+    unknowns: &[String],
+) -> Option<(DensePlan, Vec<f64>)> {
+    let mut names: Vec<String> = Vec::with_capacity(work_scope.len());
+    let mut values: Vec<f64> = Vec::with_capacity(work_scope.len());
+    let mut index: HashMap<&str, u32> = HashMap::with_capacity(work_scope.len());
+    for (name, value) in work_scope.iter() {
+        index.insert(name.as_str(), names.len() as u32);
+        names.push(name.clone());
+        values.push(*value);
+    }
+    let slot_of = |name: &str| index.get(name).copied();
+    // Every unknown is a `work_scope` key by construction (the map is built
+    // from the constants and this very list), so a miss here means the two
+    // have drifted apart and the dense path must not be taken.
+    let unknown_idx: Vec<u32> = unknowns.iter().map(|n| slot_of(n)).collect::<Option<_>>()?;
+
+    let mut per_block: Vec<BlockDense> = Vec::with_capacity(blocks.len());
+    for (block, cached) in blocks.iter().zip(&cache.per_block) {
+        if block.variables.is_empty() {
+            // `solve_block` returns before reading anything for these.
+            per_block.push(BlockDense {
+                fill: Vec::new(),
+                write: Vec::new(),
+            });
+            continue;
+        }
+        let compiled = cached.compiled.as_ref()?;
+        let fill: Option<Vec<u32>> = compiled.names.iter().map(|n| slot_of(n)).collect();
+        let write: Option<Vec<u32>> = block.variables.iter().map(|n| slot_of(n)).collect();
+        per_block.push(BlockDense {
+            fill: fill?,
+            write: write?,
+        });
+    }
+    for (cached, dense) in cache.per_block.iter_mut().zip(per_block) {
+        cached.dense = Some(dense);
+    }
+    Some((DensePlan { names, unknown_idx }, values))
 }
 
 /// Build [`PinnedBlockCache`] for a prep's blocking report — the same code
@@ -1246,6 +1421,7 @@ fn pinned_block_cache(
                 derivs,
                 row_deps,
                 compiled,
+                dense: None,
                 scratch: RefCell::new(BlockScratch::default()),
             }
         })
@@ -1253,14 +1429,93 @@ fn pinned_block_cache(
     PinnedBlockCache { per_block }
 }
 
+impl PreparedPinnedSolver<'_> {
+    /// Write an outstanding dense result into the caller's buffer, restoring
+    /// the undeferred contract — `warm` holds this prep's keys and values and
+    /// nothing else. A no-op when nothing is outstanding.
+    ///
+    /// This is the *same* code the undeferred tail of `solve` runs, and it is
+    /// the only thing the deferral moves: not what gets written, only when.
+    fn publish(&mut self, warm: &mut Option<Scope>) {
+        if !self.pending {
+            return;
+        }
+        self.pending = false;
+        let Some(prep) = self.prep.as_mut() else {
+            return;
+        };
+        let Some(plan) = prep.dense.as_ref() else {
+            return;
+        };
+        match warm.as_mut() {
+            Some(previous) => {
+                for (name, value) in plan.names.iter().zip(prep.dense_values.iter()) {
+                    match previous.get_mut(name) {
+                        Some(slot) => *slot = *value,
+                        None => {
+                            previous.insert(name.clone(), *value);
+                        }
+                    }
+                }
+                if previous.len() != plan.names.len() {
+                    dense_export(plan, &prep.dense_values, &mut prep.work_scope);
+                    *previous = prep.work_scope.clone();
+                }
+            }
+            // The first call of a prep, and the rare buffer that came from a
+            // different one: both hand back a *clone* of `work_scope`, so the
+            // dense values have to reach it first.
+            None => {
+                dense_export(plan, &prep.dense_values, &mut prep.work_scope);
+                *warm = Some(prep.work_scope.clone());
+            }
+        }
+    }
+}
+
 impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
+    /// Accepted only before the first solve, which is where the caller offers
+    /// it — there is then no warm chain in flight to reason about.
+    fn watch(&mut self, names: &[String]) -> bool {
+        if names.is_empty() || self.prep.is_some() {
+            return false;
+        }
+        self.watch = names.to_vec();
+        true
+    }
+
+    fn watched(&self, out: &mut [f64]) -> bool {
+        // `pending` is the proof that the last solve ran dense and left its
+        // answer in `dense_values`; without it the caller must read the map,
+        // which is exactly what returning `false` makes it do.
+        if !self.pending {
+            return false;
+        }
+        let Some(prep) = self.prep.as_ref() else {
+            return false;
+        };
+        let Some(slots) = prep.watch_slots.as_ref() else {
+            return false;
+        };
+        if slots.len() != out.len() {
+            return false;
+        }
+        for (value, &slot) in out.iter_mut().zip(slots) {
+            *value = prep.dense_values[slot as usize];
+        }
+        true
+    }
+
+    fn materialise(&mut self, warm: &mut Option<Scope>) {
+        self.publish(warm);
+    }
+
     fn solve(
         &mut self,
         ordinary: &[Equation],
         pinned: &[(String, f64)],
         warm: &mut Option<Scope>,
     ) -> Result<()> {
-        let warm_start = warm.as_ref();
         let matches = self.prep.as_ref().is_some_and(|p| {
             p.template.as_slice() == ordinary
                 && p.pinned_names.len() == pinned.len()
@@ -1269,6 +1524,37 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
                     .zip(pinned)
                     .all(|(cached, (name, _))| cached == name)
         });
+        // Wave R3: a deferred result is the warm chain, and it is only the
+        // warm chain while the prep that produced it still stands and still
+        // describes the caller's buffer. Anything else — a rebuilt prep, a
+        // `work_scope` that has gained a key, a caller with no buffer at all —
+        // and the buffer goes back to being the input it always was, which
+        // means publishing into it first.
+        let chain = matches
+            && self.pending
+            && warm.is_some()
+            && self.prep.as_ref().is_some_and(|p| {
+                p.dense
+                    .as_ref()
+                    .is_some_and(|plan| plan.names.len() == p.work_scope.len())
+                    && p.dense_last.len() == p.dense_values.len()
+            });
+        if !chain {
+            if warm.is_some() {
+                self.publish(warm);
+            } else if self.pending {
+                // A buffer-less call *while a deferred result is outstanding*
+                // is not this chain's caller — a chain's own first call has
+                // nothing pending, which is what separates the two. It is
+                // asking for a solve with no warm start (the linearizer's
+                // one-shot) and it is about to overwrite the dense values the
+                // chain was keeping, so deferral is switched off for good
+                // rather than left pointing at values this call will replace.
+                self.pending = false;
+                self.watch.clear();
+            }
+        }
+        let warm_start = warm.as_ref();
         if !matches {
             let mut subsystem: Vec<Equation> = ordinary.to_vec();
             for (name, value) in pinned {
@@ -1283,7 +1569,7 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             let mut seeded = self.specs.clone();
             seed_property_argument_guesses(&subsystem, &mut seeded, Missing::Create);
             let unknown_names = unknowns(&subsystem, &knowns);
-            let block_cache =
+            let mut block_cache =
                 pinned_block_cache(&report.blocks, &subsystem, ordinary.len(), &seeded);
             // Wave I: the value map, built once in the exact insertion order
             // the per-call build used (constants, then unknowns), so its
@@ -1295,6 +1581,31 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             for name in &unknown_names {
                 work_scope.insert(name.clone(), 0.0);
             }
+            // Wave R3: and its dense mirror, when every block compiled.
+            let (dense, dense_values) = match dense_plan(
+                &report.blocks,
+                &mut block_cache,
+                &work_scope,
+                &unknown_names,
+            ) {
+                Some((plan, values)) => (Some(plan), values),
+                None => (None, Vec::new()),
+            };
+            // The watch list is registered once, before any prep exists, and
+            // resolved against each prep that follows. A linear scan because
+            // it runs once per prep over a handful of names.
+            let watch_slots = dense.as_ref().and_then(|plan: &DensePlan| {
+                self.watch
+                    .iter()
+                    .map(|name| {
+                        plan.names
+                            .iter()
+                            .position(|n| n == name)
+                            .map(|index| index as u32)
+                    })
+                    .collect::<Option<Vec<u32>>>()
+            });
+            self.pending = false;
             self.prep = Some(PinnedPrep {
                 template: ordinary.to_vec(),
                 pinned_names: pinned.iter().map(|(name, _)| name.clone()).collect(),
@@ -1304,6 +1615,10 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
                 unknowns: unknown_names,
                 block_cache,
                 work_scope,
+                dense,
+                dense_last: Vec::new(),
+                watch_slots,
+                dense_values,
             });
         }
         let prep = self.prep.as_mut().expect("prep just ensured");
@@ -1340,21 +1655,71 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
         // the prep (Wave I; see [`PinnedPrep::work_scope`]). Every unknown
         // slot is overwritten here — including slots a failed previous call
         // left mid-iterate — so entry state equals the old fresh build's.
-        for name in &prep.unknowns {
-            let guess = warm_start
-                .and_then(|warm| warm.get(name).copied())
-                .unwrap_or_else(|| initial_guess(name, &prep.seeded));
-            match prep.work_scope.get_mut(name) {
-                Some(slot) => *slot = guess,
-                None => {
-                    prep.work_scope.insert(name.clone(), guess);
+        // Wave R3: the dense mirror is valid only under the key set it was
+        // built from. Nothing on the happy path can change that set — a block
+        // writes back only its own variables, all of them unknowns — but the
+        // retry ladder's merge rescue inserts, and so does an uncertainty
+        // carry, and a prep that has seen either drops to the string-keyed
+        // path for good rather than index a layout that has moved.
+        if prep
+            .dense
+            .as_ref()
+            .is_some_and(|plan| plan.names.len() != prep.work_scope.len())
+        {
+            prep.dense = None;
+        }
+        match &prep.dense {
+            // Wave R3: under the deferred contract the warm start is this
+            // prep's own record of its last successful solve — the same
+            // numbers the caller's buffer would have handed back, since that
+            // buffer is written from this record and by nothing else. One
+            // copy replaces a probe per unknown, and the constants ride along
+            // unchanged because they are in both.
+            Some(_) if chain => {
+                prep.dense_values.copy_from_slice(&prep.dense_last);
+            }
+            // The same rewrite, into slots instead of buckets. `initial_guess`
+            // and the warm-start probe are untouched — only the destination of
+            // the value changes, and the constants are already in place.
+            Some(plan) => {
+                for (name, &slot) in prep.unknowns.iter().zip(&plan.unknown_idx) {
+                    let guess = warm_start
+                        .and_then(|warm| warm.get(name).copied())
+                        .unwrap_or_else(|| initial_guess(name, &prep.seeded));
+                    prep.dense_values[slot as usize] = guess;
+                }
+            }
+            None => {
+                for name in &prep.unknowns {
+                    let guess = warm_start
+                        .and_then(|warm| warm.get(name).copied())
+                        .unwrap_or_else(|| initial_guess(name, &prep.seeded));
+                    match prep.work_scope.get_mut(name) {
+                        Some(slot) => *slot = guess,
+                        None => {
+                            prep.work_scope.insert(name.clone(), guess);
+                        }
+                    }
                 }
             }
         }
         if let Some(warm) = warm_start {
+            // Unconditional, dense or not: this is the one thing that can add
+            // a key, and the guard above is what reacts to it. A dense prep
+            // cannot *read* these entries anyway — `UncertaintyOf(...)` is a
+            // `Call`, which refuses to compile, so a block that mentions one
+            // is a block that kept the prep off the dense path.
             crate::analysis::uncertainty::carry_uncertainty_entries(warm, &mut prep.work_scope);
         }
-        run_blocks(
+        let mut dense_run = match &prep.dense {
+            Some(plan) => Some(DenseRun {
+                plan,
+                values: &mut prep.dense_values,
+                live: true,
+            }),
+            None => None,
+        };
+        let outcome = run_blocks(
             &prep.report.blocks,
             &prep.subsystem,
             &mut prep.work_scope,
@@ -1362,8 +1727,13 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             &prep.seeded,
             self.ctx,
             Some(&prep.block_cache),
-        )
-        .map_err(|failure| failure.error)?;
+            dense_run.as_mut(),
+        );
+        // A failed call must leave `warm` exactly as it found it, so the dense
+        // state is simply abandoned — the next call rewrites every unknown of
+        // it, which is the same contract `work_scope` has carried since Wave I.
+        let dense_live = dense_run.is_some_and(|run| run.live);
+        outcome.map_err(|failure| failure.error)?;
 
         // Wave Q3: hand the result back through the caller's own buffer. A
         // `Scope` clone allocates its table plus one `String` per key — nine
@@ -1377,6 +1747,36 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
         // ever gains names, so after the loop the lent buffer is a superset;
         // the length check is what catches a buffer from a *different* prep
         // (the key sets differ) and rebuilds it outright.
+        //
+        // Wave R3: under the dense path this is the call's **only** hashed
+        // pass — the source is `dense_values` rather than `work_scope`, walked
+        // in `work_scope`'s own iteration order (that is what `plan.names`
+        // is), so it writes the identical sequence of (name, value) pairs into
+        // the identical buffer. The two rare arms need a current `work_scope`,
+        // because what they hand back is a *clone* of it, so they export first.
+        if dense_live {
+            // The chain's record, kept only while the caller is running one: a
+            // `warm` of `None` is a one-shot solve (the linearizer's), which
+            // has never disturbed a trajectory's warm start and must not start
+            // now.
+            let defer = {
+                let prep = self.prep.as_mut().expect("prep just ensured");
+                if warm.is_some() {
+                    prep.dense_last.clear();
+                    prep.dense_last.extend_from_slice(&prep.dense_values);
+                }
+                warm.is_some() && prep.watch_slots.is_some() && !self.watch.is_empty()
+            };
+            self.pending = true;
+            if !defer {
+                self.publish(warm);
+            }
+            return Ok(());
+        }
+        // The string-keyed tail, unchanged since Wave Q3: `work_scope` is the
+        // authority here, either because this prep has no dense plan or
+        // because a block on this call handed the authority over.
+        let prep = self.prep.as_mut().expect("prep just ensured");
         match warm {
             Some(previous) => {
                 for (name, value) in prep.work_scope.iter() {
@@ -3325,6 +3725,7 @@ fn solve_block(
     specs: &BTreeMap<String, VarSpec>,
     ctx: EvalContext<'_>,
     cache: Option<&PinnedBlockStruct>,
+    mut dense: Option<&mut DenseRun<'_>>,
 ) -> Result<usize> {
     let n = block.variables.len();
     if n == 0 {
@@ -3430,6 +3831,9 @@ fn solve_block(
         &'s mut [f64],
     )>;
     let mut slot_state: SlotState<'_> = None;
+    // Wave R3: set when the slot vector was filled from the *dense* values,
+    // which is also what says the answer must be written back there.
+    let mut dense_block: Option<&BlockDense> = None;
     if let (true, Some(compiled), Some((slots, consts, stack))) = (
         aligned,
         cache.and_then(|cached| cached.compiled.as_ref()),
@@ -3437,12 +3841,46 @@ fn solve_block(
     ) {
         if slotexpr::refresh_consts(equations, &block.equations, &compiled.volatile, consts)
             && consts.len() == compiled.const_count
-            && fill_slots(&compiled.names, values, slots)
         {
-            if stack.len() < compiled.depth {
-                stack.resize(compiled.depth, 0.0);
+            // The dense gather cannot fail where `fill_slots` could: the plan
+            // resolved every one of these names when it was built, and it is
+            // built from the very map `fill_slots` probes. That equivalence is
+            // the whole reason `dense_plan` refuses a prep with an unresolved
+            // name instead of leaving the slot unfilled.
+            let filled = match dense.as_deref() {
+                Some(run) if run.live => match cache.and_then(|cached| cached.dense.as_ref()) {
+                    Some(block_dense) => {
+                        slots.clear();
+                        slots.extend(
+                            block_dense
+                                .fill
+                                .iter()
+                                .map(|&slot| run.values[slot as usize]),
+                        );
+                        dense_block = Some(block_dense);
+                        true
+                    }
+                    None => fill_slots(&compiled.names, values, slots),
+                },
+                _ => fill_slots(&compiled.names, values, slots),
+            };
+            if filled {
+                if stack.len() < compiled.depth {
+                    stack.resize(compiled.depth, 0.0);
+                }
+                slot_state = Some((compiled, slots, consts, stack.as_mut_slice()));
             }
-            slot_state = Some((compiled, slots, consts, stack.as_mut_slice()));
+        }
+    }
+    // Everything from here on reads `values` — the fallback evaluator, the
+    // diagnostics, the retry ladder above this frame — so a dense run that did
+    // not get to drive this block gives up the authority now, while the two
+    // are still in agreement.
+    if dense_block.is_none() {
+        if let Some(run) = dense.as_deref_mut() {
+            if run.live {
+                run.hand_over(values);
+            }
         }
     }
 
@@ -3558,11 +3996,24 @@ fn solve_block(
 
     // Write back before propagating: on failure the last iterate is what makes
     // a stall report actionable, and it is what the Java engine leaves behind.
-    for (name, value) in names.iter().zip(x.iter()) {
-        match values.get_mut(name) {
-            Some(slot) => *slot = *value,
-            None => {
-                values.insert(name.clone(), *value);
+    // Wave R3: into whichever of the two drove this block. `BlockDense::write`
+    // is `block.variables` resolved to indices, so this is the same loop over
+    // the same pairs with the probe removed.
+    match dense_block {
+        Some(block_dense) => {
+            let run = dense.expect("a dense fill implies a live dense run");
+            for (&slot, value) in block_dense.write.iter().zip(x.iter()) {
+                run.values[slot as usize] = *value;
+            }
+        }
+        None => {
+            for (name, value) in names.iter().zip(x.iter()) {
+                match values.get_mut(name) {
+                    Some(slot) => *slot = *value,
+                    None => {
+                        values.insert(name.clone(), *value);
+                    }
+                }
             }
         }
     }
@@ -3819,7 +4270,12 @@ fn retry_with_transformed_guesses(
     for transform in guess_transforms() {
         apply_transform(block, &transform, values, specs);
         if let Ok(iterations) =
-            solve_block(index, block, equations, values, &relaxed, specs, ctx, cache)
+            // Wave R3: the ladder runs on the `Scope`, which by now holds the
+            // dense values (`solve_block_with_fallback` handed them over before
+            // the first rung).
+            solve_block(
+                index, block, equations, values, &relaxed, specs, ctx, cache, None,
+            )
         {
             return Some(iterations);
         }
@@ -4143,6 +4599,7 @@ fn solve_block_with_fallback(
     ctx: EvalContext<'_>,
     skip: &mut HashSet<usize>,
     cache: Option<&PinnedBlockCache>,
+    mut dense: Option<&mut DenseRun<'_>>,
 ) -> Result<usize> {
     let block = &blocks[index];
     let mut actual_solved: Option<Block> = None; // None = the original block
@@ -4160,9 +4617,21 @@ fn solve_block_with_fallback(
         specs,
         ctx,
         block_cache,
+        dense.as_deref_mut(),
     ) {
         Ok(count) => iterations += count,
         Err(first_error) => {
+            // Wave R3: the whole ladder below reads and writes the `Scope` —
+            // including the last iterate `solve_block` just wrote — so the
+            // dense vector hands over here, before the first of them looks.
+            // `solve_block` has already written that iterate into whichever of
+            // the two it was driving, so the hand-over reproduces exactly the
+            // map the string-keyed path would present at this point.
+            if let Some(run) = dense.as_deref_mut() {
+                if run.live {
+                    run.hand_over(values);
+                }
+            }
             if let Some(count) = retry_with_transformed_guesses(
                 index,
                 block,
@@ -4193,7 +4662,7 @@ fn solve_block_with_fallback(
                         // error (Java: the uncaught `config.newton().solveBlock`
                         // inside the catch block).
                         iterations += solve_block(
-                            index, &merged, equations, values, settings, specs, ctx, None,
+                            index, &merged, equations, values, settings, specs, ctx, None, None,
                         )?;
                         skip.extend(merged_indices);
                         actual_solved = Some(merged);
@@ -4219,6 +4688,10 @@ fn solve_block_with_fallback(
         specs,
         ctx,
         polish_cache,
+        // A merge rescue solved a *different* block, whose variables the dense
+        // plan does not describe; the hand-over above has already happened in
+        // that case, so this is `None` for the same reason `polish_cache` is.
+        if actual_solved.is_some() { None } else { dense },
     ) {
         iterations += count;
     }
@@ -4262,6 +4735,7 @@ fn run_blocks(
     specs: &BTreeMap<String, VarSpec>,
     ctx: EvalContext<'_>,
     cache: Option<&PinnedBlockCache>,
+    mut dense: Option<&mut DenseRun<'_>>,
 ) -> std::result::Result<usize, BlockLoopFailure> {
     let mut iterations = 0usize;
     // Blocks a merge rescue already solved (Java's `skipIndices`).
@@ -4271,7 +4745,16 @@ fn run_blocks(
             continue;
         }
         match solve_block_with_fallback(
-            index, blocks, equations, values, settings, specs, ctx, &mut skip, cache,
+            index,
+            blocks,
+            equations,
+            values,
+            settings,
+            specs,
+            ctx,
+            &mut skip,
+            cache,
+            dense.as_deref_mut(),
         ) {
             Ok(block_iterations) => iterations += block_iterations,
             Err(error) => {
@@ -4337,6 +4820,7 @@ fn solve_equation_list(
         settings,
         specs,
         ctx,
+        None,
         None,
     )
     .map_err(|failure| failure.error)?;
@@ -4657,7 +5141,9 @@ pub fn solve_block_newton(
             )
         })
         .collect();
-    solve_block(0, block, equations, values, settings, &specs, ctx, None)
+    solve_block(
+        0, block, equations, values, settings, &specs, ctx, None, None,
+    )
 }
 
 #[cfg(test)]

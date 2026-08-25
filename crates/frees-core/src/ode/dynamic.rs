@@ -195,6 +195,45 @@ pub trait AlgebraicSolve {
         pinned: &[(String, f64)],
         warm: &mut Option<Scope>,
     ) -> Result<()>;
+
+    /// Wave R3 — register the names the caller reads out of **every** solve,
+    /// and ask this implementation to stop materialising the map for them.
+    ///
+    /// Answering `true` changes the contract of [`solve`](Self::solve) in one
+    /// specific way, and the default answers `false`, which keeps it exactly as
+    /// written above:
+    ///
+    /// * `warm` is no longer an *input*. The implementation owns the warm
+    ///   chain from here on — it seeds each solve from its own record of the
+    ///   last one — so the caller must not write to the buffer and must not
+    ///   expect a solve to read what it left there.
+    /// * `warm` is no longer filled by every solve. It is filled by
+    ///   [`materialise`](Self::materialise), which the caller must call before
+    ///   it looks at the map. Calling it when nothing is outstanding is free.
+    ///
+    /// What that buys is measured, and it is the whole reason the method
+    /// exists: on the `hot-transient` stand-in a per-step solve writes **eight**
+    /// values into the map so that the integrator can read **one** of them
+    /// back, and the map is genuinely needed on 21 of 13 207 calls — the output
+    /// samples. Wave A2 and Wave Q3 both recorded that as the floor under the
+    /// per-step path and both declined it, because `solve` handing back a map
+    /// its caller indexes by name looked like it forced the materialisation.
+    /// It does not: it forces it *per solve*, not per call.
+    fn watch(&mut self, _names: &[String]) -> bool {
+        false
+    }
+
+    /// Fill `out` with the watched names' values from the last solve, in the
+    /// order they were registered. Answers `false` when this implementation
+    /// cannot serve them — the caller then materialises and reads the map, as
+    /// it always did.
+    fn watched(&self, _out: &mut [f64]) -> bool {
+        false
+    }
+
+    /// Make `warm` the value map of the last solve. A no-op when nothing is
+    /// outstanding, and for every implementation that never deferred.
+    fn materialise(&mut self, _warm: &mut Option<Scope>) {}
 }
 
 /// A closure still returns an owned `Scope` — only the production
@@ -277,6 +316,12 @@ pub struct DynamicSolver<'a> {
     /// rebuilding a `BTreeMap` with one `String` clone per pin per RHS
     /// evaluation.
     pin_template: RefCell<Option<PinTemplate>>,
+    /// Wave R3: the solver accepted the `der(...)` watch list, so a per-step
+    /// solve leaves its map unbuilt and [`rhs`](DynamicSolver::rhs) reads the
+    /// derivatives directly. Set once, after the states are known; every other
+    /// consumer goes through [`materialised_values`](DynamicSolver::materialised_values)
+    /// either way, so this only ever removes work, never changes who sees what.
+    watching: std::cell::Cell<bool>,
 }
 
 /// See [`DynamicSolver::pin_template`].
@@ -319,6 +364,7 @@ impl<'a> DynamicSolver<'a> {
             y0: Vec::new(),
             warm_start: RefCell::new(None),
             pin_template: RefCell::new(None),
+            watching: std::cell::Cell::new(false),
         }
     }
 
@@ -380,6 +426,13 @@ impl<'a> DynamicSolver<'a> {
             // own stepper.
             return self.solve_with_ida();
         }
+        // Wave R3: offer the solver the one list `rhs` reads. Only the explicit
+        // (non-IDA) driver takes this path — `solve_with_ida` above has its own
+        // stepper and never asks — and the offer is declined by every
+        // implementation but the engine's prepared solver.
+        let der_names: Vec<String> = self.states.iter().map(|s| der_var(s)).collect();
+        let accepted = self.algebraic.borrow_mut().watch(&der_names);
+        self.watching.set(accepted);
         let options = &self.system.options;
         // Cap the step (default span/100) so the adaptive controller cannot grow
         // a single step large enough to step over an event — e.g. a high-altitude
@@ -1353,7 +1406,22 @@ impl<'a> DynamicSolver<'a> {
     // -- RHS closure (one shared step cursor across all states) --------------
 
     fn rhs(&self, t: f64, y: &[f64]) -> Result<Vec<f64>> {
-        let values = self.solve_algebraic_at(t, y)?;
+        // Wave R3: the integrator's own use of a per-step solve is these `n`
+        // numbers and nothing else, so when the solver accepted the watch list
+        // (`register_watch`, built from these very names in this very order)
+        // the map behind them is never built. Everything else on this path —
+        // the events, the output samples, the initial-condition check — still
+        // goes through `solve_algebraic_at`, which materialises.
+        self.step_at(t, y)?;
+        if self.watching.get() {
+            let mut dy = vec![0.0; self.states.len()];
+            if self.algebraic.borrow().watched(&mut dy) {
+                return Ok(dy);
+            }
+        }
+        // Not a second solve — the step above is the solve, and this is the
+        // map of it.
+        let values = self.materialised_values();
         let mut dy = Vec::with_capacity(self.states.len());
         for state in &self.states {
             match values.get(&der_var(state)) {
@@ -1408,6 +1476,28 @@ impl<'a> DynamicSolver<'a> {
     /// non-reentrancy this method's own `warm_start.borrow_mut()` below has
     /// always required.
     fn solve_algebraic_at(&self, t: f64, y: &[f64]) -> Result<std::cell::Ref<'_, Scope>> {
+        self.step_at(t, y)?;
+        Ok(self.materialised_values())
+    }
+
+    /// The map of the last [`step_at`](Self::step_at), materialising it first
+    /// if the solver deferred it (Wave R3; a no-op otherwise).
+    ///
+    /// Every caller but [`rhs`](Self::rhs) reaches the values through here, so
+    /// there is exactly one place a deferred solve can be observed unpublished
+    /// — and it publishes.
+    fn materialised_values(&self) -> std::cell::Ref<'_, Scope> {
+        {
+            let mut warm = self.warm_start.borrow_mut();
+            self.algebraic.borrow_mut().materialise(&mut warm);
+        }
+        std::cell::Ref::map(self.warm_start.borrow(), |warm| {
+            warm.as_ref().expect("a successful solve stores its result")
+        })
+    }
+
+    /// Run one per-step solve; the values stay with the solver.
+    fn step_at(&self, t: f64, y: &[f64]) -> Result<()> {
         // First call materialises `pin_map` verbatim (names, order and all);
         // later calls rewrite only the time and state slots. See
         // [`PinTemplate`] for why that is the identical pin list.
@@ -1447,9 +1537,7 @@ impl<'a> DynamicSolver<'a> {
             algebraic.solve(&self.algebraic_template, &template.pins, &mut warm)
         };
         match outcome {
-            Ok(()) => Ok(std::cell::Ref::map(self.warm_start.borrow(), |warm| {
-                warm.as_ref().expect("a successful solve stores its result")
-            })),
+            Ok(()) => Ok(()),
             Err(FreesError::Solver { message })
                 if message.contains("underspecified")
                     || message.contains("structurally singular") =>

@@ -346,8 +346,8 @@ and `PARITY_SHARD_INDEX` (`0 <= index < count`):
 PARITY_SHARD_COUNT=4 PARITY_SHARD_INDEX=1 cargo test --workspace --test parity -- --nocapture
 ```
 
-With neither set the replay is exactly what it always was — one process, all
-1281 fixtures. With both set, this process replays the fixtures at
+With neither set the replay is exactly what it always was — one process, the
+whole corpus. With both set, this process replays the fixtures at
 `i % count == index` of the *sorted* golden listing, which is a partition: every
 fixture is in exactly one shard and the union is the corpus. Every run prints a
 census line, `parity-shard: index=… count=… replayed=… corpus=…`, so the union

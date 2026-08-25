@@ -125,6 +125,35 @@ const GATE_DT_REL: f64 = 0.01;
 /// orders tighter than the cold path's own 2^-29 bisection bracket (which
 /// leaves up to `9.3e-10` relative), so the warm answer is never the looser
 /// of the two, and the sweep above measures exactly that.
+///
+/// # Do not tighten it. Measured 2026-08-25.
+///
+/// The question came from the `props_si` cache: warm and cold answers for the
+/// same state differ by up to `1.694e-10`, and it was worth knowing whether
+/// that is *this* tolerance being loose. It is not — it is the cold path's
+/// bracket, and this Newton is already on the root. Against an independent
+/// reference (the equation `x(T, rho(T,p)) = x*` bisected to the last
+/// representable bit over rustprop's own `(T,P)` flash, which shares no
+/// machinery with either flash), at R2's probe state
+/// `T(R134a, P = 3.5e5, Hmass = 1.0e5)`: cold sits `1.694e-10` from that root,
+/// this tolerance puts warm `1.35e-14` from it, and running the Newton to its
+/// own fixed point puts it `1.47e-16` from it — one ulp.
+///
+/// Tightening therefore buys nothing measurable and costs cold fallbacks. Over
+/// 297 `(P,Hmass)` states, convergence inside the shipped
+/// [`WARM_MAX_STEPS`] budget against the tolerance asked for:
+///
+/// ```text
+///   tol     1e-11  1e-12  1e-13  1e-14  1e-15  1e-16     0
+///   @4      297    297    297    292    282    216      190   of 297
+///   @8      297    297    297    296    286    227      194   of 297
+/// ```
+///
+/// The median distance from the exact root is `0` at every one of those
+/// tolerances, `1e-11` included: past a point the Newton is landing on the root
+/// and the stopping test is only deciding whether to believe it. `1e-13` is the
+/// tightest rung where all 297 still converge inside four steps, and every
+/// refusal below it is a ~380 us cold flash bought for nothing.
 const NEWTON_T_TOL: f64 = 1e-13;
 
 /// Newton steps a *seeded* solve may take.

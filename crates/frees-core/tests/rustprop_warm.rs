@@ -2,7 +2,7 @@
 //! (`frees_core::props::rustprop_warm`, reached through
 //! [`RustpropBackend::props_si`]).
 //!
-//! Five things have to hold, and each has a test below:
+//! Six things have to hold, and each has a test below:
 //!
 //! 1. **Warm equals cold.** A warm answer and a cold answer for the same
 //!    `(P, Hmass)` / `(P, Smass)` state agree to 1e-9 on `T` and `Dmass`, and
@@ -27,6 +27,12 @@
 //! 5. **It is fast.** A warm `T(P, Hmass)` costs tens of microseconds, not
 //!    hundreds — though Wave-2 R8 narrowed the margin over cold from ~22x to
 //!    ~5x. See the cost test's doc comment.
+//! 6. **Neither path is *the* oracle's answer, and both are inside the flash
+//!    bracket.** Graded against a live CoolProp 8.0.0 on twelve states whose
+//!    inputs are the oracle's own bits. This one exists to correct a claim the
+//!    `props_si` cache was justified with — that the cold path is CoolProp's
+//!    answer and the warm path drifts from it — which the oracle contradicts at
+//!    the very state it was probed on.
 
 #![cfg(feature = "rustprop-backend")]
 
@@ -843,4 +849,121 @@ fn the_cache_is_keyed_on_fluid_and_pair() {
     let stats = rustprop_warm::stats();
     assert_eq!(stats.cold_fallbacks, 6, "one cold call per (fluid, pair)");
     assert_eq!(stats.warm, 12);
+}
+
+/// **Neither path is *the* oracle's answer on `(P, Hmass) -> T`, and the
+/// difference between them is the cold flash's bracket.**
+///
+/// This test exists because the commit that landed the `props_si` cache
+/// (`R2: port the Java's PropsSI cache`) recorded the opposite, in writing, as
+/// the reason its capacity is one: that the cold path is "bit-identical to
+/// `rustprop::props_si` and therefore to CoolProp 8.0.0", so the 0.28 % of
+/// capacity-1 hits that differ from a live recompute "move TOWARDS the
+/// oracle". The first half is true and the *therefore* does not follow. Asked
+/// the state R2 probed, `T(R134a, P = 3.5e5 Pa, Hmass = 1.0e5 J/kg)`, a live
+/// CoolProp 8.0.0 answers **193.726008250251_43** — which is the warm answer
+/// to 1.3e-14, and the cold answer to 1.694e-10. At that state the cache is
+/// serving the *further* of the two from the oracle.
+///
+/// It is not systematically the further one either, which is the actual
+/// finding. Over 297 states fed byte-identical inputs from the same live
+/// library (Water/R134a/R1234yf x nine pressures x eleven temperatures,
+/// 2026-08-25) the cold answer is the nearer to CoolProp in 174 states and the
+/// warm answer in 61; cold is bit-exact 129 times against warm's 57, its
+/// median gap is 1.72e-16 against warm's 5.80e-16, and its worst is 1.418e-9
+/// against warm's 7.267e-10. Neither ordering is a property of the adapter,
+/// because the dominant term is under both of them: **rustprop's own
+/// `Hmass(T,P)` differs from CoolProp's by up to 5.051e-10** (bit-exact in 175
+/// of the 297, median 0), and each flash's own residual sits on top of that and
+/// sometimes cancels it.
+///
+/// So what is asserted here is the claim that survives all of it: both answers
+/// land inside CoolProp's own `(P,X)` flash granularity, `eps_tolerance<double>(30)`
+/// — a `2^-29 = 1.86e-9` relative bracket, which both libraries stop on and
+/// neither promises to beat. Which of the two is nearer at a given state is
+/// **printed, not pinned**, exactly as
+/// [`warm_equals_cold_over_a_grid_across_three_fluids`] prints its `cold_wins`
+/// count and for the same reason: it is a property of rustprop's flash, and
+/// pinning it would make this test fail on a rustprop improvement.
+///
+/// Measured over the twelve states below, 2026-08-25: worst cold `8.441e-10`,
+/// worst warm `8.441e-10`, cold nearer at 6 and warm at 4 (two ties) — which is
+/// the 297-state picture in miniature, and why the band asserted is the bracket
+/// rather than an ordering.
+///
+/// The literals are `PropsSI("T","P",p,"Hmass",h,fluid)` from
+/// `../frees/backend/core/native/libCoolProp.so` (CoolProp 8.0.0) through the
+/// reference core jar, taken 2026-08-25. Each `h` is that same library's
+/// `Hmass` at a round `(T,P)`, printed with `Double.toString` so it parses back
+/// to the identical `f64` — the inputs are the oracle's own bits, not a
+/// re-derivation.
+#[test]
+fn neither_warm_nor_cold_is_uniformly_the_coolprop_answer() {
+    let _g = guard();
+    // (fluid, P [Pa], Hmass [J/kg], live CoolProp 8.0.0 T [K])
+    const ORACLE: &[(&str, f64, f64, f64)] = &[
+        ("R134a", 350000.0, 100000.0, 193.72600825025143),
+        ("Water", 100000.0, 112653.6796885652, 299.99999999999665),
+        ("Water", 1.0e7, 977181.5234847558, 499.9999999993677),
+        ("Water", 1000000.0, 3108955.4781683264, 600.0000000000003),
+        ("Water", 3.0e7, 2631439.8235884234, 700.0),
+        ("R134a", 500000.0, 169692.6269709049, 249.9999997889758),
+        ("R134a", 200000.0, 424282.0873951278, 300.0000000000001),
+        ("R134a", 3000000.0, 297800.6097187268, 340.00000013911995),
+        ("R1234yf", 500000.0, 170767.9643099487, 249.99999999999955),
+        ("R1234yf", 200000.0, 390532.34597873694, 299.99999999999375),
+        ("R1234yf", 3000000.0, 295406.66848133627, 339.99999999999994),
+        ("R1234yf", 1.0e7, 351781.4337205735, 380.0),
+    ];
+    // `eps_tolerance<double>(30)`: the bracket both libraries' single-phase
+    // (P,X) temperature solve stops on. Half of it is the most either can
+    // promise about where inside the bracket it landed.
+    const FLASH_BRACKET: f64 = 1.86e-9;
+    let (mut worst_cold, mut worst_warm) = (0.0f64, 0.0f64);
+    let (mut cold_nearer, mut warm_nearer) = (0usize, 0usize);
+    for &(fluid, p, h, t_oracle) in ORACLE {
+        // Cold: no seed, so the adapter runs rustprop's own `HSU_P_flash`.
+        rustprop_warm::reset();
+        let t_cold = B.props_si("T", "P", p, "Hmass", h, fluid).unwrap();
+        assert_eq!(
+            rustprop_warm::stats().warm,
+            0,
+            "{fluid}: cold leg must be cold"
+        );
+
+        // Warm: seeded from a neighbour, then asked for this state.
+        rustprop_warm::reset();
+        let t_near = t_cold * 1.001;
+        let x_near = pt("Hmass", t_near, p, fluid);
+        let seeded = B.props_si("T", "P", p, "Hmass", x_near, fluid).unwrap();
+        assert!(seeded.is_finite());
+        let before = rustprop_warm::stats().warm;
+        let t_warm = B.props_si("T", "P", p, "Hmass", h, fluid).unwrap();
+        assert_eq!(
+            rustprop_warm::stats().warm - before,
+            1,
+            "{fluid} P={p:e} h={h}: the second query must be served warm"
+        );
+
+        let e_cold = ((t_cold - t_oracle) / t_oracle).abs();
+        let e_warm = ((t_warm - t_oracle) / t_oracle).abs();
+        assert!(
+            e_cold <= FLASH_BRACKET && e_warm <= FLASH_BRACKET,
+            "{fluid} (P={p:e}, Hmass={h}): cold {t_cold} is {e_cold:.3e} and warm \
+             {t_warm} is {e_warm:.3e} from CoolProp's {t_oracle} — past the \
+             eps_tolerance(30) bracket both flashes stop on"
+        );
+        if e_cold < e_warm {
+            cold_nearer += 1;
+        } else if e_warm < e_cold {
+            warm_nearer += 1;
+        }
+        worst_cold = worst_cold.max(e_cold);
+        worst_warm = worst_warm.max(e_warm);
+    }
+    println!(
+        "vs live CoolProp 8.0.0 over {} states: worst cold {worst_cold:.3e}, \
+         worst warm {worst_warm:.3e}; cold nearer at {cold_nearer}, warm at {warm_nearer}",
+        ORACLE.len()
+    );
 }

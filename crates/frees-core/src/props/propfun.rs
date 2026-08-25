@@ -412,20 +412,93 @@ pub fn backend_description() -> String {
 ///
 /// So the port takes the Java's mechanism at the depth where it can still make
 /// the Java's promise — a hit returns what the call would have returned — and
-/// says out loud that it is leaving 13 points of hit rate on the table. Lifting
-/// the cap needs the entry to carry the seed identity it was written under, not
-/// a bigger number here; that is recorded as the next step rather than done
-/// speculatively.
+/// says out loud that it is leaving 13 points of hit rate on the table.
 ///
-/// **The 0.28 % that are not bit-identical move *towards* the oracle, not away.**
-/// They are the calls whose first evaluation took `rustprop_warm`'s cold path —
-/// `HSU_P_flash`, whose answer is bit-identical to `rustprop::props_si` and
-/// therefore to CoolProp 8.0.0 — and whose repeat would have been served by the
-/// seeded Newton instead. Probed directly at the worst state in the corpus,
-/// `T(R134a, P = 3.5e5, Hmass = 1.0e5)`: cold and `rustprop::props_si` agree
-/// bitwise, twelve different seeds put the warm answer within `2.8e-14` of each
-/// other and all twelve sit `1.694e-10` from that cold answer. The cache serves
-/// the cold one.
+/// # The seed-identity tag was built and measured. It does not pay.
+///
+/// This section used to end "lifting the cap needs the entry to carry the seed
+/// identity it was written under; that is the recorded next step", with an
+/// estimate of "roughly another 1.6x on this document". Both halves were tested
+/// (2026-08-25) and the estimate was wrong by an order of magnitude, so the
+/// next step is recorded here as **taken and declined** rather than left open.
+///
+/// The tag that works is the seed's *content* — the `(p, x, T, rho, cp)` bits
+/// [`super::rustprop_warm`] left in its slot after the call an entry was
+/// written from — not a generation counter, and not the seed that call
+/// *started* from. Content is what a deterministic function reproduces from: a
+/// repeat served warm out of that same slot state returns the same double, and
+/// a hit is honest exactly while the slot still says it. Replaying the same
+/// call stream under that rule, with a hit modelled as a real cache's hit (the
+/// backend does not run, so the seed does **not** advance):
+///
+/// ```text
+///   capacity   hits (% of all calls)   bit-identical   tag rejects
+///          1     4 659 582  (84.11 %)         99.72 %            0
+///          2     4 660 182  (84.12 %)         99.72 %      522 534
+///          4     4 661 729  (84.15 %)         99.72 %      543 306
+///          8     4 678 695  (84.46 %)         99.72 %      616 302
+///         16     4 696 720  (84.78 %)         99.72 %      628 718
+///         32     4 734 041  (85.45 %)         99.72 %      638 301
+///        128     4 747 469  (85.70 %)         98.18 %      628 449
+///     20 000     4 747 474  (85.70 %)         98.18 %      629 432
+/// ```
+///
+/// The tag does exactly what it was meant to: not one seeded hit at any
+/// capacity is anything but bit-identical, where the untagged table loses five
+/// sixths of them, and capacity 1 reproduces line for line — the harness's own
+/// control. **But the thirteen points were never there to recover.** They were
+/// the dishonest hits, and tagging turns them into 629 432 rejects instead. The
+/// extra hit rate a tagged cache buys is **1.34 points** at the widest capacity
+/// that still holds capacity 1's fidelity (32), and 1.59 above it — where
+/// fidelity drops to 98.18 %, because those rows keep a *cold* entry alive long
+/// enough to serve it where a live call would now answer warm.
+///
+/// Speed, measured rather than extrapolated, by installing a real hashed LRU in
+/// this position and timing `ev-battery-cooling-pid`. Paired and alternated on
+/// a quiet box, three runs each, one binary:
+///
+/// ```text
+///   the shipped one-slot cache            45.71 45.27 45.22   mean 45.40 s
+///   hashed LRU, capacity 1, tagged        48.33 47.58 49.10   mean 48.34 s  +6.5 %
+///   hashed LRU, capacity 32, tagged       48.24 47.76 48.38   mean 48.13 s  +5.1 %
+///   hashed LRU, capacity 20 000, tagged   44.58 44.12 44.53   mean 44.41 s  -2.2 %
+/// ```
+///
+/// The capacity-1 row settles it. It answers byte-identically to the shipped
+/// slot — same solution digest — and costs **6.5 %** to do it, because a hash
+/// plus an LRU list plus a seed-slot read is more work than four short string
+/// comparisons, five and a half million times. The 1.34 points the tag earns do
+/// not cover that. The one configuration that comes out ahead is capacity
+/// 20 000 at 2.2 %, under the 3 % bar this repo reverts at, and it is the
+/// configuration that *fails* the fidelity claim the tag was built for.
+///
+/// So the cache stays one slot, and "leaving 13 points on the table" is now
+/// known to be leaving 1.6.
+///
+/// # What the 0.28 % actually are
+///
+/// R2 recorded that they "move *towards* the oracle", reasoning that the cold
+/// path is `HSU_P_flash`, bit-identical to `rustprop::props_si` "and therefore
+/// to CoolProp 8.0.0". The first half is true; the *therefore* does not follow.
+/// Asked R2's own probe state, `T(R134a, P = 3.5e5, Hmass = 1.0e5)`, a live
+/// CoolProp 8.0.0 returns `193.726008250251_43` — the warm answer to `1.3e-14`,
+/// and the cold answer to `1.694e-10`. At that state the cache serves the
+/// *further* of the two from the oracle.
+///
+/// It is not systematically the further one either: over 297 states fed
+/// byte-identical inputs from the same library, cold is nearer in 174 and warm
+/// in 61. Neither ordering is the adapter's doing — rustprop's own `Hmass(T,P)`
+/// is up to `5.051e-10` from CoolProp's before any flash runs — and the whole
+/// spread sits inside `eps_tolerance<double>(30)`, the `1.86e-9` relative
+/// bracket both libraries' `(P,X)` temperature solve stops on.
+/// `tests/rustprop_warm.rs::neither_warm_nor_cold_is_uniformly_the_coolprop_answer`
+/// pins it with the oracle's own literals.
+///
+/// None of which argues for changing what this cache serves: what took
+/// `components_g4_radiator` from `1.2042e-6` to `1.2947e-14` was returning the
+/// *identical* double for a repeated call, not which of the two doubles it was.
+/// Consistency is the property being bought here, and it is orthogonal to the
+/// paragraph above.
 ///
 /// # Failures are not cached
 ///

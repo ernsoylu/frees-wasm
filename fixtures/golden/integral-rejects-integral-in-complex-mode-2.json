@@ -1,0 +1,27 @@
+{
+  "name": "integral-rejects-integral-in-complex-mode-2",
+  "source": "F = Integral(t, t, 0, 1)\n",
+  "request": {
+ "stopCriteria": {
+  "maxIterations": 250,
+  "relativeResiduals": 1e-12,
+  "changeInVariables": 1e-15,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": true
+ }
+},
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "Integral is not supported in complex mode."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

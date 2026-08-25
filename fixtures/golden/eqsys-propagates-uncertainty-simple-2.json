@@ -1,0 +1,31 @@
+{
+  "name": "eqsys-propagates-uncertainty-simple-2",
+  "source": "y = x\nx = 5\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 5.0,
+   "uncertainty": 0.1
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x": 5.0,
+      "y": 5.0
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

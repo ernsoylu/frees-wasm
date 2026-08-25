@@ -1,0 +1,26 @@
+V_rms = 230 + 0i
+f = 50 [Hz]
+omega = 2 * pi# * f
+
+R_load = 15 [ohm]
+L_load = 0.05 [H]
+Z_load = R_load + 1i * omega * L_load
+
+I_load = V_rms / Z_load
+S_uncorrected = V_rms * (real(I_load) - 1i * imag(I_load))
+P_active = real(S_uncorrected)
+Q_reactive_old = imag(S_uncorrected)
+PF_old = P_active / abs(S_uncorrected)
+
+PF_new = 0.98
+S_corrected_mag = P_active / PF_new
+Q_reactive_new = sqrt(S_corrected_mag^2 - P_active^2)
+
+Q_c = Q_reactive_old - Q_reactive_new
+
+Q_c = abs(V_rms)^2 / abs(Z_c)
+Z_c = -1i / (omega * C_corr)
+
+x + y = 3
+y = z - 4
+z = x^2 - 3

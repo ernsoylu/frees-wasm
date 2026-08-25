@@ -1,0 +1,67 @@
+{
+  "name": "eqsys-solves-with-complex-helpers-2",
+  "source": "z = 3 + 4i\nreal_z = real(z)\nimag_z = imag(z)\nz_conj = conj(z)\nz_mag = magnitude(z)\nz_angle = anglerad(z)\nz_angle_deg = angledeg(z)\nz_cis = cis(z_angle)\n",
+  "request": {
+ "stopCriteria": {
+  "maxIterations": 250,
+  "relativeResiduals": 1e-12,
+  "changeInVariables": 1e-15,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": true
+ }
+},
+  "expect": {
+    "variables": {
+      "imag_z_i": 0.0,
+      "imag_z_r": 4.0,
+      "real_z_i": 0.0,
+      "real_z_r": 3.0,
+      "z_angle_deg_i": 0.0,
+      "z_angle_deg_r": 53.13010235415598,
+      "z_angle_i": 0.0,
+      "z_angle_r": 0.9272952180016122,
+      "z_cis_i": 0.7999999999999999,
+      "z_cis_r": 0.6000000000000001,
+      "z_conj_i": -4.0,
+      "z_conj_r": 3.0,
+      "z_i": 4.0,
+      "z_mag_i": 0.0,
+      "z_mag_r": 5.0,
+      "z_r": 3.0
+    },
+    "display_names": {
+      "imag_z": "imag_z",
+      "imag_z_i": "imag_z_i",
+      "imag_z_r": "imag_z_r",
+      "real_z": "real_z",
+      "real_z_i": "real_z_i",
+      "real_z_r": "real_z_r",
+      "z": "z",
+      "z_angle": "z_angle",
+      "z_angle_deg": "z_angle_deg",
+      "z_angle_deg_i": "z_angle_deg_i",
+      "z_angle_deg_r": "z_angle_deg_r",
+      "z_angle_i": "z_angle_i",
+      "z_angle_r": "z_angle_r",
+      "z_cis": "z_cis",
+      "z_cis_i": "z_cis_i",
+      "z_cis_r": "z_cis_r",
+      "z_conj": "z_conj",
+      "z_conj_i": "z_conj_i",
+      "z_conj_r": "z_conj_r",
+      "z_i": "z_i",
+      "z_mag": "z_mag",
+      "z_mag_i": "z_mag_i",
+      "z_mag_r": "z_mag_r",
+      "z_r": "z_r"
+    },
+    "block_count": 16,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

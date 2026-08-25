@@ -1,0 +1,38 @@
+{
+  "name": "lm-fallback-near-degenerate-product",
+  "source": "x^2*y^2 = 1e-8\nx + y = 2.0002\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 0.3,
+   "lower": 0.0,
+   "upper": 10.0
+  },
+  {
+   "name": "y",
+   "guess": 1.5,
+   "lower": 0.0,
+   "upper": 10.0
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x": 4.999625018749766E-5,
+      "y": 2.0001500037498126
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "lm-fallback-trig-hyperbolic-coupling",
+  "source": "sin(x)*cosh(y) = 1.2\nx*y = 0.5\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 3.0,
+   "lower": 0.0,
+   "upper": 3.1
+  },
+  {
+   "name": "y",
+   "guess": 3.0,
+   "lower": 0.0,
+   "upper": 6.0
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x": 0.20207452988812463,
+      "y": 2.47433459465088
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

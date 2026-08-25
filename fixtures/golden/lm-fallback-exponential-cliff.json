@@ -1,0 +1,38 @@
+{
+  "name": "lm-fallback-exponential-cliff",
+  "source": "exp(20*(x-1)) + y = 1\nx + y^2 = 2\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 2.0,
+   "lower": -5.0,
+   "upper": 5.0
+  },
+  {
+   "name": "y",
+   "guess": 1.0,
+   "lower": -5.0,
+   "upper": 5.0
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x": 1.0342239623316838,
+      "y": -0.9827390486127617
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

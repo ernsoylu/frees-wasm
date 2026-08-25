@@ -35,6 +35,19 @@
     "kind": "solvecall",
     "method": "volumetricCompressorScalesFlowWithRpm"
   },
+  "all-roots-solver-bounds-restrict-the-root-search": {
+    "class": "AllRootsSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "boundsRestrictTheRootSearch",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
+  },
   "bitwise-and-special-math-test-base-convert": {
     "class": "BitwiseAndSpecialMathTest.java",
     "in_assert_throws": false,
@@ -1370,6 +1383,22 @@
     "kind": "solvecall",
     "method": "adjustsOutofRangeGuessesToRangeAverage"
   },
+  "curvefn-adjusts-outof-range-guesses-to-range-average-2": {
+    "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "adjustsOutofRangeGuessesToRangeAverage",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "re"
+      ]
+    }
+  },
   "curvefn-check-accepts-curve-function-calls": {
     "class": "CurveFunctionTest.java",
     "function_tables": [
@@ -1450,6 +1479,22 @@
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "logAxesInterpolateAsPowerLaws"
+  },
+  "curvefn-solves-inverse-problem-through-newton": {
+    "class": "CurveFunctionTest.java",
+    "function_tables": [
+      "htc"
+    ],
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesInverseProblemThroughNewton",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "re"
+      ]
+    }
   },
   "cycle-examples-engine-cycle-solves": {
     "class": "CycleExamplesTest.java",
@@ -1721,11 +1766,41 @@
     "kind": "solvecall",
     "method": "boundsSelectRoot"
   },
+  "eqsys-bounds-select-root-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "boundsSelectRoot",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
+  },
   "eqsys-complex-abs-is-magnitude": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "complexAbsIsMagnitude"
+  },
+  "eqsys-complex-abs-is-magnitude-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexAbsIsMagnitude",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
   },
   "eqsys-complex-literals": {
     "class": "EquationSystemSolverTest.java",
@@ -1733,11 +1808,45 @@
     "kind": "solvecall",
     "method": "complexLiterals"
   },
+  "eqsys-complex-literals-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexLiterals",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
+  },
   "eqsys-complex-real-and-imag": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "complexRealAndImag"
+  },
+  "eqsys-complex-real-and-imag-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexRealAndImag",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
   },
   "eqsys-complex-solving": {
     "class": "EquationSystemSolverTest.java",
@@ -1745,11 +1854,45 @@
     "kind": "solvecall",
     "method": "complexSolving"
   },
+  "eqsys-complex-solving-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "complexSolving",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
+  },
   "eqsys-complex-unsupported-function-is-rejected": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": true,
     "kind": "solvecall",
     "method": "complexUnsupportedFunctionIsRejected"
+  },
+  "eqsys-complex-unsupported-function-is-rejected-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "complexUnsupportedFunctionIsRejected",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
   },
   "eqsys-eigen-waits-for-matrix-entries-solved-elsewhere": {
     "class": "EquationSystemSolverTest.java",
@@ -1823,6 +1966,19 @@
     "kind": "solvecall",
     "method": "evaluatesUncertaintyOfAccessor"
   },
+  "eqsys-evaluates-uncertainty-of-accessor-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "evaluatesUncertaintyOfAccessor",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
+  },
   "eqsys-evaluates-uncertainty-of-from-code": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
@@ -1841,17 +1997,87 @@
     "kind": "solvecall",
     "method": "guessValueSelectsRoot"
   },
+  "eqsys-guess-value-selects-root-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "guessValueSelectsRoot",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
+  },
+  "eqsys-guess-value-selects-root-3": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "guessValueSelectsRoot",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
+  },
+  "eqsys-loose-residual-tolerance-accepts-early": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "looseResidualToleranceAcceptsEarly",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
+  },
   "eqsys-propagates-uncertainty-multiple-inputs": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "propagatesUncertaintyMultipleInputs"
   },
+  "eqsys-propagates-uncertainty-multiple-inputs-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "propagatesUncertaintyMultipleInputs",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x1",
+        "x2"
+      ]
+    }
+  },
   "eqsys-propagates-uncertainty-simple": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "propagatesUncertaintySimple"
+  },
+  "eqsys-propagates-uncertainty-simple-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "propagatesUncertaintySimple",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
   },
   "eqsys-real-mode-real-and-imag": {
     "class": "EquationSystemSolverTest.java",
@@ -1870,6 +2096,23 @@
     "in_assert_throws": true,
     "kind": "solvecall",
     "method": "respectsIterationLimitFromStopCriteria"
+  },
+  "eqsys-respects-iteration-limit-from-stop-criteria-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "respectsIterationLimitFromStopCriteria",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
   },
   "eqsys-single-output-eigenvalues-rejects-complex-spectrum-with-hint": {
     "class": "EquationSystemSolverTest.java",
@@ -1961,6 +2204,23 @@
     "kind": "solvecall",
     "method": "solvesPowerFactorCorrectionComplex"
   },
+  "eqsys-solves-power-factor-correction-complex-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesPowerFactorCorrectionComplex",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
+  },
   "eqsys-solves-sequential-system-via-blocks": {
     "class": "EquationSystemSolverTest.java",
     "in_assert_throws": false,
@@ -1972,6 +2232,23 @@
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "solvesWithComplexHelpers"
+  },
+  "eqsys-solves-with-complex-helpers-2": {
+    "class": "EquationSystemSolverTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "solvesWithComplexHelpers",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
   },
   "eqsys-solves-with-conditionals-and-series": {
     "class": "EquationSystemSolverTest.java",
@@ -2123,6 +2400,32 @@
     "kind": "textblock",
     "method": "example3_8_approximatingCompressedLiquidAsSaturatedLiquid"
   },
+  "guess-directive-absent-parts-fall-back-and-clamp": {
+    "class": "GuessDirectiveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "absentPartsFallBackAndClamp",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
+  },
+  "guess-directive-text-wins-over-modal-specs": {
+    "class": "GuessDirectiveTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "textWinsOverModalSpecs",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x"
+      ]
+    }
+  },
   "heat-exchanger-wired-through-solver": {
     "class": "HeatExchangerTest.java",
     "in_assert_throws": false,
@@ -2267,6 +2570,23 @@
     "kind": "solvecall",
     "method": "rejectsIntegralInComplexMode"
   },
+  "integral-rejects-integral-in-complex-mode-2": {
+    "class": "IntegralTest.java",
+    "in_assert_throws": true,
+    "kind": "solvecall",
+    "method": "rejectsIntegralInComplexMode",
+    "request": {
+      "complex_mode": true,
+      "stop_criteria": [
+        "changeInVariables",
+        "complexMode",
+        "elapsedTimeSeconds",
+        "maxIterations",
+        "relativeResiduals"
+      ],
+      "variable_info": []
+    }
+  },
   "integral-solver-solves-initial-value-problem-with-nested-integral": {
     "class": "IntegralSolverTest.java",
     "in_assert_throws": false,
@@ -2398,6 +2718,62 @@
     "in_assert_throws": false,
     "kind": "solvecall",
     "method": "liquidPumpRaisesPressureWithSmallLiquidWork"
+  },
+  "lm-fallback-badly-scaled-product-exponential-pair": {
+    "class": "LmFallbackTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "badlyScaledProductExponentialPair",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  "lm-fallback-exponential-cliff": {
+    "class": "LmFallbackTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "exponentialCliff",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  "lm-fallback-near-degenerate-product": {
+    "class": "LmFallbackTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "nearDegenerateProduct",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  "lm-fallback-trig-hyperbolic-coupling": {
+    "class": "LmFallbackTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "trigHyperbolicCoupling",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "x",
+        "y"
+      ]
+    }
   },
   "mimo-control-channel11-is1-over-splus1": {
     "class": "MimoControlTest.java",
@@ -2536,6 +2912,19 @@
     "in_assert_throws": false,
     "kind": "textblock",
     "method": "ROCKET"
+  },
+  "ode-rocket-trajectory-sizes-burn-time-so-apogee-reaches100km": {
+    "class": "OdeRocketTrajectoryTest.java",
+    "in_assert_throws": false,
+    "kind": "solvecall",
+    "method": "sizesBurnTimeSoApogeeReaches100km",
+    "request": {
+      "complex_mode": false,
+      "stop_criteria": [],
+      "variable_info": [
+        "t_burn"
+      ]
+    }
   },
   "odelib-p01-radioactive-decay-ode1": {
     "class": "OdeProblemLibraryTest.java",

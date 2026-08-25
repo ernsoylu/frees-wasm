@@ -1,0 +1,9 @@
+{
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 5.0,
+   "uncertainty": 0.15
+  }
+ ]
+}

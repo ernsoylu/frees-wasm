@@ -1,0 +1,33 @@
+{
+  "name": "guess-directive-absent-parts-fall-back-and-clamp",
+  "source": "GUESS x [-10, -0.1]\nx^2 = 4\ny = 2*x\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 3.0,
+   "lower": -100.0,
+   "upper": 100.0,
+   "uncertainty": 0.25
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x": -2.0,
+      "y": -4.0
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 2,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

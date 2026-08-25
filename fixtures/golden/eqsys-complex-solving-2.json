@@ -1,0 +1,32 @@
+{
+  "name": "eqsys-complex-solving-2",
+  "source": "z^2 = -4\n",
+  "request": {
+ "stopCriteria": {
+  "maxIterations": 250,
+  "relativeResiduals": 1e-06,
+  "changeInVariables": 1e-09,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": true
+ }
+},
+  "expect": {
+    "variables": {
+      "z_i": 2.0,
+      "z_r": 2.1040993955600878E-17
+    },
+    "display_names": {
+      "z": "z",
+      "z_i": "z_i",
+      "z_r": "z_r"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

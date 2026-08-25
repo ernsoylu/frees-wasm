@@ -33,6 +33,18 @@ Wave I grew the resolver over Phase 12's (see `docs/status-phase12.md`,
   * ``.frees`` documents under test *resources* directories listed in
     RESOURCE_DIRS are copied through verbatim (the validation suite).
 
+Wave Q built the second sidecar, on the Wave-I pattern: the *solver request*.
+``new SolverSettings(...)`` and ``Map.of(name, new VariableSpec(...))``
+arguments evaluate into a ``<name>.request.json`` beside the candidate,
+carrying the non-default stop criteria (complex mode included) and the
+per-variable guesses/bounds/uncertainty the Java test handed
+``EquationSystemSolver.solve(source, settings, specs, defs)``. The dumper
+rebuilds the same two arguments, records what the Java produced **under those
+settings**, and embeds the sidecar verbatim as `request`; `tests/parity.rs`
+replays it through `solve_with_tables` with the matching `SolverSettings` and
+`VariableOverride`s. An absent sidecar is the engine default and the empty
+override slice — byte-for-byte the old call.
+
 Wave J made the class selection automatic. Wave I's own inventory found that
 the remaining growth was not a representability problem at all: 115 of the 138
 document-bearing test classes were simply never listed in CLASSES. **Every test
@@ -42,14 +54,16 @@ SKIP_CLASSES names the ones deliberately left out, and the sites the inventory
 classified as unrepresentable — complex mode, ``VariableSpec`` overrides,
 non-default solver settings — are dropped by tag (SKIP_SITE_TAGS) rather than
 staged as documents whose default-settings golden would not be what the Java
-test asserted.
+test asserted. *(Wave Q carries most of those in the request sidecar above;
+what still drops by tag is what the evaluator cannot turn into a request.)*
 
 Writes candidates into the --out directory (default
 fixtures/corpus-staged/corpus/) with a per-class kebab prefix, skipping
-candidates identical (after trimming, with identical sidecar tables) to
-documents already in fixtures/corpus/ or fixtures/corpus-pending/corpus/.
-Assigned names also avoid the stems already in those directories, so a re-run
-after promotion can never stage a different document under a promoted name.
+candidates identical (after trimming, **with identical sidecars** — the same
+text under a different request is a different document) to documents already
+in fixtures/corpus/ or fixtures/corpus-pending/corpus/. Assigned names also
+avoid the stems already in those directories, so a re-run after promotion can
+never stage a different document under a promoted name.
 
 A manifest (harvest-manifest.json) records provenance per candidate, including
 whether the solve call sat inside an assertThrows (i.e. the Java test documents
@@ -59,7 +73,11 @@ entries for fixtures promoted from earlier harvests survive a re-run.
 --inventory scans every test class (all packages, not just CLASSES) and prints
 the per-class classification of solve-call documents — resolved vs the blocker
 classes (a-tables / a-complex / a-specs / a-settings / b-format / c-crossfile /
-unresolved) — without writing anything.
+unresolved), the sites a request sidecar now carries (a-request, with
+a-request-complex / -settings / -specs), and how much of the remaining
+a-settings / a-specs residue is `*-alien`: a `solve(` that CALL_RE matched but
+that is not `EquationSystemSolver.solve` at all (`CasIdentity.solve`, the
+sparse `solve(double[])`). Writes nothing.
 """
 
 import json
@@ -145,10 +163,40 @@ SKIP_CLASSES = {
 # unrepresentable in the fixture format. The document text resolves, but the
 # Java test hands the solver something the fixture cannot carry, so a
 # default-settings golden would not be the answer the test asserts:
-#   a-complex  complex mode (`new SolverSettings(..., true)`) — count-only here
-#   a-specs    `VariableSpec` guess/bounds overrides — no in-document spelling
+#   a-complex  complex mode (`new SolverSettings(..., true)`)
+#   a-specs    `VariableSpec` guess/bounds overrides
 #   a-settings any other non-default `SolverSettings`
+#
+# Since Wave Q these tags mean *the residue*: a site whose settings and specs
+# both evaluate is carried by the `.request.json` sidecar and tagged
+# `a-request` (plus an `a-request-*` sub-tag for the inventory) instead, and is
+# staged. What still lands here is what the evaluator cannot turn into a
+# request — imperative `new HashMap<>()` builders, and the `*-alien` sites
+# where the matched `solve(` is not `EquationSystemSolver.solve` at all
+# (`CasIdentity.solve`, the sparse `solve(double[])`). Both keep the *base*
+# tag so the drop is unchanged; the sub-tag only records why.
 SKIP_SITE_TAGS = ("a-complex", "a-specs", "a-settings")
+
+# `SolverSettings.DEFAULTS` — (maxIterations, relativeResiduals,
+# changeInVariables, elapsedTimeSeconds, complexMode). A settings argument
+# equal to this carries no sidecar: it *is* the plain solve.
+SETTINGS_DEFAULTS = (250, 1e-12, 1e-15, 3600.0, False)
+
+# Java compile-time constants the evaluator resolves itself. `VariableSpec`
+# bounds are spelled `Double.NEGATIVE_INFINITY` / `Double.POSITIVE_INFINITY`
+# at nearly every site, and without these the whole a-specs class stays
+# unresolvable. Deliberately a whitelist of *constants*: nothing here can run
+# code, and an unlisted `Class.FIELD` still raises `crossfile` as before.
+JAVA_CONSTANTS = {
+    ("Double", "POSITIVE_INFINITY"): float("inf"),
+    ("Double", "NEGATIVE_INFINITY"): float("-inf"),
+    ("Double", "MAX_VALUE"): 1.7976931348623157e308,
+    ("Double", "MIN_VALUE"): 4.9e-324,
+    ("Integer", "MAX_VALUE"): 2147483647,
+    ("Integer", "MIN_VALUE"): -2147483648,
+    ("Math", "PI"): 3.141592653589793,
+    ("Math", "E"): 2.718281828459045,
+}
 
 # Candidates permanently rejected by golden review: staging them again would
 # re-mint a golden that cannot be frozen. Keyed by the name the sweep assigns,
@@ -670,6 +718,9 @@ class FileHarvest:
                 if consts is not None and name in consts:
                     v = consts[name]
                     i = m.end()
+                elif (v.name, name) in JAVA_CONSTANTS:
+                    v = JAVA_CONSTANTS[(v.name, name)]
+                    i = m.end()
                 else:
                     raise Unresolved("crossfile", [f"{v.name}.{name}"])
             else:
@@ -917,11 +968,12 @@ class FileHarvest:
     def solve_calls(self):
         """Yield candidate documents from solver-entry calls.
 
-        Each yield: (naming_pos, doc, in_throws, tables, tags)
+        Each yield: (naming_pos, doc, in_throws, tables, request, tags)
           naming_pos — where to derive the fixture name from (the call site of
             the enclosing helper when parameter binding was needed);
           doc — the document text, or None when unresolvable;
           tables — the evaluated extra-defs tables (list, possibly empty);
+          request — the evaluated solver request (dict) or None for defaults;
           tags — blocker/classification tags for the inventory.
         """
         for m in self.CALL_RE.finditer(self.code):
@@ -935,7 +987,7 @@ class FileHarvest:
             in_throws = (
                 "assertThrows" in self.code[max(0, m.start() - 250) : m.start()]
             )
-            tags = self._extra_arg_tags(callee, spans)
+            request, tags = self._extra_arg_tags(callee, spans)
             tables, tables_err = self._tables_of(callee, spans)
             if tables:
                 tags.append("a-tables")
@@ -950,14 +1002,14 @@ class FileHarvest:
             except Unresolved as u:
                 if u.reason == "param":
                     yield from self._via_call_sites(
-                        m.start(), (a0s, a0e), in_throws, tables, tags
+                        m.start(), (a0s, a0e), in_throws, tables, request, tags
                     )
                     continue
                 if u.reason == "format" or uses_format:
                     tags.append("b-computed")
                 elif u.reason == "crossfile":
                     tags.append("c-unresolved")
-                yield m.start(), None, in_throws, tables, tags + [
+                yield m.start(), None, in_throws, tables, request, tags + [
                     f"unresolved-{u.reason}"
                 ]
                 continue
@@ -965,13 +1017,15 @@ class FileHarvest:
                 continue
             if uses_format:
                 tags.append("b-resolved")
-            yield m.start(), doc, in_throws, tables, tags
+            yield m.start(), doc, in_throws, tables, request, tags
 
-    def _via_call_sites(self, call_pos, arg_span, in_throws, tables, tags):
+    def _via_call_sites(self, call_pos, arg_span, in_throws, tables, request, tags):
         """Re-evaluate a param-blocked solve through its helper's call sites."""
         enc = self.enclosing_method(call_pos)
         if enc is None:
-            yield call_pos, None, in_throws, tables, tags + ["unresolved-param"]
+            yield call_pos, None, in_throws, tables, request, tags + [
+                "unresolved-param"
+            ]
             return
         name, decl = enc
         for m in re.finditer(rf"\b{re.escape(name)}\s*\(", self.code):
@@ -987,43 +1041,174 @@ class FileHarvest:
                 bindings = dict(zip(decl["params"], args))
                 doc = self.eval_span(arg_span[0], arg_span[1], bindings)
             except Unresolved as u:
-                yield m.start(), None, in_throws, tables, tags + [
+                yield m.start(), None, in_throws, tables, request, tags + [
                     "b-helper",
                     f"unresolved-{u.reason}",
                 ]
                 continue
             if isinstance(doc, str):
-                yield m.start(), doc, in_throws, tables, tags + ["b-helper"]
+                yield m.start(), doc, in_throws, tables, request, tags + ["b-helper"]
 
     def _extra_arg_tags(self, callee, spans):
+        """Classify (and where possible *carry*) the extra solve arguments.
+
+        Returns ``(request, tags)``. ``request`` is the `.request.json`
+        sidecar body — ``{"stopCriteria": {...}, "variableInfo": [...]}``,
+        either key present only when it differs from the engine default — or
+        ``None`` when the site carries nothing beyond the defaults. ``tags``
+        holds a SKIP_SITE_TAGS entry for every part that could *not* be
+        represented; a site with a request and no skip tag is staged.
+
+        Both halves must resolve or neither is used: half a request would
+        golden an answer the Java test never asserted, which is the exact
+        failure SKIP_SITE_TAGS was added to prevent.
+        """
         tags = []
+        request = {}
         texts = [self.code[s:e].strip() for s, e in spans]
         if callee in ("solve", "solveAll", "solvePermissive"):
             if len(spans) >= 2 and texts[1] != "SolverSettings.DEFAULTS":
-                tags.append(
-                    "a-complex"
-                    if self._is_complex_settings(spans[1])
-                    else "a-settings"
-                )
+                stop, bad = self._settings_of(spans[1])
+                if bad:
+                    tags.extend(bad)
+                elif stop is not None:
+                    request["stopCriteria"] = stop
+                    tags.append(
+                        "a-request-complex"
+                        if stop["complexMode"]
+                        else "a-request-settings"
+                    )
             if len(spans) >= 3 and texts[2] != "Map.of()":
-                tags.append("a-specs")
+                info, bad = self._specs_of(spans[2])
+                if bad:
+                    tags.extend(bad)
+                elif info:
+                    request["variableInfo"] = info
+                    tags.append("a-request-specs")
         elif callee == "check" and len(spans) >= 2:
+            # `check(source, boolean complexMode, …)`: the dumper's oracle call
+            # is `solve`, so a check site's second argument is a classification
+            # only — it never becomes a request.
             if texts[1] not in ("false", "true"):
                 tags.append("a-settings")
-        return tags
+        if tags and any(t in SKIP_SITE_TAGS for t in tags):
+            # Drop a half-built request with the site, and drop the
+            # `a-request-*` sub-tags that described the half that did resolve.
+            return None, [t for t in tags if not t.startswith("a-request")]
+        if not request:
+            return None, tags
+        return request, tags + ["a-request"]
 
-    def _is_complex_settings(self, span):
-        """Does the settings argument trace to `new SolverSettings(..., true)`?"""
-        text = self.code[span[0] : span[1]].strip()
-        m = re.fullmatch(r"\w+", text)
-        if m:
-            d = self._nearest_decl(text, span[0])
-            if d is None:
-                return False
-            text = self.code[d[1] : d[2]].strip()
-        if not re.match(r"new\s+SolverSettings\s*\(", text):
-            return False
-        return bool(re.search(r",\s*true\s*\)\s*$", text))
+    def _settings_of(self, span):
+        """A `SolverSettings` argument as a `stopCriteria` object.
+
+        Returns ``(stop, bad_tags)``: ``stop`` is None when the argument is
+        the engine default (nothing to carry) and a dict otherwise;
+        ``bad_tags`` is non-empty when it cannot be represented.
+        """
+        try:
+            v = self.eval_span(span[0], span[1], None)
+        except Unresolved:
+            return None, ["a-settings"]
+        if not (
+            isinstance(v, Ctor) and v.type_name.split(".")[-1] == "SolverSettings"
+        ):
+            # Not the engine's solve at all — `CasIdentity.solve(lhs, rhs, var)`
+            # and the sparse `solve(double[])` both match CALL_RE.
+            return None, ["a-settings", "a-settings-alien"]
+        args = list(v.args)
+        if len(args) == 4:
+            args.append(False)
+        if len(args) != 5:
+            return None, ["a-settings"]
+        nums, complex_mode = args[:4], args[4]
+        if not isinstance(complex_mode, bool):
+            return None, ["a-settings"]
+        if any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in nums):
+            return None, ["a-settings"]
+        values = (
+            int(nums[0]),
+            float(nums[1]),
+            float(nums[2]),
+            float(nums[3]),
+            complex_mode,
+        )
+        if values == SETTINGS_DEFAULTS:
+            return None, []
+        return {
+            "maxIterations": values[0],
+            "relativeResiduals": values[1],
+            "changeInVariables": values[2],
+            "elapsedTimeSeconds": values[3],
+            "complexMode": values[4],
+        }, []
+
+    def _specs_of(self, span):
+        """A `Map<String, VariableSpec>` argument as `variableInfo` rows.
+
+        Mirrors the Java record: the map key is what the solver looks a spec
+        up by, and `VariableSpec`'s own constructor lowercases its name, so a
+        key and a name that differ in anything but case make the site
+        unrepresentable rather than silently one-of-the-two. An infinite bound
+        is the *absence* of a bound (`Double.NEGATIVE_INFINITY` /
+        `POSITIVE_INFINITY` are the record's own defaults), so it is omitted —
+        which is exactly how the boundary's `VariableInfoDto` spells it.
+        """
+        try:
+            v = self.eval_span(span[0], span[1], None)
+        except Unresolved:
+            return None, ["a-specs"]
+        if not isinstance(v, list):
+            return None, ["a-specs", "a-specs-alien"]
+        rows = []
+        for entry in v:
+            if not (isinstance(entry, tuple) and len(entry) == 2):
+                return None, ["a-specs", "a-specs-alien"]
+            key, ctor = entry
+            if not (
+                isinstance(key, str)
+                and isinstance(ctor, Ctor)
+                and ctor.type_name.split(".")[-1] == "VariableSpec"
+            ):
+                return None, ["a-specs", "a-specs-alien"]
+            args = list(ctor.args)
+            if len(args) == 4:
+                args.append(0.0)
+            if len(args) != 5:
+                return None, ["a-specs"]
+            name, guess, lower, upper, unc = args
+            if not isinstance(name, str):
+                return None, ["a-specs"]
+            if key.strip().lower() != name.strip().lower():
+                return None, ["a-specs"]
+            if any(
+                isinstance(x, bool) or not isinstance(x, (int, float))
+                for x in (guess, lower, upper, unc)
+            ):
+                return None, ["a-specs"]
+            guess, lower, upper, unc = (
+                float(guess),
+                float(lower),
+                float(upper),
+                float(unc),
+            )
+            # A non-finite guess or uncertainty has no JSON spelling and no
+            # sane meaning; the bounds do (see the docstring).
+            if guess != guess or guess in (float("inf"), float("-inf")):
+                return None, ["a-specs"]
+            if unc != unc or unc in (float("inf"), float("-inf")):
+                return None, ["a-specs"]
+            if lower != lower or upper != upper:
+                return None, ["a-specs"]
+            row = {"name": key.strip().lower(), "guess": guess}
+            if lower != float("-inf"):
+                row["lower"] = lower
+            if upper != float("inf"):
+                row["upper"] = upper
+            if unc:
+                row["uncertainty"] = unc
+            rows.append(row)
+        return rows, []
 
     def _tables_of(self, callee, spans):
         """The extra-defs argument evaluated into sidecar table dicts."""
@@ -1138,9 +1323,24 @@ def swept_classes():
     return out
 
 
+def sidecar_key(directory, stem, suffix):
+    """A sidecar's canonical JSON text, or None when the document has none.
+
+    Part of the duplicate key: the same document text solved under different
+    request-level inputs is a *different* fixture (`x^2 = 4` from a guess of
+    −1 and from a guess of +1 are the two roots), so the content alone cannot
+    identify one.
+    """
+    path = os.path.join(directory, stem + suffix)
+    if not os.path.exists(path):
+        return None
+    return json.dumps(json.load(open(path, encoding="utf-8")), sort_keys=True)
+
+
 def existing_documents():
-    """(trimmed content, tables json or None) -> stem, the stem set, and the
-    same map keyed by `normalize`d content (layout-insensitive duplicates)."""
+    """(trimmed content, tables json, request json) -> stem, the stem set, and
+    the same map keyed by `normalize`d content (layout-insensitive
+    duplicates)."""
     existing = {}
     near = {}
     stems = set()
@@ -1155,14 +1355,10 @@ def existing_documents():
                 stem = f.removesuffix(".frees")
                 stems.add(stem)
                 content = open(os.path.join(d, f), encoding="utf-8").read().strip()
-                sidecar = os.path.join(d, stem + ".tables.json")
-                tables = None
-                if os.path.exists(sidecar):
-                    tables = json.dumps(
-                        json.load(open(sidecar, encoding="utf-8")), sort_keys=True
-                    )
-                existing[(content, tables)] = stem
-                near.setdefault((normalize(content), tables), stem)
+                tables = sidecar_key(d, stem, ".tables.json")
+                request = sidecar_key(d, stem, ".request.json")
+                existing[(content, tables, request)] = stem
+                near.setdefault((normalize(content), tables, request), stem)
     return existing, stems, near
 
 
@@ -1186,7 +1382,7 @@ def inventory():
             print(f"  {os.path.basename(p)}: tokenizer failed ({exc})")
             continue
         rows = []
-        for pos, doc, _thr, _tables, tags in fh.solve_calls():
+        for pos, doc, _thr, _tables, _request, tags in fh.solve_calls():
             cls = "resolved" if doc is not None else "unresolved"
             for t in tags:
                 totals[t] = totals.get(t, 0) + 1
@@ -1225,6 +1421,15 @@ def inventory():
         f"(Wave J).\n"
         f"Sites dropped by SKIP_SITE_TAGS: "
         + ", ".join(f"{t} {totals.get(t, 0)}" for t in SKIP_SITE_TAGS)
+        + f" (of which alien, i.e. not EquationSystemSolver.solve: "
+        f"a-settings-alien {totals.get('a-settings-alien', 0)}, "
+        f"a-specs-alien {totals.get('a-specs-alien', 0)})\n"
+        f"Sites carried by a .request.json sidecar (Wave Q): "
+        f"a-request {totals.get('a-request', 0)} — "
+        + ", ".join(
+            f"{t} {totals.get(t, 0)}"
+            for t in ("a-request-complex", "a-request-settings", "a-request-specs")
+        )
     )
 
 
@@ -1269,7 +1474,7 @@ def main():
                 name_counts[base] = n
                 return name
 
-    def write_candidate(prefix, pos_name, doc, kind, in_throws, tables, cls):
+    def write_candidate(prefix, pos_name, doc, kind, in_throws, tables, request, cls):
         trimmed = doc.strip()
         if "=" not in trimmed:
             skipped["fragment"] += 1
@@ -1297,8 +1502,9 @@ def main():
             skipped["oversampled"] += 1
             return
         tables_key = json.dumps(tables, sort_keys=True) if tables else None
-        key = (trimmed, tables_key)
-        near_key = (normalize(trimmed), tables_key)
+        request_key = json.dumps(request, sort_keys=True) if request else None
+        key = (trimmed, tables_key, request_key)
+        near_key = (normalize(trimmed), tables_key, request_key)
         if key in existing:
             skipped["dup_existing"] += 1
             return
@@ -1333,6 +1539,17 @@ def main():
                 json.dump(tables, f, indent=1)
                 f.write("\n")
             entry["function_tables"] = [t["name"] for t in tables]
+        if request:
+            with open(os.path.join(out_corpus, name + ".request.json"), "w") as f:
+                json.dump(request, f, indent=1)
+                f.write("\n")
+            entry["request"] = {
+                "stop_criteria": sorted(request.get("stopCriteria", {})),
+                "complex_mode": bool(
+                    request.get("stopCriteria", {}).get("complexMode")
+                ),
+                "variable_info": [r["name"] for r in request.get("variableInfo", [])],
+            }
         manifest[name] = entry
 
     for path, fname, prefix, mode in swept_classes():
@@ -1342,31 +1559,36 @@ def main():
             print(f"  {fname}: tokenizer failed ({exc}) — skipped")
             continue
 
-        candidates = []  # (pos, doc, kind, in_throws, tables)
+        candidates = []  # (pos, doc, kind, in_throws, tables, request)
         tabled_contents = set()
-        for pos, doc, in_throws, tables, tags in fh.solve_calls():
+        for pos, doc, in_throws, tables, request, tags in fh.solve_calls():
             if doc is None:
                 skipped["unresolved"] += 1
                 continue
             if any(t in tags for t in SKIP_SITE_TAGS):
                 skipped["site_tag"] += 1
                 continue
-            candidates.append((pos, doc, "solvecall", in_throws, tables))
+            candidates.append((pos, doc, "solvecall", in_throws, tables, request))
             if tables:
                 tabled_contents.add(doc.strip())
         for pos, doc in fh.text_blocks():
             # A text block whose content a table-carrying solve call also
             # produced is the same Java document — the tables belong to it;
             # staging a tables-less twin would golden an artifact error.
+            #
+            # A *request*-carrying twin is deliberately not suppressed here:
+            # unlike an undefined Function Table, the same document under the
+            # engine defaults is a perfectly well-defined solve, and the two
+            # goldens are the point (the guess is what selects the root).
             if doc.strip() in tabled_contents:
                 skipped["dup_harvest"] += 1
                 continue
-            candidates.append((pos, doc, "textblock", False, []))
+            candidates.append((pos, doc, "textblock", False, [], None))
         # extraction preference: preferred kind first, then position
         pref = "textblock" if mode == "text" else "solvecall"
         candidates.sort(key=lambda c: (0 if c[2] == pref else 1, c[0]))
 
-        for pos, doc, kind, in_throws, tables in candidates:
+        for pos, doc, kind, in_throws, tables, request in candidates:
             write_candidate(
                 prefix,
                 fh.enclosing(pos),
@@ -1374,6 +1596,7 @@ def main():
                 kind,
                 in_throws,
                 tables,
+                request,
                 fname,
             )
 
@@ -1390,6 +1613,7 @@ def main():
                 "resource",
                 False,
                 [],
+                None,
                 os.path.join(rel, f),
             )
 

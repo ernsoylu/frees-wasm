@@ -1,0 +1,29 @@
+{
+  "name": "all-roots-solver-bounds-restrict-the-root-search",
+  "source": "x^2 = 4\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 1.0,
+   "lower": 0.0
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x": 2.0
+    },
+    "display_names": {
+      "x": "x"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

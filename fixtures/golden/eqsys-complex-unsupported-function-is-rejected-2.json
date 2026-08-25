@@ -1,0 +1,27 @@
+{
+  "name": "eqsys-complex-unsupported-function-is-rejected-2",
+  "source": "y = tan(z)\nz = 1\n",
+  "request": {
+ "stopCriteria": {
+  "maxIterations": 250,
+  "relativeResiduals": 1e-09,
+  "changeInVariables": 1e-12,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": true
+ }
+},
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "ParseException",
+      "message": "Function 'tan' is not supported in complex mode. Supported: abs, angle, angledeg, anglerad, cis, conj, cos, exp, imag, ln, magnitude, real, sin, sqrt"
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

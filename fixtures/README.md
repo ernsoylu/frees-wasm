@@ -5,11 +5,13 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1281
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1306
 fixtures/corpus/*.tables.json  request-level Function Tables for the document
-                               beside them (10 — the curvefn group; see below)
-fixtures/golden/*.json         what the Java engine produced for each     — 1281
-fixtures/corpus-pending/       the staging area: documents not yet promoted — 2
+                               beside them (12 — the curvefn group; see below)
+fixtures/corpus/*.request.json non-default solver settings / variable specs for
+                               the document beside them (25; see below)
+fixtures/golden/*.json         what the Java engine produced for each     — 1306
+fixtures/corpus-pending/       the staging area: documents not yet promoted — 3
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -27,9 +29,69 @@ embeds the sidecar verbatim in the fixture as a top-level `function_tables`
 field; `tests/parity.rs` replays that field through core's
 `solve_with_tables`, the same merge position every solving endpoint uses. An
 absent field is the empty slice — byte-for-byte the plain `solve` — so the
-rest of the corpus replays exactly as before. These ten fixtures are the only
-oracle-graded coverage of the request-tables channel; everything else about
-them (tolerances, promotion, error rules) is ordinary.
+rest of the corpus replays exactly as before. These twelve fixtures are the
+only oracle-graded coverage of the request-tables channel; everything else
+about them (tolerances, promotion, error rules) is ordinary.
+
+**A `<name>.request.json` sidecar carries the rest of the solve request** —
+the stop criteria (complex mode included) and the per-variable
+guesses/bounds/uncertainty the Java test handed
+`EquationSystemSolver.solve(source, settings, specs, extraDefs)`. It exists
+because **a document is only half of a solve**: `x^2 = 4` from a guess of −1
+and from a guess of +1 are two different roots, and grading either at the
+engine defaults asserts an answer the Java test never made. Wave Q (2026-08-25)
+built it on the tables chain above, one channel over: the harvester evaluates
+the two arguments into the sidecar, `tools/golden-dumper` rebuilds the same
+`SolverSettings` and `Map<String, VariableSpec>` from it and records the golden
+**under them**, then embeds the sidecar verbatim as a top-level `request`
+field; `tests/parity.rs` turns it back into the `SolverSettings` +
+`VariableOverride` pair `solve_with_tables` takes. An absent field is the
+engine default and the empty override slice — byte-for-byte the previous
+call — so the 1281 fixtures that predate the channel replay unchanged.
+
+```json
+{
+  "stopCriteria": { "maxIterations": 250, "relativeResiduals": 1e-6,
+                    "changeInVariables": 1e-9, "elapsedTimeSeconds": 3600.0,
+                    "complexMode": true },
+  "variableInfo": [ { "name": "x", "guess": 2.5, "lower": 0.0,
+                      "upper": 4000.0, "uncertainty": 0.1 } ]
+}
+```
+
+Four things about the shape are load-bearing, and each one is a decision:
+
+* **The two objects are the wasm boundary's own DTOs** — `stopCriteria` is
+  `SolverApiSupport.StopCriteriaDto` (`StopCriteria` in `api.ts`) and
+  `variableInfo` is `VariableInfoDto` (`VariableInfo`). The fixture format
+  invents nothing: the browser already speaks both, and
+  `crates/frees-wasm/src/lib.rs::settings_of`/`overrides_of` are the same
+  conversion the replay does.
+* **`variableInfo` carries no `units` key.** A `VariableSpec` is the Java
+  *engine*'s record, not its HTTP DTO, so everything the harvester reads off
+  one is already SI and there is nothing to convert. The harvester never emits
+  a unit and both sides pass `None`.
+* **An absent `lower`/`upper` is ±∞** — the record's own default. JSON has no
+  infinity literal and does not need one; `VariableOverride`'s `None` means
+  exactly that, and the dumper substitutes `Double.NEGATIVE_INFINITY` /
+  `POSITIVE_INFINITY`. An absent `guess` is `DEFAULT_GUESS` clamped into the
+  bounds, which is the Java `VariableInfoDto.toSpec` rule that
+  `engine::override_spec` already mirrors.
+* **Two of the five stop criteria are read by the Java side only.**
+  `changeInVariables` has no counterpart in this port (its Newton stop rule is
+  residual-based) and `elapsedTimeSeconds` none in core (no clock on
+  `wasm32-unknown-unknown` — the boundary installs the deadline). This is
+  exactly how the boundary treats them, and a fixture whose Java answer
+  depended on either is a divergence the replay *should* report rather than
+  paper over.
+
+The two sidecars are independent and can coexist on one document —
+`curvefn-solves-inverse-problem-through-newton` carries a Function Table *and*
+a guess, which is what its Java test does. Both are part of the harvester's
+duplicate key: the same text under different request-level inputs is a
+different fixture, which is what lets `eqsys-guess-value-selects-root-2` and
+`-3` (the same equation, guesses 0.5 and 2.5) sit in the corpus as the two
+roots they select.
 
 ## How properties are answered — read this before the tolerance sections
 
@@ -102,6 +164,14 @@ Override with `FREES_HOME`, `FREES_CORE_JAR`, or `GRADLE_CACHE`.
   "oracle": { "engine": "frEES backend/core (Java)", "generated_by": "tools/golden-dumper" }
 }
 ```
+
+Two optional top-level fields sit beside `source`, each the verbatim body of
+the like-named sidecar in `fixtures/corpus/` and each recorded *into* the
+golden by the oracle that used it: **`function_tables`** (the request-level
+Function Tables) and **`request`** (the stop criteria and variable specs) —
+both described at the top of this file. Absent means the plain
+`solve(source, DEFAULTS, Map.of(), Map.of())`, which is what 1281 of the 1306
+fixtures are.
 
 A document that **fails** is as valuable as one that solves — the Rust engine
 must fail the same way:
@@ -724,9 +794,110 @@ Extend it further from, in rough order of value:
    machine carrying a load average of 9–20 from a parallel agent, so read it
    as an upper bound), against ~145 s for 983. What is left un-harvested
    from the Java tests is now only
-   what the guards say it is — 37 site-tag drops, 36 unresolvable arguments
+   what the guards say it is — ~~37 site-tag drops~~, 36 unresolvable arguments
    (12 CoolProp-computed template values, 10 unknown idents, 14 builder
    loops), 3 oversampled and the four `DROPPED` tilde documents.
+
+   **The site-tag drops are mostly gone — 2026-08-25, Wave Q. Corpus
+   1281 → 1306.** They were never a *document* problem: every one of those 47
+   sites resolved its text perfectly, and was dropped because the fixture
+   format could not carry what the test passed to
+   `solve(source, settings, specs, defs)` — so the golden would have been the
+   engine defaults' answer, which is not what the Java test asserts. The
+   `.request.json` sidecar (top of this file) closes that, and it is **one**
+   mechanism for all three classes, because all three are the same thing: the
+   request carried something other than the defaults. `harvest.py` grew
+   `_settings_of`/`_specs_of` (evaluating `new SolverSettings(...)` and
+   `Map.of(k, new VariableSpec(...))`, through locals, with a whitelist of
+   Java compile-time constants so `Double.NEGATIVE_INFINITY` resolves), and
+   a site whose settings *and* specs both evaluate is now tagged `a-request`
+   and staged instead of dropped. Half a request is never used: a site whose
+   specs do not resolve keeps its skip tag even when its settings did, because
+   grading one half against a golden built from both would be the exact
+   failure `SKIP_SITE_TAGS` exists to prevent.
+
+   The measured classification, from `harvest.py --inventory` before and
+   after:
+
+   | class | before | carried | residue | why the residue stays |
+   |---|---|---|---|---|
+   | a-complex | 9 | **8** | 0 | the 9th (`EquationSystemSolverTest:375`) is dropped by its specs, not its settings — see a-specs |
+   | a-specs | 28 | **17** | 11 | 5 are not `EquationSystemSolver.solve` at all; 6 build the map imperatively |
+   | a-settings | 10 | **2** | 8 | 6 are not that `solve` either; 2 have an unresolvable first argument anyway |
+
+   **27 sites carried, 26 candidates staged** (two sites are the same document
+   under the same request — `AllRootsSolverTest`'s and
+   `EquationSystemSolverTest`'s `x^2 = 4` bounded to the positive half-plane —
+   and the duplicate key catches it), **25 promoted at the corpus default
+   `1e-9` with no tolerance entry**, 1 staged pending (below). Nothing needed
+   a tolerance: 22 solve and 3 are error goldens (`tan` in complex mode,
+   `Integral` in complex mode, and the 1-iteration budget the Java refuses
+   with "did not converge within 1 iterations"). Ten carry `stopCriteria` and
+   fifteen `variableInfo`; **none carries both**, because no Java test passes
+   non-default settings *and* a resolvable spec map — the one that does
+   (`solvesPowerFactorCorrectionComplex`'s second solve) is the `allOnes`
+   builder loop in the residue. Eight are complex-mode documents — the first
+   complex fixtures the corpus has ever graded against the oracle, and they
+   matter because `SolverSettings::complex_mode` had no golden-corpus coverage
+   at all before this. Two carry a request *and* a Function Table (the
+   `curvefn` inverse-interpolation pair). The pairs are
+   the point of the whole exercise, and the reason a `-2` suffix is on so many
+   of them: **sixteen of the 25 are byte-identical in `source` to a fixture
+   the corpus already had, and thirteen of those sixteen have a different
+   golden** — the request is the only thing that differs, and it changes the
+   answer. `eqsys-guess-value-selects-root`/`-2`/`-3` is one equation graded
+   at both of its roots (guess 0.5 → 1.0, guess 2.5 → 2.0);
+   `eqsys-bounds-select-root` solves to +2 and `-2` to −2 on a bound;
+   `eqsys-complex-literals` is the Java refusing with *"enable Complex mode to
+   solve them"* and `-2` is the same text solving to `z_r = 3, z_i = 4`;
+   `eqsys-complex-solving` is Newton stalling on `z^2 = -4` and `-2` is
+   `z_i = 2`; `eqsys-respects-iteration-limit-from-stop-criteria` reaches
+   `x = √2` where `-2` fails with *"did not converge within 1 iterations"*;
+   and the arrow points both ways — `eqsys-complex-unsupported-function-is-rejected`
+   and `integral-rejects-integral-in-complex-mode` **solve** at the defaults
+   and are refusals only in complex mode. A fixture format that could not
+   carry the request would have had to pick one of each pair and call it the
+   document's behaviour.
+
+   The other three twins are the honest weak end, and they are weak for a
+   reason worth recording. `curvefn-adjusts-outof-range-guesses-to-range-average-2`
+   differs from its twin only in the *path* Newton takes (its Java test
+   asserts that an out-of-range guess is pulled to the curve's range average —
+   without the pull it would stall, so the fixture does grade the mechanism,
+   just not through a different number). `eqsys-propagates-uncertainty-simple-2`
+   and `-multiple-inputs-2` carry a `uncertainty` on their specs, and **the
+   golden has no field for the propagated σ**: `Result.uncertainties()` is not
+   one of the five things the dumper records, so those two grade the solve
+   under the spec and nothing else. The third uncertainty document,
+   `eqsys-evaluates-uncertainty-of-accessor-2`, does not have the problem
+   because `UncertaintyOf(y)` puts the answer *in* `variables` — 0.15 against
+   its twin's 0.0. Extending the golden to `uncertainties` would close the
+   gap and would touch every fixture-format consumer; it was out of Wave Q's
+   scope and is the obvious next step for this channel.
+
+   **The residue is honest, and two thirds of it is a false positive of the
+   harvester's own regex.** `CALL_RE` matches any `solve(`, and 11 of the 19
+   remaining sites are a different `solve` entirely — `CasIdentity.solve(lhs,
+   rhs, var)` (6) and the sparse `SparseSteadyKlu` `solve(double[])` (2), plus
+   3 whose document argument does not resolve either. The inventory now says
+   so out loud: they carry an `a-settings-alien` / `a-specs-alien` sub-tag,
+   counted separately in the summary line, so a future reader does not go
+   looking for a fixture-format gap that is not there. **The eight genuine
+   ones all build their spec map imperatively** — `new HashMap<>()` then a
+   `for` loop over parsed equation names
+   (`ClosedLoopDiagnosisTest`, `ComponentMultiZoneHxTest`,
+   `EquationSystemSolverTest.solvesPowerFactorCorrectionComplex`'s `allOnes`)
+   or two `.put(...)` statements (`PropertyArgumentSeedingTest`). Carrying
+   those needs statement-level evaluation of a Java method body, not
+   expression evaluation, and it would buy at most six fixtures — three of
+   which are the guess-landscape documents the Wave-I oracle verdict already
+   records as engine divergences. It is deliberately not built.
+
+   One site-tag drop remains that is *not* about specs at all:
+   `RealFluidPropertiesTest:148` is a `check(source, java.util.Map.of())`
+   whose document argument is unresolvable, and the dumper's oracle call is
+   `solve`, so a `check` site's second argument is a classification only and
+   never becomes a request.
 4. `../frEES/backend/core/src/main/resources/components/*.frees` — all 295
    library components. **Swept 2026-08-23 (Wave G4).** A coverage inventory
    found 165 of the 295 component types already exercised by the corpus and
@@ -968,17 +1139,21 @@ gate red.
 (`cargo run -qp frees-cli --features rustprop-backend -- solve <file>`) and
 compare against its golden using the tolerance table above — `variables` by
 relative tolerance, `display_names` and `block_count` exactly, `error` by
-classification. (A document with a `.tables.json` sidecar cannot be graded by
-the CLI one-liner — the CLI has no request-table channel; use the scratch
-`parity.rs` procedure below, which replays the fixture's `function_tables`
-field.) If it agrees, move *both* files into `corpus/` and `golden/`. If
-it diverges, leave it here. A pending document that starts passing because
-someone fixed the engine is the point.
+classification. (A document with a `.tables.json` **or** a `.request.json`
+sidecar cannot be graded by the CLI one-liner — the CLI has neither channel,
+and for a request-carrying document it would silently grade the *defaults*
+against a golden the oracle produced under other settings, which is worse than
+no answer; use the scratch `parity.rs` procedure below, which replays both
+fields.) If it agrees, move **every** file of the document — `.frees`, its
+sidecars, and the golden — into `corpus/` and `golden/`. If it diverges, leave
+it here. A pending document that starts passing because someone fixed the
+engine is the point.
 
-### What is pending today — 2 documents
+### What is pending today — 3 documents
 
 | Blocker | Count | Documents |
 |---|---:|---|
+| **`ode45-adaptive-path`, amplified by a shooting solve** (2026-08-25, Wave Q). The one non-promoter of the 26 request-carrying candidates: a rocket ascent through `ode45` whose burn time is *sized* by the algebraic system so apogee reaches 100 km (`VariableSpec("t_burn", 30, 5, 55)` is the request it carries). Its trajectory passes — every table cell is inside the scale-anchored default, and so are `end_time` and the `apogee` event — but the two shooting unknowns it feeds do not: `t_burn` 27.14432258487798 against 27.14264495979557 and `m_burn` 244.29890326390182 against 244.28380463816015, **both at rel 6.18e-5**, identically, because `m_burn = mdot·t_burn` is the same divergence read twice. That is the catalogued `ode45-adaptive-path` mechanism (`dynamic-array-states-rod-with-ode45-also`'s, 1.40e-7 there) with a Newton solve standing on top of it: the residual is an *interpolated* apogee altitude, so the integrator's step-placement noise is divided by `dh/dt_burn` on the way back out. It is a tolerance entry, not an engine bug — but `tolerances-rustprop.json` demands per-entry evidence, and the evidence here is a sensitivity measurement (how many metres of apogee one microsecond of burn buys), not a leaf property probe. Not measured in this wave | 1 | `ode-rocket-trajectory-sizes-burn-time-so-apogee-reaches100km` |
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact). Re-measured 2026-08-23 after Wave G3's per-step caches: **~5.6 min** (339 s, upper bound — the first 147 s shared the machine with a replay), from A5's ~12 min, converging to the same `dk` at rel ~8e-16; the whole replay is ~145 s, so one document still costs ~2.3× the gate and the hold stands | 1 | `dyn_accessor_live` |
 | **The same two mechanisms, from the Wave-J class sweep** (2026-08-24, growth item 3). Eighteen are `oracle-ph-table`: R134a/R1234yf/Water two-phase chains on `cmp.h_s`/`k.h_s`/`b1.q`/`cd.q_sc`/`ev.q_sh`/`rho_in`, three of them transient and graded scale-anchored. Worst divergence per fixture, measured uncapped at the corpus default: 4.71e-5 `moving-boundary-hx-condenser`, 1.98e-5 `moving-boundary-hx-evaporator`, 6.10e-6 each for the three rankine documents, 5.47e-6 `ev-tms-api-model`, 4.85e-6 `new-library-components`, 3.05e-6 `ev-tms-cabin-steady`, 2.50e-6 `dual-evap-debug`, 1.16e-6 `fluid-property-examples-example3-7`, 9.86e-7 `component-cycles-refrigeration`, 8.11e-7 `property-argument-seeding-subcritical`, 2.68e-7 and 8.72e-8 the two `component-variant-library-compressor` variants, 8.30e-8 `cooker-faithful`, 6.90e-9 `pressure-cooker-…-undersized-valve`, 2.02e-9 `real-fluid-properties-solves-vapor-compression-cycle`, 1.60e-9 `steady-by-integration-chiller-bridge`. The nineteenth is `ida-adaptive-path`'s explicit sibling and touches **no property**: a 4-node conduction rod through `ode45`, 274 diverging cells peaking at 1.40e-7 of the column range — pure adaptive-step interpolant noise. The last three sit within 10× of the corpus default and would very likely promote on a probe. Every one needs the same discipline as the row above: a per-entry wheel-vs-rustprop-vs-golden leaf probe, which this wave measured but did not perform | 19 | `component-cycles-rankine-components-solve`, `component-cycles-rankine-with-derived-property-boundaries-solves`, `component-cycles-refrigeration-components-solve`, `component-variant-library-compressor-defaults-to-isentropic-backward-compatible`, `component-variant-library-compressor-volumetric-variant-determines-mass-flow`, `cooker-faithful-reproduces-reference-with-electrical-heater`, `cycle-path-component-component-rankine-streams-produce-a-cycle-path`, `dual-evap-debug-check`, `dynamic-array-states-rod-with-ode45-also`, `ev-tms-api-model-integrated-model-solves-with-plain-solver`, `ev-tms-cabin-steady-operating-point`, `fluid-property-examples-example3-7-temperature-of-superheated-vapor`, `moving-boundary-hx-condenser-resolves-condensing-and-subcool-zones`, `moving-boundary-hx-evaporator-resolves-two-phase-and-superheat-zones`, `new-library-components-new-library-components-solve`, `pressure-cooker-cooker-over-pressurises-with-undersized-valve`, `property-argument-seeding-subcritical-inversion-across-dome-converges-from-default-guess`, `real-fluid-properties-solves-vapor-compression-cycle`, `steady-by-integration-chiller-bridge-reaches-consistent-steady-by-integration` |
 

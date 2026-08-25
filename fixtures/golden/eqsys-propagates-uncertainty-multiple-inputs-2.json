@@ -1,0 +1,38 @@
+{
+  "name": "eqsys-propagates-uncertainty-multiple-inputs-2",
+  "source": "y = x1 + 2 * x2\nx1 = 3\nx2 = 4\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x1",
+   "guess": 3.0,
+   "uncertainty": 0.1
+  },
+  {
+   "name": "x2",
+   "guess": 4.0,
+   "uncertainty": 0.2
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x1": 3.0,
+      "x2": 4.0,
+      "y": 11.0
+    },
+    "display_names": {
+      "x1": "x1",
+      "x2": "x2",
+      "y": "y"
+    },
+    "block_count": 3,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

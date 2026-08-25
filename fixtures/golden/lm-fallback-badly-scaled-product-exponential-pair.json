@@ -1,0 +1,38 @@
+{
+  "name": "lm-fallback-badly-scaled-product-exponential-pair",
+  "source": "10000*x*y = 1\nexp(-x) + exp(-y) = 1.0001\n",
+  "request": {
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 0.0,
+   "lower": -10.0,
+   "upper": 10.0
+  },
+  {
+   "name": "y",
+   "guess": 1.0,
+   "lower": -10.0,
+   "upper": 20.0
+  }
+ ]
+},
+  "expect": {
+    "variables": {
+      "x": 1.0981593296998489E-5,
+      "y": 9.106146739866263
+    },
+    "display_names": {
+      "x": "x",
+      "y": "y"
+    },
+    "block_count": 1,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

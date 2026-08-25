@@ -1,0 +1,8 @@
+z = 3 + 4i
+real_z = real(z)
+imag_z = imag(z)
+z_conj = conj(z)
+z_mag = magnitude(z)
+z_angle = anglerad(z)
+z_angle_deg = angledeg(z)
+z_cis = cis(z_angle)

@@ -1,0 +1,37 @@
+{
+  "name": "eqsys-complex-abs-is-magnitude-2",
+  "source": "z = 3 + sqrt(-16)\nm = abs(z)\n",
+  "request": {
+ "stopCriteria": {
+  "maxIterations": 250,
+  "relativeResiduals": 1e-09,
+  "changeInVariables": 1e-12,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": true
+ }
+},
+  "expect": {
+    "variables": {
+      "m_i": 0.0,
+      "m_r": 5.0,
+      "z_i": 4.0,
+      "z_r": 3.0000000000000004
+    },
+    "display_names": {
+      "m": "m",
+      "m_i": "m_i",
+      "m_r": "m_r",
+      "z": "z",
+      "z_i": "z_i",
+      "z_r": "z_r"
+    },
+    "block_count": 4,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

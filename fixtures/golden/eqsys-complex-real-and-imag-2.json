@@ -1,0 +1,42 @@
+{
+  "name": "eqsys-complex-real-and-imag-2",
+  "source": "z = 3 + 4i\na = real(z)\nb = imag(z)\n",
+  "request": {
+ "stopCriteria": {
+  "maxIterations": 250,
+  "relativeResiduals": 1e-09,
+  "changeInVariables": 1e-12,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": true
+ }
+},
+  "expect": {
+    "variables": {
+      "a_i": 0.0,
+      "a_r": 3.0,
+      "b_i": 0.0,
+      "b_r": 4.0,
+      "z_i": 4.0,
+      "z_r": 3.0
+    },
+    "display_names": {
+      "a": "a",
+      "a_i": "a_i",
+      "a_r": "a_r",
+      "b": "b",
+      "b_i": "b_i",
+      "b_r": "b_r",
+      "z": "z",
+      "z_i": "z_i",
+      "z_r": "z_r"
+    },
+    "block_count": 6,
+    "ode_tables": [
+    ],
+    "error": null
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

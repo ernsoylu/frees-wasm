@@ -1,0 +1,10 @@
+{
+ "variableInfo": [
+  {
+   "name": "t_burn",
+   "guess": 30.0,
+   "lower": 5.0,
+   "upper": 55.0
+  }
+ ]
+}

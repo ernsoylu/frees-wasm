@@ -213,6 +213,31 @@
 //!   -0.0000012156851880718025 (rel 1e0, tolerance 2e-7)
 //! ```
 //!
+//! # The solver request (Wave Q)
+//!
+//! A fixture may carry a top-level **`request`** object — the non-default
+//! parts of what the Java test handed
+//! `EquationSystemSolver.solve(source, settings, specs, extraDefs)`. It exists
+//! because a document is only half of a solve: `x^2 = 4` from a guess of −1
+//! and from a guess of +1 are two different roots, and grading either at the
+//! engine defaults would assert an answer the Java test never made. Before it,
+//! the harvester dropped every such site by tag (`SKIP_SITE_TAGS`) — 47 of
+//! them, complex mode included.
+//!
+//! The chain is Wave I's, one channel over: the harvester evaluates the Java
+//! arguments into a `<name>.request.json` sidecar, `tools/golden-dumper`
+//! rebuilds the same `SolverSettings` and `Map<String, VariableSpec>` from it
+//! and records the golden **under them**, then embeds the sidecar verbatim
+//! here; [`request_settings_of`] and [`request_overrides_of`] turn it back
+//! into the pair `solve_with_tables` takes. Two sidecars can coexist on one
+//! document (`curvefn-solves-inverse-problem-through-newton` carries a
+//! Function Table *and* a guess), and the shapes are the wasm boundary's own
+//! `stopCriteria` / `variableInfo` DTOs rather than a format invented here.
+//!
+//! **An absent field is the engine default and the empty override slice** —
+//! byte-for-byte the previous call — so the 1281 fixtures that predate the
+//! channel replay unchanged.
+//!
 //! # This replay needs the `rustprop-backend` feature
 //!
 //! Since Wave-3 F6/F8 the corpus holds twelve documents the `(P,h)`
@@ -225,7 +250,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use frees_core::{solve_with_tables, FreesError, SolverSettings};
+use frees_core::{solve_with_tables, FreesError, SolverSettings, VariableOverride};
 
 const REL_TOL: f64 = 1e-9;
 const ABS_TOL: f64 = 1e-12;
@@ -862,6 +887,67 @@ fn compare_ode_tables(
     }
 }
 
+/// The fixture's optional `request` field as solver stop criteria.
+///
+/// The field is the harvester's `.request.json` sidecar embedded verbatim by
+/// the dumper, which built the *same* `SolverSettings` before recording the
+/// golden — so this is not a re-interpretation of the oracle's inputs, it is
+/// the same object read twice. The shape is the boundary's own
+/// `StopCriteriaDto` (`SolverApiSupport.StopCriteriaDto`, `StopCriteria` in
+/// `api.ts`), deliberately: the browser already speaks it, so the fixture
+/// format carries no schema of its own.
+///
+/// Two of the five keys have no counterpart in this port and are read by the
+/// Java side only, exactly as the boundary treats them:
+/// `changeInVariables` (this Newton's stop rule is residual-based) and
+/// `elapsedTimeSeconds` (core has no clock on `wasm32-unknown-unknown`; the
+/// boundary installs the deadline). A fixture whose Java answer depended on
+/// either would be a divergence this replay *should* report, not paper over.
+///
+/// An absent field is [`SolverSettings::default`] — byte-for-byte the old
+/// call, which is why all 1281 fixtures that predate this channel replay
+/// unchanged.
+fn request_settings_of(v: &serde_json::Value) -> SolverSettings {
+    let mut settings = SolverSettings::default();
+    let stop = &v["stopCriteria"];
+    if let Some(iterations) = stop["maxIterations"].as_u64() {
+        settings.max_iterations = iterations.max(1) as usize;
+    }
+    if let Some(tolerance) = stop["relativeResiduals"].as_f64() {
+        if tolerance.is_finite() && tolerance > 0.0 {
+            settings.rel_tolerance = tolerance;
+        }
+    }
+    settings.complex_mode = stop["complexMode"].as_bool().unwrap_or(false);
+    settings
+}
+
+/// The fixture's optional `request` field as per-variable overrides.
+///
+/// The shape is the boundary's `VariableInfoDto` (`VariableInfo` in `api.ts`)
+/// minus its `units` key: a `VariableSpec` is the Java *engine*'s record, not
+/// its HTTP DTO, so every value the harvester can read off one is already SI
+/// and there is nothing to convert. An **absent** `lower`/`upper` is the
+/// record's own ±∞ default — JSON has no infinity literal, and
+/// [`VariableOverride`]'s `None` means exactly that. An absent `guess` is
+/// `DEFAULT_GUESS` clamped into the bounds, which `engine::override_spec`
+/// already does.
+fn request_overrides_of(v: &serde_json::Value) -> Vec<VariableOverride> {
+    let Some(rows) = v["variableInfo"].as_array() else {
+        return Vec::new();
+    };
+    rows.iter()
+        .map(|row| VariableOverride {
+            name: row["name"].as_str().unwrap_or_default().to_string(),
+            guess: row["guess"].as_f64(),
+            lower: row["lower"].as_f64(),
+            upper: row["upper"].as_f64(),
+            unit: None,
+            uncertainty: row["uncertainty"].as_f64(),
+        })
+        .collect()
+}
+
 /// The fixture's optional `function_tables` field as solver extra defs.
 ///
 /// The field is the harvester's `.tables.json` sidecar embedded verbatim by
@@ -948,16 +1034,29 @@ fn replay(
     // uses. An absent field is the empty slice, which is byte-for-byte
     // `solve`, so every table-less fixture replays exactly as before.
     let extra_tables = function_tables_of(&fixture["function_tables"]);
-    let run = |settings: &SolverSettings| solve_with_tables(source, settings, &[], &extra_tables);
+
+    // The solver request (Wave Q): the stop criteria and per-variable
+    // guesses/bounds the Java test passed to
+    // `solve(source, settings, specs, defs)`, staged by the harvester as a
+    // `.request.json` sidecar and embedded here by the dumper, which recorded
+    // the golden *under them*. Absent is the engine default plus the empty
+    // override slice, so every fixture without the field replays as before.
+    let request = &fixture["request"];
+    let requested = request_settings_of(request);
+    let overrides = request_overrides_of(request);
+    let run =
+        |settings: &SolverSettings| solve_with_tables(source, settings, &overrides, &extra_tables);
 
     // A declared stop-criterion floor is a claim that the default cannot be
     // reached, so it is verified before it is used — exactly as a declared
     // numeric tolerance is. A fixture that solves at the default has a dead
-    // entry; one the relaxation does not rescue has the wrong entry.
+    // entry; one the relaxation does not rescue has the wrong entry. "The
+    // default" here means *this fixture's* request, not the engine's: a
+    // relaxation is measured against what the oracle itself was given.
     let settings = match floors.get(&name) {
-        None => SolverSettings::default(),
+        None => requested,
         Some(&rel_tolerance) => {
-            if run(&SolverSettings::default()).is_ok() {
+            if run(&requested).is_ok() {
                 failures.push(Failure {
                     fixture: name.clone(),
                     detail: format!(
@@ -971,7 +1070,7 @@ fn replay(
             }
             SolverSettings {
                 rel_tolerance,
-                ..SolverSettings::default()
+                ..requested
             }
         }
     };

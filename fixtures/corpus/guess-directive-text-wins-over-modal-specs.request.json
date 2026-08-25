@@ -1,0 +1,10 @@
+{
+ "variableInfo": [
+  {
+   "name": "x",
+   "guess": 3.0,
+   "lower": -100.0,
+   "upper": 100.0
+  }
+ ]
+}

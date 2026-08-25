@@ -1,6 +1,7 @@
 import com.frees.backend.ast.ProcDef;
 import com.frees.backend.core.EquationSystemSolver;
 import com.frees.backend.core.SolverSettings;
+import com.frees.backend.core.VariableSpec;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -69,7 +70,17 @@ public final class GoldenDumper {
             String tablesJson = Files.exists(sidecar)
                     ? Files.readString(sidecar, StandardCharsets.UTF_8)
                     : null;
-            String json = dump(name, source, tablesJson);
+            // A `<name>.request.json` sidecar carries the non-default parts of
+            // the *solve request* — stop criteria (complex mode included) and
+            // per-variable guesses/bounds/uncertainty. It is what the Java test
+            // handed `solve(source, settings, specs, defs)`, so the golden below
+            // is recorded UNDER THOSE SETTINGS; `tests/parity.rs` replays the
+            // same two arguments. Absent means the engine defaults.
+            Path requestSidecar = corpus.resolve(name + ".request.json");
+            String requestJson = Files.exists(requestSidecar)
+                    ? Files.readString(requestSidecar, StandardCharsets.UTF_8)
+                    : null;
+            String json = dump(name, source, tablesJson, requestJson);
             Files.writeString(outDir.resolve(name + ".json"), json, StandardCharsets.UTF_8);
             if (json.contains("\"error\": null")) {
                 solved++;
@@ -83,7 +94,7 @@ public final class GoldenDumper {
     }
 
     /** Run one document through the engine and render the fixture JSON. */
-    private static String dump(String name, String source, String tablesJson) {
+    private static String dump(String name, String source, String tablesJson, String requestJson) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("  \"name\": ").append(quote(name)).append(",\n");
@@ -93,13 +104,20 @@ public final class GoldenDumper {
             // the harvester staged beside the corpus document.
             sb.append("  \"function_tables\": ").append(tablesJson.strip()).append(",\n");
         }
+        if (requestJson != null) {
+            sb.append("  \"request\": ").append(requestJson.strip()).append(",\n");
+        }
         sb.append("  \"expect\": {\n");
 
         try {
             Map<String, ProcDef> defs =
                     tablesJson == null ? Map.of() : tableDefs(tablesJson);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> request = requestJson == null
+                    ? Map.of()
+                    : (Map<String, Object>) Json.parse(requestJson);
             EquationSystemSolver.Result result = new EquationSystemSolver()
-                    .solve(source, SolverSettings.DEFAULTS, Map.of(), defs);
+                    .solve(source, settingsOf(request), specsOf(request), defs);
 
             Map<String, Double> vars = new TreeMap<>(result.variables());
             if (vars.size() > MAX_VARIABLES) {
@@ -268,6 +286,69 @@ public final class GoldenDumper {
                     Boolean.TRUE.equals(table.get("y_log")), curves));
         }
         return defs;
+    }
+
+    /**
+     * A `.request.json` sidecar's {@code stopCriteria} as {@link SolverSettings}.
+     *
+     * <p>Absent keys take {@link SolverSettings#DEFAULTS}, so a sidecar that
+     * carries only {@code variableInfo} still solves at the engine default —
+     * and no sidecar at all is {@code DEFAULTS} exactly, which is what every
+     * fixture predating this channel gets.
+     */
+    private static SolverSettings settingsOf(Map<String, Object> request) {
+        if (!(request.get("stopCriteria") instanceof Map<?, ?> raw)) {
+            return SolverSettings.DEFAULTS;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> stop = (Map<String, Object>) raw;
+        SolverSettings d = SolverSettings.DEFAULTS;
+        return new SolverSettings(
+                (int) number(stop, "maxIterations", d.maxIterations()),
+                number(stop, "relativeResiduals", d.relativeResiduals()),
+                number(stop, "changeInVariables", d.changeInVariables()),
+                number(stop, "elapsedTimeSeconds", d.elapsedTimeSeconds()),
+                Boolean.TRUE.equals(stop.get("complexMode")));
+    }
+
+    /**
+     * A `.request.json` sidecar's {@code variableInfo} as the solver's spec map.
+     *
+     * <p>Keyed by the trimmed lowercased name, which is what the solver looks a
+     * spec up by (and what {@link VariableSpec}'s own constructor folds the name
+     * to). JSON has no infinity literal and does not need one: an **absent**
+     * bound *is* the record's default (±∞), the same convention the boundary's
+     * {@code VariableInfoDto} uses. An absent guess falls back to
+     * {@code DEFAULT_GUESS} clamped into the bounds — the Java
+     * {@code VariableInfoDto.toSpec} rule, mirrored by core's
+     * {@code engine::override_spec}.
+     *
+     * <p>Values are SI: a `VariableSpec` is the engine's own record, not the
+     * HTTP DTO, so no unit conversion belongs on this channel and the harvester
+     * never emits one.
+     */
+    private static Map<String, VariableSpec> specsOf(Map<String, Object> request) {
+        if (!(request.get("variableInfo") instanceof List<?> rows)) {
+            return Map.of();
+        }
+        Map<String, VariableSpec> specs = new LinkedHashMap<>();
+        for (Object o : rows) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> row = (Map<String, Object>) o;
+            String name = ((String) row.get("name")).trim().toLowerCase(Locale.ROOT);
+            double lower = number(row, "lower", Double.NEGATIVE_INFINITY);
+            double upper = number(row, "upper", Double.POSITIVE_INFINITY);
+            double guess = row.get("guess") instanceof Double g
+                    ? g
+                    : Math.min(Math.max(VariableSpec.DEFAULT_GUESS, lower), upper);
+            specs.put(name, new VariableSpec(name, guess, lower, upper,
+                    number(row, "uncertainty", 0.0)));
+        }
+        return specs;
+    }
+
+    private static double number(Map<String, Object> map, String key, double fallback) {
+        return map.get(key) instanceof Double d ? d : fallback;
     }
 
     @SuppressWarnings("unchecked")

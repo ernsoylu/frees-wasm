@@ -1,0 +1,9 @@
+{
+ "stopCriteria": {
+  "maxIterations": 250,
+  "relativeResiduals": 0.5,
+  "changeInVariables": 1e-13,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": false
+ }
+}

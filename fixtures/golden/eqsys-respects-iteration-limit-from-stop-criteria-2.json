@@ -1,0 +1,27 @@
+{
+  "name": "eqsys-respects-iteration-limit-from-stop-criteria-2",
+  "source": "x^2 = 2\n",
+  "request": {
+ "stopCriteria": {
+  "maxIterations": 1,
+  "relativeResiduals": 1e-10,
+  "changeInVariables": 1e-13,
+  "elapsedTimeSeconds": 3600.0,
+  "complexMode": false
+ }
+},
+  "expect": {
+    "variables": {},
+    "display_names": {},
+    "block_count": 0,
+    "ode_tables": [],
+    "error": {
+      "type": "SolverException",
+      "message": "Block 0 did not converge within 1 iterations (residual norm 0.250000). Increase the iteration limit in Preferences or adjust guess values."
+    }
+  },
+  "oracle": {
+    "engine": "frEES backend/core (Java)",
+    "generated_by": "tools/golden-dumper"
+  }
+}

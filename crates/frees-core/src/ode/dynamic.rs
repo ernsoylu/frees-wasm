@@ -181,15 +181,25 @@ pub struct DynamicSystem {
 ///
 /// `pinned` is an ordered list rather than a map because the pins become
 /// `var = value` equations and the caller controls their order.
+/// `warm` is both the warm start and the destination: it is read before any of
+/// the solve happens and, on success only, replaced by the result. Handing the
+/// buffer over rather than returning a fresh `Scope` is what lets the
+/// production implementation refresh it in place — a per-step solve on the
+/// transient path used to allocate one `Scope` per call, which was a quarter of
+/// every allocation the path made (Wave Q3). A failed solve leaves `warm`
+/// exactly as it found it, which is what the retry ladder above expects.
 pub trait AlgebraicSolve {
     fn solve(
         &mut self,
         ordinary: &[Equation],
         pinned: &[(String, f64)],
-        warm_start: Option<&Scope>,
-    ) -> Result<Scope>;
+        warm: &mut Option<Scope>,
+    ) -> Result<()>;
 }
 
+/// A closure still returns an owned `Scope` — only the production
+/// implementation has a buffer worth reusing, and the test doubles read better
+/// this way.
 impl<F> AlgebraicSolve for F
 where
     F: FnMut(&[Equation], &[(String, f64)], Option<&Scope>) -> Result<Scope>,
@@ -198,9 +208,11 @@ where
         &mut self,
         ordinary: &[Equation],
         pinned: &[(String, f64)],
-        warm_start: Option<&Scope>,
-    ) -> Result<Scope> {
-        self(ordinary, pinned, warm_start)
+        warm: &mut Option<Scope>,
+    ) -> Result<()> {
+        let values = self(ordinary, pinned, warm.as_ref())?;
+        *warm = Some(values);
+        Ok(())
     }
 }
 
@@ -675,7 +687,13 @@ impl<'a> DynamicSolver<'a> {
         }
         let ordered: Vec<(String, f64)> = pinned.into_iter().collect();
         let template = self.algebraic_template.clone();
-        self.algebraic.borrow_mut().solve(&template, &ordered, None)
+        // No warm start here, and the caller wants the map: an empty
+        // destination makes `solve` fill a fresh one, exactly as before.
+        let mut out: Option<Scope> = None;
+        self.algebraic
+            .borrow_mut()
+            .solve(&template, &ordered, &mut out)?;
+        Ok(out.expect("a successful solve stores its result"))
     }
 
     fn der_values_of(&self, values: &Scope) -> Vec<f64> {
@@ -1422,17 +1440,16 @@ impl<'a> DynamicSolver<'a> {
             template.pins[*slot].1 = *value;
         }
         let outcome = {
-            let warm = self.warm_start.borrow();
+            // The same cell is the warm start and the destination now, so the
+            // borrow is mutable and must be dropped before the `Ref` below.
+            let mut warm = self.warm_start.borrow_mut();
             let mut algebraic = self.algebraic.borrow_mut();
-            algebraic.solve(&self.algebraic_template, &template.pins, warm.as_ref())
+            algebraic.solve(&self.algebraic_template, &template.pins, &mut warm)
         };
         match outcome {
-            Ok(values) => {
-                *self.warm_start.borrow_mut() = Some(values);
-                Ok(std::cell::Ref::map(self.warm_start.borrow(), |warm| {
-                    warm.as_ref().expect("warm start stored above")
-                }))
-            }
+            Ok(()) => Ok(std::cell::Ref::map(self.warm_start.borrow(), |warm| {
+                warm.as_ref().expect("a successful solve stores its result")
+            })),
             Err(FreesError::Solver { message })
                 if message.contains("underspecified")
                     || message.contains("structurally singular") =>

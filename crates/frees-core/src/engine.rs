@@ -1258,8 +1258,9 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
         &mut self,
         ordinary: &[Equation],
         pinned: &[(String, f64)],
-        warm_start: Option<&Scope>,
-    ) -> Result<Scope> {
+        warm: &mut Option<Scope>,
+    ) -> Result<()> {
+        let warm_start = warm.as_ref();
         let matches = self.prep.as_ref().is_some_and(|p| {
             p.template.as_slice() == ordinary
                 && p.pinned_names.len() == pinned.len()
@@ -1363,7 +1364,36 @@ impl crate::ode::dynamic::AlgebraicSolve for PreparedPinnedSolver<'_> {
             Some(&prep.block_cache),
         )
         .map_err(|failure| failure.error)?;
-        Ok(prep.work_scope.clone())
+
+        // Wave Q3: hand the result back through the caller's own buffer. A
+        // `Scope` clone allocates its table plus one `String` per key — nine
+        // blocks a call on `hot-transient`, a quarter of everything the
+        // per-step path allocates — and every one of those keys is already in
+        // the buffer the caller lent us, because it is a former `work_scope`
+        // of this same prep. Refreshing the values in place allocates nothing.
+        //
+        // The post-condition is the old `clone()`'s exactly: `warm` ends with
+        // `work_scope`'s keys and values and nothing else. `work_scope` only
+        // ever gains names, so after the loop the lent buffer is a superset;
+        // the length check is what catches a buffer from a *different* prep
+        // (the key sets differ) and rebuilds it outright.
+        match warm {
+            Some(previous) => {
+                for (name, value) in prep.work_scope.iter() {
+                    match previous.get_mut(name) {
+                        Some(slot) => *slot = *value,
+                        None => {
+                            previous.insert(name.clone(), *value);
+                        }
+                    }
+                }
+                if previous.len() != prep.work_scope.len() {
+                    *previous = prep.work_scope.clone();
+                }
+            }
+            None => *warm = Some(prep.work_scope.clone()),
+        }
+        Ok(())
     }
 }
 
@@ -3300,21 +3330,45 @@ fn solve_block(
     if n == 0 {
         return Ok(0);
     }
-    let block_equations: Vec<&Equation> = block
+    // Wave Q3: the compacted `Vec<&Equation>` this used to materialise on every
+    // call was the single largest allocation site in the whole per-step path —
+    // 176 448 of the 381 050 blocks a `hot-transient` run allocates, one per
+    // `solve_block` call at each of `solve_block_with_fallback`'s two call
+    // sites. It is only *needed* on the `Expr`/`Scope` fallback and in
+    // diagnostics, so it is built lazily by `block_equations()` below and the
+    // compiled path indexes `equations` directly.
+    //
+    // The precondition it used to carry is checked here without allocating,
+    // and reports the same count in the same message.
+    let resolved = block
         .equations
         .iter()
-        .filter_map(|&i| equations.get(i))
-        .collect();
-    if block_equations.len() != n {
+        .filter(|&&i| i < equations.len())
+        .count();
+    if resolved != n {
         // The blocker guarantees this; a mismatch means the two modules
         // disagree, which must be loud rather than mysterious.
         return Err(FreesError::solver(format!(
             "internal error: block {} has {} equations for {} unknowns",
             index + 1,
-            block_equations.len(),
+            resolved,
             n
         )));
     }
+    // `filter_map` *drops* an out-of-range index, so compacted position `p`
+    // equals `block.equations[p]` only when nothing was dropped. With
+    // `resolved == n` already established, that is exactly
+    // `block.equations.len() == n`. The blocker never produces anything else;
+    // when it somehow does, the compiled path is simply skipped, which is
+    // observationally identical to taking it (see [`crate::solver::slots`]).
+    let aligned = block.equations.len() == n;
+    let block_equations = || -> Vec<&Equation> {
+        block
+            .equations
+            .iter()
+            .filter_map(|&i| equations.get(i))
+            .collect()
+    };
 
     // Evaluate once at the initial point so a genuinely broken expression is
     // reported as itself instead of as "did not converge". See the module docs.
@@ -3376,10 +3430,12 @@ fn solve_block(
         &'s mut [f64],
     )>;
     let mut slot_state: SlotState<'_> = None;
-    if let (Some(compiled), Some((slots, consts, stack))) =
-        (cache.and_then(|cached| cached.compiled.as_ref()), slot_bufs)
-    {
-        if slotexpr::refresh_consts(&block_equations, &compiled.volatile, consts)
+    if let (true, Some(compiled), Some((slots, consts, stack))) = (
+        aligned,
+        cache.and_then(|cached| cached.compiled.as_ref()),
+        slot_bufs,
+    ) {
+        if slotexpr::refresh_consts(equations, &block.equations, &compiled.volatile, consts)
             && consts.len() == compiled.const_count
             && fill_slots(&compiled.names, values, slots)
         {
@@ -3390,19 +3446,30 @@ fn solve_block(
         }
     }
 
+    // The fallback evaluator, the analytic derivatives and `BlockProblem` all
+    // borrow the compacted list, so it is materialised once here when the
+    // compiled path did not take. `Vec::new()` does not allocate, so a
+    // compiled block still pays nothing for it.
+    let fallback_equations: Vec<&Equation> = match slot_state {
+        Some(_) => Vec::new(),
+        None => block_equations(),
+    };
+
     let mut last_property_error: Option<String> = None;
     let probe_result = match &mut slot_state {
         Some((compiled, slots, consts, stack)) => {
             slot_residuals_into(compiled, slots, consts, stack, probe)
         }
-        None => residuals_into(&block_equations, values, ctx, probe),
+        None => residuals_into(&fallback_equations, values, ctx, probe),
     };
     match probe_result {
         Ok(()) => {}
         Err(err @ FreesError::Property { .. }) => {
             last_property_error = Some(err.to_string_message());
         }
-        Err(other) => return Err(annotate(other, index, &block_equations)),
+        // Diagnostics only, and only on the way out: build the list rather
+        // than carry an unused one through every successful call.
+        Err(other) => return Err(annotate(other, index, &block_equations())),
     }
 
     x.clear();
@@ -3451,7 +3518,7 @@ fn solve_block(
     let derivs: Option<&Vec<Vec<Option<Expr>>>> = match cache {
         Some(cached) => cached.derivs.as_ref(),
         None => {
-            derivs_local = analytic_derivatives(&block_equations, names);
+            derivs_local = analytic_derivatives(&fallback_equations, names);
             derivs_local.as_ref()
         }
     };
@@ -3473,7 +3540,7 @@ fn solve_block(
         None => {
             let problem = BlockProblem {
                 names,
-                equations: &block_equations,
+                equations: &fallback_equations,
                 scope: &mut *values,
                 ctx,
                 derivs,
@@ -3507,7 +3574,7 @@ fn solve_block(
             Some(message) => FreesError::solver(format!("{} {message}", err.to_string_message())),
             None => err,
         };
-        annotate(err, index, &block_equations)
+        annotate(err, index, &block_equations())
     })?;
     Ok(report.iterations)
 }

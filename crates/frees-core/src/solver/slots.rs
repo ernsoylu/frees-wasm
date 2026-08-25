@@ -355,14 +355,21 @@ pub(crate) fn compile_block(
 /// Answers `false` if an expression no longer has the shape it was compiled
 /// with — the caller then falls back to the ordinary path for this call. A
 /// block with no volatile equations does no work at all here.
+///
+/// `equations` is the document's whole list and `indices` the block's
+/// positions into it, rather than the compacted `Vec<&Equation>` this used to
+/// take: `solve_block` no longer materialises that list on the compiled path
+/// (Wave Q3), and it calls here only when the two are known to line up — every
+/// index resolves, so compacted position `p` is `equations[indices[p]]`.
 pub(crate) fn refresh_consts(
-    block_equations: &[&Equation],
+    equations: &[Equation],
+    indices: &[usize],
     volatile: &[usize],
     out: &mut Vec<f64>,
 ) -> bool {
     out.clear();
     for position in volatile {
-        let Some(equation) = block_equations.get(*position) else {
+        let Some(equation) = indices.get(*position).and_then(|&i| equations.get(i)) else {
             return false;
         };
         if !collect_literals(&equation.lhs, out) || !collect_literals(&equation.rhs, out) {
@@ -518,7 +525,12 @@ mod tests {
         let equations = [&equation];
         let compiled = compile_block(&equations, &[true], &[], None).expect("compilable");
         let mut consts = Vec::new();
-        assert!(refresh_consts(&equations, &compiled.volatile, &mut consts));
+        assert!(refresh_consts(
+            std::slice::from_ref(&equation),
+            &[0],
+            &compiled.volatile,
+            &mut consts
+        ));
         assert_eq!(consts.len(), compiled.const_count);
         let map = scope(values);
         let slots: Vec<f64> = compiled
@@ -645,11 +657,21 @@ mod tests {
 
         let mut consts = Vec::new();
         let mut stack = vec![0.0; MAX_STACK];
-        assert!(refresh_consts(&[&pin], &compiled.volatile, &mut consts));
+        assert!(refresh_consts(
+            std::slice::from_ref(&pin),
+            &[0],
+            &compiled.volatile,
+            &mut consts
+        ));
         assert_eq!(consts, vec![95.0]);
 
         pin.rhs = Expr::num(42.25);
-        assert!(refresh_consts(&[&pin], &compiled.volatile, &mut consts));
+        assert!(refresh_consts(
+            std::slice::from_ref(&pin),
+            &[0],
+            &compiled.volatile,
+            &mut consts
+        ));
         assert_eq!(consts, vec![42.25]);
         let residual = eval_program(&compiled.residuals[0], &[1.0], &consts, &mut stack).unwrap();
         assert_eq!(residual, 1.0 - 42.25);
@@ -661,7 +683,12 @@ mod tests {
             compile_block(&[&template], &[false], &["k".to_string()], None).expect("compilable");
         assert_eq!(baked.const_count, 0);
         assert!(baked.volatile.is_empty());
-        assert!(refresh_consts(&[&template], &baked.volatile, &mut consts));
+        assert!(refresh_consts(
+            std::slice::from_ref(&template),
+            &[0],
+            &baked.volatile,
+            &mut consts
+        ));
         assert!(consts.is_empty());
         let residual = eval_program(&baked.residuals[0], &[7.0], &consts, &mut stack).unwrap();
         assert_eq!(residual, 7.0 - 100.001);
@@ -682,7 +709,8 @@ mod tests {
         );
         let mut consts = Vec::new();
         assert!(!refresh_consts(
-            &[&reshaped],
+            std::slice::from_ref(&reshaped),
+            &[0],
             &compiled.volatile,
             &mut consts
         ));
@@ -693,7 +721,53 @@ mod tests {
             Expr::bin(BinOp::Add, Expr::num(90.0), Expr::num(5.0)),
             "t",
         );
-        assert!(refresh_consts(&[&widened], &compiled.volatile, &mut consts));
+        assert!(refresh_consts(
+            std::slice::from_ref(&widened),
+            &[0],
+            &compiled.volatile,
+            &mut consts
+        ));
         assert_ne!(consts.len(), compiled.const_count);
+    }
+
+    /// Wave Q3: `refresh_consts` resolves the block's equations through its
+    /// index list instead of a compacted `Vec<&Equation>` the caller built. A
+    /// block whose equations sit out of order in the document must still walk
+    /// them in *block* order, because that is the order `compile_block`
+    /// assigned the slots.
+    #[test]
+    fn refresh_walks_block_order_not_document_order() {
+        let document = vec![
+            crate::ast::Equation::new(Expr::var("a"), Expr::num(1.5), "a = 1.5"),
+            crate::ast::Equation::new(Expr::var("spacer"), Expr::num(0.0), "spacer = 0"),
+            crate::ast::Equation::new(Expr::var("b"), Expr::num(2.25), "b = 2.25"),
+        ];
+        // The block is document equations 2 and 0, in that order.
+        let indices = [2usize, 0];
+        let compacted: Vec<&crate::ast::Equation> = indices.iter().map(|&i| &document[i]).collect();
+        let variables = vec!["b".to_string(), "a".to_string()];
+        let compiled =
+            compile_block(&compacted, &[true, true], &variables, None).expect("compilable");
+        assert_eq!(compiled.volatile, vec![0, 1]);
+
+        let mut consts = Vec::new();
+        assert!(refresh_consts(
+            &document,
+            &indices,
+            &compiled.volatile,
+            &mut consts
+        ));
+        // Equation 2's literal first, then equation 0's — block order, and the
+        // document's `spacer` never walked.
+        assert_eq!(consts, vec![2.25, 1.5]);
+
+        // An index that does not resolve refuses, which is what makes
+        // `solve_block` fall back rather than evaluate against stale ops.
+        assert!(!refresh_consts(
+            &document,
+            &[9usize, 0],
+            &compiled.volatile,
+            &mut consts
+        ));
     }
 }

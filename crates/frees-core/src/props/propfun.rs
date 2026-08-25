@@ -66,7 +66,7 @@
 // obviously deliberate — same treatment as `eval.rs`, `linalg.rs`, `nasa.rs`.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::diag::{FreesError, Result};
 use crate::props::{combustion, idealgas, solids};
@@ -308,13 +308,17 @@ static BACKEND: RwLock<Option<Arc<dyn RealFluid>>> = RwLock::new(None);
 /// one. Returns the backend that was installed before.
 pub fn install(backend: Arc<dyn RealFluid>) -> Option<Arc<dyn RealFluid>> {
     let mut slot = BACKEND.write().unwrap_or_else(|e| e.into_inner());
-    slot.replace(backend)
+    let previous = slot.replace(backend);
+    cache::clear();
+    previous
 }
 
 /// Removes the installed backend; every real-fluid call then fails honestly.
 pub fn uninstall() -> Option<Arc<dyn RealFluid>> {
     let mut slot = BACKEND.write().unwrap_or_else(|e| e.into_inner());
-    slot.take()
+    let previous = slot.take();
+    cache::clear();
+    previous
 }
 
 /// The installed backend, if any.
@@ -340,6 +344,236 @@ pub fn backend_description() -> String {
     }
 }
 
+// ---------------------------------------------------------------------------
+// The property caches — `CoolProp.PROPS_CACHE` and `CoolProp.HA_CACHE`
+// ---------------------------------------------------------------------------
+
+/// The memo the Java façade keeps in front of the native library, ported at the
+/// one depth this port can prove correct.
+///
+/// # What the Java has, and why this port needs it
+///
+/// `props/CoolProp.java` holds `PROPS_CACHE` and `HA_CACHE`: two
+/// `LinkedHashMap(16, 0.75f, true)` — access-ordered, evicting the eldest past
+/// 20 000 entries — keyed by the *whole* call, `(output, name1, prop1, name2,
+/// prop2, fluid)` for `PropsSI` and `(output, name1, prop1, name2, prop2,
+/// name3, prop3)` for `HAPropsSI`. Its own comment says why: "PropsSI is a pure
+/// function of its arguments: repeated states — iterative solves circling a
+/// fixed point … skip the global-lock native call entirely." This module was
+/// ported without them, and CLAUDE.md's dependency table asked for them by name
+/// ("keep the same four-call façade, **including the existing LRU caches**").
+///
+/// What that costs is measured rather than guessed. Replaying
+/// `fixtures/corpus/ev-battery-cooling-pid.frees` — the document that is 61 %
+/// of the parity gate's wall clock — makes **5 539 832** `props_si` calls for
+/// **162 893** distinct argument tuples. 97.1 % of every property call in that
+/// solve repeats a tuple already answered, and **84.1 % repeat the immediately
+/// preceding call verbatim**. That shape is exactly the one the Java comment
+/// describes: a finite-difference Jacobian re-evaluates a block's residuals once
+/// per variable, and a property call whose two arguments do not involve the
+/// perturbed variable is asked the identical question every time. Four of the
+/// six call shapes that document uses have **one or two** distinct tuples across
+/// the whole 4000-second transient — `Hmass(Water, P=200 kPa, T=305 K)` is asked
+/// 54 757 times and has exactly one answer.
+///
+/// # Why the capacity is one, and not the Java's 20 000
+///
+/// Under the Java the cache was pure bookkeeping: CoolProp's `PropsSI` *is* a
+/// pure function of its arguments, so a hit and a miss return the same double at
+/// any capacity. Here it is not, quite. [`super::rustprop_warm`] seeds each
+/// `(P,Hmass)`/`(P,Smass)` flash from the previous answer, so the answer to a
+/// call is a function of its arguments **and of the seed left by whatever was
+/// asked before it**. A cache entry is only honest while that seed still says
+/// what it said when the entry was written.
+///
+/// Measured on the document above, replaying the call stream through LRUs of
+/// eight capacities and comparing every hit against the value the live call
+/// actually returned:
+///
+/// ```text
+///   capacity   hits (% of all calls)   bit-identical to the live answer
+///          1     4 659 582  (84.11 %)                          99.72 %
+///          2     5 182 716  (93.55 %)                          65.11 %
+///          4     5 205 035  (93.96 %)                          46.96 %
+///          8     5 294 997  (95.58 %)                          17.30 %
+///         16     5 325 438  (96.13 %)                          17.06 %
+///         32     5 372 342  (96.98 %)                          16.78 %
+///        128     5 375 918  (97.04 %)                          16.65 %
+///     20 000     5 376 906  (97.06 %)                          16.60 %
+/// ```
+///
+/// The knee is not a matter of taste. At capacity **1** a hit means the
+/// *immediately preceding* property call asked this same question, so the warm
+/// adapter's seed is still the state that call converged on and a live recompute
+/// starts where it stopped. At capacity 2 something else has been asked in
+/// between, the seed has moved, and fidelity collapses by a third immediately
+/// and to a sixth by capacity 8. Nine more percentage points of hit rate cost
+/// five sixths of the guarantee.
+///
+/// So the port takes the Java's mechanism at the depth where it can still make
+/// the Java's promise — a hit returns what the call would have returned — and
+/// says out loud that it is leaving 13 points of hit rate on the table. Lifting
+/// the cap needs the entry to carry the seed identity it was written under, not
+/// a bigger number here; that is recorded as the next step rather than done
+/// speculatively.
+///
+/// **The 0.28 % that are not bit-identical move *towards* the oracle, not away.**
+/// They are the calls whose first evaluation took `rustprop_warm`'s cold path —
+/// `HSU_P_flash`, whose answer is bit-identical to `rustprop::props_si` and
+/// therefore to CoolProp 8.0.0 — and whose repeat would have been served by the
+/// seeded Newton instead. Probed directly at the worst state in the corpus,
+/// `T(R134a, P = 3.5e5, Hmass = 1.0e5)`: cold and `rustprop::props_si` agree
+/// bitwise, twelve different seeds put the warm answer within `2.8e-14` of each
+/// other and all twelve sit `1.694e-10` from that cold answer. The cache serves
+/// the cold one.
+///
+/// # Failures are not cached
+///
+/// Deliberately, and for the Java's stated reason — "so the error string stays
+/// fresh". Only a value the backend returned as `Ok` is stored, so a refused
+/// state is refused again, with a message describing the call actually made.
+///
+/// One Java behaviour is *not* reproduced, and it is a speed difference rather
+/// than a value one: `propsSIOrNaN` caches its `NaN` and the throwing `propsSI`
+/// then skips such an entry (`cached != null && !cached.isNaN()`). Here
+/// [`props_si_or_nan`] delegates to [`props_si`], so a repeatedly-failing state
+/// is re-asked rather than served a stored `NaN` — the same value, one backend
+/// call later.
+mod cache {
+    use super::Mutex;
+
+    /// One remembered call: the last one this façade answered.
+    ///
+    /// The strings are owned and **overwritten in place** rather than
+    /// reallocated, because a miss happens hundreds of thousands of times in a
+    /// transient solve and four allocations apiece would be a real fraction of
+    /// what the cache saves.
+    #[derive(Default)]
+    struct Slot {
+        names: [String; 4],
+        /// Input values, bitwise. Bits rather than `f64` so the key is `Eq`,
+        /// which also matches the Java: its record equality is `Double.equals`,
+        /// under which `NaN` matches itself and `+0.0` does not match `-0.0`.
+        /// (No backend stores an entry for a non-finite input, but the key type
+        /// should not be the reason.)
+        values: [u64; 3],
+        value: f64,
+        /// `false` until the first successful call is remembered — a `Slot` of
+        /// empty names would otherwise match a call with empty names, which
+        /// [`props1_si`](super::props1_si)'s shape makes reachable.
+        occupied: bool,
+    }
+
+    impl Slot {
+        fn matches(&self, names: [&str; 4], values: [u64; 3]) -> bool {
+            self.occupied
+                && self.values == values
+                && self.names[0] == names[0]
+                && self.names[1] == names[1]
+                && self.names[2] == names[2]
+                && self.names[3] == names[3]
+        }
+
+        fn remember(&mut self, names: [&str; 4], values: [u64; 3], value: f64) {
+            for (slot, name) in self.names.iter_mut().zip(names) {
+                slot.clear();
+                slot.push_str(name);
+            }
+            self.values = values;
+            self.value = value;
+            self.occupied = true;
+        }
+    }
+
+    static PROPS: Mutex<Option<Slot>> = Mutex::new(None);
+    static HA: Mutex<Option<Slot>> = Mutex::new(None);
+
+    fn with<T>(which: &Mutex<Option<Slot>>, f: impl FnOnce(&mut Slot) -> T) -> T {
+        let mut guard = which.lock().unwrap_or_else(|e| e.into_inner());
+        f(guard.get_or_insert_with(Slot::default))
+    }
+
+    /// `PropsSI`: `(output, name1, value1, name2, value2, fluid)`.
+    pub(super) fn props_get(
+        output: &str,
+        name1: &str,
+        value1: f64,
+        name2: &str,
+        value2: f64,
+        fluid: &str,
+    ) -> Option<f64> {
+        let names = [output, name1, name2, fluid];
+        let values = [value1.to_bits(), value2.to_bits(), 0];
+        with(&PROPS, |s| s.matches(names, values).then_some(s.value))
+    }
+
+    pub(super) fn props_put(
+        output: &str,
+        name1: &str,
+        value1: f64,
+        name2: &str,
+        value2: f64,
+        fluid: &str,
+        value: f64,
+    ) {
+        let names = [output, name1, name2, fluid];
+        let values = [value1.to_bits(), value2.to_bits(), 0];
+        with(&PROPS, |s| s.remember(names, values, value));
+    }
+
+    /// `HAPropsSI`: `(output, name1, value1, name2, value2, name3, value3)`.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn ha_get(
+        output: &str,
+        name1: &str,
+        value1: f64,
+        name2: &str,
+        value2: f64,
+        name3: &str,
+        value3: f64,
+    ) -> Option<f64> {
+        let names = [output, name1, name2, name3];
+        let values = [value1.to_bits(), value2.to_bits(), value3.to_bits()];
+        with(&HA, |s| s.matches(names, values).then_some(s.value))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn ha_put(
+        output: &str,
+        name1: &str,
+        value1: f64,
+        name2: &str,
+        value2: f64,
+        name3: &str,
+        value3: f64,
+        value: f64,
+    ) {
+        let names = [output, name1, name2, name3];
+        let values = [value1.to_bits(), value2.to_bits(), value3.to_bits()];
+        with(&HA, |s| s.remember(names, values, value));
+    }
+
+    /// Forgets both remembered calls.
+    ///
+    /// Called whenever the installed backend changes: two backends answer the
+    /// same question differently by construction — that is what installing one
+    /// *means* — so an entry must not outlive the backend that wrote it.
+    pub(super) fn clear() {
+        with(&PROPS, |s| s.occupied = false);
+        with(&HA, |s| s.occupied = false);
+    }
+}
+
+/// Forgets the last property call each façade remembers — see [`mod@cache`].
+///
+/// [`install`] and [`uninstall`] already do this. A caller needs it only to take
+/// a measurement against a cold cache: a benchmark, or a test that asserts on
+/// [`super::rustprop_warm::stats`] through this façade rather than against the
+/// backend directly.
+pub fn clear_cache() {
+    cache::clear();
+}
+
 fn no_backend(what: &str) -> FreesError {
     FreesError::property(format!(
         "{what} needs a real-fluid property backend and none is installed. \
@@ -362,7 +596,15 @@ pub fn props_si(
             "{output}({fluid}, {name1}={value1}, {name2}={value2})"
         )));
     };
-    be.props_si(output, name1, value1, name2, value2, fluid)
+    // `CoolProp.propsSI`'s LRU, in the Java's position: in front of the
+    // backend, consulted before the call and written only on success. See
+    // [`mod@cache`] for the measurement that says why it is worth having.
+    if let Some(value) = cache::props_get(output, name1, value1, name2, value2, fluid) {
+        return Ok(value);
+    }
+    let value = be.props_si(output, name1, value1, name2, value2, fluid)?;
+    cache::props_put(output, name1, value1, name2, value2, fluid, value);
+    Ok(value)
 }
 
 /// Port of `CoolProp.propsSIOrNaN` — the diagram sweeps' entry point.
@@ -406,7 +648,17 @@ pub fn ha_props_si(
             "{output}(AirH2O, {name1}={value1}, {name2}={value2}, {name3}={value3})"
         )));
     };
-    be.ha_props_si(output, name1, value1, name2, value2, name3, value3)
+    // `CoolProp.haPropsSI`'s own LRU — the Java keeps a second one, on the
+    // stated grounds that "psychrometric sweeps and coil iterations repeat
+    // states heavily". Nothing in the humid-air path carries state between
+    // calls (the warm adapter never sees it), so a hit here is bit-identical to
+    // the call it replaces.
+    if let Some(value) = cache::ha_get(output, name1, value1, name2, value2, name3, value3) {
+        return Ok(value);
+    }
+    let value = be.ha_props_si(output, name1, value1, name2, value2, name3, value3)?;
+    cache::ha_put(output, name1, value1, name2, value2, name3, value3, value);
+    Ok(value)
 }
 
 /// Port of `CoolProp.haPropsSIOrNaN` — the psychrometric sweeps' entry point.
@@ -1900,6 +2152,200 @@ mod tests {
                 uninstall();
             }
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // The property caches (`mod@cache`)
+    // -----------------------------------------------------------------------
+
+    /// A backend that counts every call and answers `value1 + value2` (or the
+    /// three-value sum for humid air), so a test can see whether the façade
+    /// reached it. `"boom"` as the output is a refusal, for the
+    /// failures-are-not-cached rule.
+    #[derive(Default)]
+    struct Counting {
+        props: std::sync::atomic::AtomicU64,
+        ha: std::sync::atomic::AtomicU64,
+    }
+
+    impl RealFluid for Counting {
+        fn props_si(
+            &self,
+            output: &str,
+            _name1: &str,
+            value1: f64,
+            _name2: &str,
+            value2: f64,
+            _fluid: &str,
+        ) -> Result<f64> {
+            self.props
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if output == "boom" {
+                return Err(FreesError::property("no"));
+            }
+            Ok(value1 + value2)
+        }
+
+        fn props1_si(&self, _fluid: &str, _param: &str) -> Result<f64> {
+            Ok(1.0)
+        }
+
+        fn ha_props_si(
+            &self,
+            output: &str,
+            _name1: &str,
+            value1: f64,
+            _name2: &str,
+            value2: f64,
+            _name3: &str,
+            value3: f64,
+        ) -> Result<f64> {
+            self.ha.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if output == "boom" {
+                return Err(FreesError::property("no"));
+            }
+            Ok(value1 + value2 + value3)
+        }
+    }
+
+    fn with_counting<T>(body: impl FnOnce(&Counting) -> T) -> T {
+        let _guard = test_swap_guard();
+        let backend = Arc::new(Counting::default());
+        let previous = install(backend.clone());
+        let out = body(&backend);
+        restore(previous);
+        out
+    }
+
+    fn counts(backend: &Counting) -> (u64, u64) {
+        use std::sync::atomic::Ordering::Relaxed;
+        (backend.props.load(Relaxed), backend.ha.load(Relaxed))
+    }
+
+    /// The whole point: the immediately repeated call does not reach the
+    /// backend, and answers the same double.
+    #[test]
+    fn an_immediately_repeated_call_is_served_without_the_backend() {
+        with_counting(|be| {
+            let first = props_si("T", "P", 3.5e5, "Hmass", 1.0e5, "R134a").unwrap();
+            assert_eq!(counts(be).0, 1);
+            for _ in 0..99 {
+                let again = props_si("T", "P", 3.5e5, "Hmass", 1.0e5, "R134a").unwrap();
+                assert_eq!(again.to_bits(), first.to_bits());
+            }
+            assert_eq!(counts(be).0, 1, "99 repeats must not reach the backend");
+
+            let ha = ha_props_si("H", "T", 298.15, "P", 101_325.0, "R", 0.5).unwrap();
+            assert_eq!(counts(be).1, 1);
+            for _ in 0..99 {
+                assert_eq!(
+                    ha_props_si("H", "T", 298.15, "P", 101_325.0, "R", 0.5)
+                        .unwrap()
+                        .to_bits(),
+                    ha.to_bits()
+                );
+            }
+            assert_eq!(counts(be).1, 1);
+        });
+    }
+
+    /// Capacity is **one**, deliberately — `mod@cache` has the measurement. A
+    /// call in between evicts, and this test is what says so out loud: raising
+    /// the capacity is not a tuning knob, it is a change of contract.
+    #[test]
+    fn one_intervening_call_evicts_the_entry() {
+        with_counting(|be| {
+            props_si("T", "P", 3.5e5, "Hmass", 1.0e5, "R134a").unwrap();
+            props_si("T", "P", 3.5e5, "Hmass", 1.0e5, "Water").unwrap();
+            props_si("T", "P", 3.5e5, "Hmass", 1.0e5, "R134a").unwrap();
+            assert_eq!(counts(be).0, 3);
+        });
+    }
+
+    /// Every component of the key discriminates — a cache that confused two of
+    /// these would answer a different question than the one asked.
+    #[test]
+    fn every_part_of_the_key_discriminates() {
+        with_counting(|be| {
+            let base = || props_si("T", "P", 3.5e5, "Hmass", 1.0e5, "R134a").unwrap();
+            let mut expected = 0;
+            for call in [
+                ("Dmass", "P", 3.5e5, "Hmass", 1.0e5, "R134a"), // output
+                ("T", "Q", 3.5e5, "Hmass", 1.0e5, "R134a"),     // name1
+                ("T", "P", 3.6e5, "Hmass", 1.0e5, "R134a"),     // value1
+                ("T", "P", 3.5e5, "Smass", 1.0e5, "R134a"),     // name2
+                ("T", "P", 3.5e5, "Hmass", 1.1e5, "R134a"),     // value2
+                ("T", "P", 3.5e5, "Hmass", 1.0e5, "Water"),     // fluid
+            ] {
+                base();
+                let (o, n1, v1, n2, v2, f) = call;
+                props_si(o, n1, v1, n2, v2, f).unwrap();
+                expected += 2;
+                assert_eq!(
+                    counts(be).0,
+                    expected,
+                    "{call:?} was confused with the base"
+                );
+            }
+            // `+0.0` and `-0.0` are different keys, as they are in the Java
+            // (whose record equality is `Double.equals`).
+            base();
+            props_si("T", "P", 0.0, "Hmass", 1.0e5, "R134a").unwrap();
+            props_si("T", "P", -0.0, "Hmass", 1.0e5, "R134a").unwrap();
+            assert_eq!(counts(be).0, expected + 3);
+        });
+    }
+
+    /// "Failures are not cached so the error string stays fresh" — the Java's
+    /// rule, and the reason a refused state is refused again by the backend
+    /// rather than by a stale memo.
+    #[test]
+    fn a_refusal_is_never_remembered() {
+        with_counting(|be| {
+            for _ in 0..5 {
+                assert!(props_si("boom", "P", 1.0, "Hmass", 2.0, "Water").is_err());
+            }
+            assert_eq!(counts(be).0, 5);
+            for _ in 0..5 {
+                assert!(ha_props_si("boom", "T", 1.0, "P", 2.0, "R", 3.0).is_err());
+            }
+            assert_eq!(counts(be).1, 5);
+        });
+    }
+
+    /// An entry must not outlive the backend that wrote it: installing a new
+    /// one is a statement that the same question now has a different answer.
+    #[test]
+    fn changing_the_backend_forgets_the_entry() {
+        let _guard = test_swap_guard();
+        let previous = install(Arc::new(Recorded::new(&[("T|P=1|Hmass=2|Water", 300.0)])));
+        assert_eq!(
+            props_si("T", "P", 1.0, "Hmass", 2.0, "Water").unwrap(),
+            300.0
+        );
+        install(Arc::new(Recorded::new(&[("T|P=1|Hmass=2|Water", 400.0)])));
+        assert_eq!(
+            props_si("T", "P", 1.0, "Hmass", 2.0, "Water").unwrap(),
+            400.0
+        );
+        // …and uninstalling leaves nothing behind to answer with.
+        uninstall();
+        assert!(props_si("T", "P", 1.0, "Hmass", 2.0, "Water").is_err());
+        restore(previous);
+    }
+
+    /// [`clear_cache`] is the seam a measurement needs, so it has to work from
+    /// outside the module.
+    #[test]
+    fn clear_cache_forces_the_next_call_through() {
+        with_counting(|be| {
+            props_si("T", "P", 1.0, "Hmass", 2.0, "Water").unwrap();
+            props_si("T", "P", 1.0, "Hmass", 2.0, "Water").unwrap();
+            assert_eq!(counts(be).0, 1);
+            clear_cache();
+            props_si("T", "P", 1.0, "Hmass", 2.0, "Water").unwrap();
+            assert_eq!(counts(be).0, 2);
+        });
     }
 
     #[test]

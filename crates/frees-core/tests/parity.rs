@@ -322,6 +322,33 @@
 //! PID-controlled transient graded through `ode_tables`, and until it gets
 //! cheaper no amount of parallelism takes this job below ~3 min of replay.
 //!
+//! ### That lever has been pulled once — 2026-08-25, Wave R2
+//!
+//! The paragraph above is kept as written, because its *reasoning* is what the
+//! shard table was derived from. Its seconds are now history. R2 ported the LRU
+//! the Java façade keeps in front of CoolProp — `props/propfun.rs`'s `cache`
+//! module, and `props/CoolProp.java` for the original — which this engine had
+//! been missing: `ev-battery-cooling-pid` makes **5 539 832** property calls for
+//! 162 893 distinct argument tuples, and 84 % of them repeat the call
+//! immediately before them. Re-measured on a quiet box, paired and alternated,
+//! user CPU:
+//!
+//! ```text
+//!                                        before      after
+//!   ev-battery-cooling-pid alone         79.4 s     44.5 s    1.78x
+//!     (PARITY_SHARD_COUNT=1308 PARITY_SHARD_INDEX=855)
+//!   the whole 1 308-fixture replay      167.9 s    132.3 s    -21.2 %
+//!   the document's share of the gate     47.3 %     33.6 %
+//! ```
+//!
+//! Two things there are worth carrying forward. The **whole** saving is this one
+//! document — the rest of the corpus measures the same before and after, which
+//! is exactly the concentration the table above describes. And the document is
+//! *still* the critical path at a third of the gate, so the floor argument
+//! survives with a smaller floor: ~44 s rather than ~193 s. The shard table's
+//! own seconds predate both this change and Q3's, and want re-measuring before
+//! anyone re-derives `N` from them.
+//!
 //! ## Why the gate is not weaker across the union
 //!
 //! Three things could make a shard assert less than a whole run does, and each

@@ -382,7 +382,38 @@
     "says so out loud, which is exactly how the first draft of this wave was",
     "caught. rada.q_lat is 16 ulps in BOTH contexts, so it is the one graded",
     "absolutely, at 9.4e-11 W. If a later corpus change moves either, re-measure",
-    "and re-declare. Do not widen."
+    "and re-declare. Do not widen.",
+    "",
+    "A FOURTEENTH ENTRY DIED ON 2026-08-25 (Wave R2), and it died for a reason",
+    "this file had already half-written down:",
+    "",
+    "  components_g4_radiator                      1.2947e-14  (was 1.2042e-6)",
+    "",
+    "R2 ported the LRU the Java facade keeps in front of CoolProp",
+    "(props/CoolProp.java's PROPS_CACHE / HA_CACHE), which this engine had been",
+    "missing since Phase 5 -- see props/propfun.rs's `cache` module for the",
+    "capacity measurement that sets its depth at one entry. The radiator's only",
+    "diverging variable was rad.ar.q_lat, a near-zero latent flow computed as the",
+    "difference of two nearly equal humidity ratios: an eleven-digit cancellation,",
+    "and therefore an amplifier for the last ulp of whatever fed it. The entry",
+    "this wave deleted blamed 'a tabulated refrigerant-side temperature', which",
+    "was the wrong half of the truth. The document makes 28 property calls; 22 of",
+    "them repeat the call immediately before them, and under the old engine ONE of",
+    "those 22 came back 1.6e-13 different from its twin -- Temperature(Water,",
+    "P = 200 kPa, Hmass = 397545.4851114021) -- because rustprop_warm re-seeds",
+    "each flash from the previous answer. The cancellation turned 1.6e-13 into",
+    "1.20e-6 on q_lat. The Java oracle never had that residue: its cache answered",
+    "the repeat with the identical double, so its cancellation was exact. Cache",
+    "the repeat here and ours is exact too, and the fixture lands on the golden at",
+    "1.29e-14.",
+    "",
+    "That is the same mechanism the conda.q_lat paragraph above identifies -- 'a",
+    "warm-started flash can converge on a different last ulp than a cold one, and",
+    "an eleven-digit cancellation turns that into the leading digits of q_lat' --",
+    "read from the other end. It is worth stating plainly what that implies: the",
+    "goldens were produced by an engine WITH this cache, so repeating a property",
+    "call and getting the same double back is oracle behaviour, not an",
+    "optimisation this port bolted on."
   ],
   "mechanisms": {
     "oracle-ph-table": [
@@ -740,12 +771,6 @@
       "measured": 5.6033e-07,
       "mechanism": "oracle-ph-table",
       "reason": "The steady few-cell evaporator's per-cell states are Density/Temperature(R134a, P, h) \u2014 the intercepted shape. Worst is ev.rho2, the middle-cell density: ours 26.68366211229295, golden 26.6836770638306 (5.60e-7), the same Dmass-table signature components_family_ac documents with a wheel probe at another state."
-    },
-    "components_g4_radiator": {
-      "relative": 1.8e-06,
-      "measured": 1.2042e-06,
-      "mechanism": "oracle-ph-table",
-      "reason": "The wet-coil branch evaluates the moist-air/refrigerant coupling with a tabulated refrigerant-side temperature; the divergence lands on rad.ar.q_lat, a near-zero latent flow (ours 8.6468454438271e-6 W vs golden 8.646855856331293e-6 W): a microwatt-scale difference of the same tabulated-T origin, 1.20e-6 relative on the small denominator and the fixture's only diverging variable."
     },
     "components_g4_transcriticalbackpressurevalve": {
       "relative": 6.1e-07,

@@ -194,11 +194,18 @@ budget was raised **3072 → 4096 KiB** — owner-authorized, sanctioned by the
 CI header's own rule since D9 paid debt (1); the header's dated entry has
 the full lever-by-lever justification. Current headroom ≈ 1031 KiB.)* Thirteen of the 23 entries in `fixtures/tolerances.json` are
 retired: the rustprop configuration is graded by
-`fixtures/tolerances-rustprop.json` and its **thirty-eight** entries (ten
-scalar since Wave-3 F5, Wave G1's two transient entries, Wave G4's eleven
-component-harvest entries — all 2026-08-23 — Wave A1's fourteen
-two-phase-cycle entries and Wave C1's CO2 entry, 2026-08-24), one file per
+`fixtures/tolerances-rustprop.json` and its **66 relative entries plus 10
+absolute ones covering 11 variables** (ten scalar since Wave-3 F5, Wave G1's
+two transient entries, Wave G4's eleven component-harvest entries — all
+2026-08-23 — Wave A1's fourteen two-phase-cycle entries and Wave C1's CO2
+entry, 2026-08-24, then Wave P1's absolute channel, Wave P2's eighteen
+class-sweep entries and Wave Q1's last two, 2026-08-24/25), one file per
 backend, chosen by the same `rustprop-backend` cfg that chooses the backend.
+Five mechanisms are catalogued and every entry names one: `oracle-ph-table`,
+`upstream-ps-flash-residual`, `ida-adaptive-path`, `ode45-adaptive-path` and
+Wave Q1's `smooth-clamp-regulariser` (a latent duty that is structurally zero,
+where the golden is the model's own `1e-12` smooth-min regulariser recovered
+by an eleven-digit cancellation — the first `absolute` entry graded in watts).
 `HAPropsSI` answers. `Air` left the property-diagram picker with the
 `air.fraux` grid it was the only backing for — *and came back at
 Wave-2/Wave-3, once rustprop's own pseudo-pure `HSU_P`/`(D,P)` flashes landed:
@@ -308,14 +315,14 @@ now lives in `Latex.tsx`.
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
 | [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach — superseded for the browser by D9), D8 (CoolProp-grade accuracy becomes the property path — **implemented and closed**, by rustprop rather than by the `coolprop.wasm` it imagined), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)**, D10 (the spreadsheet and Univer are removed — Wave H, 2026-08-23: the Tables workbook is a native glide grid, GUI function tables reach the engine on every request via the completed `functionTables` port with the document-wins collision rule, sweep/fit/CSV compose into callable functions, and the dist shrank 15.2 → 9.7 MB — read it before reintroducing any spreadsheet dependency or promising a GUI table can override a document `TABLE` block) |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (1306 — **Wave J** swept the 114 Java test classes that were never in the harvester's class list; +255; Wave A1 promoted 14 property holds, Wave C1 added CO2 and Wave P1 eight exact-zero documents, four of them re-harvested from Wave J's unstaged set; **Wave Q** +25, the Java sites whose *request* the fixture format could not carry) and golden fixtures, the `.tables.json` request-table sidecars (Wave I) and the `.request.json` solver-request sidecars (**Wave Q** — non-default stop criteria, complex mode, and `VariableSpec` guesses/bounds; an absent sidecar is the engine defaults, so it changed no existing fixture), the pending set (3; the `dyn_accessor_live` cost hold, `ev-tms-api-model`, whose worst variable is a regulariser artefact Wave P2 declined to pin with a relative tolerance, and Wave Q's `ode45`-shooting rocket), the decayed-signal measure (Wave G1) for ODE row cells and the **absolute channel** (Wave P1) for a quantity whose true value is a structurally exact zero, how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships — 64 relative + 8 absolute entries; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
+| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (1308 — **Wave J** swept the 114 Java test classes that were never in the harvester's class list; +255; Wave A1 promoted 14 property holds, Wave C1 added CO2 and Wave P1 eight exact-zero documents, four of them re-harvested from Wave J's unstaged set; **Wave Q** +25, the Java sites whose *request* the fixture format could not carry) and golden fixtures, the `.tables.json` request-table sidecars (Wave I) and the `.request.json` solver-request sidecars (**Wave Q** — non-default stop criteria, complex mode, and `VariableSpec` guesses/bounds; an absent sidecar is the engine defaults, so it changed no existing fixture), the pending set (3; the `dyn_accessor_live` cost hold, `ev-tms-api-model`, whose worst variable is a regulariser artefact Wave P2 declined to pin with a relative tolerance, and Wave Q's `ode45`-shooting rocket), the decayed-signal measure (Wave G1) for ODE row cells and the **absolute channel** (Wave P1) for a quantity whose true value is a structurally exact zero, how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships — 64 relative + 8 absolute entries; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
 
 ## Build and test
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
-                                       # (--release: the replay solves 1306 documents,
+                                       # (--release: the replay solves 1308 documents,
                                        #  406 s of the run measured at Wave Q on a
                                        #  shared machine — 2026-08-25)
 cargo test --workspace --test parity   # golden-corpus parity only — what CI runs

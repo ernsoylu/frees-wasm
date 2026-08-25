@@ -5,13 +5,13 @@ JUnit tests; hand-translating 24,359 lines of test code would be the project's
 biggest mistake. Instead both engines run the **same corpus** and are compared.
 
 ```
-fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1306
+fixtures/corpus/*.frees        the documents (hand-authored + harvested)  — 1308
 fixtures/corpus/*.tables.json  request-level Function Tables for the document
                                beside them (12 — the curvefn group; see below)
 fixtures/corpus/*.request.json non-default solver settings / variable specs for
                                the document beside them (25; see below)
-fixtures/golden/*.json         what the Java engine produced for each     — 1306
-fixtures/corpus-pending/       the staging area: documents not yet promoted — 3
+fixtures/golden/*.json         what the Java engine produced for each     — 1308
+fixtures/corpus-pending/       the staging area: documents not yet promoted — 2
 fixtures/proptables/      generated CoolProp (P,h) split tables (not a parity artifact)
 fixtures/auxtables/       generated CoolProp FRAUX1 grids   (not a parity artifact)
 tools/golden-dumper/      the Java side that generates fixtures/golden
@@ -297,7 +297,7 @@ cfg that selects the property backend:
 | file | grades | entries |
 |---|---|---:|
 | `tolerances.json` | the D1 `(P,h)` `TableBackend` | 23 |
-| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 64 relative + 8 absolute |
+| `tolerances-rustprop.json` | rustprop, the accuracy path — what the wasm ships | 66 relative + 10 absolute (11 variables) |
 
 They cannot be merged, because the "dead tolerance" guard above is what makes
 them backend-specific: thirteen of the 23 entries exist only because of the
@@ -307,13 +307,17 @@ tables' own interpolation error, and under rustprop — which *is* CoolProp 8.0.
 *(The rustprop file's count is a corpus-growth number, not a quality one: F5
 re-baselined it at **ten**, Wave G1 added the first two transients, Wave G4's
 component sweep added eleven, Wave A1 (2026-08-24) added fourteen from the
-Wave-I two-phase-cycle harvest and Wave C1 one for CO2, and Wave P2 the same
-day added eighteen from the Wave-J class sweep — **56**. Forty-eight of the 56
-are `oracle-ph-table`, i.e. the Java's own run-time `(P,Hmass)` interpolation
-table; 4 are `ida-adaptive-path`, 3 `upstream-ps-flash-residual` and 1 the
-`ode45-adaptive-path` Wave P2 catalogued. Each entry carries its own evidence
-in `reason`; A1's fourteen and P2's nineteen were every one leaf-probed against
-the CoolProp 8.0.0 wheel at the Java's own inputs before they were written.)*
+Wave-I two-phase-cycle harvest and Wave C1 one for CO2, Wave P2 the same day
+added eighteen from the Wave-J class sweep, Wave P1 opened the `absolute`
+section and brought eight documents in with both kinds of entry, and Wave Q1
+(2026-08-25) closed the last two held documents — **66 relative + 10
+absolute**. Counted by mechanism: 57 relative and 9 absolute are
+`oracle-ph-table`, i.e. the Java's own run-time `(P,Hmass)` interpolation
+table; 5 are `ida-adaptive-path`, 3 `upstream-ps-flash-residual`, 1 the
+`ode45-adaptive-path` Wave P2 catalogued and 1 the `smooth-clamp-regulariser`
+Wave Q1 did. Each entry carries its own evidence in `reason`; A1's fourteen,
+P2's nineteen, P1's eight and Q1's two were every one leaf-probed against the
+CoolProp 8.0.0 wheel at the Java's own inputs before they were written.)*
 
 #### Running the gate — the corpus has exactly one servable backend
 
@@ -469,10 +473,44 @@ applied to all 21 at the ceiling would forgive `1e-4` kg/m³ on `cnd.rho_in`,
 whose **real** divergence is `4.48e-5` kg/m³ — the `(P,Hmass)→Dmass` gap the
 fixture exists to grade, passing silently. And it grades `variables` **only**:
 ODE row cells, `end_time` and event times keep the relative measure plus the
-Wave-G1 scale anchor, which is the same idea applied to a trajectory. All eight
+Wave-G1 scale anchor, which is the same idea applied to a trajectory. All ten
 fixtures carry *both* kinds of entry — one variable absolute (two, in
 `two-phase-distributed-…-multi-cell-coil`), everything else on a measured
 `relative`.
+
+**Wave Q1 (2026-08-25) added the other kind of exact zero, and the channel's
+first entry not in kelvin.** Ten of the eleven covered variables are the `SC`/`SH`
+shape above, where the zero comes from the *physics* and the golden is the
+**oracle's** table error. `ev-tms-api-model-…-plain-solver`'s `rada.q_lat` is the
+latent duty of a **dry** moist-air coil, where the zero comes from the *model*:
+`MoistAirWallHX` clamps `out.W` at saturation with a C¹ smooth min,
+`out.W = 0.5·(in.W + W_sat − √((in.W − W_sat)² + 1e-12))`, and on a dry coil the
+exact min is `in.W`, so the true latent duty is `0` W and what both engines report
+is the `1e-12` **regulariser** — `in.W − out.W = 2.5e-13 / (W_sat − in.W)`,
+recovered by cancelling ~11 digits off a Newton-solved `out.W`. The two engines
+differ there by exactly **16 ulps** of `out.W`, which `mdot·2.501e6` turns into
+`6.247503e-11` W. The mechanism is catalogued as `smooth-clamp-regulariser`, the
+unit is **W**, and the `2·|golden|` bound is not what limits it (the golden is
+`1.14e-5` W, so the bound is `2.3e-5`) — the measured-×1.5 rule is. The `1e-4`
+ceiling argued in kelvin below still binds it, six orders clear.
+
+**And the same document's second dry coil is the sharpest thing the channel has
+produced, because the channel refused it.** `conda.q_lat` is the identical shape,
+and a first draft of Wave Q1 put it on the channel too. The gate rejected it —
+*"declares an absolute tolerance for `conda.q_lat`, which passes at the fixture's
+relative tolerance 3.9e-6 (rel 7.783161130893312e-7)"* — because in the **full
+1283-fixture replay** it lands **one** ulp of `out.W` from the golden, while in a
+fresh process replaying that document **alone** the same binary lands **eight**
+(rel 6.2265e-6, a 8× swing with nothing changed but what ran before it).
+The swing is what was **measured**; the identified candidate — not an isolated
+cause — is `crates/frees-core/src/props/rustprop_warm.rs`, which seeds every
+`(P,h)`/`(P,s)` flash from the previous answer, so a warm-started flash can
+converge on a different last ulp than a cold one, and an eleven-digit cancellation
+turns that into the leading digits of `q_lat`. That is Wave P2's *"a relative tolerance there would pin luck"*
+reproduced, with the confound identified: it is the **run**, not the build — all
+three build configurations agree when run the same way. `rada.q_lat` is 16 ulps in
+**both** contexts, which is why it is the one graded absolutely and `conda.q_lat`
+stays on the relative channel.
 
 Its guards mirror the relative ones, with two the relative channel cannot have:
 
@@ -491,7 +529,8 @@ Its guards mirror the relative ones, with two the relative channel cannot have:
   `(P,Hmass)→T` table error the corpus has measured (`1.53e-4 … 1.56e-4` K, the
   three chiller entries), so an entry needing more is claiming a bigger oracle
   artifact than any yet measured and owes fresh evidence, not a bigger number.
-  The eight instances sit 44×…240× under it;
+  The ten kelvin instances sit 44×…240× under it, and Wave Q1's watt instance
+  (9.4e-11 W) a further four orders below that;
 * `absolute ≤ 2 · |golden|` for that variable, checked at replay. This is what
   makes the channel self-limiting: where the true value is zero the golden **is**
   the oracle's error, so forgiving more than twice it stops forgiving the
@@ -696,7 +735,11 @@ Extend it further from, in rough order of value:
    **285 candidates staged, 284 goldened, 255 promoted, 19 pending, 11
    classified below** — *18 of the 19 promoted 2026-08-24 by Wave P2, so this
    harvest is now 273 promoted and 1 pending; the probe, and why the last one
-   is held, are written up under **Pending corpus**.* Duplication against the existing corpus was far
+   is held, are written up under **Pending corpus**.* ***And 274 promoted with
+   none pending since Wave Q1 (2026-08-25), which took the nineteenth — plus
+   the last of the "5 not staged — superheat ≈ 0" set below, re-harvested and
+   re-oracled, so that bullet is empty too. Nothing from this harvest is in
+   `corpus-pending/` any more.*** Duplication against the existing corpus was far
    smaller than feared: only 352 exact + 2 near duplicates were skipped
    across the whole tree, so these really were documents nobody had
    harvested. The 255 are 204 solving documents (35 of them transient, with
@@ -736,6 +779,21 @@ Extend it further from, in rough order of value:
      needed a new catalogued mechanism, `ode45-adaptive-path`. The nineteenth,
      `ev-tms-api-model-…`, is held — its binding variable is not a property
      gap and is not determined by the model; the pending table says why.)*
+     *(**The nineteenth promoted 2026-08-25, Wave Q1**, corpus 1281 → 1282.
+     P2's diagnosis was confirmed independently and the fix was a *second* new
+     catalogued mechanism, `smooth-clamp-regulariser`: `rada.q_lat` is the
+     latent duty of a **dry** coil, whose true value is 0 W and whose golden is
+     `MoistAirWallHX`'s own `1e-12` smooth-min regulariser,
+     `2.5e-13/(W_sat − in.W)` scaled by `mdot·2.501e6`. The two engines differ
+     by exactly **16 ulps** of a Newton-solved `out.W` — 6.247503e-11 W — so it
+     went onto the **absolute** channel, in watts, while the document's ordinary
+     `oracle-ph-table` compressor chain took a measured `relative` of 3.9e-6.
+     The document's second dry coil, `conda.q_lat`, is the same shape and the
+     channel **refused** it: it is 1 ulp out in the full-corpus replay and 8 in
+     a single-document process, so it passes the relative tolerance in the gate
+     and its absolute entry was dead. See *The absolute channel* above for that
+     finding, and the pending table's Wave Q1 note for the leaf probes and the
+     wet control group.)*
    * **5 not staged — superheat ≈ 0, denominator collapse.** `ev.sh` /
      `s1.sh` / `sen.sh` / `sh_start` are 0 here and 1.2e-6…1.5e-6 in the
      oracle, which reads `rel 1.0` however the tolerance is declared. They
@@ -780,6 +838,45 @@ Extend it further from, in rough order of value:
      1.38e-6 K table error the algebraic siblings show, so it is not the same
      mechanism read through a trajectory; separating `ida-adaptive-path` from
      `oracle-ph-table` there needs its own measurement, which P1 did not do.
+
+     ***The fifth promoted at Wave Q1 (2026-08-25), and the measurement says
+     BOTH.*** It was re-harvested with `tools/harvest-java-tests/harvest.py
+     --out …` (which again rewrote `harvest-manifest.json` byte-identically),
+     re-oracled with `tools/golden-dumper/run.sh` into a scratch directory, and
+     the `ev$sh` gap was **decomposed at all 40 rows** by asking the CoolProp
+     8.0.0 wheel for `Temperature(R134a, 350 kPa, h)` at *both* sides' own
+     recorded `ev$out$h` — property library held fixed, only the state moving —
+     which splits it into a **table term** (wheel minus the golden's own
+     tabulated `ev$t_out`, at the golden's own `h`) and a **state term** (wheel
+     at our `h` minus wheel at the golden's `h`). The table term is systematic
+     and one-signed, **+1.3410e-4 … +1.5755e-4 K** on every superheated row —
+     the same `(P,Hmass)→T` error at the same 350 kPa that the algebraic sibling
+     `moving-boundary-hx-evaporator-resolves-two-phase-and-superheat-zones`
+     already grades at 1.54e-4 K. The state term **alternates sign row to row**
+     and reaches **2.4494e-4 K** (row 20), larger than the table term at its own
+     worst; over the settled tail (rows 30–39) it holds a steady −4.9e-5 K,
+     which is the table error fed back through `Q_sh = U_sh·π·D·L_sh·(T_wall −
+     0.5·(Tsat + T_out))·r_sh` at −7.5 W/K. A one-signed RHS bias cannot make an
+     **integrated** state swing sign row to row; two accepted-step meshes can,
+     and `wall$port$t` — the document's only differential state — does exactly
+     that (2.3883e-7 relative at row 10, alternating). At the binding cell
+     (`ev$sh`, row 11) the split is **1.386477e-4 K table (67.2 %)** and
+     **6.869976e-5 K state (33.3 %)**; this engine's own `ev$t_out` is within
+     2.916e-6 K of the wheel at its own `h` at every row, so no property call on
+     this side is in question. Promoted with both entries: `relative` **2.4e-5**
+     (measured 1.620292e-5, mechanism `ida-adaptive-path`, because the state term
+     is what makes it need more than its algebraic sibling) and `sh_start` on the
+     absolute channel at **2.1e-6 K** (measured 1.378899e-6, mechanism
+     `oracle-ph-table`) — the *same* declaration the two algebraic siblings carry,
+     because it is the same `f64`, and the one place in this transient where the
+     state term is exactly `0.000e+00` so the table error is read undiluted.
+     **The framing above does not survive the measurement**, and is left standing
+     so the correction is visible: 1.38e-6 K is the table error at the
+     **saturated-vapour boundary** (the collapsed-superheat siblings, and rows
+     0–2 of this very trajectory), not at a superheated state — the superheated
+     table error at this pressure is 1.5e-4 K and the corpus had already measured
+     it, so 1.62e-5 was never "two decades over" anything. Corpus 1282 → 1283,
+     and the "5 not staged — superheat ≈ 0" bullet is now empty.
    * **5 not staged — engine divergences, not tolerances.** Each is a real
      behavioural difference and a fixture would pin the difference, not the
      behaviour. Two are the Water/zone-HX guess-landscape family the Wave-I
@@ -1189,13 +1286,14 @@ sidecars, and the golden — into `corpus/` and `golden/`. If it diverges, leave
 it here. A pending document that starts passing because someone fixed the
 engine is the point.
 
-### What is pending today — 3 documents
+### What is pending today — 2 documents
 
 | Blocker | Count | Documents |
 |---|---:|---|
 | **`ode45-adaptive-path`, amplified by a shooting solve** (2026-08-25, Wave Q). The one non-promoter of the 26 request-carrying candidates: a rocket ascent through `ode45` whose burn time is *sized* by the algebraic system so apogee reaches 100 km (`VariableSpec("t_burn", 30, 5, 55)` is the request it carries). Its trajectory passes — every table cell is inside the scale-anchored default, and so are `end_time` and the `apogee` event — but the two shooting unknowns it feeds do not: `t_burn` 27.14432258487798 against 27.14264495979557 and `m_burn` 244.29890326390182 against 244.28380463816015, **both at rel 6.18e-5**, identically, because `m_burn = mdot·t_burn` is the same divergence read twice. That is the catalogued `ode45-adaptive-path` mechanism (`dynamic-array-states-rod-with-ode45-also`'s, 1.40e-7 there) with a Newton solve standing on top of it: the residual is an *interpolated* apogee altitude, so the integrator's step-placement noise is divided by `dh/dt_burn` on the way back out. It is a tolerance entry, not an engine bug — but `tolerances-rustprop.json` demands per-entry evidence, and the evidence here is a sensitivity measurement (how many metres of apogee one microsecond of burn buys), not a leaf property probe. Not measured in this wave | 1 | `ode-rocket-trajectory-sizes-burn-time-so-apogee-reaches100km` |
 | **Cost, not correctness** — solves **bit-identically** since 2026-08-21 (Wave A5: table rows exact, variables at ~1e-15, `block_count` and display names exact). Re-measured 2026-08-23 after Wave G3's per-step caches: **~5.6 min** (339 s, upper bound — the first 147 s shared the machine with a replay), from A5's ~12 min, converging to the same `dk` at rel ~8e-16; the whole replay is ~145 s, so one document still costs ~2.3× the gate and the hold stands | 1 | `dyn_accessor_live` |
-| **The same two mechanisms, from the Wave-J class sweep** (2026-08-24, growth item 3). Eighteen are `oracle-ph-table`: R134a/R1234yf/Water two-phase chains on `cmp.h_s`/`k.h_s`/`b1.q`/`cd.q_sc`/`ev.q_sh`/`rho_in`, three of them transient and graded scale-anchored. Worst divergence per fixture, measured uncapped at the corpus default: 4.71e-5 `moving-boundary-hx-condenser`, 1.98e-5 `moving-boundary-hx-evaporator`, 6.10e-6 each for the three rankine documents, 5.47e-6 `ev-tms-api-model`, 4.85e-6 `new-library-components`, 3.05e-6 `ev-tms-cabin-steady`, 2.50e-6 `dual-evap-debug`, 1.16e-6 `fluid-property-examples-example3-7`, 9.86e-7 `component-cycles-refrigeration`, 8.11e-7 `property-argument-seeding-subcritical`, 2.68e-7 and 8.72e-8 the two `component-variant-library-compressor` variants, 8.30e-8 `cooker-faithful`, 6.90e-9 `pressure-cooker-…-undersized-valve`, 2.02e-9 `real-fluid-properties-solves-vapor-compression-cycle`, 1.60e-9 `steady-by-integration-chiller-bridge`. The nineteenth is `ida-adaptive-path`'s explicit sibling and touches **no property**: a 4-node conduction rod through `ode45`, 274 diverging cells peaking at 1.40e-7 of the column range — pure adaptive-step interpolant noise. The last three sit within 10× of the corpus default and would very likely promote on a probe. Every one needs the same discipline as the row above: a per-entry wheel-vs-rustprop-vs-golden leaf probe, which this wave measured but did not perform | 19 | `component-cycles-rankine-components-solve`, `component-cycles-rankine-with-derived-property-boundaries-solves`, `component-cycles-refrigeration-components-solve`, `component-variant-library-compressor-defaults-to-isentropic-backward-compatible`, `component-variant-library-compressor-volumetric-variant-determines-mass-flow`, `cooker-faithful-reproduces-reference-with-electrical-heater`, `cycle-path-component-component-rankine-streams-produce-a-cycle-path`, `dual-evap-debug-check`, `dynamic-array-states-rod-with-ode45-also`, `ev-tms-api-model-integrated-model-solves-with-plain-solver`, `ev-tms-cabin-steady-operating-point`, `fluid-property-examples-example3-7-temperature-of-superheated-vapor`, `moving-boundary-hx-condenser-resolves-condensing-and-subcool-zones`, `moving-boundary-hx-evaporator-resolves-two-phase-and-superheat-zones`, `new-library-components-new-library-components-solve`, `pressure-cooker-cooker-over-pressurises-with-undersized-valve`, `property-argument-seeding-subcritical-inversion-across-dome-converges-from-default-guess`, `real-fluid-properties-solves-vapor-compression-cycle`, `steady-by-integration-chiller-bridge-reaches-consistent-steady-by-integration` |
+
+*(**The Wave-J class-sweep row left this table on 2026-08-25, Wave Q1** — its last document, `ev-tms-api-model-integrated-model-solves-with-plain-solver`, promoted with **two** kinds of entry. Its property chain is the ordinary `oracle-ph-table` P2 called it: the R1234yf compressor's suction entropy `Entropy(R1234yf, 350 kPa, h = 371807.7308757396)` — a `(P,Hmass)→Smass` call — sits **1.2896e-7** from the CoolProp 8.0.0 wheel in the golden and **5.6713e-13** in this engine, while the `(P,Smass)` leaf downstream is **bit-identical** between golden and wheel at each side's own `s_in`; the leaf walks to **2.6013e-6** on `cmp.W` (×20.2, `W = mdot·(out.h − in.h)` subtracting two enthalpies that differ by a tenth of either), which the declared `relative` **3.9e-6** grades. Its worst variable is not that chain, and P2's diagnosis is confirmed independently. `rada.q_lat` (5.4713e-6) is the latent duty of a **dry** coil, where `MoistAirWallHX`'s saturation clamp never engages — RH 0.1818 at the outlet, `W_sat/in.W` = 5.93 — so `in.W − out.W` is nothing but the smooth-min's `1e-12` regulariser, `2.5e-13/(W_sat − in.W)`, which through `mdot·2.501e6` **is** the 1.1418743867640246e-5 W the golden records. The true duty is 0 W, the two engines differ by exactly **16 ulps** of a Newton-solved `out.W`, and `0.9·2.501e6·|Δout.W|` reproduces the absolute gap **6.247503e-11 W** to the last digit. Its inputs are innocent — `in.W` is `0.01` on both sides exactly, `t_out`/`in.h`/`out.h`/`wall.T` are **bit-identical**, `w_sat` agrees to 22 ulps (2.5751e-15). It went onto the **absolute channel** under a new catalogued mechanism, `smooth-clamp-regulariser` — the exact-zero shape arriving from the *model's* own algebra rather than the oracle's property table, and the channel's first entry in watts. Two facts decide it without a third library: the closed form `2.5e-13/(W_sat − in.W)` is exact to 1.0e-10 here and **this engine is 46× nearer to it** than the golden (1.203e-7 against 5.592e-6); and the same document carries a **wet** coil, `EVCA`, whose clamp does engage and whose 1229.8257 W of real latent duty the two engines agree on to **3.0665e-12**. **P2's `conda.q_lat` variance reproduced, and the confound is the run rather than the build.** All three build configurations agree when run the same way; what moves the number is whether the document is replayed alone or inside the corpus. In the gate — 1283 fixtures in one process — `conda.q_lat` is **one** ulp of `out.W` out (3.904689e-12 W, rel 7.7832e-7, P2's own figure); alone in a fresh process the same binary is **eight** (3.123751e-11 W, rel 6.2265e-6). The swing is what was measured; the identified candidate is `props/rustprop_warm.rs`, which seeds each `(P,h)`/`(P,s)` flash from the previous answer, so a warm-started flash can converge on a different last ulp. So `conda.q_lat` cannot take an absolute entry — it passes the 3.9e-6 relative in the gate, and the channel's dead-entry guard said so out loud when a first draft of this wave tried. Corpus 1281 → 1282, pending 2 → 1.)*
 
 *(**The structurally-exact-zero row — the last four of the Wave-I
 property-chain 18 — left this table on 2026-08-24, Wave P1**, by a gate change

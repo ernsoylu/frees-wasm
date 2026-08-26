@@ -435,13 +435,42 @@ gating the new dev-dependencies off the wasm target in the manifest.
    regression threshold exists. Deliberate for now — criterion noise on
    shared CI runners produces flaky gates — but it means a performance
    regression is caught by a human re-running the table, or not at all.
+   *(Re-assessed 2026-08-26, and half of the worry turns out to be already
+   covered. The benches cannot **rot**: `cargo clippy --workspace
+   --all-targets`, which CI runs, compiles `benches/solve_bench.rs` — verified
+   by appending a call to a non-existent function to it, which produced 2
+   clippy errors under `-D warnings`, then reverting. So a bench that stops
+   building fails the build today. What is still absent is a **timing**
+   threshold, and that stays declined on the original reasoning: criterion on a
+   shared runner measures the runner. If a regression gate is ever wanted, the
+   honest form is instruction counts under callgrind, which is what Waves
+   Q3/R3/A2 used precisely because wall clock on this hardware was useless —
+   the same baseline binary ran `dyn_accessor_live` in 168.23 s and 159.24 s.)*
 6. **Fuzzing is not coverage-guided.** proptest generates blind; a
    `cargo-fuzz`/libFuzzer target with the same oracles would explore deeper.
    The repo still has no nightly toolchain requirement, and adding one for
    fuzzing was judged not worth it this phase.
+   *(Re-assessed 2026-08-26. Still open, and still a decision rather than a
+   chore: `rust-toolchain.toml` pins **stable**, and `cargo-fuzz`/libFuzzer
+   needs nightly, so this cannot be picked up without changing what every
+   contributor and every CI job installs. The cheap half-measure — a scheduled
+   deeper `PROPTEST_CASES` soak — is not wired either; CI runs proptest at its
+   defaults, with no `PROPTEST_CASES` anywhere in the workflow. Whoever takes
+   it should decide the nightly question first; the fuzz targets themselves are
+   fine.)*
 7. **Carried forward from Phase 11**: no CI job runs the service worker
    offline; the remote-fallback adapter stays unwired; the precache-size
    opt-out was explicitly deprioritized (features may be clipped instead).
+   *(Two of these three shipped and nobody annotated the item — corrected
+   2026-08-26. **The offline service-worker gate exists**: Wave D4 made the
+   Playwright offline PWA proof a CI step, and it runs in the `web` job as
+   "Offline PWA proof (Playwright)". **The precache-size opt-out shipped** as
+   the data-saver opt-out in the C/D web wave. What remains open is the
+   **remote-fallback adapter**, and it is open by design, not by neglect:
+   PLAN.md scope decision 2 makes the remote path an optional adapter and never
+   a requirement, so wiring it is a product decision — it would send document
+   text off the machine, which is the property this whole port exists to
+   remove.)*
 
 ---
 

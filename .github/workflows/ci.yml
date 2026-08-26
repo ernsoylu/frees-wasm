@@ -219,6 +219,26 @@ jobs:
   web:
     name: web build (wasm + vite)
     runs-on: ubuntu-latest
+    # YES, this rebuilds the wasm the `wasm` job above already built and
+    # uploaded, and NO, passing it as an artifact would not help — measured on
+    # run 32957800094, where this became the workflow's critical path once the
+    # two corpus replays left the `native` job (T1, T3):
+    #
+    #   wasm job        2m03s total  (1m43s of it the build)
+    #   web job         3m32s total  (1m44s of it the same build; the rest is
+    #                                 npm ci 12s, vitest 16s, vite build 24s,
+    #                                 playwright install 24s, the proof 4s)
+    #
+    # They run in PARALLEL, so today's critical path is max(123, 212) = 212 s.
+    # Adding `needs: wasm` + download-artifact serialises them: 123 s of wasm
+    # then 108 s of everything else = 231 s, i.e. 19 s SLOWER. The duplicated
+    # build is what buys the parallelism; what it costs is runner minutes, and
+    # nothing here is paying for those in wall clock. Merging the two jobs is
+    # also a wash on wall clock (~212 s either way) and trades away the size
+    # gate's isolation, since a red vitest would then hide it.
+    #
+    # The uploaded `frees-wasm-pkg` artifact has no consumer in this workflow —
+    # no `needs:`, no download-artifact anywhere — it exists for humans.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable

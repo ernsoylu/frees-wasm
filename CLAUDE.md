@@ -360,6 +360,24 @@ what follows is the part you must know before editing near them.
   silently disabled half the change, every output stayed byte-identical, the
   corpus stayed green, and **only the instruction counter could see it**.
 
+**The named solver levers are spent, and round seven inherits a short list.**
+A2, Q3 and R3 took the hashed-access family from 27.8 % of the transient
+profile to under 2.8 %, and S1 closed the property-cache question by declining
+it. What R3 measured and did **not** take: `Vec<f64>::resize` at 5.5 %
+(A2's `refill` helper measured −1.5 % and was reverted under the bar — it is
+cheaper now that the hashing is gone), `unpack_bounds_into` 3.7 % + `validate`
+3.3 % per Newton call, and grisu at 3.1 %, which is Q3's lazy-pin source-text
+item and still needs an `Equation` contract change. `solve_block`'s own 32.9 %
+and `eval_program`'s 17.0 % are what the profile is now.
+
+**Measure it the way those waves did, not with a stopwatch.** Wall clock on
+this hardware is useless at this scale — the same baseline binary ran
+`dyn_accessor_live` in 168.23 s and 159.24 s — so every keep/revert decision in
+Q3, R3 and A2 rests on callgrind instruction counts, with byte-identity of the
+solved output checked separately. R3's near miss is the reason both halves are
+needed: identity checks cannot see a performance regression, and the counter
+cannot see a wrong answer.
+
 | Document | Contents |
 |---|---|
 | [`docs/status-wave3-f7.md`](docs/status-wave3-f7.md) | **The measured behaviour of the engine under the rustprop backend.** Wave-3 F7's robustness + performance sweep: the parity replay at 43–72 s against its ~180 s anchor (and why the backend is *not* the reason), the per-call budgets with their real margins (9,216-call hostile sweep worst 377 ms of 2 s; `all_survive` worst 155 ms of 20 s; the plateau at 500 µs), a 64–128x fuzz soak, the benches with `rankine_cycle`'s honest ~1.35x property cost, the audit that found **`nominal_enthalpy` seeding never runs** (and why that is faithful to the Java), the four ways `block_count` exactness was checked, and the one zero-headroom timing assertion the sweep broke. **Read its "How to read the numbers" section before quoting any second from it** |
@@ -568,6 +586,16 @@ compares only `variables` therefore passes *vacuously* on a transient document;
 `tests/parity.rs` compares `ode_tables` for exactly that reason, and
 `fixtures/README.md` records the four perturbations that were used to prove the
 comparison can fail.
+
+**The replay also asserts that no fixture solves to a non-finite value** (Wave
+T3), and that is *not* implied by matching the golden: `close`/`rel_diff` treat
+NaN against NaN as agreement and infinities as exact hits — deliberately, so a
+golden holding the oracle's own non-finite answer stays gradable — which would
+otherwise let a fixture match while this engine produced garbage. It moved here
+from `props_robustness`, where asserting it cost a second whole-corpus solve.
+*A solution must be finite* in `fixtures/README.md` has the measurements and the
+one deliberate behaviour change (each fixture is now checked under the settings
+it ships with, not under bare defaults).
 
 ## What frees is, and what "browser-native" means here
 

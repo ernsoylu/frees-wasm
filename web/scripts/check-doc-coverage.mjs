@@ -60,8 +60,12 @@ const EXTRA_CALLABLES = [
 ];
 for (const n of EXTRA_CALLABLES) callable.add(n);
 // Bare math notation that reads like a call in inline code (`num(s)/den(s)`, a
-// generic `Tname(...)` placeholder) — not references to a built-in.
-const NOTATION = new Set(['num', 'den', 'tname']);
+// generic `Tname(...)` placeholder) — not references to a built-in. `name` is
+// the same shape: `programming_logic.md` writes `[ … ] = name( … )` to show the
+// destructuring FORM, and a metasyntactic placeholder is not a missing
+// function. It is listed here rather than fixed in the prose because the prose
+// is right.
+const NOTATION = new Set(['num', 'den', 'tname', 'name']);
 
 // Example ids in the verified library.
 const exampleIds = new Set(

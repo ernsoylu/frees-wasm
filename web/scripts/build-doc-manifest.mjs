@@ -22,14 +22,50 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO = path.resolve(__dirname, '../..');
+const WASM_REPO = path.resolve(__dirname, '../..');
+
+// The Java sources this script reads live in the READ-ONLY REFERENCE REPO, a
+// sibling of this one — not inside it. This file was vendored from the frEES
+// frontend, where `backend/` sat beside `frontend/`, and it kept resolving
+// `../..`; in this repo that is a `backend/` directory that has never existed,
+// so `npm run check-docs` died on ENOENT before it could check anything.
+//
+// Resolution mirrors `tools/frees-home.sh`, which is the one place that
+// decision is made for the Rust-side oracle tools: `$FREES_HOME` wins, then the
+// sibling under either spelling the directory has worn.
+function findReferenceRepo() {
+  const candidates = process.env.FREES_HOME
+    ? [process.env.FREES_HOME]
+    : [path.join(WASM_REPO, '../frees'), path.join(WASM_REPO, '../frEES')];
+  return candidates.find((c) =>
+    fs.existsSync(path.join(c, 'backend/core/src/main/java/com/frees/backend')),
+  );
+}
+
+const REF_DIR = path.join(__dirname, '../src/docs/reference');
+const OUT = path.join(REF_DIR, 'function-manifest.json');
+
+const REFERENCE = findReferenceRepo();
+if (!REFERENCE) {
+  // Not an error, and deliberately exit 0. `function-manifest.json` is
+  // COMMITTED, and the coverage check that follows in `npm run check-docs`
+  // reads that file, not the Java. A checkout without the reference repo can
+  // still check its docs against the last generated manifest; only the refresh
+  // is unavailable. Failing here would take the checker down with the
+  // generator, which is exactly what used to happen.
+  console.warn(
+    'build-doc-manifest: reference repo not found (set $FREES_HOME, or put it ' +
+      'beside this one as ../frees). Keeping the committed function-manifest.json ' +
+      '— the coverage check still runs against it.',
+  );
+  process.exit(0);
+}
+
 // Post core/web split: pure computation (parser/ast/props/...) lives in core,
 // the Spring web layer (controllers, ReplEvaluator — which needs the Redis-backed
 // session cache) lives in web.
-const BK = path.join(REPO, 'backend/core/src/main/java/com/frees/backend');
-const BK_WEB = path.join(REPO, 'backend/web/src/main/java/com/frees/backend');
-const REF_DIR = path.join(__dirname, '../src/docs/reference');
-const OUT = path.join(REF_DIR, 'function-manifest.json');
+const BK = path.join(REFERENCE, 'backend/core/src/main/java/com/frees/backend');
+const BK_WEB = path.join(REFERENCE, 'backend/web/src/main/java/com/frees/backend');
 
 const read = (p) => fs.readFileSync(p, 'utf-8');
 
@@ -88,7 +124,7 @@ const NON_FUNCTION_TOKENS = new Set([
 
 // Components: every `COMPONENT <Name>` in the std-lib resources, grouped by domain file.
 function parseComponents() {
-  const dir = path.join(REPO, 'backend/core/src/main/resources/components');
+  const dir = path.join(REFERENCE, 'backend/core/src/main/resources/components');
   const out = [];
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.frees'))) {
     const domain = file.replace(/\.frees$/, '');
@@ -278,11 +314,24 @@ const manifest = {
 };
 
 fs.mkdirSync(REF_DIR, { recursive: true });
-fs.writeFileSync(OUT, JSON.stringify(manifest, null, 2) + '\n');
+
+// Write only when something OTHER than the date changed. `npm run check-docs`
+// regenerates this file every time it runs, and `generatedAt` alone would dirty
+// a committed 106 KB artifact on every run — noise that trains people to
+// `git checkout` the manifest, which is how a real drift would get discarded
+// with it. A date bump is not news; a registry change is.
+const rendered = JSON.stringify(manifest, null, 2) + '\n';
+const stripDate = (s) => s.replace(/^\s*"generatedAt":.*$/m, '');
+const previous = fs.existsSync(OUT) ? read(OUT) : null;
+if (previous !== null && stripDate(previous) === stripDate(rendered)) {
+  console.log('doc-manifest: unchanged against the backend registries — not rewritten.');
+} else {
+  fs.writeFileSync(OUT, rendered);
+}
 
 const cov = manifest.coverage;
 console.log(`doc-manifest: ${cov.documentableSurfaceTotal} documentable symbols ` +
   `(${cov.documented} documented) — ${functions.length} functions, ${matrixFunctions.length} matrix fns, ` +
   `${components.length} components, ${propertyFunctions.length} property fns, ${callProcedures.length} CALL procs, ` +
   `${materials.functions.length} material fns, ${repl.length} CAS ops; ` +
-  `${dispatchOnly.length} dispatch-only gaps → ${path.relative(REPO, OUT)}`);
+  `${dispatchOnly.length} dispatch-only gaps → ${path.relative(WASM_REPO, OUT)}`);

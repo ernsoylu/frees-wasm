@@ -11,8 +11,8 @@ related: [eos_z, eos_density, eos_enthalpy, eos_psat, eos_entropy]
 # Real-Gas Properties with a Cubic EOS
 
 **Goal:** evaluate real-gas properties — compressibility factor, density, enthalpy,
-and saturation pressure — from a cubic equation of state, with **no CoolProp
-dependency** (only critical constants and the acentric factor are needed).
+and saturation pressure — from a cubic equation of state, with **no real-fluid backend
+needed** (only critical constants and the acentric factor are needed).
 
 ## What you'll build
 

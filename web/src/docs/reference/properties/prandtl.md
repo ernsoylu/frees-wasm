@@ -1,7 +1,7 @@
 ---
 name: prandtl
 category: Fluid Properties
-summary: Fluid property: prandtl from a real-fluid (CoolProp) backend.
+summary: Fluid property: prandtl from the real-fluid property backend.
 related: []
 examples: []
 tags: [prandtl, property, fluid, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # prandtl
 
-Returns the **prandtl** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+Returns the **prandtl** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

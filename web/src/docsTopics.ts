@@ -29,7 +29,7 @@ export const DOCS_TOPICS: { id: string; label: string }[] = [
   { id: `comp-wizard`, label: `The Component Wizard` },
   { id: `comp-troubleshooting`, label: `Troubleshooting Networks` },
   { id: `plot-code`, label: `Plots in Code (PLOT)` },
-  { id: `thermo`, label: `Thermophysical Properties Reference (CoolProp & Gas)` },
+  { id: `thermo`, label: `Thermophysical Properties Reference (Real Fluids & Gas)` },
   { id: `solid-materials`, label: `Solid Material Properties Reference` },
   { id: `chemistry`, label: `Chemistry & Combustion` },
   { id: `humidair`, label: `Psychrometrics (AirH2O / Humid Air)` },

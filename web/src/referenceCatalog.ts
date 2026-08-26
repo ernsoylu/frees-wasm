@@ -18738,7 +18738,7 @@ settling.`,
     references: [],
     guides: [],
     body: `**Goal:** model the ideal steam power cycle and read off its **thermal efficiency**
-from real-water (CoolProp) properties.
+from real-water properties.
 
 ## What you'll build
 
@@ -18827,8 +18827,8 @@ counterflow case â€” read straight from \`UA\` with no iteration.`,
     references: [],
     guides: [],
     body: `**Goal:** evaluate real-gas properties â€” compressibility factor, density, enthalpy,
-and saturation pressure â€” from a cubic equation of state, with **no CoolProp
-dependency** (only critical constants and the acentric factor are needed).
+and saturation pressure â€” from a cubic equation of state, with **no real-fluid backend
+needed** (only critical constants and the acentric factor are needed).
 
 ## What you'll build
 
@@ -18951,7 +18951,7 @@ shock.`,
     references: [],
     guides: [],
     body: `**Goal:** model the standard four-process refrigeration cycle and read off its
-**coefficient of performance (COP)** using real-refrigerant (CoolProp) properties.
+**coefficient of performance (COP)** using real-refrigerant properties.
 
 ## What you'll build
 
@@ -19099,13 +19099,13 @@ $$ Re = \\frac{\\rho V D}{\\mu} $$
     name: `compressibility`,
     slug: `compressibility`,
     category: `Fluid Properties`,
-    summary: `Fluid property: compressibility from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: compressibility from the real-fluid property backend.`,
     related: [],
     examples: [`thermo-compliance`],
     tags: [`compressibility`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [],
-    body: `Returns the **compressibility** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **compressibility** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19123,13 +19123,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `compressibilityfactor`,
     slug: `compressibilityfactor`,
     category: `Fluid Properties`,
-    summary: `Fluid property: compressibilityfactor from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: compressibilityfactor from the real-fluid property backend.`,
     related: [],
     examples: [`thermo-compliance`],
     tags: [`compressibilityfactor`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **compressibilityfactor** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **compressibilityfactor** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19147,13 +19147,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `conductivity`,
     slug: `conductivity`,
     category: `Fluid Properties`,
-    summary: `Fluid property: conductivity from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: conductivity from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`conductivity`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **conductivity** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **conductivity** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19171,13 +19171,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `cp`,
     slug: `cp`,
     category: `Fluid Properties`,
-    summary: `Fluid property: cp from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: cp from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`cp`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **cp** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **cp** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19195,13 +19195,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `cv`,
     slug: `cv`,
     category: `Fluid Properties`,
-    summary: `Fluid property: cv from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: cv from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`cv`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **cv** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **cv** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19219,13 +19219,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `density`,
     slug: `density`,
     category: `Fluid Properties`,
-    summary: `Fluid property: density from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: density from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`density`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **density** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **density** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19243,13 +19243,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `dewpoint`,
     slug: `dewpoint`,
     category: `Fluid Properties`,
-    summary: `Humid-air property: dewpoint from a real-fluid (CoolProp) backend.`,
+    summary: `Humid-air property: dewpoint from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`dewpoint`, `property`, `humid-air`, `coolprop`],
     references: [],
     guides: [`humidair`, `tut-coil`],
-    body: `Returns the **dewpoint** of a humid-air (AirH2O) from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **dewpoint** of a humid-air (AirH2O) from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19267,13 +19267,13 @@ A humid-air property; supply the dry-bulb T, total pressure P, and one humidity 
     name: `enthalpy`,
     slug: `enthalpy`,
     category: `Fluid Properties`,
-    summary: `Fluid property: enthalpy from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: enthalpy from the real-fluid property backend.`,
     related: [],
     examples: [`rankine-cycle`, `state-tables-multifluid`, `rankine-cycle`, `refrigeration-vcr`],
     tags: [`enthalpy`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`debugging`, `errors`, `thermo`, `humidair`, `gs-repl`, `repl`],
-    body: `Returns the **enthalpy** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **enthalpy** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19291,13 +19291,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `entropy`,
     slug: `entropy`,
     category: `Fluid Properties`,
-    summary: `Fluid property: entropy from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: entropy from the real-fluid property backend.`,
     related: [],
     examples: [`rankine-cycle`, `rankine-cycle`, `refrigeration-vcr`],
     tags: [`entropy`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`, `tut-vccycle`],
-    body: `Returns the **entropy** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **entropy** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19315,13 +19315,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `gibbs`,
     slug: `gibbs`,
     category: `Fluid Properties`,
-    summary: `Fluid property: gibbs from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: gibbs from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`gibbs`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **gibbs** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **gibbs** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19339,13 +19339,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `humrat`,
     slug: `humrat`,
     category: `Fluid Properties`,
-    summary: `Humid-air property: humrat from a real-fluid (CoolProp) backend.`,
+    summary: `Humid-air property: humrat from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`humrat`, `property`, `humid-air`, `coolprop`],
     references: [],
     guides: [`humidair`, `tut-coil`],
-    body: `Returns the **humrat** of a humid-air (AirH2O) from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **humrat** of a humid-air (AirH2O) from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19363,13 +19363,13 @@ A humid-air property; supply the dry-bulb T, total pressure P, and one humidity 
     name: `intenergy`,
     slug: `intenergy`,
     category: `Fluid Properties`,
-    summary: `Fluid property: intenergy from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: intenergy from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`intenergy`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **intenergy** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **intenergy** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19387,13 +19387,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `prandtl`,
     slug: `prandtl`,
     category: `Fluid Properties`,
-    summary: `Fluid property: prandtl from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: prandtl from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`prandtl`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [],
-    body: `Returns the **prandtl** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **prandtl** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19411,13 +19411,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `pressure`,
     slug: `pressure`,
     category: `Fluid Properties`,
-    summary: `Fluid property: pressure from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: pressure from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`pressure`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **pressure** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **pressure** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19435,13 +19435,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `quality`,
     slug: `quality`,
     category: `Fluid Properties`,
-    summary: `Fluid property: quality from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: quality from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`quality`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [],
-    body: `Returns the **quality** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **quality** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19459,13 +19459,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `relhum`,
     slug: `relhum`,
     category: `Fluid Properties`,
-    summary: `Humid-air property: relhum from a real-fluid (CoolProp) backend.`,
+    summary: `Humid-air property: relhum from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`relhum`, `property`, `humid-air`, `coolprop`],
     references: [],
     guides: [`humidair`],
-    body: `Returns the **relhum** of a humid-air (AirH2O) from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **relhum** of a humid-air (AirH2O) from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19483,13 +19483,13 @@ A humid-air property; supply the dry-bulb T, total pressure P, and one humidity 
     name: `soundspeed`,
     slug: `soundspeed`,
     category: `Fluid Properties`,
-    summary: `Fluid property: soundspeed from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: soundspeed from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`soundspeed`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **soundspeed** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **soundspeed** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19507,13 +19507,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `specheat`,
     slug: `specheat`,
     category: `Fluid Properties`,
-    summary: `Fluid property: specheat from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: specheat from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`specheat`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [],
-    body: `Returns the **specheat** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **specheat** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19531,13 +19531,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `temperature`,
     slug: `temperature`,
     category: `Fluid Properties`,
-    summary: `Fluid property: temperature from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: temperature from the real-fluid property backend.`,
     related: [],
     examples: [`pressure-cooker`],
     tags: [`temperature`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`debugging`, `errors`, `comp-authoring`, `thermo`],
-    body: `Returns the **temperature** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **temperature** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19555,13 +19555,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `viscosity`,
     slug: `viscosity`,
     category: `Fluid Properties`,
-    summary: `Fluid property: viscosity from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: viscosity from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`viscosity`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **viscosity** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **viscosity** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19579,13 +19579,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `volexpcoef`,
     slug: `volexpcoef`,
     category: `Fluid Properties`,
-    summary: `Fluid property: volexpcoef from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: volexpcoef from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`volexpcoef`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [],
-    body: `Returns the **volexpcoef** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **volexpcoef** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19603,13 +19603,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `volume`,
     slug: `volume`,
     category: `Fluid Properties`,
-    summary: `Fluid property: volume from a real-fluid (CoolProp) backend.`,
+    summary: `Fluid property: volume from the real-fluid property backend.`,
     related: [],
     examples: [`rankine-cycle`, `thermo-compliance`, `rankine-cycle`, `engine-cycle-wiebe`],
     tags: [`volume`, `property`, `fluid`, `coolprop`],
     references: [],
     guides: [`thermo`],
-    body: `Returns the **volume** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **volume** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -19627,13 +19627,13 @@ Supply the fluid name and any two independent state properties (T, P, h, s, x, â
     name: `wetbulb`,
     slug: `wetbulb`,
     category: `Fluid Properties`,
-    summary: `Humid-air property: wetbulb from a real-fluid (CoolProp) backend.`,
+    summary: `Humid-air property: wetbulb from the real-fluid property backend.`,
     related: [],
     examples: [],
     tags: [`wetbulb`, `property`, `humid-air`, `coolprop`],
     references: [],
     guides: [`humidair`],
-    body: `Returns the **wetbulb** of a humid-air (AirH2O) from any valid pair of independent state properties (CoolProp backend).
+    body: `Returns the **wetbulb** of a humid-air (AirH2O) from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation â€” see the inputs and references below.
 
@@ -25465,8 +25465,8 @@ $$ \\dot m = C\\,\\rho_0\\,P_{up}\\sqrt{\\tfrac{T_0}{T_{up}}}\\cdot\\begin{cases
     references: [],
     guides: [],
     body: `Returns the **mass density** \`Ï\` [kg/mÂ³] of a real fluid from a cubic equation of
-state (\`'SRK'\` or \`'PR'\`) at temperature \`T\` and pressure \`P\`. The CoolProp-
-independent real-gas density, the reciprocal of \`eos_volume\`.
+state (\`'SRK'\` or \`'PR'\`) at temperature \`T\` and pressure \`P\`. The real-gas density that needs no
+real-fluid property data, the reciprocal of \`eos_volume\`.
 
 ## Syntax
 
@@ -25812,9 +25812,8 @@ the reciprocal of the density.
     body: `Returns the **compressibility factor** \`Z = Pv/(RT)\` of a real fluid from a cubic
 equation of state â€” Soaveâ€“Redlichâ€“Kwong (\`'SRK'\`) or Pengâ€“Robinson (\`'PR'\`) â€” at
 temperature \`T\` and pressure \`P\`. \`Z\` measures the departure from ideal-gas
-behavior (\`Z = 1\`) and is the root used to build all other EOS properties. A
-CoolProp-independent backend that needs only critical constants and the acentric
-factor.
+behavior (\`Z = 1\`) and is the root used to build all other EOS properties. A backend that needs no
+real-fluid property data â€” only critical constants and the acentric factor.
 
 ## Syntax
 

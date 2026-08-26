@@ -11,7 +11,7 @@ related: [Enthalpy, Quality, Compressor, Condenser, ExpansionValve, TwoPhaseEvap
 # Vapor-Compression Refrigeration Cycle
 
 **Goal:** model the standard four-process refrigeration cycle and read off its
-**coefficient of performance (COP)** using real-refrigerant (CoolProp) properties.
+**coefficient of performance (COP)** using real-refrigerant properties.
 
 ## What you'll build
 

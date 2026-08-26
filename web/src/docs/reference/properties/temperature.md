@@ -1,7 +1,7 @@
 ---
 name: temperature
 category: Fluid Properties
-summary: Fluid property: temperature from a real-fluid (CoolProp) backend.
+summary: Fluid property: temperature from the real-fluid property backend.
 related: []
 examples: [pressure-cooker]
 tags: [temperature, property, fluid, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # temperature
 
-Returns the **temperature** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+Returns the **temperature** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

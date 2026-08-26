@@ -650,7 +650,9 @@ pub fn clear_cache() {
 fn no_backend(what: &str) -> FreesError {
     FreesError::property(format!(
         "{what} needs a real-fluid property backend and none is installed. \
-         This build has no CoolProp; see docs/decisions/0001-property-backend.md."
+         Build with the `rustprop-backend` feature (what ships), or \
+         `linked-tables` for the D1 (P,h) tables; see \
+         docs/decisions/0009-rustprop-backend.md."
     ))
 }
 

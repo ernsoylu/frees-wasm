@@ -178,11 +178,11 @@ P = V * I       { power dissipated }`,
   {
     id: 'rankine-cycle',
     title: 'Rankine Cycle',
-    description: 'Ideal steam power cycle efficiency using CoolProp properties.',
+    description: 'Ideal steam power cycle efficiency using real-water properties.',
     category: 'Thermodynamics',
     featured: true,
     text: `// Rankine Cycle (Steam)
-{ Ideal steam Rankine cycle using CoolProp water properties. }
+{ Ideal steam Rankine cycle using real-water properties. }
 P_boiler = 8000 [kPa]
 P_cond = 10 [kPa]
 
@@ -253,7 +253,7 @@ P0_air = StagnationPres(P_air, T_air, T0_air, k_air)`,
   property look-ups never mix fluids — a Water state 1 and an R134a
   state 1 stay separate. Press Solve (F2), then click
   "Fill Missing Values" in the Fluid States window to complete each
-  state (s, v, x, ...) from CoolProp using the right fluid. }
+  state (s, v, x, ...) from the real-fluid backend using the right fluid. }
 
 { --- Water loop --- }
 Pw_1 = 10 [kPa]
@@ -1152,12 +1152,12 @@ END`,
   {
     id: 'rankine-cycle',
     title: 'Rankine Cycle',
-    description: 'Steam power cycle efficiency with real-water properties (CoolProp).',
+    description: 'Steam power cycle efficiency with real-water properties.',
     category: 'Thermodynamics',
     featured: true,
     text: `// Ideal Rankine Cycle
 { Steam power cycle: pump -> boiler -> turbine -> condenser.
-  Real-water properties from CoolProp. Press Solve (F2). }
+  Real-water properties, computed in the browser. Press Solve (F2). }
 P_hi = 8000000 [Pa]      { boiler pressure, 8 MPa }
 P_lo = 10000 [Pa]        { condenser pressure, 10 kPa }
 eta_t = 0.85             { turbine isentropic efficiency }
@@ -1235,7 +1235,7 @@ eta_ideal = 1 - 1 / r^(k - 1)   { closed-form air-standard efficiency }`,
     category: 'Thermodynamics',
     featured: true,
     text: `// Vapor-Compression Refrigeration (R134a)
-{ Ideal VCR cycle. Real-refrigerant properties from CoolProp. }
+{ Ideal VCR cycle. Real-refrigerant properties, computed in the browser. }
 T_evap = 263.15 [K]      { -10 C }
 T_cond = 313.15 [K]      { 40 C }
 eta_comp = 0.80
@@ -1310,10 +1310,10 @@ dTlm = LMTD(Th_in - Tc_out, Th_out - Tc_in)`,
   {
     id: 'cubic-eos-properties',
     title: 'Cubic-EOS Real-Gas Properties',
-    description: 'CoolProp-independent SRK/PR backend: Z, density, and saturation pressure.',
+    description: 'SRK/PR cubic EOS, no real-fluid backend: Z, density, and saturation pressure.',
     category: 'Thermodynamics',
     text: `// Real-Gas Properties from a Cubic EOS (Peng-Robinson)
-{ A CoolProp-independent SRK/PR backend. CO2 at 6 MPa, 320 K. }
+{ An SRK/PR cubic EOS that needs no real-fluid backend. CO2 at 6 MPa, 320 K. }
 T = 320 [K]
 P = 6000000 [Pa]
 Z = eos_z('co2', 'PR', T, P, 'vapor')          { compressibility factor }

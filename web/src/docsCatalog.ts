@@ -175,7 +175,7 @@ The solver ran but did not converge; the diagnostic names the failing **block** 
 2. If the block contains property calls, check the *property error* appended to the message — the iteration usually walked a state out of the fluid's valid range (next entry).
 3. Bootstrap a stubborn block with a temporary explicit estimate, solve, copy values into guesses, restore the real equation (*Debugging a Solve* shows the pattern).
 
-## CoolProp range / property errors ("must be in range …")
+## Real-fluid range / property errors ("must be in range …")
 
 A property was evaluated outside the fluid's validity envelope — almost always a symptom, not the disease: an unseeded unknown wandered there during iteration.
 
@@ -879,12 +879,12 @@ Reference any code-defined plot in your narrative with a graph tag and it render
 The name inside the quotes must match a \`PLOT\` block's title.
 
 [Related: reports, symbolic-cas]`,
-  "thermo": `# Thermophysical Properties Reference (CoolProp & Gas)
+  "thermo": `# Thermophysical Properties Reference (Real Fluids & Gas)
 
 frees ships a high-precision fluid-properties database. **Every property function returns a value in SI base units** (J/kg, K, Pa, kg/m³, …) regardless of the units you annotate inputs with — annotate inputs for convenience, then convert outputs if you need engineering units.
 
 ## Material classes
-1. **CoolProp real fluids** — multi-phase fluids such as \`Water\`, \`R134a\`, \`Ammonia\`, \`CarbonDioxide\`. Each lookup needs exactly **two** independent properties.
+1. **Real fluids** — multi-phase fluids such as \`Water\`, \`R134a\`, \`Ammonia\`, \`CarbonDioxide\`. Each lookup needs exactly **two** independent properties.
 2. **Ideal gases** — spelled formulas (\`CO2\`, \`N2\`, \`CH4\`, \`O2\`, \`Air\`) evaluated with NASA thermodynamic polynomials. Use these for gas-cycle work where real-fluid effects are negligible.
 3. **Aqueous glycols** — incompressible coolants written as base + mass percent: \`EG50\` (50% ethylene glycol), \`PG30\` (30% propylene glycol). Queries need Temperature (\`T\`) and Pressure (\`P\`).
 
@@ -930,7 +930,7 @@ Every function takes the fluid name first, then coordinates:
 ## Thermophysical utility functions
 - **\`P_sat(Fluid, T=t)\`** — saturation pressure at temperature $T$.
 - **\`T_sat(Fluid, P=p)\`** — saturation temperature at pressure $P$.
-- **\`MolarMass(Fluid)\`** — molar mass (kg/mol) of CoolProp fluids, ideal-gas species, or arbitrary formulas (\`C8H18\`, \`Ca(OH)2\`).
+- **\`MolarMass(Fluid)\`** — molar mass (kg/mol) of real fluids, ideal-gas species, or arbitrary formulas (\`C8H18\`, \`Ca(OH)2\`).
 - **\`HeatingValue(Fuel, 'LHV'|'HHV')\`** — lower or higher heating value (J/kg).
 - **\`StoichAFR(Fuel)\`** — stoichiometric air-fuel ratio (mass basis).
 - **\`IsIdealGas(Fluid)\`** — \`1\` if treated as ideal, else \`0\`.
@@ -976,7 +976,7 @@ q = k * A * (T_hot - T_cold) / L { watts }
 Chemical calculations and combustion analysis for hydrocarbons, alcohols, and common species.
 
 ## Molar mass
-\`MolarMass\` resolves CoolProp fluids, ideal-gas species, **or** arbitrary chemical formulas straight from the periodic table:
+\`MolarMass\` resolves real fluids, ideal-gas species, **or** arbitrary chemical formulas straight from the periodic table:
 \`\`\`
 M  = MolarMass(CarbonDioxide)   { 0.04401 kg/mol }
 M2 = MolarMass(C8H18)           { 0.11423 kg/mol }
@@ -1241,7 +1241,7 @@ You now know the whole loop: describe equations, Check (F4), Solve (F2), sweep a
 - **Master the language** — operators, arrays, complex numbers, and strings: *Language Fundamentals*.
 - **Work with matrices** — declare, operate, and solve linear systems: *Matrices & Linear Algebra*.
 - **Reuse logic & data** — custom functions, submodels, and tables: *Programming & Tables*.
-- **Use property data** — CoolProp fluids, ideal gases, humid air, and solid materials: *Fluids & Materials*.
+- **Use property data** — real fluids, ideal gases, humid air, and solid materials: *Fluids & Materials*.
 - **Understand and steer the solver** — convergence, debugging, uncertainty propagation, and optimization: *Solving & Optimization*.
 - **Go dynamic** — ODE transients, linearization, transfer functions, and Bode plots: *Dynamic Systems & Control*.
 - **Model whole systems** — the acausal component library, from a pipe run to a full refrigeration loop: *System Modeling with Components*.
@@ -1773,7 +1773,7 @@ x[1:3] = SolveLinear(A[1:3,1:3], b[1:3])
   "lang-overview": `The frees language is small and declarative: equations are constraints, names are case-insensitive, and everything is computed in SI. These pages cover the grammar and the everyday building blocks — variables and the guesses that make nonlinear solves converge, units, arrays, complex numbers, strings, and the differentiable math functions. Start with *Equation Syntax & Rules* if you are new; the function pages list the most-used calls and link to the per-symbol Reference for full signatures.`,
   "matrix-overview": `frees uses an array-language-style syntax for matrices and vectors. Declare a shape with a slice suffix, then add, multiply, transpose, or solve linear systems with the standard operators. For heavy numerics there are low-level OpenBLAS primitives and higher-level decompositions (LU, eigenvalues). Transfer-function coefficient arrays for control work are just vectors — see *Dynamic Systems & Control*.`,
   "prog-overview": `When a model repeats or grows, factor it out. \`FUNCTION\` and \`PROCEDURE\` blocks add reusable, imperative-bodied routines; \`MODULE\` encapsulates a whole equation subsystem you can instantiate many times. \`TABLE\` blocks hold tabulated data callable like a function, and the lookup/interpolation and parametric-table accessors read that data back into a solve.`,
-  "fluids-overview": `frees ships high-precision property data so you never hand-look-up a state. CoolProp covers real fluids (water, refrigerants, ammonia, …); ideal-gas species use NASA polynomials; \`AirH2O\` handles humid air from three coordinates; and a built-in database carries bulk properties for common solids. Every property function returns SI base units. Group a circuit's state points with a \`STATE TABLE\` to isolate fluids and overlay cycles on property charts.`,
+  "fluids-overview": `frees ships high-precision property data so you never hand-look-up a state. Real fluids (water, refrigerants, ammonia, …) are computed in the browser by rustprop, a pure-Rust port of CoolProp 8.0.0; ideal-gas species use NASA polynomials; \`AirH2O\` handles humid air from three coordinates; and a built-in database carries bulk properties for common solids. Every property function returns SI base units. Group a circuit's state points with a \`STATE TABLE\` to isolate fluids and overlay cycles on property charts.`,
   "solving-overview": `How frees actually solves — and what to do when it doesn't. These pages explain the pipeline (Tarjan blocking, then Newton's method per block), the guesses and bounds that make nonlinear systems converge, and a methodical debugging workflow for solves that stall. The same solved state powers two system-level analyses: first-order **uncertainty propagation** (\`val ± unc\` on every result) and **optimization** — parametric sweeps, single-objective search, and NSGA-II Pareto fronts.`,
   "dynamics-overview": `Models that move. A \`DYNAMIC\` block integrates coupled, stiff, even event-driven ODE/DAE systems in time; \`LINEARIZE\` extracts state-space matrices about an operating point; and the control suite takes it from there — transfer functions, frequency response (Bode, Nyquist), pole placement, LQR, and PID tuning, with figures declared in code via \`PLOT\`. The symbolic CAS pages cover the Laplace-domain algebra that backs the control work.`,
   "components-overview": `Model whole systems, not just equations: instantiate parameterized **components** (pumps, pipes, heat exchangers, resistors, gears, cooling coils, signal blocks — ~295 shipped), connect their ports, and frees expands the network into ordinary scalar equations for the same solver. The modeling is **acausal** (no inputs or outputs — fix any consistent boundary values), spans five physical domains plus a causal **signal** domain for command wires and six fluid families with strict cross-wiring guards, selects physics fidelity per component with \`model$\` variants, and turns the *same wiring* into a steady operating point or a transient. Start with *Your First Component Network*.`,
@@ -2647,7 +2647,7 @@ END
 
 **The problem.** An R134a vapor-compression cycle evaporates at −10 °C and condenses at 40 °C with a 72 % isentropic compressor. What is the COP — and how well do you actually *know* that COP, given that the two temperatures come from ±0.5 K probes and the efficiency from a ±0.03 datasheet figure?
 
-**What you'll use:** CoolProp property calls at the four cycle states, and the **uncertainty propagation engine** (\`UncertaintyOf\`) that turns instrument specs into error bars on the result — the calculation every test report needs and almost nobody does by hand.
+**What you'll use:** real-fluid property calls at the four cycle states, and the **uncertainty propagation engine** (\`UncertaintyOf\`) that turns instrument specs into error bars on the result — the calculation every test report needs and almost nobody does by hand.
 
 ## Stage 1 — the four states
 

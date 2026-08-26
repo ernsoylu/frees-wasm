@@ -12,9 +12,8 @@ tags: [eos, cubic, peng-robinson, srk, compressibility, real gas, z-factor]
 Returns the **compressibility factor** `Z = Pv/(RT)` of a real fluid from a cubic
 equation of state — Soave–Redlich–Kwong (`'SRK'`) or Peng–Robinson (`'PR'`) — at
 temperature `T` and pressure `P`. `Z` measures the departure from ideal-gas
-behavior (`Z = 1`) and is the root used to build all other EOS properties. A
-CoolProp-independent backend that needs only critical constants and the acentric
-factor.
+behavior (`Z = 1`) and is the root used to build all other EOS properties. A backend that needs no
+real-fluid property data — only critical constants and the acentric factor.
 
 ## Syntax
 

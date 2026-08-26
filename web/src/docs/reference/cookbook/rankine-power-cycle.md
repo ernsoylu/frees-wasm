@@ -11,7 +11,7 @@ related: [Enthalpy, Entropy, Quality, Pump, Boiler, Turbine, Condenser]
 # Rankine Steam Power Cycle
 
 **Goal:** model the ideal steam power cycle and read off its **thermal efficiency**
-from real-water (CoolProp) properties.
+from real-water properties.
 
 ## What you'll build
 

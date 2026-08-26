@@ -1,10 +1,10 @@
 [Topic: thermo]
-# Thermophysical Properties Reference (CoolProp & Gas)
+# Thermophysical Properties Reference (Real Fluids & Gas)
 
 frees ships a high-precision fluid-properties database. **Every property function returns a value in SI base units** (J/kg, K, Pa, kg/m³, …) regardless of the units you annotate inputs with — annotate inputs for convenience, then convert outputs if you need engineering units.
 
 ## Material classes
-1. **CoolProp real fluids** — multi-phase fluids such as `Water`, `R134a`, `Ammonia`, `CarbonDioxide`. Each lookup needs exactly **two** independent properties.
+1. **Real fluids** — multi-phase fluids such as `Water`, `R134a`, `Ammonia`, `CarbonDioxide`. Each lookup needs exactly **two** independent properties.
 2. **Ideal gases** — spelled formulas (`CO2`, `N2`, `CH4`, `O2`, `Air`) evaluated with NASA thermodynamic polynomials. Use these for gas-cycle work where real-fluid effects are negligible.
 3. **Aqueous glycols** — incompressible coolants written as base + mass percent: `EG50` (50% ethylene glycol), `PG30` (30% propylene glycol). Queries need Temperature (`T`) and Pressure (`P`).
 
@@ -50,7 +50,7 @@ Every function takes the fluid name first, then coordinates:
 ## Thermophysical utility functions
 - **`P_sat(Fluid, T=t)`** — saturation pressure at temperature $T$.
 - **`T_sat(Fluid, P=p)`** — saturation temperature at pressure $P$.
-- **`MolarMass(Fluid)`** — molar mass (kg/mol) of CoolProp fluids, ideal-gas species, or arbitrary formulas (`C8H18`, `Ca(OH)2`).
+- **`MolarMass(Fluid)`** — molar mass (kg/mol) of real fluids, ideal-gas species, or arbitrary formulas (`C8H18`, `Ca(OH)2`).
 - **`HeatingValue(Fuel, 'LHV'|'HHV')`** — lower or higher heating value (J/kg).
 - **`StoichAFR(Fuel)`** — stoichiometric air-fuel ratio (mass basis).
 - **`IsIdealGas(Fluid)`** — `1` if treated as ideal, else `0`.
@@ -100,7 +100,7 @@ q = k * A * (T_hot - T_cold) / L { watts }
 Chemical calculations and combustion analysis for hydrocarbons, alcohols, and common species.
 
 ## Molar mass
-`MolarMass` resolves CoolProp fluids, ideal-gas species, **or** arbitrary chemical formulas straight from the periodic table:
+`MolarMass` resolves real fluids, ideal-gas species, **or** arbitrary chemical formulas straight from the periodic table:
 ```
 M  = MolarMass(CarbonDioxide)   { 0.04401 kg/mol }
 M2 = MolarMass(C8H18)           { 0.11423 kg/mol }

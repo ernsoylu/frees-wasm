@@ -1,7 +1,7 @@
 ---
 name: quality
 category: Fluid Properties
-summary: Fluid property: quality from a real-fluid (CoolProp) backend.
+summary: Fluid property: quality from the real-fluid property backend.
 related: []
 examples: []
 tags: [quality, property, fluid, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # quality
 
-Returns the **quality** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+Returns the **quality** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

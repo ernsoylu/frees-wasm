@@ -1,7 +1,7 @@
 ---
 name: humrat
 category: Fluid Properties
-summary: Humid-air property: humrat from a real-fluid (CoolProp) backend.
+summary: Humid-air property: humrat from the real-fluid property backend.
 related: []
 examples: []
 tags: [humrat, property, humid-air, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # humrat
 
-Returns the **humrat** of a humid-air (AirH2O) from any valid pair of independent state properties (CoolProp backend).
+Returns the **humrat** of a humid-air (AirH2O) from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

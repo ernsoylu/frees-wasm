@@ -341,7 +341,7 @@ END
 
 **The problem.** An R134a vapor-compression cycle evaporates at −10 °C and condenses at 40 °C with a 72 % isentropic compressor. What is the COP — and how well do you actually *know* that COP, given that the two temperatures come from ±0.5 K probes and the efficiency from a ±0.03 datasheet figure?
 
-**What you'll use:** CoolProp property calls at the four cycle states, and the **uncertainty propagation engine** (`UncertaintyOf`) that turns instrument specs into error bars on the result — the calculation every test report needs and almost nobody does by hand.
+**What you'll use:** real-fluid property calls at the four cycle states, and the **uncertainty propagation engine** (`UncertaintyOf`) that turns instrument specs into error bars on the result — the calculation every test report needs and almost nobody does by hand.
 
 ## Stage 1 — the four states
 

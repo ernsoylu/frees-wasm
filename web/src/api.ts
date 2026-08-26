@@ -182,7 +182,7 @@ export interface ConnectionDto {
    *  bond-graph domain lumps together — a coolant loop and a refrigerant loop
    *  are both `domain: 'fluid'`. */
   connector?: string | null
-  /** The CoolProp working fluid this node carries, when the model named one. */
+  /** The working fluid this node carries, when the model named one. */
   fluid?: string | null
   /** Per endpoint (aligned by index), the display prefix its member variables
    *  use — `chlr.in` for a connect-wired free port, `s2` for a shared-name
@@ -839,9 +839,10 @@ export interface PsychartResponse {
 
 /** `GET /api/plot/fluids`, read from the engine's own fluid table.
  *
- *  The list is the canonical CoolProp names `PropertyFunctions.plotFluids()`
- *  publishes — but, exactly like the Java controller, it is **empty unless the
- *  engine has a real-fluid property backend installed**, because offering a
+ *  The names follow CoolProp's convention, as `PropertyFunctions.plotFluids()`
+ *  publishes them — but, exactly like the Java controller, the list is **empty
+ *  unless the engine has a real-fluid property backend installed** (in this
+ *  build that is rustprop, so it never is), because offering a
  *  fluid whose properties cannot be evaluated is worse than offering none. The
  *  UI already renders the empty state ("no fluids available").
  *

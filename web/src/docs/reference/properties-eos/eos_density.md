@@ -10,8 +10,8 @@ tags: [eos, cubic, peng-robinson, srk, density, real gas]
 # eos_density
 
 Returns the **mass density** `ρ` [kg/m³] of a real fluid from a cubic equation of
-state (`'SRK'` or `'PR'`) at temperature `T` and pressure `P`. The CoolProp-
-independent real-gas density, the reciprocal of `eos_volume`.
+state (`'SRK'` or `'PR'`) at temperature `T` and pressure `P`. The real-gas density that needs no
+real-fluid property data, the reciprocal of `eos_volume`.
 
 ## Syntax
 

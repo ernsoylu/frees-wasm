@@ -31,7 +31,7 @@ the numerical method the backend actually uses.
 
 $$ y = f(x) $$
 
-> **Method:** <e.g. LU with partial pivoting / Brent root-find / CoolProp EOS inversion>.
+> **Method:** <e.g. LU with partial pivoting / Brent root-find / real-fluid EOS inversion>.
 
 ## Examples
 

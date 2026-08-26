@@ -433,7 +433,7 @@ END
   {
     value: "combined-cycle",
     title: "Energy Systems: Combined Brayton–Rankine Cycle through an HRSG",
-    description: "A complete combined-cycle power plant: an air-standard gas turbine (Brayton) tops a steam Rankine cycle, the two coupled through a Heat Recovery Steam Generator. The HRSG energy balance fixes the steam-to-gas mass ratio; CoolProp supplies every steam state.",
+    description: "A complete combined-cycle power plant: an air-standard gas turbine (Brayton) tops a steam Rankine cycle, the two coupled through a Heat Recovery Steam Generator. The HRSG energy balance fixes the steam-to-gas mass ratio; the real-fluid backend supplies every steam state.",
     note: "Solves in one shot per 1 kg/s of gas: compressor exit 678 K, turbine exit 774 K, 0.121 kg/s of steam raised per kg of gas, and an overall efficiency of 51.3% — higher than either cycle alone, as a real combined cycle should be.",
     code: `{ Combined-cycle plant: air-standard Brayton topping + steam Rankine
   bottoming, coupled through a Heat Recovery Steam Generator (per 1 kg/s gas). }
@@ -450,7 +450,7 @@ q_gas  = cp*(T3 - T2)
 wnet_gas = w_gt - w_comp
 m_gas = 1 [kg/s]
 
-{ ---- Steam Rankine bottoming (CoolProp water) ---- }
+{ ---- Steam Rankine bottoming (real-water properties) ---- }
 P_boil = 6000 [kPa]; T_sup = 450 [C]; P_cond = 10 [kPa]
 eta_st = 0.87; eta_p = 0.85
 h5 = Enthalpy(Water, P=P_boil, T=T_sup)
@@ -949,10 +949,10 @@ T3 = (J3/sigma)^0.25          { reradiating-wall temperature }`,
   {
     value: "auto-cooling-loop",
     title: "Thermal/Automotive: Radiator + Pump + Fan Cooling Loop (EG50 coolant)",
-    description: "An automotive cooling loop where the fan and pump operating points are found implicitly — each performance curve, entered as a TABLE and called like a function, is intersected with its quadratic flow resistance — and the radiator heat duty follows from a digitized effectiveness table. The coolant is a 50/50 ethylene glycol/water mixture (EG50) whose density and specific heat come straight from CoolProp. The fan curve is affinity-scaled by f_rpm so you can slow the fan or sweep it in a Parametric Table.",
+    description: "An automotive cooling loop where the fan and pump operating points are found implicitly — each performance curve, entered as a TABLE and called like a function, is intersected with its quadratic flow resistance — and the radiator heat duty follows from a digitized effectiveness table. The coolant is a 50/50 ethylene glycol/water mixture (EG50) whose density and specific heat come straight from the real-fluid backend. The fan curve is affinity-scaled by f_rpm so you can slow the fan or sweep it in a Parametric Table.",
     note: "Solves to Q = 38.2 kW rejected, fan power 262 W and pump power 97 W, at an air-side operating point of 0.90 m³/s (~1910 CFM, 131 Pa) and a coolant flow of 89.8 L/min. The TABLE input/output units ([m^3/s] → [Pa]) let frees derive SI units all the way through (Vair m³/s, dP_air Pa, Q W, T_c_out K) instead of showing '-'. EG50 at 90 °C gives ρ = 1019 kg/m³, cp = 3616 J/kg·K (vs water 965 / 4205). Data sources: cross-flow radiator effectiveness ε≈0.6–0.85 and heat rejection 25–50 kW (ResearchGate 397980466, FSAE study 356606738); SPAL 16-inch fan ~2500 CFM free-air / ~250 Pa max static (streetmusclemag.com); Davies-Craig EWP pump 90–162 L/min (daviescraig.com.au/electric-water-pumps).",
     code: `{ Automotive cooling loop: radiator + electric pump + electric fan.
-  Coolant = 50/50 ethylene glycol / water (EG50), properties from CoolProp.
+  Coolant = 50/50 ethylene glycol / water (EG50), real-fluid properties.
   Pump and fan curves are entered as TABLE blocks and used as functions.
 
   Data sources (typical passenger-car / aftermarket components):
@@ -1666,7 +1666,7 @@ V_dot_return = V_dot_supply - V_dot_oa
 f_oa = V_dot_oa / V_dot_supply
 f_return = V_dot_return / V_dot_supply
 
-{ Convert to Kelvin for CoolProp }
+{ Convert to Kelvin for the property call }
 T_room_K = (T_room_db - 32) * 5/9 + 273.15
 T_oa_K   = (T_oa_db   - 32) * 5/9 + 273.15
 T_oa_wb_K = (T_oa_wb  - 32) * 5/9 + 273.15

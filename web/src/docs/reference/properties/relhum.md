@@ -1,7 +1,7 @@
 ---
 name: relhum
 category: Fluid Properties
-summary: Humid-air property: relhum from a real-fluid (CoolProp) backend.
+summary: Humid-air property: relhum from the real-fluid property backend.
 related: []
 examples: []
 tags: [relhum, property, humid-air, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # relhum
 
-Returns the **relhum** of a humid-air (AirH2O) from any valid pair of independent state properties (CoolProp backend).
+Returns the **relhum** of a humid-air (AirH2O) from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

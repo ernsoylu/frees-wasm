@@ -1,7 +1,7 @@
 ---
 name: intenergy
 category: Fluid Properties
-summary: Fluid property: intenergy from a real-fluid (CoolProp) backend.
+summary: Fluid property: intenergy from the real-fluid property backend.
 related: []
 examples: []
 tags: [intenergy, property, fluid, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # intenergy
 
-Returns the **intenergy** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+Returns the **intenergy** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

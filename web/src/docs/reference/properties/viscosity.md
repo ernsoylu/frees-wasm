@@ -1,7 +1,7 @@
 ---
 name: viscosity
 category: Fluid Properties
-summary: Fluid property: viscosity from a real-fluid (CoolProp) backend.
+summary: Fluid property: viscosity from the real-fluid property backend.
 related: []
 examples: []
 tags: [viscosity, property, fluid, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # viscosity
 
-Returns the **viscosity** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+Returns the **viscosity** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

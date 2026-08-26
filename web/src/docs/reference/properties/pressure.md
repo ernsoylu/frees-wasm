@@ -1,7 +1,7 @@
 ---
 name: pressure
 category: Fluid Properties
-summary: Fluid property: pressure from a real-fluid (CoolProp) backend.
+summary: Fluid property: pressure from the real-fluid property backend.
 related: []
 examples: []
 tags: [pressure, property, fluid, coolprop]
@@ -10,7 +10,7 @@ references: []
 
 # pressure
 
-Returns the **pressure** of a real fluid from any valid pair of independent state properties (CoolProp backend).
+Returns the **pressure** of a real fluid from any valid pair of independent state properties (rustprop, a pure-Rust port of CoolProp 8.0.0).
 
 > Real-fluid/material/symbolic operation — see the inputs and references below.
 

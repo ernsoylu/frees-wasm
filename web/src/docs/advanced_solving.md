@@ -180,7 +180,7 @@ The solver ran but did not converge; the diagnostic names the failing **block** 
 2. If the block contains property calls, check the *property error* appended to the message — the iteration usually walked a state out of the fluid's valid range (next entry).
 3. Bootstrap a stubborn block with a temporary explicit estimate, solve, copy values into guesses, restore the real equation (*Debugging a Solve* shows the pattern).
 
-## CoolProp range / property errors ("must be in range …")
+## Real-fluid range / property errors ("must be in range …")
 
 A property was evaluated outside the fluid's validity envelope — almost always a symptom, not the disease: an unseeded unknown wandered there during iteration.
 

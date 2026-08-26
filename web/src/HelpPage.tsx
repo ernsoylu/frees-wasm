@@ -400,18 +400,20 @@ function FluidsReference() {
 
       <Title order={3} mt="md">Supported Fluids</Title>
       <Text size="sm" c="dimmed">
-        Names are case-insensitive; several aliases map to the same CoolProp
-        fluid (e.g. <Code>steam</Code>, <Code>h2o</Code> → Water). Spelled
-        formulas (<Code>CO2</Code>, <Code>N2</Code>, <Code>CH4</Code>) are ideal
-        gases with NASA polynomials. CoolProp availability is reported live by the
-        backend.
+        Names are case-insensitive and follow CoolProp's convention, with several
+        aliases mapping to the same fluid (e.g. <Code>steam</Code>,{' '}
+        <Code>h2o</Code> → Water). Spelled formulas (<Code>CO2</Code>,{' '}
+        <Code>N2</Code>, <Code>CH4</Code>) are ideal gases with NASA
+        polynomials. Real-fluid properties are computed in the browser by
+        rustprop, a pure-Rust port of CoolProp 8.0.0; the list below is reported
+        live by the engine.
       </Text>
       {fluids === null ? (
         <Text size="sm" c="dimmed">Loading fluids…</Text>
       ) : fluids.length === 0 ? (
         <Alert color="orange" variant="light">
-          CoolProp is not available on this backend, so the live fluid list is
-          empty. The function syntax below still applies when it is.
+          The engine returned no fluids, so the live list is empty. The function
+          syntax below still applies.
         </Alert>
       ) : (
         <Group gap={6}>
@@ -651,7 +653,7 @@ const CATEGORIES: NavCategory[] = [
     overview: 'fluids-overview',
     items: [
       { id: 'fluids-overview', label: 'Overview', blurb: 'Real-fluid, ideal-gas, humid-air, and solid-material property data.', keywords: ['fluids', 'materials', 'overview', 'properties'] },
-      { id: 'thermo', label: 'Fluid Properties (CoolProp & Gas)', blurb: 'Enthalpy, entropy, density … for CoolProp fluids and ideal gases.', keywords: ['coolprop', 'fluids', 'water', 'steam', 'refrigerant', 'glycol', 'density', 'enthalpy', 'entropy', 'p_sat', 't_sat', 'molarmass', 'compressibilityfactor', 'prandtl', 'surfacetension', 'fugacity', 'enthalpy_fusion', 'dipole', 'p_crit', 't_crit', 'v_crit', 't_triple', 'isidealgas', 'phase$'] },
+      { id: 'thermo', label: 'Fluid Properties (Real Fluids & Gas)', blurb: 'Enthalpy, entropy, density … for real fluids and ideal gases.', keywords: ['coolprop', 'fluids', 'water', 'steam', 'refrigerant', 'glycol', 'density', 'enthalpy', 'entropy', 'p_sat', 't_sat', 'molarmass', 'compressibilityfactor', 'prandtl', 'surfacetension', 'fugacity', 'enthalpy_fusion', 'dipole', 'p_crit', 't_crit', 'v_crit', 't_triple', 'isidealgas', 'phase$'] },
       { id: 'humidair', label: 'Psychrometrics (AirH2O)', blurb: 'Humid-air states from three coordinates; wet-bulb, dew-point, humidity ratio.', keywords: ['psychrometric', 'humid air', 'airh2o', 'relative humidity', 'wet bulb', 'dew point'] },
       { id: 'chemistry', label: 'Chemistry & Combustion', blurb: 'Molar mass from formulas, heating values, view factors, Heisler charts.', keywords: ['chemistry', 'combustion', 'molarmass', 'heatingvalue', 'lhv', 'hhv', 'stoichafr', 'afr', 'fuel', 'formula', 'molar mass', 'chemical', 'c8h18', 'ch4', 'ethanol', 'hydrocarbon'] },
       { id: 'solid-materials', label: 'Solid & Material Properties', blurb: 'Conductivity, specific heat, modulus … for common engineering solids.', keywords: ['material', 'solid', 'c_', 'k_', 'rho_', 'mu_', 'pv_', 'e_', 'nu_', 'epsilon_', 'volexpcoef', 'freezingpt', 'deltal\\l_293', 'ek_lj', 'sigma_lj'] },
@@ -747,7 +749,7 @@ const CATEGORIES: NavCategory[] = [
     items: [
       { id: 'ref-index', label: 'A–Z Function Index', blurb: 'Every documented symbol, alphabetically, linking to its reference page.', keywords: ['index', 'a-z', 'alphabetical', 'all functions', 'reference', 'list'] },
       { id: 'ref-units', label: 'Units & Constants', blurb: 'The live list of accepted units and built-in physical constants.', keywords: ['constant', 'pi#', 'e#', 'r#', 'g#', 'na#', 'k#', 'h#', 'c#', 'sigma#', 'gc#', 'qe#', 'avogadro', 'boltzmann', 'planck', 'gravity', 'gas constant', 'unit', 'units', 'si', 'dimension', 'kpa', 'pa', 'convert', 'deg', 'rad'] },
-      { id: 'ref-fluids', label: 'Supported Fluids', blurb: 'The live CoolProp fluid list, ideal gases, and glycol coolants.', keywords: ['fluid', 'water', 'steam', 'r134a', 'ammonia', 'air', 'airh2o', 'glycol', 'eg50', 'pg30', 'coolprop', 'supported fluids'] },
+      { id: 'ref-fluids', label: 'Supported Fluids', blurb: 'The live real-fluid list, ideal gases, and glycol coolants.', keywords: ['fluid', 'water', 'steam', 'r134a', 'ammonia', 'air', 'airh2o', 'glycol', 'eg50', 'pg30', 'coolprop', 'supported fluids'] },
     ]
   }
 ];

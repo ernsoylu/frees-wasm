@@ -165,7 +165,7 @@ You now know the whole loop: describe equations, Check (F4), Solve (F2), sweep a
 - **Master the language** — operators, arrays, complex numbers, and strings: *Language Fundamentals*.
 - **Work with matrices** — declare, operate, and solve linear systems: *Matrices & Linear Algebra*.
 - **Reuse logic & data** — custom functions, submodels, and tables: *Programming & Tables*.
-- **Use property data** — CoolProp fluids, ideal gases, humid air, and solid materials: *Fluids & Materials*.
+- **Use property data** — real fluids, ideal gases, humid air, and solid materials: *Fluids & Materials*.
 - **Understand and steer the solver** — convergence, debugging, uncertainty propagation, and optimization: *Solving & Optimization*.
 - **Go dynamic** — ODE transients, linearization, transfer functions, and Bode plots: *Dynamic Systems & Control*.
 - **Model whole systems** — the acausal component library, from a pipe run to a full refrigeration loop: *System Modeling with Components*.

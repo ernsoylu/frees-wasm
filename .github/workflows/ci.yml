@@ -118,8 +118,53 @@ jobs:
       - name: Check --no-default-features
         run: cargo check -p frees-core --no-default-features
 
+      # The golden-corpus replay is DELIBERATELY skipped here, and this is the
+      # only place that says so. `tests/parity.rs` is an ordinary integration
+      # test of `frees-core`, so `cargo test --workspace` runs it — the whole
+      # corpus, unsharded, in this debug profile — while the four
+      # `parity corpus i/4` jobs below replay the *same* corpus in the *same*
+      # profile, and their shards provably sum to it (parity.rs refuses every
+      # configuration that could under-replay and prints a census whose
+      # `replayed` values must total `corpus`). It was pure duplicate work, and
+      # it was the whole workflow's critical path: on the S1 run
+      # (32912981189, 2026-08-25/26) this step took 14m26s of a 15m09s job,
+      # while the four shards finished in 0m57s / 1m27s / 1m35s / 3m43s.
+      #
+      # Nothing else is skipped: every other suite in the workspace still runs
+      # here, including the debug-only ones (`dynamics_robustness` found a
+      # stack overflow that only reproduces unoptimised).
+      #
+      # And this does NOT make the job cheap, because the replay is not the only
+      # whole-corpus pass in it: `props_robustness`'s
+      # `no_promoted_fixture_solves_to_a_non_finite_value` solves every document
+      # in `fixtures/corpus` as well, one thread, in this debug profile. That
+      # one is left alone on purpose — it asserts something the replay does not
+      # (no non-finite value under DEFAULT settings, where the replay uses each
+      # fixture's own request sidecar) — but it is now the largest single item
+      # in this job, and it is where to look next if this job is still the
+      # critical path. Nothing else here walks the corpus and solves:
+      # `matrix_expansion` only parses it and `dynamics_robustness` only reads
+      # `points =` out of the text.
+      #
+      # This is deliberately NOT the failure `fixtures/README.md` warns about
+      # under "the single-package form refuses" — that a gate which can vanish
+      # from a run is a gate that quietly asserts nothing. The harness is
+      # untouched: `cargo test --workspace` still replays the corpus for every
+      # developer, and `tests/parity.rs` still refuses `required-features` for
+      # exactly that reason. What is skipped here is one JOB in a workflow whose
+      # other four jobs replay the whole corpus and fail it if any shard fails.
+      # If those four are ever removed, this line must go with them.
+      #
+      # The filter is by NAME, so a rename would silently restore the
+      # duplication — slower, never less covered, but silent. The grep turns
+      # that into a red build instead.
       - name: Test
-        run: cargo test --workspace
+        run: |
+          grep -q 'fn golden_corpus_parity' crates/frees-core/tests/parity.rs || {
+            echo "::error::the parity test was renamed — update the --skip filter in this step"
+            exit 1
+          }
+          cargo test --workspace -- --skip golden_corpus_parity
 
   wasm:
     name: wasm build + size gate
@@ -282,6 +327,24 @@ jobs:
     #
     # Read that table as the finding it is: the parity gate's real lever is not
     # sharding, it is that one transient fixture is 61% of it.
+    #
+    # 2026-08-26: that lever was pulled, and every number above is now history.
+    # Wave R2 ported the Java's PropsSI cache, which is worth 1.78x on
+    # ev-battery-cooling-pid alone. Compare shares rather than seconds — the two
+    # measurements are from different machines (the whole replay was 317.4 s
+    # there and is 126.98 s here): that one fixture was 60.8% of the gate and is
+    # now ~36% of it. Re-measured at HEAD (release, quiet box): 126.98 s
+    # unsharded, and the four shards timed one at a time are
+    # 11.97 / 17.36 / 46.35 / 52.49 s, with ev-battery-cooling-pid contributing
+    # 45.86 s of the 52.49 s one. The "no partition splits a fixture" floor this
+    # comment reasoned from is therefore ~46 s of a ~127 s gate, not 193 s of a
+    # 317 s one, so N=4 is no longer load-bearing for wall clock — it is kept
+    # because it is nearly free (three legs of the S1 run finished inside 100 s,
+    # the critical one in 3m43s) and because it keeps the gate bounded as the
+    # corpus grows, which was always the real argument. What made the workflow
+    # 15 minutes long was never this job: it was the `native` job replaying the
+    # same corpus a fifth time, unsharded, in the same debug profile. See the
+    # Test step above.
     strategy:
       # Each shard reports its own divergences. A parity failure is a LIST of
       # fixtures, and cancelling the siblings on the first red would hide three

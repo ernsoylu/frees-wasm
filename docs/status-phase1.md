@@ -51,6 +51,9 @@ closed none and **opened five (19–23)** — four of them ceilings the Java doe
 not have, added because the Java's *caller* has a guard this port has no
 equivalent of. Their full write-up is
 [`docs/status-phase78.md`](status-phase78.md#what-these-phases-did-not-deliver--ranked-honestly).
+Phases 9–12 opened **24–35**. Everything from **36** on is post-plan — the
+decisions D5–D11 and the lettered waves — and has its own heading below;
+the newest is **41** (Wave R2's one-entry `PropsSI` cache, 2026-08-25).
 
 1. ~~**No symbolic-Jacobian path**~~ **Closed 2026-07-30 (Phase 4)**:
    `differentiator.rs` ports `Differentiator`, `engine.rs` pre-differentiates
@@ -507,6 +510,13 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     goldens against this port's `~ignored~0`. Dropped, not staged; the item
     stands as written.)*
 
+### Opened after the plan — the decisions and the lettered waves (2026-08-05 →)
+
+Items 36 onward are **not** Phase 12's; they belong to the post-plan work
+(decisions D5–D11 and Waves A–S) and were filed under the heading above only
+because nobody added this one. The heading above keeps its anchor, so existing
+links into it still resolve. Each item names its own decision or wave.
+
 36. **The dead-end analysis UI is clipped (decision D5, 2026-08-05).** The
     Min/Max, Curve Fit, PID Tuner, Monte Carlo and Parameter Estimation
     modals and the PDF/EPS plot exports are removed from the product rather
@@ -628,12 +638,47 @@ Full context in [`docs/status-phase12.md`](status-phase12.md).
     zeotropic-blend property chain) are **untouched and still open**;
     `fixtures/README.md` growth item 3 lists them with their exact failures.
 
+41. **The ported `PropsSI` cache holds one entry, where the Java holds 20 000
+    (Wave R2, 2026-08-25).** `props/CoolProp.java` keys two access-ordered
+    `LinkedHashMap`s of 20 000 entries on the whole call, on the stated ground
+    that "PropsSI is a pure function of its arguments". Here it is not, quite:
+    `props/rustprop_warm.rs` seeds each `(P,h)`/`(P,s)` flash from the previous
+    answer, so an answer is a function of its arguments **and** of the seed the
+    previous call left behind. Replaying `ev-battery-cooling-pid`'s 5 539 832
+    property calls through LRUs of eight capacities and comparing every hit
+    against what the live call actually returned: capacity 1 hits 84.11 % of
+    calls and **99.72 %** of those are bit-identical; capacity 2 hits 93.55 %
+    and only **65.11 %** are; capacity 20 000 hits 97.06 % at **16.60 %**. So
+    the port takes the Java's mechanism at the depth where it can still make
+    the Java's promise, and the divergence is deliberate: **nine points of hit
+    rate traded for five sixths of the bit-identity guarantee**. It is worth
+    1.78× on that document and −21 % on the whole replay, and it *closed* a
+    divergence — `components_g4_radiator`'s tolerance entry died, its worst
+    variable going 1.2042e-6 → 1.2947e-14, because the Java's cache had been
+    making an eleven-digit cancellation exact and this port's uncached repeat
+    had a residue. **Wave S1 (2026-08-26) tested the obvious way out and closed
+    it**: tagging each entry with the seed identity it was written under does
+    keep every seeded hit bit-identical at every capacity, but it is worth only
+    1.3–1.6 points of hit rate — R2's estimate of 13 was counting the hits the
+    tag now rejects — and every tagged configuration that held capacity 1's
+    fidelity measured **5.1–6.5 % slower** on the document it was built for.
+    The one faster configuration (capacity 20 000, −2.2 %) is the one that
+    fails the fidelity claim. **Open and deliberate**; the tables are in
+    `props/propfun.rs`'s `mod cache`.
+
 ## Commands
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"          # rustup-installed toolchain
-cargo test --workspace                        # 644 tests incl. parity replay
-cargo test -p frees-core --test parity        # golden-corpus parity only
+cargo test --workspace                        # everything, incl. the parity replay
+                                              # (the "644 tests" this line used to
+                                              #  claim was a Phase-3 count)
+cargo test --workspace --test parity          # golden-corpus parity only. NOT
+                                              # `-p frees-core --test parity`: the
+                                              # single-package form does not unify
+                                              # features and the corpus is unservable
+                                              # without rustprop, so it refuses.
+                                              # See CLAUDE.md's Build and test block.
 cargo clippy --workspace --all-targets -- -D warnings
 wasm-pack build crates/frees-wasm --release --target web --out-dir ../../pkg
 tools/golden-dumper/run.sh                    # regenerate fixtures from Java

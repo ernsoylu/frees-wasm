@@ -20,9 +20,26 @@ properties, property diagrams, component networks, the component datasheet, the
 language reference, the CAS REPL, the control-systems `CALL`s and the Data
 Analyzer's CSV path all run in-browser with **zero `/api/` traffic** (the
 `.mf4` reader shipped with Phase 10 and was later removed by D6 — see below).
-Current gate numbers live in
-[`docs/status-phase12.md`](docs/status-phase12.md) — do not trust a count copied
-into this paragraph.
+Do not trust a count copied into this paragraph; the current ones are in the
+block below. *(That sentence used to point at
+[`docs/status-phase12.md`](docs/status-phase12.md) for "current gate numbers".
+It is the right document for how Phase 12 was **argued** — the corpus triage,
+the oracle traps, the fuzzing contract — but its numbers froze on 2026-08-05 at
+corpus 701 and a 2944 KiB bundle, and roughly forty wave commits have landed
+since. Waves A–S are recorded in their **commit messages**; there is no wave
+status document, which is why this block exists.)*
+
+**Gate numbers, re-measured 2026-08-26 at HEAD** (`0d07fdf`, S1) — re-run, not
+copied:
+
+| Gate | Result |
+|---|---|
+| parity replay, release, unsharded | **1308 / 1308** match the JDK oracle, **126.98 s** on a quiet box — 65 fixtures at a declared tolerance, 11 variables on the absolute channel |
+| the four shards CI runs | 11.97 / 17.36 / 46.35 / 52.49 s (release); `ev-battery-cooling-pid` is 45.86 s of the longest |
+| `cargo fmt --all --check` | clean |
+| `vitest run` (Node 22) | **33 files, 420 tests**, all pass |
+| wasm bundle | **3085.2 KiB raw / 1259.0 KiB gzipped** — 75.3 % of the 4096 KiB budget, 1010.8 KiB headroom |
+| pending corpus | **2** documents (`fixtures/README.md`) |
 
 > **Properties: Phase 5's "working real-fluid property backend" was D1's
 > precomputed `(P,h)` tables. That is no longer what the engine uses.** Since
@@ -192,14 +209,23 @@ before the switch. *(Superseded 2026-08-22: Wave B wired the whole Phase-8
 analysis layer for +340 KiB, taking the module to **3064.9 KiB**, and the
 budget was raised **3072 → 4096 KiB** — owner-authorized, sanctioned by the
 CI header's own rule since D9 paid debt (1); the header's dated entry has
-the full lever-by-lever justification. Current headroom ≈ 1031 KiB.)* Thirteen of the 23 entries in `fixtures/tolerances.json` are
+the full lever-by-lever justification. Current headroom ≈ 1031 KiB.)*
+*(Re-measured 2026-08-26 at HEAD — the first measurement since Wave G2, across
+twelve Rust-touching commits (D10's `functionTables` port, D11's removal of the
+measurement stack, P3, Q4, R2, R3, S1): **3085.2 KiB raw / 1259.0 KiB
+gzipped**, 75.3 % of the 4096 KiB budget, **1010.8 KiB headroom**. The net of
+all twelve is **−7.4 KiB raw**. Debt (2), the lazy chunk, is still untouched
+and still unneeded.)* Thirteen of the 23 entries in `fixtures/tolerances.json` are
 retired: the rustprop configuration is graded by
-`fixtures/tolerances-rustprop.json` and its **66 relative entries plus 10
+`fixtures/tolerances-rustprop.json` and its **65 relative entries plus 10
 absolute ones covering 11 variables** (ten scalar since Wave-3 F5, Wave G1's
 two transient entries, Wave G4's eleven component-harvest entries — all
 2026-08-23 — Wave A1's fourteen two-phase-cycle entries and Wave C1's CO2
 entry, 2026-08-24, then Wave P1's absolute channel, Wave P2's eighteen
-class-sweep entries and Wave Q1's last two, 2026-08-24/25), one file per
+class-sweep entries and Wave Q1's last two, 2026-08-24/25, **less Wave R2's
+retirement of `components_g4_radiator`**, whose worst variable went 1.2042e-6 →
+1.2947e-14 when the `props_si` cache made a repeated property call return the
+identical double — 2026-08-25), one file per
 backend, chosen by the same `rustprop-backend` cfg that chooses the backend.
 Five mechanisms are catalogued and every entry names one: `oracle-ph-table`,
 `upstream-ps-flash-residual`, `ida-adaptive-path`, `ode45-adaptive-path` and
@@ -297,6 +323,43 @@ through the chunk graph, of every chunk in the app. KaTeX renders only inside
 `symbolic_cas.md`, `language_fundamentals.md` and `tutorials.md`). The import
 now lives in `Latex.tsx`.
 
+**Two engine facts from Waves R and S (2026-08-25/26) that a new reader will
+otherwise get wrong.** Both are recorded in full in their commit messages;
+what follows is the part you must know before editing near them.
+
+* **`props_si` answers are cached, at capacity one** (`props/propfun.rs`,
+  `mod cache`, Wave R2). This is a *missing port*, not an optimisation: the
+  Java's `props/CoolProp.java` has held `PROPS_CACHE`/`HA_CACHE` all along, so
+  the goldens were produced by an engine that had it. It is worth **1.78×** on
+  `ev-battery-cooling-pid` (78 → 44 s) and −21 % on the whole replay, and it
+  retired a tolerance entry: `components_g4_radiator` went 1.2042e-6 →
+  1.2947e-14 because an eleven-digit cancellation of two nearly-equal humidity
+  ratios becomes exact once the repeated call returns the *identical* double.
+  **The capacity is one on purpose.** `rustprop_warm` seeds each `(P,h)`/`(P,s)`
+  flash from the previous answer, so an answer is a function of its arguments
+  *and* of the seed the previous call left. At capacity 1 a hit means the
+  previous call asked the same question, so the seed still is that call's
+  converged state; at capacity 2 it is not, and bit-identity with the live call
+  falls 99.72 % → 65 %. Wave S1 built the seed-identity tag that would lift the
+  cap, measured it, and **declined** it: the tag keeps every seeded hit
+  bit-identical but is worth only 1.3–1.6 points of hit rate (R2's estimate of
+  13 was counting the dishonest hits), and every tagged configuration that held
+  capacity 1's fidelity ran 5.1–6.5 % slower. S1 also corrected R2's accuracy
+  note on the way: against a live
+  CoolProp 8.0.0, neither the warm nor the cold path is uniformly nearer, and
+  the dominant term is rustprop's own `Hmass(T,P)` rather than either flash.
+* **A prepared block runs on a dense `Vec<f64>`, not on the name-keyed
+  `Scope`** (`engine.rs`, `ode/dynamic.rs`, Wave R3), and the `Scope` is
+  materialised only for a caller that actually reads it — `DynamicSolver`'s
+  `rhs` reads one name out of the map, and the map is genuinely needed only at
+  the output samples. The three `AlgebraicSolve` methods that carry this
+  (`watch`/`watched`/`materialise`) are **defaulted to off**, so every other
+  implementor is untouched. Worth −17.8 % instructions on both transient
+  stand-ins, byte-identical everywhere. The failure mode this invites is
+  recorded in the commit and is worth reading before touching it: a late guard
+  silently disabled half the change, every output stayed byte-identical, the
+  corpus stayed green, and **only the instruction counter could see it**.
+
 | Document | Contents |
 |---|---|
 | [`docs/status-wave3-f7.md`](docs/status-wave3-f7.md) | **The measured behaviour of the engine under the rustprop backend.** Wave-3 F7's robustness + performance sweep: the parity replay at 43–72 s against its ~180 s anchor (and why the backend is *not* the reason), the per-call budgets with their real margins (9,216-call hostile sweep worst 377 ms of 2 s; `all_survive` worst 155 ms of 20 s; the plateau at 500 µs), a 64–128x fuzz soak, the benches with `rankine_cycle`'s honest ~1.35x property cost, the audit that found **`nominal_enthalpy` seeding never runs** (and why that is faithful to the Java), the four ways `block_count` exactness was checked, and the one zero-headroom timing assertion the sweep broke. **Read its "How to read the numbers" section before quoting any second from it** |
@@ -315,7 +378,7 @@ now lives in `Latex.tsx`.
 | [`docs/dependency-map.md`](docs/dependency-map.md) | Every Java/native dependency → Rust replacement |
 | [`docs/feature-inventory.md`](docs/feature-inventory.md) | All 134 `backend/core` files mapped to features and phases |
 | [`docs/decisions/`](docs/decisions/) | D1 (precomputed `(P,h)` property tables), D2 (wasm32-unknown-unknown + wasm-pack), D3 (worker pool, no COOP/COEP), D4 (project storage), D5 (feature clip), D6 (remove MDF4), D7 (`FRAUX1` auxiliary grids + the bundle-budget breach — superseded for the browser by D9), D8 (CoolProp-grade accuracy becomes the property path — **implemented and closed**, by rustprop rather than by the `coolprop.wasm` it imagined), **D9 (rustprop is the wasm build's only property backend and the tables leave the bundle — read before writing any new property backend)**, D10 (the spreadsheet and Univer are removed — Wave H, 2026-08-23: the Tables workbook is a native glide grid, GUI function tables reach the engine on every request via the completed `functionTables` port with the document-wins collision rule, sweep/fit/CSV compose into callable functions, and the dist shrank 15.2 → 9.7 MB — read it before reintroducing any spreadsheet dependency or promising a GUI table can override a document `TABLE` block) |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (1308 — **Wave J** swept the 114 Java test classes that were never in the harvester's class list; +255; Wave A1 promoted 14 property holds, Wave C1 added CO2 and Wave P1 eight exact-zero documents, four of them re-harvested from Wave J's unstaged set; **Wave Q** +25, the Java sites whose *request* the fixture format could not carry) and golden fixtures, the `.tables.json` request-table sidecars (Wave I) and the `.request.json` solver-request sidecars (**Wave Q** — non-default stop criteria, complex mode, and `VariableSpec` guesses/bounds; an absent sidecar is the engine defaults, so it changed no existing fixture), the pending set (3; the `dyn_accessor_live` cost hold, `ev-tms-api-model`, whose worst variable is a regulariser artefact Wave P2 declined to pin with a relative tolerance, and Wave Q's `ode45`-shooting rocket), the decayed-signal measure (Wave G1) for ODE row cells and the **absolute channel** (Wave P1) for a quantity whose true value is a structurally exact zero, how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships — 64 relative + 8 absolute entries; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
+| [`fixtures/README.md`](fixtures/README.md) | The parity harness: corpus (1308 — **Wave J** swept the 114 Java test classes that were never in the harvester's class list; +255; Wave A1 promoted 14 property holds, Wave C1 added CO2 and Wave P1 eight exact-zero documents, four of them re-harvested from Wave J's unstaged set; **Wave Q** +25, the Java sites whose *request* the fixture format could not carry) and golden fixtures, the `.tables.json` request-table sidecars (Wave I) and the `.request.json` solver-request sidecars (**Wave Q** — non-default stop criteria, complex mode, and `VariableSpec` guesses/bounds; an absent sidecar is the engine defaults, so it changed no existing fixture), the pending set (**2** — the `dyn_accessor_live` cost hold and Wave Q's `ode45`-shooting rocket, whose mechanism Wave R1 measured and whose promotion needs the *document* changed, not the gate; `ev-tms-api-model` left the set at Wave Q1), the decayed-signal measure (Wave G1) for ODE row cells and the **absolute channel** (Wave P1) for a quantity whose true value is a structurally exact zero, how to run the gate and why the single-package form refuses, tolerance policy (`fixtures/tolerances-rustprop.json` grades what ships — 65 relative + 10 absolute entries; `fixtures/tolerances.json` describes the table configuration and nothing replays it today), oracle-established ground truths |
 
 ## Build and test
 
@@ -323,9 +386,14 @@ now lives in `Latex.tsx`.
 export PATH="$HOME/.cargo/bin:$PATH"   # toolchain is rustup-installed; distro rustc is stale
 cargo test --release --workspace       # all tests incl. the parity replay
                                        # (--release: the replay solves 1308 documents,
-                                       #  406 s of the run measured at Wave Q on a
-                                       #  shared machine — 2026-08-25)
-cargo test --workspace --test parity   # golden-corpus parity only — what CI runs
+                                       #  127 s of the run measured 2026-08-26 on a
+                                       #  quiet machine. Wave Q's 406 s predates R2's
+                                       #  props_si cache and R3's slot-native prep;
+                                       #  the same replay was 167.9 s before R2.)
+cargo test --workspace --test parity   # golden-corpus parity only — what the four
+                                       # sharded CI jobs run, in DEBUG. The `native`
+                                       # job deliberately skips it (ci.yml) — the
+                                       # shards already replay the whole corpus.
 cargo test -p frees-core --features rustprop-backend --test parity   # same, single package
                                        # NOT `cargo test -p frees-core --test parity`:
                                        # the single-package form does not unify features,
@@ -542,7 +610,7 @@ Every `core` dependency needs a Rust/WASM answer. Ranked by risk:
 | Java dependency | Used for | Port consideration |
 |---|---|---|
 | **Symja** (`matheclipse-core`) | CAS: Factor/Apart/Laplace/InverseLaplace/Diff/Integrate, symbolic `ss↔tf` | **Highest risk.** Large pure-Java CAS with no equivalent Rust crate. Options: keep CAS server-side (hybrid), reimplement the narrow subset actually used (`cas/` is 11 files), or evaluate `symbolica`/`egg`. Decide this early — it may define the project's scope. |
-| **CoolProp** (via JNA) | Real-fluid + humid-air properties | **Lowest risk, highest value.** The binding surface is only four C functions: `PropsSI`, `Props1SI`, `HAPropsSI`, `get_global_param_string` (`props/CoolProp.java`, 215 lines). CoolProp is C++ and has an established Emscripten build — compile to WASM and keep the same four-call façade, including the existing LRU caches. |
+| **CoolProp** (via JNA) | Real-fluid + humid-air properties | **Lowest risk, highest value.** The binding surface is only four C functions: `PropsSI`, `Props1SI`, `HAPropsSI`, `get_global_param_string` (`props/CoolProp.java`, 215 lines). CoolProp is C++ and has an established Emscripten build — compile to WASM and keep the same four-call façade, including the existing LRU caches. **Both halves are settled:** D8/D9 replaced the Emscripten plan with rustprop, and **Wave R2 (2026-08-25) ported the LRU cache** — at **capacity 1**, not the Java's 20 000, because `rustprop_warm` seeds each flash from the previous answer, so an answer is a function of its arguments *and* of the seed. Capacity 1 keeps 99.72 % of hits bit-identical to the live call; capacity 2 keeps 65 %. Wave S1 built the seed-identity tag that would lift the cap and **declined** it: the tag does keep every seeded hit bit-identical, but it is worth only 1.3–1.6 points of hit rate — not the 13 R2 estimated, because those were the dishonest hits — and every tagged configuration that held capacity 1's fidelity ran **5.1–6.5 % slower**. Do not widen it without re-reading `props/propfun.rs::cache`. |
 | **SUNDIALS IDA + KLU** (via JNA) | Transient DAE solve, sparse steady | C library; Emscripten-compilable, or replace with a Rust integrator. Note the parent repo's SUNDIALS-v6-vs-v7 ABI trap (`SUNContext`, MPI linkage) — a WASM build sidesteps the distro-version problem entirely. Bindings are small: `SundialsIda.java` (207) + `SparseSteadyKlu.java` (151). |
 | **ANTLR 4** | `Frees.g4` → parser/visitor | Rewrite as a Rust parser (`pest`, `chumsky`, `lalrpop`, or hand-written recursive descent). The grammar file is the spec; `parser/AstBuilder.java` shows the intended AST shape. |
 | **Apache Commons Math** | Newton–Raphson, Jacobians, SVD, Brent, eigen-decomposition, LQR Riccati, LM curve fitting | `nalgebra` / `faer` for linear algebra, `argmin` for optimization. Watch numerical parity — the solver's step-halving behavior is load-bearing. |

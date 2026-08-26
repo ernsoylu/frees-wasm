@@ -194,6 +194,33 @@ unspecified and differ between the JVM and Rust's libm.
 | `error` | `type` exact; `message` **not** compared verbatim (see below) |
 | `ode_tables` | one entry per `DYNAMIC` block, in declaration order. `name`, `method`, `columns`, `stopped` and each event's `name` are **exact**; `end_time` and each event `time` take the same numeric tolerance as `variables`. Row cells take that tolerance **plus a scale anchor**: a cell also passes when `\|a − e\| ≤ rel_tol · scale`, where `scale` is the max `\|expected\|` over that signal's own trajectory (`time` excluded) — see *The decayed-signal measure* below |
 
+### A solution must be finite — the replay's own blind spot (Wave T3)
+
+Every fixture that solves is also checked for non-finite values, and a `NaN` or
+an infinity in `Solution::values` fails the gate naming the fixture and the
+variables.
+
+**This is not implied by matching the golden**, which is exactly why it is
+asserted separately. `close` and `rel_diff` treat `NaN` against `NaN` as
+agreement and infinities as exact hits — deliberately, because a golden that
+records the oracle's own non-finite answer has to be gradable at all — so a
+fixture could match its golden while this engine produced garbage. Nothing else
+in the corpus would notice.
+
+It arrived here from `props_robustness`, where asserting it cost a **second**
+whole-corpus solve in the CI job that was already the workflow's critical path
+(946.90 s against the replay's 986.41 s, same debug profile, same box — the two
+passes were the same size). The replay already solves every fixture, so here it
+is free, and it is graded exactly once across the shards' union like every other
+per-fixture guard.
+
+One difference from the version that lived in `props_robustness` is deliberate.
+That one always solved with `SolverSettings::default()`, so for the fixtures
+carrying a `.request.json` it graded a configuration the document was never
+meant to run under — and its `if let Ok(solution)` silently skipped any that
+then failed to solve at all. Here each fixture is checked under the settings it
+ships with.
+
 ### `ode_tables` — why a transient fixture needs it
 
 **A solved `DYNAMIC` block puts nothing in `variables`.** The trajectory is a
@@ -409,16 +436,19 @@ every developer's machine, and the four shards still replay it in the same
 workflow with a census that must sum to `corpus`. The gate is skipped in one
 *job*, not made skippable in the *test*.
 
-**And that is only half of what that job was paying**, which is worth knowing
-before anyone concludes the `native` job is now cheap.
-`props_robustness::no_promoted_fixture_solves_to_a_non_finite_value` solves
-every document in `fixtures/corpus` as well — a second whole-corpus pass, one
-thread, same debug profile — and it is left alone on purpose, because it
-asserts something this replay does not: no non-finite value under the engine's
-**default** settings, where the replay uses each fixture's own `.request.json`.
-It is now the largest single item in that job. Nothing else there walks the
-corpus and solves it: `matrix_expansion` only parses, and
-`dynamics_robustness` only reads `points =` out of the source text.
+**That was only half of what the job was paying**, and the other half went the
+same way one commit later (Wave T3).
+`props_robustness::no_promoted_fixture_solves_to_a_non_finite_value` solved
+every document in `fixtures/corpus` a second time — one thread, same debug
+profile — and it was the same size as the replay, not a rounding error:
+**946.90 s against the replay's 986.41 s** in that profile on a dev box. The
+assertion moved into this replay rather than being skipped or deleted, for
+three reasons: the replay already solves every fixture, so it is free here; it
+runs in the four shards, so it is still asserted exactly once across their
+union; and it closes a blind spot the replay had on its own — see *A solution
+must be finite* under **Comparison policy**. Nothing else walks the corpus and
+solves it: `matrix_expansion` only parses, and `dynamics_robustness` only reads
+`points =` out of the source text.
 
 **The single-package form without the feature refuses, on purpose.**
 `cargo test -p frees-core` (or `… --test parity`) does not unify anything, and

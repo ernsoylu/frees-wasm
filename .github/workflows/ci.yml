@@ -134,17 +134,21 @@ jobs:
       # here, including the debug-only ones (`dynamics_robustness` found a
       # stack overflow that only reproduces unoptimised).
       #
-      # And this does NOT make the job cheap, because the replay is not the only
-      # whole-corpus pass in it: `props_robustness`'s
-      # `no_promoted_fixture_solves_to_a_non_finite_value` solves every document
-      # in `fixtures/corpus` as well, one thread, in this debug profile. That
-      # one is left alone on purpose — it asserts something the replay does not
-      # (no non-finite value under DEFAULT settings, where the replay uses each
-      # fixture's own request sidecar) — but it is now the largest single item
-      # in this job, and it is where to look next if this job is still the
-      # critical path. Nothing else here walks the corpus and solves:
-      # `matrix_expansion` only parses it and `dynamics_robustness` only reads
-      # `points =` out of the text.
+      # There WAS a second whole-corpus pass in this job, and it is gone too
+      # (Wave T3). `props_robustness`'s
+      # `no_promoted_fixture_solves_to_a_non_finite_value` solved every document
+      # in `fixtures/corpus` a second time, one thread, in this debug profile —
+      # measured at 946.90 s on a dev box against 986.41 s for the replay, i.e.
+      # the two passes were the same size and this job paid for both. The
+      # assertion did not go away: it moved into `tests/parity.rs`, which was
+      # already solving every fixture, and where it also closes a blind spot the
+      # replay had on its own (`close`/`rel_diff` treat NaN against NaN as
+      # agreement). So it now runs in the four shards below, exactly once across
+      # their union, and this job does not pay for it at all.
+      #
+      # Nothing else here walks the corpus and solves it: `matrix_expansion`
+      # only parses it and `dynamics_robustness` only reads `points =` out of
+      # the source text.
       #
       # This is deliberately NOT the failure `fixtures/README.md` warns about
       # under "the single-package form refuses" — that a gate which can vanish

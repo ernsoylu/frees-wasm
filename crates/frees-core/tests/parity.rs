@@ -831,6 +831,54 @@ fn as_f64(v: &serde_json::Value) -> f64 {
     }
 }
 
+/// The variables whose value is not finite, as `name = value`, sorted by name.
+///
+/// Split out of the replay so it can be tested directly: a guard nobody has
+/// watched fail is not yet a guard, and this one cannot be provoked from a
+/// fixture — the whole point of it is that no promoted document reaches a
+/// non-finite value today.
+fn non_finite_values<'a>(values: impl IntoIterator<Item = (&'a String, &'a f64)>) -> Vec<String> {
+    let mut bad: Vec<String> = values
+        .into_iter()
+        .filter(|(_, value)| !value.is_finite())
+        .map(|(var, value)| format!("{var} = {value}"))
+        .collect();
+    bad.sort();
+    bad
+}
+
+#[test]
+fn the_non_finite_guard_reports_every_shape_and_nothing_else() {
+    let finite: BTreeMap<String, f64> = [
+        ("a".to_string(), 0.0),
+        ("b".to_string(), -273.15),
+        ("c".to_string(), f64::MAX),
+        ("d".to_string(), f64::MIN_POSITIVE),
+    ]
+    .into_iter()
+    .collect();
+    assert!(non_finite_values(finite.iter()).is_empty());
+
+    // All three shapes, and the report names the variable so a red gate is
+    // actionable without re-running anything.
+    let bad: BTreeMap<String, f64> = [
+        ("ok".to_string(), 1.0),
+        ("nan".to_string(), f64::NAN),
+        ("pinf".to_string(), f64::INFINITY),
+        ("ninf".to_string(), f64::NEG_INFINITY),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(
+        non_finite_values(bad.iter()),
+        vec![
+            "nan = NaN".to_string(),
+            "ninf = -inf".to_string(),
+            "pinf = inf".to_string(),
+        ]
+    );
+}
+
 /// Relative difference, `0.0` when both are NaN or exactly equal (which covers
 /// the infinities).
 fn rel_diff(actual: f64, expected: f64) -> f64 {
@@ -1300,6 +1348,36 @@ fn replay(
                     "Java failed with {} but Rust solved: {:?}",
                     expected_error["type"].as_str().unwrap_or("?"),
                     solution.values
+                ));
+                return;
+            }
+
+            // This replay's own blind spot, closed here rather than by a second
+            // pass over the corpus. `close`/`rel_diff` below treat NaN against
+            // NaN as agreement and infinities as exact hits — deliberately, so
+            // that a golden recording the oracle's own non-finite answer can be
+            // graded at all — but that means a fixture could match its golden
+            // while this engine produced garbage. The corpus is solved here
+            // anyway, so asserting finiteness costs nothing.
+            //
+            // It is the assertion `props_robustness`'s
+            // `no_promoted_fixture_solves_to_a_non_finite_value` used to make by
+            // solving all 1308 documents a SECOND time, in the one CI job that
+            // was already the workflow's critical path. One difference is
+            // deliberate and is an improvement: that test always used
+            // `SolverSettings::default()`, so for the fixtures carrying a
+            // `.request.json` it graded a configuration the document was never
+            // meant to run under (and silently skipped the ones that then failed
+            // to solve at all). Here every fixture is checked under the settings
+            // it actually ships with.
+            let non_finite = non_finite_values(solution.values.iter());
+            if !non_finite.is_empty() {
+                // Return: with a non-finite in the solution every tolerance
+                // reading below is meaningless, and letting them run would bury
+                // this line under a decade of derived failures.
+                fail(format!(
+                    "solved to non-finite value(s): {}",
+                    non_finite.join(", ")
                 ));
                 return;
             }

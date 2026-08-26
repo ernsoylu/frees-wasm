@@ -39,7 +39,6 @@
 //! * **combustion** — equivalence ratio at 0 and at 1e12, where the product
 //!   composition degenerates.
 
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use frees_core::props::propfun;
@@ -1087,33 +1086,25 @@ fn property_calls_composed_with_hostile_expressions_are_answered() {
     all_survive(&corpus);
 }
 
-/// The engine's own reported values must never be non-finite for *any* document
-/// in the promoted corpus — the standing invariant, checked over real
-/// documents rather than synthetic ones.
-#[test]
-fn no_promoted_fixture_solves_to_a_non_finite_value() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/corpus");
-    let mut checked = 0usize;
-    let mut offenders: HashMap<String, Vec<String>> = HashMap::new();
-    for entry in std::fs::read_dir(&dir).expect("corpus readable") {
-        let path = entry.expect("dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("frees") {
-            continue;
-        }
-        let src = std::fs::read_to_string(&path).expect("fixture readable");
-        checked += 1;
-        if let Ok(solution) = solve(&src, &settings()) {
-            let bad: Vec<String> = solution
-                .values
-                .iter()
-                .filter(|(_, v)| !v.is_finite())
-                .map(|(k, v)| format!("{k} = {v}"))
-                .collect();
-            if !bad.is_empty() {
-                offenders.insert(path.display().to_string(), bad);
-            }
-        }
-    }
-    assert!(checked > 200, "only {checked} corpus documents found");
-    assert!(offenders.is_empty(), "{offenders:#?}");
-}
+// `no_promoted_fixture_solves_to_a_non_finite_value` used to live here, and the
+// invariant it asserts still holds — it moved into `tests/parity.rs` (Wave T3),
+// it did not go away. Do not restore this version.
+//
+// The invariant: the engine's own reported values must never be non-finite for
+// any document in the promoted corpus, checked over real documents rather than
+// synthetic ones. What it cost to assert it here was a SECOND whole-corpus
+// solve — all 1308 documents, single-threaded, in the one CI job that was the
+// workflow's critical path. Measured in that job's own debug profile on a dev
+// box: 946.90 s, against 986.41 s for the parity replay, i.e. the two passes
+// were the same size and the job paid for both.
+//
+// The replay already solves every fixture, so the check rides along there for
+// free, and it closes a blind spot the replay had on its own: `close`/`rel_diff`
+// treat NaN against NaN as agreement, so a fixture could match its golden while
+// this engine produced garbage.
+//
+// One difference, deliberate: this version always used
+// `SolverSettings::default()`, so for the fixtures carrying a `.request.json`
+// it graded a configuration the document was never meant to run under, and its
+// `if let Ok(solution)` silently skipped any that then failed to solve at all.
+// In the replay every fixture is checked under the settings it ships with.

@@ -16,9 +16,13 @@ import type {
 } from '../api'
 import type { EngineRequest, EngineResponse } from './engine.worker'
 
+/** Called with the engine's overall completion (0…1) while a solve runs. */
+export type ProgressListener = (fraction: number) => void
+
 interface Pending {
   resolve: (result: string) => void
   reject: (reason: Error) => void
+  onProgress?: ProgressListener
 }
 
 let worker: Worker | null = null
@@ -42,6 +46,17 @@ function spawn(): Worker {
     const response = event.data
     const entry = pending.get(response.id)
     if (!entry) return
+    // Progress is not terminal: the entry stays pending and the request still
+    // settles on a later ok/error message. A listener that throws must not take
+    // the worker's message pump down with it.
+    if ('progress' in response) {
+      try {
+        entry.onProgress?.(response.progress)
+      } catch {
+        /* a progress listener is decoration; its failure is not the solve's */
+      }
+      return
+    }
     pending.delete(response.id)
     if (response.ok) {
       entry.resolve(response.result)
@@ -60,12 +75,18 @@ function spawn(): Worker {
   return w
 }
 
-/** Posts one request and resolves with the worker's raw JSON-string reply. */
-function call(method: EngineRequest['method'], args: string[]): Promise<string> {
+/** Posts one request and resolves with the worker's raw JSON-string reply.
+ *  `onProgress`, where the method reports it, is called with 0…1 as the engine
+ *  advances — many times before the promise settles, never after. */
+function call(
+  method: EngineRequest['method'],
+  args: string[],
+  onProgress?: ProgressListener,
+): Promise<string> {
   worker ??= spawn()
   const id = nextId++
   return new Promise<string>((resolve, reject) => {
-    pending.set(id, { resolve, reject })
+    pending.set(id, { resolve, reject, onProgress })
     worker?.postMessage({ id, method, args } satisfies EngineRequest)
   })
 }
@@ -74,8 +95,11 @@ function call(method: EngineRequest['method'], args: string[]): Promise<string> 
 export async function wasmSolve(
   source: string,
   requestJson: string,
+  onProgress?: ProgressListener,
 ): Promise<SolveResponse> {
-  return JSON.parse(await call('solve', [source, requestJson])) as SolveResponse
+  return JSON.parse(
+    await call('solve', [source, requestJson], onProgress),
+  ) as SolveResponse
 }
 
 /** Runs a Tables-workbook sweep in the engine worker; resolves to the raw
@@ -84,8 +108,9 @@ export async function wasmSolve(
 export async function wasmSolveTable(
   source: string,
   requestJson: string,
+  onProgress?: ProgressListener,
 ): Promise<string> {
-  return call('solveTable', [source, requestJson])
+  return call('solveTable', [source, requestJson], onProgress)
 }
 
 /** Runs a Monte Carlo propagation in the engine worker; resolves to the raw

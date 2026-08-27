@@ -29,17 +29,28 @@ corpus 701 and a 2944 KiB bundle, and roughly forty wave commits have landed
 since. Waves A–S are recorded in their **commit messages**; there is no wave
 status document, which is why this block exists.)*
 
-**Gate numbers, re-measured 2026-08-26 at HEAD** (`0d07fdf`, S1) — re-run, not
-copied:
+**Gate numbers, re-measured 2026-08-27 at Wave T5** — re-run, not copied:
 
 | Gate | Result |
 |---|---|
-| parity replay, release, unsharded | **1308 / 1308** match the JDK oracle, **126.98 s** on a quiet box — 65 fixtures at a declared tolerance, 11 variables on the absolute channel |
-| the four shards CI runs | 11.97 / 17.36 / 46.35 / 52.49 s (release); `ev-battery-cooling-pid` is 45.86 s of the longest |
+| parity replay, release, unsharded | **1308 / 1308** match the JDK oracle — 65 fixtures at a declared tolerance, 11 variables on the absolute channel |
+| the four shards CI runs | 11.97 / 17.36 / 46.35 / 52.49 s (release, measured 2026-08-26 and **not** re-run); `ev-battery-cooling-pid` is 45.86 s of the longest |
 | `cargo fmt --all --check` | clean |
-| `vitest run` (Node 22) | **33 files, 420 tests**, all pass |
-| wasm bundle | **3085.2 KiB raw / 1259.0 KiB gzipped** — 75.3 % of the 4096 KiB budget, 1010.8 KiB headroom |
+| `cargo clippy` (native + wasm32, `--all-targets -D warnings`) | clean |
+| `vitest run` (Node 22) | **33 files, 424 tests**, all pass |
+| wasm bundle | **3087.8 KiB raw / 1264.8 KiB gzipped** — 75.4 % of the 4096 KiB budget, 1008.2 KiB headroom |
 | pending corpus | **2** documents (`fixtures/README.md`) |
+
+> **No replay timing this round, on purpose.** The 126.98 s S1 measured is the
+> quiet-box figure and still the one to quote; this round's replay shared the
+> machine with a wasm build and came in at 175.53 s, which measures the
+> contention and not the engine. Wave R3's rule applies to the gate as much as
+> to a lever: wall clock on this hardware is only meaningful on an idle box.
+
+> **The browser module is a separate artifact and this table does not grade
+> it.** Every row above is the *native* build; nothing in CI solves a corpus
+> document through the wasm, and 107 of them answer differently there. See the
+> Wave T5 block below.
 
 > **Properties: Phase 5's "working real-fluid property backend" was D1's
 > precomputed `(P,h)` tables. That is no longer what the engine uses.** Since
@@ -359,6 +370,53 @@ what follows is the part you must know before editing near them.
   recorded in the commit and is worth reading before touching it: a late guard
   silently disabled half the change, every output stayed byte-identical, the
   corpus stayed green, and **only the instruction counter could see it**.
+
+**Three browser facts from Wave T5 (2026-08-27), all of which a reader who
+trusts the native gate will get wrong.**
+
+* **The browser and the parity gate are not running the same arithmetic.**
+  `frees-core` routes every transcendental through the `libm` crate so the two
+  targets agree bit-for-bit — but **rustprop does not**, and D9 made rustprop
+  the browser's only property backend. It calls `std`'s `f64::exp`/`ln`/`powf`
+  (158 / 151 / 459 sites, zero `libm::`), which is glibc natively and Rust's
+  bundled `libm` on wasm32; they differ by one ulp on ~11 % of `exp` arguments.
+  Replaying all 1308 fixtures through the shipped module under Node: **107 of
+  the 1095 documents both builds solve return different numbers in the
+  browser** (worst 5.4e-6 on a real quantity). A `libm` `LD_PRELOAD` shim into
+  the native build closes 91 of the 107 and reproduces the wasm trajectories
+  bit-for-bit, which is what pins it to rustprop. **No CI job solves a corpus
+  document through the wasm module** (`native`, `wasm` = build + size only,
+  `web` = build + vitest, `parity` = four *native* shards), which is why this
+  went unseen; a Node replay of the whole corpus costs ~222 s. The full
+  measurement is in `docs/dependency-map.md` under the Transcendentals row.
+* **The transient wall-clock ceiling is 3600 s, not the Java's 60.** A
+  deliberate divergence, owner-authorized: `SolverApiSupport`'s cap is
+  per-solve on a *shared* worker, and in-browser the worker is the user's own
+  tab. `MAX_ELAPSED_SECONDS_CAP` was a ceiling as well as a default, so
+  `ev-battery-cooling-pid` — ~80 s of wasm, 56 s native — could not be solved
+  in the browser at **any** Stop-Criteria setting. It can now.
+* **A struck budget used to report someone else's error.** The block owning a
+  `FinalValue(...)` wraps the transient, so a deadline strike failed that
+  block, `solve_block_with_fallback` ran the retry ladder, and the merge
+  rescue's `?` replaced the honest "exceeded its N-second wall-clock budget"
+  with whatever the re-run failed on — in practice "Newton iteration stalled …
+  unable to bracket the (p,X) solution", which sends the reader hunting for
+  guess values that were never the problem. The ladder now refuses to run on a
+  struck deadline (`engine.rs`, and it is ~2.4 s cheaper too).
+  `crates/frees-core/tests/progress_and_deadline.rs` is the regression.
+
+**Solve progress is a host-installed channel, exactly like the deadline**
+(`crates/frees-core/src/progress.rs`, Wave T5). Core owns no UI, so the wasm
+boundary installs a sink per request and clears it in a guard; nothing is
+installed natively, so the replay cannot see it. Two things carry the design:
+the **span** (`enter` subdivides the *current* slice, so the block loop and a
+transient inside a block compose without knowing about each other) and the
+**claim** — `engine::run_blocks` serves every pinned subsystem too, so without
+one it reports `0, ¼, ½, ¾` once per integration step and the bar flickers
+instead of advancing. The integrator takes a `Claim` over the whole transient
+and reports `t/tf`; while it is held, `enter`/`report` are silent. That is a
+measured failure, not a hypothetical — it is what the monotonicity test caught
+on the first version.
 
 **The named solver levers are spent, and round seven inherits a short list.**
 A2, Q3 and R3 took the hashed-access family from 27.8 % of the transient

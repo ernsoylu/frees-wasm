@@ -110,3 +110,62 @@ describe('engineClient worker lifecycle', () => {
     await expect(good).resolves.toBe('0.1.0')
   })
 })
+
+// Wave T5. The bar the Solve button paints is driven from *inside* a blocking
+// wasm call, so the one thing that must not happen is a progress message
+// settling or dropping the request it belongs to.
+describe('engineClient solve progress', () => {
+  it('delivers progress without settling the request', async () => {
+    const { wasmSolve } = await client()
+    const seen: number[] = []
+    const p = wasmSolve('x = 1', '{}', (f) => seen.push(f))
+    const w = FakeWorker.instances[0]
+    const id = w.posted[0].id
+
+    w.onmessage?.({ data: { id, progress: 0.25 } })
+    w.onmessage?.({ data: { id, progress: 0.75 } })
+    expect(seen).toEqual([0.25, 0.75])
+
+    // Still pending: only an ok/error message settles it.
+    w.onmessage?.({ data: { id, ok: true, result: '{"success":true}' } })
+    await expect(p).resolves.toEqual({ success: true })
+  })
+
+  it('ignores progress for a request that has already settled', async () => {
+    const { wasmSolve } = await client()
+    const seen: number[] = []
+    const p = wasmSolve('x = 1', '{}', (f) => seen.push(f))
+    const w = FakeWorker.instances[0]
+    const id = w.posted[0].id
+    w.onmessage?.({ data: { id, ok: true, result: '{"success":true}' } })
+    await expect(p).resolves.toEqual({ success: true })
+
+    // A late frame from a solve that already answered must not reach a listener
+    // whose UI has moved on.
+    w.onmessage?.({ data: { id, progress: 0.5 } })
+    expect(seen).toEqual([])
+  })
+
+  it('a throwing progress listener does not break the request', async () => {
+    const { wasmSolve } = await client()
+    const p = wasmSolve('x = 1', '{}', () => {
+      throw new Error('render blew up')
+    })
+    const w = FakeWorker.instances[0]
+    const id = w.posted[0].id
+    w.onmessage?.({ data: { id, progress: 0.5 } })
+    w.onmessage?.({ data: { id, ok: true, result: '{"success":true}' } })
+    await expect(p).resolves.toEqual({ success: true })
+    expect(w.terminated).toBe(false)
+  })
+
+  it('a solve with no listener is unaffected by progress messages', async () => {
+    const { wasmSolve } = await client()
+    const p = wasmSolve('x = 1', '{}')
+    const w = FakeWorker.instances[0]
+    const id = w.posted[0].id
+    w.onmessage?.({ data: { id, progress: 0.5 } })
+    w.onmessage?.({ data: { id, ok: true, result: '{"success":true}' } })
+    await expect(p).resolves.toEqual({ success: true })
+  })
+})

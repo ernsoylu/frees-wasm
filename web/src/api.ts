@@ -16,6 +16,7 @@ import {
   wasmReplClear,
   wasmReplEvaluate,
   wasmSolve,
+  type ProgressListener,
   wasmCurveFit,
   wasmMonteCarlo,
   wasmOptimize,
@@ -25,6 +26,7 @@ import {
   wasmExtractPlant,
   wasmSolveTable,
 } from './wasm/engineClient'
+export type { ProgressListener } from './wasm/engineClient'
 
 export interface VariableResult {
   name: string
@@ -507,6 +509,10 @@ export async function solve(
   // browser engine has no result cache yet, so it is accepted and unused.
   _sessionId?: string,
   overrides: string[] = [],
+  // Called with the engine's overall completion (0…1) while the solve runs, so
+  // the caller can paint a bar. Optional and last, so no existing call site
+  // changes; the engine only reports from `solve`/`solveTable`.
+  onProgress?: ProgressListener,
 ): Promise<SolveResponse> {
   // The full former POST body (minus `text`, which travels as the source
   // argument). The wasm boundary honours variableInfo + stopCriteria today
@@ -527,7 +533,7 @@ export async function solve(
     // Success, syntax errors (errorLine) and solver failures (error +
     // failedBlockIndex) all arrive as one SolveResponse envelope — the wasm
     // boundary folds the Java 200/400/422 split into data.
-    return mapSolveData(await wasmSolve(text, request))
+    return mapSolveData(await wasmSolve(text, request, onProgress))
   } catch (e) {
     // Only infrastructure can land here (worker died, wasm failed to load).
     return {
@@ -983,6 +989,7 @@ export async function solveTable(
   variables: string[],
   rows: Record<string, number>[],
   functionTables: FunctionTableDto[] = [],
+  onProgress?: ProgressListener,
 ): Promise<SolveTableResponse> {
   const request = JSON.stringify({
     stopCriteria,
@@ -997,7 +1004,7 @@ export async function solveTable(
     variables: [],
   })
   try {
-    const parsed = JSON.parse(await wasmSolveTable(text, request)) as SolveTableResponse & {
+    const parsed = JSON.parse(await wasmSolveTable(text, request, onProgress)) as SolveTableResponse & {
       error?: string
     }
     if (parsed.error) {

@@ -240,6 +240,8 @@ struct StopCriteriaDto {
     /// accepted and ignored.
     #[allow(dead_code)]
     change_in_variables: Option<f64>,
+    // NOTE: `complex_mode` below lost its `#[allow(dead_code)]` at Wave T5 —
+    // `settings_of` reads it now. See the comment there.
     /// Honoured for the **transient** path since Wave C1: the boundary
     /// installs a `Date.now()` deadline (clamped to
     /// [`MAX_ELAPSED_SECONDS_CAP`], the Java cap) that
@@ -248,7 +250,7 @@ struct StopCriteriaDto {
     /// dropped because it has no clock on `wasm32-unknown-unknown`. The
     /// steady Newton path still runs unclocked, exactly as before.
     elapsed_time_seconds: Option<f64>,
-    #[allow(dead_code)]
+    /// The Java `SolverSettings.complexMode`; honoured since Wave T5.
     complex_mode: Option<bool>,
 }
 
@@ -256,12 +258,95 @@ struct StopCriteriaDto {
 /// (`SolverApiSupport.MAX_ITERATIONS_CAP`).
 const MAX_ITERATIONS_CAP: usize = 10_000;
 
-/// `SolverApiSupport.MAX_ELAPSED_SECONDS_CAP` — the ceiling on the transient
-/// wall-clock budget a request may ask for, and the default when it asks for
-/// nothing. The Java applies it per solve on a shared worker; in-browser it
-/// is what stops a stiff transient spinning the worker for minutes with no
-/// cancel (the Phase 7–8 gap 3 measurement: 182 s).
-const MAX_ELAPSED_SECONDS_CAP: f64 = 60.0;
+/// The ceiling on the transient wall-clock budget a request may ask for, and
+/// the default when it asks for nothing.
+///
+/// **A deliberate divergence from the Java, owner-authorized 2026-08-27.**
+/// `SolverApiSupport.MAX_ELAPSED_SECONDS_CAP` is `60.0`, and this constant
+/// matched it up to Wave T5. The reason it could: the Java's cap is a
+/// *per-solve* cap on a **shared** compute worker, where one stiff document
+/// must not deny the queue to everyone else. In-browser there is no queue and
+/// no one else — the worker is the user's own tab, and the budget's only job
+/// is the Phase 7–8 gap 3 complaint, "182 s of spinning worker with no
+/// cancel", which was about *silence*, not about seconds.
+///
+/// Raising it without answering the silence would have been the wrong trade,
+/// so the two land together: [`install_progress`] gives a long solve a live
+/// bar, and the ceiling moves to the Java's own default `elapsedTimeSeconds`
+/// (`SolverSettings.DEFAULTS` is `(250, 1e-12, 1e-15, 3600.0)`) — so a request
+/// that sends the frontend's `DEFAULT_STOP_CRITERIA` now gets what it asked
+/// for instead of being silently clamped to a fortieth of it.
+///
+/// What this fixes concretely: `fixtures/corpus/ev-battery-cooling-pid.frees`
+/// needs ~80 s of wasm to integrate and could not be solved in the browser at
+/// **any** Stop-Criteria setting, because 60 s was a ceiling and not just a
+/// default. Measured 2026-08-27; the same document is 56 s natively, where no
+/// deadline is installed at all.
+const MAX_ELAPSED_SECONDS_CAP: f64 = 3600.0;
+
+/// Minimum wall-clock gap between progress messages.
+///
+/// A transient reports at every accepted integration step — thousands per
+/// second on a cheap RHS — and every one of them is a `postMessage` the main
+/// thread has to drain before it can paint. A frame is ~16 ms; four frames is
+/// smooth for a bar that runs for a minute and costs the worker nothing.
+///
+/// `cfg`-gated with its only reader: off wasm32 there is no host to report to,
+/// so [`install_progress`] installs nothing and this would be dead code under
+/// the workspace's `-D warnings` clippy gate.
+#[cfg(target_arch = "wasm32")]
+const PROGRESS_INTERVAL_MS: f64 = 60.0;
+
+/// Clears the progress sink however the request ends — the worker thread is
+/// reused, so a leaked sink would report the next solve into a stale bar.
+pub(crate) struct ProgressGuard;
+
+impl Drop for ProgressGuard {
+    fn drop(&mut self) {
+        // Land the bar on full before letting go. Progress is reported *before*
+        // each unit of work, so the last thing a solve reports is the start of
+        // its final block — `ev-battery-cooling-pid` stops at 0.667, being
+        // block 2 of 3 — and a bar that stops two thirds along reads as a
+        // stall. Every span guard has been dropped by now, so this is the whole
+        // bar; the boundary's throttle always lets a 1.0 through. On a failed
+        // solve too: the bar's claim is that the worker is finished, and the
+        // caller clears it either way.
+        frees_core::progress::report(1.0);
+        frees_core::progress::clear();
+    }
+}
+
+/// Install the solve-progress sink for this request: throttled, self-muting,
+/// and absent entirely off wasm32 (a native host has no `globalThis` to call).
+///
+/// Self-muting is what makes the global optional. `host_progress` is declared
+/// `catch`, so a host that never defined `globalThis.__freesOnProgress` — the
+/// Node parity harness, a `wasm-bindgen-test` — raises a `TypeError` on the
+/// first call; the closure records that and stops calling, rather than paying
+/// a throw per step for the rest of the solve.
+pub(crate) fn install_progress() -> ProgressGuard {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Per-install state, so a muted solve does not mute the next one.
+        let last_ms = std::cell::Cell::new(f64::NEG_INFINITY);
+        let muted = std::cell::Cell::new(false);
+        frees_core::progress::install(Box::new(move |fraction| {
+            if muted.get() {
+                return;
+            }
+            let now = date_now_ms();
+            // A completed bar always goes through, whenever it lands.
+            if fraction < 1.0 && now - last_ms.get() < PROGRESS_INTERVAL_MS {
+                return;
+            }
+            last_ms.set(now);
+            if host_progress(fraction).is_err() {
+                muted.set(true);
+            }
+        }));
+    }
+    ProgressGuard
+}
 
 /// Clears the transient deadline however the request ends — the worker
 /// thread is reused, so a leaked deadline would haunt the next solve.
@@ -315,6 +400,15 @@ fn settings_of(request: &SolveRequest) -> SolverSettings {
                 settings.rel_tolerance = tolerance;
             }
         }
+        // The Java `SolverApiSupport.settings` carries `complexMode` into
+        // `SolverSettings`, which `engine::solve_with` feeds to
+        // `parser::complex::expand_complex` before blocking. This line was
+        // missing up to Wave T5: the DTO field was parsed and dropped, so the
+        // frontend's Complex-mode toggle — which `App.tsx` sends and
+        // `api.wasm.test.ts` asserts is sent — reached the boundary and went no
+        // further, and a document with `1i` in it failed with "enable Complex
+        // mode to solve them" *while complex mode was enabled*.
+        settings.complex_mode = stop.complex_mode.unwrap_or(false);
     }
     settings
 }
@@ -384,6 +478,15 @@ extern "C" {
     /// without needing a `js-sys` dependency.
     #[wasm_bindgen(js_namespace = Date, js_name = now)]
     fn date_now_ms() -> f64;
+
+    /// The host's progress sink, called with the overall solve fraction in
+    /// `0.0..=1.0`. Declared as a plain global rather than taken as a callback
+    /// argument so the exported `solve` signature stays what `api.ts` already
+    /// sends; `catch` is what makes it optional — a host that never defines it
+    /// (the Node parity harness, a unit test) raises a `TypeError` that
+    /// [`report_progress`] swallows once and then stops calling.
+    #[wasm_bindgen(js_namespace = globalThis, js_name = __freesOnProgress, catch)]
+    fn host_progress(fraction: f64) -> Result<(), JsValue>;
 }
 
 fn now_ms() -> f64 {
@@ -433,6 +536,9 @@ pub fn solve(source: &str, request_json: &str) -> String {
     // Wave C1: bound the transient path's wall clock for this request; the
     // guard clears the thread-local on every exit path.
     let _deadline = install_transient_deadline(&request);
+    // Wave T5: and report how far along it is, for the same reason the budget
+    // could be raised — both guards clear on every exit path.
+    let _progress = install_progress();
 
     let started = now_ms();
     match frees_core::solve_with_tables(source, &settings, &overrides, &extra_tables) {
@@ -996,10 +1102,20 @@ pub fn check(source: &str, request_json: &str) -> String {
     };
     let overrides = overrides_of(&request);
     // `CheckController.check`: `solver.check(parsed, complexMode,
-    // SolveDtos.functionDefsOf(request.functionTables()))`.
+    // SolveDtos.functionDefsOf(request.functionTables()))` — all three
+    // arguments since Wave T5. The flag matters here and not only on `solve`
+    // because the frontend gates its Solve button on this report: while it was
+    // dropped, a complex document was reported unsolvable with "enable Complex
+    // mode to solve them" *while Complex mode was enabled*, so the solve that
+    // would have succeeded could not be reached.
     let extra_tables = function_table_defs_of(&request.function_tables);
+    let complex_mode = request
+        .stop_criteria
+        .as_ref()
+        .and_then(|stop| stop.complex_mode)
+        .unwrap_or(false);
 
-    match frees_core::check_with_tables(source, &overrides, &extra_tables) {
+    match frees_core::check_with_tables_complex(source, &overrides, &extra_tables, complex_mode) {
         Ok(report) => check_response(&report),
         // Only non-document problems (an invalid override row) surface as Err;
         // shaped like the Java 500-with-body, which api.ts reads the same way.
@@ -1870,6 +1986,106 @@ P2 = 101325 [Pa]
         assert_eq!(v["success"], true, "{v}");
         let x = variable(&v, "x")["value"].as_f64().unwrap();
         assert!((x + 3.0).abs() < 1e-9, "expected -3, got {x}");
+    }
+
+    // ── stopCriteria: complexMode (Wave T5) ───────────────────────────────
+
+    /// `check` gates the frontend's Solve button, so the flag has to reach it
+    /// too — a document reported unsolvable is never offered a solve.
+    #[test]
+    fn complex_mode_reaches_the_check_path() {
+        let source = "z = 3 + 4i\nw = 1j * z\n";
+        let off = parsed(&check(source, "{}"));
+        assert_eq!(off["solvable"], false, "{off}");
+
+        let on = parsed(&check(source, r#"{"stopCriteria": {"complexMode": true}}"#));
+        assert_eq!(on["solvable"], true, "{on}");
+    }
+
+    /// The regression this closes: the toggle reached the boundary and stopped
+    /// there, so a complex document refused *while complex mode was on*.
+    #[test]
+    fn complex_mode_reaches_the_engine() {
+        let source = "z = 3 + 4i\nw = 1j * z\n";
+        let off = parsed(&solve(source, "{}"));
+        assert_eq!(off["success"], false, "{off}");
+        assert!(
+            off["error"].as_str().unwrap().contains("Complex mode"),
+            "{off}"
+        );
+
+        let on = parsed(&solve(source, r#"{"stopCriteria": {"complexMode": true}}"#));
+        assert_eq!(on["success"], true, "{on}");
+        // `w = i·(3 + 4i) = −4 + 3i`, carried on the `_r`/`_i` pair.
+        let re = variable(&on, "w_r")["value"].as_f64().unwrap();
+        let im = variable(&on, "w_i")["value"].as_f64().unwrap();
+        assert!((re + 4.0).abs() < 1e-9, "re = {re}");
+        assert!((im - 3.0).abs() < 1e-9, "im = {im}");
+    }
+
+    /// An absent `complexMode` is `false`, not "whatever the last request
+    /// used" — the settings are rebuilt per call, and this pins that.
+    #[test]
+    fn complex_mode_does_not_leak_between_requests() {
+        let source = "z = 3 + 4i\n";
+        assert_eq!(
+            parsed(&solve(source, r#"{"stopCriteria": {"complexMode": true}}"#))["success"],
+            true
+        );
+        let next = parsed(&solve(source, r#"{"stopCriteria": {}}"#));
+        assert_eq!(next["success"], false, "{next}");
+    }
+
+    // ── stopCriteria: the transient budget (Wave T5) ───────────────────────
+
+    /// One behavioural test for the whole budget path, driven through the same
+    /// export `api.ts` calls — the deadline is installed, it strikes, the
+    /// honest message survives the retry ladder that used to replace it, and it
+    /// quotes the ceiling a user would set.
+    ///
+    /// `now_ms` is `SystemTime` off wasm32, so the predicate is live here.
+    #[test]
+    fn a_struck_transient_budget_reports_itself_and_quotes_the_new_ceiling() {
+        let document = "\
+y_final = FinalValue('y')\n\
+DYNAMIC relax(method = ode45, time = 0 .. 10, points = 20)\n\
+  der(y) = -y / 2\n\
+  y(0) = 1\n\
+END\n\
+";
+        // Small enough to strike on the first check, positive so the filter
+        // takes it.
+        let v = parsed(&solve(
+            document,
+            r#"{"stopCriteria": {"elapsedTimeSeconds": 1e-7}}"#,
+        ));
+        assert_eq!(v["success"], false, "{v}");
+        let error = v["error"].as_str().unwrap();
+        assert!(error.contains("wall-clock budget"), "{error}");
+        // The regression: the ladder's re-runs used to replace this with a
+        // stalled-Newton message from a transient that could no longer run.
+        assert!(!error.contains("Newton iteration stalled"), "{error}");
+        // And the ceiling the message offers is the raised one, which is the
+        // only place a user learns what "raise it" is worth.
+        assert!(error.contains("up to 3600 s"), "{error}");
+    }
+
+    /// The complement: the same document with the frontend's own default
+    /// budget solves rather than being clamped to a fortieth of it.
+    #[test]
+    fn the_frontends_default_budget_is_granted_in_full() {
+        let document = "\
+y_final = FinalValue('y')\n\
+DYNAMIC relax(method = ode45, time = 0 .. 10, points = 20)\n\
+  der(y) = -y / 2\n\
+  y(0) = 1\n\
+END\n\
+";
+        let v = parsed(&solve(
+            document,
+            r#"{"stopCriteria": {"elapsedTimeSeconds": 3600}}"#,
+        ));
+        assert_eq!(v["success"], true, "{v}");
     }
 
     #[test]

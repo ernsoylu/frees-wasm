@@ -512,6 +512,24 @@ export default function App() {
     if (sliderTimer.current) clearTimeout(sliderTimer.current)
   }, [])
   const [solving, setSolving] = useState(false)
+  // The engine's overall completion while a solve runs, 0…1, or null when
+  // nothing is running. The Solve button paints it as its own background —
+  // this is the answer to the Phase 7–8 "spinning worker with no cancel"
+  // complaint that let the transient wall-clock budget be raised to an hour.
+  const [solveProgress, setSolveProgress] = useState<number | null>(null)
+  // The listener the engine drives. Deliberately not `setSolveProgress`: the
+  // boundary already throttles to ~60 ms, but an 80-second transient still
+  // reports ~800 times, and each one would re-render this whole component —
+  // editor, dock, plots and all. The bar is drawn to whole percent, so
+  // returning the previous value for a sub-percent move makes React bail out
+  // of the render entirely; ~800 reports become ~100 that change a pixel.
+  const reportSolveProgress = useCallback((fraction: number) => {
+    setSolveProgress((previous) =>
+      previous !== null && Math.round(previous * 100) === Math.round(fraction * 100)
+        ? previous
+        : fraction,
+    )
+  }, [])
   const [findAll, setFindAll] = useState(false)
   const [complexMode, setComplexMode] = useState(false)
   const [stopCriteria, setStopCriteria] = useState<StopCriteria>(
@@ -1729,6 +1747,7 @@ export default function App() {
     // even when the global underdetermination check fails.
     if (checkOverride !== undefined && !checkOverride.solvable) return false
     setSolvingTableId(tableId)
+    setSolveProgress(0)
     try {
       // Non-empty cells become fixed inputs for that run; blank cells are
       // solved per row (Solve Table semantics).
@@ -1751,6 +1770,7 @@ export default function App() {
         tbl.vars,
         rows,
         functionTableDtos(),
+        reportSolveProgress,
       )
       updateParamTable(tableId, (t) => ({
         ...t,
@@ -1783,6 +1803,7 @@ export default function App() {
       return false
     } finally {
       setSolvingTableId(null)
+      setSolveProgress(null)
     }
   }
 
@@ -1794,6 +1815,7 @@ export default function App() {
     const canRun = checkOverride ? checkOverride.solvable === true : solvable
     if (solving || !canRun) return false
     setSolving(true)
+    setSolveProgress(0)
     try {
       const activePlots = overridePlots ?? plots
       const needMissing =
@@ -1814,6 +1836,7 @@ export default function App() {
         // REPL-defined/changed variables take priority over the editor until the
         // user runs `clear` in the terminal.
         solveOverrides(),
+        reportSolveProgress,
       )
       setResult(response)
       // REPL overrides persist across solves (the terminal keeps priority over the
@@ -1879,6 +1902,7 @@ export default function App() {
       return false
     } finally {
       setSolving(false)
+      setSolveProgress(null)
     }
   }
 
@@ -2787,6 +2811,7 @@ export default function App() {
           isTable={focusedParam !== null}
           checking={checking}
           solving={solving}
+          solveProgress={solveProgress}
           solvable={solvable}
           findAll={findAll}
           complexMode={complexMode}

@@ -1,6 +1,15 @@
 // Module worker hosting the frees WASM engine off the UI thread.
 //
 // Protocol (see engineClient.ts, the only sender):
+// Progress: 'solve' and 'solveTable' are synchronous wasm calls that can run
+// for minutes, so the engine reports how far along it is *from inside* the
+// call. It does that by calling `globalThis.__freesOnProgress`, which this file
+// defines (the boundary declares it `catch`, so a host that does not — the
+// parity harness, a test — costs one swallowed TypeError and then nothing).
+// Posting from inside a blocking call is exactly what makes it useful: the
+// worker thread is busy, but the *main* thread is not, so the message lands and
+// the bar paints while the solve is still running.
+//
 //   request  {id, method: 'solve' | 'solveTable' | 'check' | 'reference' |
 //                     'version' | 'fluids' | 'propertyDiagram' |
 //                     'psychrometricChart' | 'replEvaluate' | 'replClear' |
@@ -72,6 +81,9 @@ export interface EngineRequest {
 export type EngineResponse =
   | { id: number; ok: true; result: string }
   | { id: number; ok: false; error: string }
+  /** An in-flight solve's overall completion, 0…1. Never terminal: the
+   *  request still settles with an `ok` message afterwards. */
+  | { id: number; progress: number }
 
 // The tsconfig compiles against the DOM lib (the worker file shares the app's
 // program), where `self` is a Window; narrow it to the two members a dedicated
@@ -79,6 +91,30 @@ export type EngineResponse =
 const ctx = self as unknown as {
   onmessage: ((event: MessageEvent<EngineRequest>) => void) | null
   postMessage(message: EngineResponse): void
+}
+
+// The request the engine is inside right now, so the progress hook — which the
+// engine calls with a bare fraction — can address its message. The worker
+// handles exactly one request at a time (the wasm calls are synchronous), so a
+// single slot is the whole correlation story. `null` between requests, which is
+// what makes a stray late call from a torn-down solve harmless.
+let inFlightId: number | null = null
+
+// The engine's progress sink. Declared on `globalThis` because the wasm
+// boundary imports it as a plain global rather than taking a callback
+// argument — that keeps the exported `solve(source, request)` signature the one
+// api.ts already sends.
+;(
+  globalThis as unknown as { __freesOnProgress?: (fraction: number) => void }
+).__freesOnProgress = (fraction: number) => {
+  if (inFlightId === null) return
+  // Anything the engine sends that is not a usable fraction is dropped here
+  // rather than becoming a NaN width on a DOM node.
+  if (typeof fraction !== 'number' || !Number.isFinite(fraction)) return
+  ctx.postMessage({
+    id: inFlightId,
+    progress: Math.min(1, Math.max(0, fraction)),
+  })
 }
 
 // Kick off wasm instantiation immediately so it overlaps the first request.
@@ -99,6 +135,9 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
   const { id, method, args } = event.data
   try {
     await ready
+    // Only the two solving methods report; everything else here is fast enough
+    // that a bar would flicker rather than inform.
+    inFlightId = method === 'solve' || method === 'solveTable' ? id : null
     let result: string
     switch (method) {
       case 'solve':
@@ -166,5 +205,8 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
       ok: false,
       error: e instanceof Error ? e.message : String(e),
     })
+  } finally {
+    // Whatever happened, this request is no longer the one to report against.
+    inFlightId = null
   }
 }

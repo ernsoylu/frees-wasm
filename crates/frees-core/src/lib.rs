@@ -42,6 +42,7 @@ pub mod linalg;
 pub mod ode;
 pub mod parser;
 pub mod procedures;
+pub mod progress;
 pub mod props;
 pub mod signal;
 pub mod solver;
@@ -52,9 +53,10 @@ pub mod units;
 pub use ast::{BinOp, CmpOp, Equation, Expr, LogicOp, Statement};
 pub use diag::{Diagnostic, FreesError, Result, Severity, Span};
 pub use engine::{
-    check, check_with, check_with_tables, solve, solve_with, solve_with_parametric,
-    solve_with_parametric_tables, solve_with_tables, CheckReport, EquationResidual,
-    PartialDiagnostics, Solution, SolveFailure, SolveStats, SyntaxErrorInfo, VariableOverride,
+    check, check_with, check_with_tables, check_with_tables_complex, solve, solve_with,
+    solve_with_parametric, solve_with_parametric_tables, solve_with_tables, CheckReport,
+    EquationResidual, PartialDiagnostics, Solution, SolveFailure, SolveStats, SyntaxErrorInfo,
+    VariableOverride,
 };
 pub use parser::{parse_document, Document, GuessDirective};
 pub use solver::{Block, BlockingReport, NewtonReport, SolverSettings};

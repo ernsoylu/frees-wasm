@@ -700,6 +700,9 @@ interface TopBarProps {
   isTable: boolean
   checking: boolean
   solving: boolean
+  /** Engine completion, 0…1, while a solve or a table run is in flight; `null`
+   *  when nothing is running. Painted as the Solve button's own background. */
+  solveProgress: number | null
   solvable: boolean
   findAll: boolean
   complexMode: boolean
@@ -769,6 +772,16 @@ export function TopBar(props: Readonly<TopBarProps>) {
   const canSolve = isTable ? props.tableCheckResult?.solvable === true : props.solvable
   const solveTooltip = solveTooltipFor(canSolve, isTable)
   const pill = statusPillFor(props)
+  const solveBusy = isTable ? props.tableSolving : props.solving
+  // `null` is "running, nothing reported yet" — an empty bar, not a missing
+  // one, so the button does not jump from full gradient to 0 % on the first
+  // report. Clamped because the width is going straight into CSS.
+  const solvePercent = Math.min(100, Math.max(0, (props.solveProgress ?? 0) * 100))
+  // While it runs, the tooltip carries the number the bar shows — the only
+  // place the percentage is available as text.
+  const solveTooltipText = solveBusy
+    ? `Solving… ${Math.round(solvePercent)}%`
+    : solveTooltip
   const hint = isTable
     ? 'Configure columns, fill values, then Check (F4) · Solve (F2)'
     : 'Check (F4) · Solve (F2)'
@@ -983,17 +996,44 @@ export function TopBar(props: Readonly<TopBarProps>) {
             Check
           </Button>
         </Tooltip>
-        <Tooltip label={solveTooltip}>
+        <Tooltip label={solveTooltipText}>
           <Button.Group>
             {/* The primary action of the whole app — a gradient sets it apart
-                from the neutral Check and the rest of the toolbar. */}
+                from the neutral Check and the rest of the toolbar.
+
+                While it spins, that gradient doubles as the progress bar: the
+                done fraction keeps the full-strength gradient and the rest is
+                dimmed by an overlay layer. Painted with `background-size`
+                rather than a colour stop because size is animatable and
+                gradient stops are not — that is what makes the bar glide
+                between the engine's ~60 ms reports instead of stepping.
+                Mantine's loading state only adds a 15 %-opacity blurred veil
+                (`Button.css` `::before`), so the bar stays legible under it. */}
             <Button
               size="xs"
               variant="gradient"
               gradient={{ from: 'teal.7', to: 'cyan.6', deg: 90 }}
               leftSection={<IconPlayerPlayFilled size={13} />}
               onClick={isTable ? props.onSolveTable : props.onSolve}
-              loading={isTable ? props.tableSolving : props.solving}
+              loading={solveBusy}
+              style={
+                solveBusy
+                  ? {
+                      backgroundImage:
+                        'linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), ' +
+                        'linear-gradient(90deg, var(--mantine-color-teal-7), var(--mantine-color-cyan-6))',
+                      backgroundRepeat: 'no-repeat, no-repeat',
+                      backgroundPosition: 'right center, left center',
+                      backgroundSize: `${100 - solvePercent}% 100%, 100% 100%`,
+                      transition: 'background-size 150ms linear',
+                    }
+                  : undefined
+              }
+              // `aria-busy` and nothing else: `aria-valuenow` needs
+              // `role="progressbar"`, and taking the button's role away to get
+              // it would cost more than the number is worth. The percentage
+              // reaches assistive tech through the tooltip below instead.
+              aria-busy={solveBusy}
             >
               Solve
             </Button>

@@ -418,13 +418,20 @@ impl<'a> DynamicSolver<'a> {
     where
         I: FnOnce(&OdeProblem<'_>) -> Result<OdeResult>,
     {
+        // Wave T5: the whole transient — classification, assembly, integration
+        // and the per-output-row materialisation that follows it — is one span
+        // of the progress bar, and everything inside it that would report on
+        // its own is per-step noise. `crate::progress` explains the claim; the
+        // signal that does reach the bar is integration time, reported by the
+        // explicit stepper's own inner claim and by the IDA loop below.
+        let progress = crate::progress::claim();
         self.classify()?;
         if is_ida_method(&self.system.options.method) {
             // The implicit-DAE path: fully in-crate (dae/solver.rs), so the
             // Java's SundialsIda.isAvailable() guard has no counterpart. The
             // explicit driver parameter is deliberately bypassed — IDA is its
             // own stepper.
-            return self.solve_with_ida();
+            return self.solve_with_ida(&progress);
         }
         // Wave R3: offer the solver the one list `rhs` reads. Only the explicit
         // (non-IDA) driver takes this path — `solve_with_ida` above has its own
@@ -477,7 +484,7 @@ impl<'a> DynamicSolver<'a> {
     /// * rows come straight from IDA's state vector — the auxiliary columns
     ///   are IDA's own algebraic solution, with no per-sample re-solve, so
     ///   [`build_table`](Self::build_table) is deliberately not reused.
-    fn solve_with_ida(&mut self) -> Result<OdeTableResult> {
+    fn solve_with_ida(&mut self, progress: &crate::progress::Claim) -> Result<OdeTableResult> {
         let dae = self.assemble_dae()?;
         let options = &self.system.options;
         let (t0, tf) = (options.t0, options.tf);
@@ -510,7 +517,10 @@ impl<'a> DynamicSolver<'a> {
         }
         rows.push(row_of(t0, &s.current_state()));
 
-        for &tout in &times[1..] {
+        for (index, &tout) in times[1..].iter().enumerate() {
+            // The IDA output grid is uniform in time, so the row index is the
+            // integration fraction — no separate signal needed.
+            progress.report(index as f64 / (points - 1) as f64);
             match self.advance_to(&mut s, tout, &mut hits)? {
                 // A stop event fired.
                 None => {

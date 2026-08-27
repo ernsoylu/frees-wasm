@@ -125,6 +125,11 @@ fn java_max(a: f64, b: f64) -> f64 {
 ///
 /// Port of `OdeIntegrator.integrate`.
 pub fn integrate(p: &OdeProblem<'_>) -> Result<OdeResult> {
+    // Held across the output sampling as well as `run`: materialising the rows
+    // re-solves the algebraic system once per row, and those solves are block
+    // loops that would otherwise report a sawtooth after the bar had already
+    // reached the end of this transient's span.
+    let _progress = crate::progress::claim();
     // Before `run`, not after: the point is to refuse the request rather than
     // spend the whole integration and then abort on the output allocation.
     let count = p.sample_count();
@@ -158,6 +163,7 @@ pub fn integrate(p: &OdeProblem<'_>) -> Result<OdeResult> {
 /// Integrates `p` and samples the trajectory at caller-chosen (ascending)
 /// times. Port of `OdeIntegrator.integrateAndSampleAt`.
 pub fn integrate_and_sample_at(p: &OdeProblem<'_>, target_times: &[f64]) -> Result<Vec<Vec<f64>>> {
+    let _progress = crate::progress::claim();
     let tr = run(p)?;
     Ok(interpolate_at(
         &tr.knot_t,
@@ -188,6 +194,14 @@ struct Trajectory {
 /// (terminate) and set events (discrete state reassignment at the crossing,
 /// then resume). Port of `OdeIntegrator.run`.
 fn run(p: &OdeProblem<'_>) -> Result<Trajectory> {
+    // Integration time is the only honest progress signal a transient has: the
+    // step count is adaptive and its total is unknown in advance. The claim is
+    // the load-bearing half — every RHS evaluation, event scan and per-step
+    // algebraic solve goes through `engine::run_blocks`, which would otherwise
+    // reset the bar to this block's `0` thousands of times. Taken before the
+    // setup rather than at the loop, because `compute_initial_step` already
+    // evaluates the system. See `crate::progress`.
+    let progress = crate::progress::claim();
     let method = resolve_method(&p.method)?;
     // A non-finite endpoint has to be screened *before* the `tf <= t0` test,
     // which it slips past in both directions: `tf = inf` is greater than any
@@ -258,6 +272,7 @@ fn run(p: &OdeProblem<'_>) -> Result<Trajectory> {
     let mut window_start_t = p.t0;
 
     while t < p.tf - min_step {
+        progress.report((t - p.t0) / span);
         let out = step_with_retries(method.as_ref(), p, t, &y, &f, h, min_step, steps)?;
         steps += out.extra_steps;
         rejected += out.rejections;

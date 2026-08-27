@@ -196,6 +196,10 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     let system = unit_system_of(&facade);
     let explicit_units = explicit_units_of(&facade);
 
+    // Wave T5: the Tables workbook drives the same Solve button, so it gets the
+    // same bar. The guard clears the sink on every exit path.
+    let _progress = crate::install_progress();
+
     let started = now_ms();
     let run_count = table.run_count();
     let mut sides: Vec<Option<RowSide>> = Vec::new();
@@ -209,6 +213,16 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             deadline_hit = true;
             return RowOutcome::failed(deadline_message());
         }
+        // Wave T5: a sweep's honest progress is rows done, and `RowJob` already
+        // carries the pair — so the bar comes from the boundary here rather
+        // than from a second reporting site inside `run_sweep`. The row's own
+        // blocks subdivide this slice (`crate::progress`); an accessor sweep
+        // makes several passes over the same rows, so the bar restarts per
+        // pass rather than pretending pass 2 of 3 is two thirds done.
+        let _row = frees_core::progress::enter(
+            (job.run - 1) as f64 / job.total_runs.max(1) as f64,
+            1.0 / job.total_runs.max(1) as f64,
+        );
         let slot = &mut sides[job.run - 1];
         match frees_core::solve_with_parametric_tables(
             &job.source,

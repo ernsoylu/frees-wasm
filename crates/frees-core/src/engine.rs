@@ -2062,6 +2062,26 @@ pub fn check_with_tables(
     overrides: &[VariableOverride],
     extra_tables: &[crate::parser::defs::FunctionTableDef],
 ) -> Result<CheckReport> {
+    check_with_tables_complex(source, overrides, extra_tables, false)
+}
+
+/// [`check_with_tables`] with the complex-mode flag the Java `CheckController`
+/// threads in as `solver.check(parsed, complexMode, functionDefs)`.
+///
+/// The flag reaches exactly one place — [`crate::parser::complex::expand_complex`]
+/// — and it decides whether an imaginary literal is a hard error or a request
+/// to split every equation into a real and an imaginary half. That matters to
+/// *check* and not only to solve, because the frontend gates its Solve button
+/// on this report: up to Wave T5 the boundary could not pass the flag, so a
+/// document with `1i` in it was reported unsolvable with "enable Complex mode
+/// to solve them" while Complex mode was enabled, and the Solve that would
+/// have succeeded was never reachable.
+pub fn check_with_tables_complex(
+    source: &str,
+    overrides: &[VariableOverride],
+    extra_tables: &[crate::parser::defs::FunctionTableDef],
+    complex_mode: bool,
+) -> Result<CheckReport> {
     crate::props::tables::install_builtin_once();
     for o in overrides {
         override_spec(o)?;
@@ -2132,7 +2152,7 @@ pub fn check_with_tables(
             .active_equations;
         let integrals = find_integrals(&equations, &doc.defs, false)?;
         if integrals.is_empty() {
-            crate::parser::complex::expand_complex(equations, false)
+            crate::parser::complex::expand_complex(equations, complex_mode)
         } else {
             crate::integral::structural_view(&equations, &integrals)
         }
@@ -4621,6 +4641,18 @@ fn solve_block_with_fallback(
     ) {
         Ok(count) => iterations += count,
         Err(first_error) => {
+            // A struck wall-clock budget is terminal, and the ladder below must
+            // not run on it. The deadline is monotone, so no rung can succeed —
+            // but a rung *can* fail differently, and the merge rescue's `?`
+            // propagates its own error, which is how a 60-second transient
+            // budget used to surface as "Newton iteration stalled … unable to
+            // bracket the (p,X) solution" from a re-run started at transformed
+            // guesses. Reporting the budget directly is both honest and ~2.4 s
+            // cheaper. Native callers install no deadline, so this is `None`
+            // there and the ladder is untouched.
+            if let Some(message) = crate::ode::deadline::strike() {
+                return Err(FreesError::solver(message));
+            }
             // Wave R3: the whole ladder below reads and writes the `Scope` —
             // including the last iterate `solve_block` just wrote — so the
             // dense vector hands over here, before the first of them looks.
@@ -4740,10 +4772,17 @@ fn run_blocks(
     let mut iterations = 0usize;
     // Blocks a merge rescue already solved (Java's `skipIndices`).
     let mut skip: HashSet<usize> = HashSet::new();
+    let count = blocks.len();
     for index in 0..blocks.len() {
         if skip.contains(&index) {
             continue;
         }
+        // This block owns its share of whatever slice of the progress bar the
+        // enclosing scope handed us — the whole bar at the top level, one
+        // block's slice for the pinned subsystems this loop also serves. A
+        // transient inside the block subdivides it further; see
+        // `crate::progress`. Costs one thread-local read when nothing listens.
+        let _span = crate::progress::enter(index as f64 / count as f64, 1.0 / count as f64);
         match solve_block_with_fallback(
             index,
             blocks,

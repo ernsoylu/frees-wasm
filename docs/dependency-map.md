@@ -60,12 +60,42 @@ The **REST contract survives** as the worker RPC surface — 22 methods, listed 
 | Optimization | `argmin`, `levenberg-marquardt` | Brent, LM, line search |
 | ODE/DAE | port frees' own; `diffsol` for the DAE path | See `PLAN.md` §5 Phase 7 note |
 | Exact arithmetic | `num-rational`, `num-bigint`, `num-complex` | CAS + the existing complex `_r`/`_i` support |
-| Transcendentals | `libm` | Used uniformly so native and wasm builds agree bit-for-bit with each other |
+| Transcendentals | `libm` | Used uniformly **in `frees-core`** so native and wasm builds agree bit-for-bit with each other — see the caveat below, which has held since D9 |
 | RNG | `rand` (+ `getrandom` `js` feature) | Monte Carlo, NSGA-II |
 | Parallelism | worker pool (no crate) or `wasm-bindgen-rayon` | Deferred by decision **D3** |
 | Serialization | `serde`, `serde_json` | DTO parity with Jackson |
 | Logging | `tracing`, `tracing-wasm` | |
 | MDF4 | one of `mf4-rs` / `mdf4-rs` / `asammdf` / `mdfr` | Spike — slice-based reading required |
+
+> **The bit-for-bit claim above is `frees-core`'s alone, and rustprop is
+> outside it (measured 2026-08-27).** `frees-core` really does route every
+> transcendental through the `libm` crate — `eval.rs` alone has ~40 `libm::`
+> call sites and no `f64::exp()` — so its own arithmetic is identical on both
+> targets. **rustprop is not built that way**: it calls `std`'s methods (158
+> `.exp()`, 151 `.ln()`, 459 `.powf()`, zero `libm::`), which resolve to
+> **glibc natively and Rust's bundled `libm` on `wasm32-unknown-unknown`**.
+> Those two disagree by one ulp on about 11 % of `exp` arguments and 4.5 % of
+> `ln` arguments, sampled over 600 random values each.
+>
+> Since [D9](decisions/0009-rustprop-backend.md) made rustprop the browser's
+> only property backend, that is a real native-vs-wasm divergence in every
+> real-fluid document. Measured by replaying all 1308 corpus documents through
+> the shipped `web/src/wasm/pkg` module under Node and diffing against
+> `frees-cli`: **107 of the 1095 documents both builds solve return different
+> numbers**, worst 5.4e-6 on a real quantity (two subcooling variables flip
+> around a structural zero, which is what the absolute channel exists for).
+> `LD_PRELOAD`ing a ~20-line shim that routes `exp`/`log`/`pow`/trig to the
+> `libm` crate closes **91 of the 107** and reproduces the wasm trajectories
+> bit-for-bit, which is what pins the mechanism to rustprop rather than to
+> codegen, `wasm-opt`, or feature flags.
+>
+> It is invisible to CI because **no job solves a corpus document through the
+> wasm module** — `ci.yml` has `native`, `wasm` (build + size gate only),
+> `web` (build + vitest) and `parity` (four *native* shards). A full wasm
+> replay under Node takes ~222 s, so a gate is affordable; closing the
+> divergence itself means pointing rustprop at `libm`, which moves the native
+> baseline too and therefore needs a full replay and a look at
+> `fixtures/tolerances-rustprop.json`. Neither is done.
 
 ---
 

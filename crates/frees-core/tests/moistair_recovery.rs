@@ -38,8 +38,9 @@ fn get(values: &std::collections::BTreeMap<String, f64>, name: &str) -> f64 {
         .1
 }
 
-/// A sensible exchanger moves heat and **no** moisture. Humidity ratio out must
-/// equal humidity ratio in, exactly — not approximately.
+/// A sealed sensible exchanger moves heat and **no** moisture. With no carryover
+/// and no leakage the humidity ratio out must equal the humidity ratio in
+/// exactly — not approximately.
 #[test]
 fn sensible_air_to_air_hx_moves_heat_but_not_moisture() {
     let values = solved(
@@ -48,7 +49,7 @@ MoistAirSource OA(P=101325, T=308.15, W=0.0155, mdot=1.0)
 MoistAirSource EA(P=101325, T=297.15, W=0.0093, mdot=1.0)
 MoistAirSink   S1()
 MoistAirSink   S2()
-SensibleAirToAirHX HX(eff=0.70)
+SensibleAirToAirHX HX(eff=0.70, eatr=0, oacf=1)
 connect(OA.out, HX.sup_in)
 connect(HX.sup_out, S1.in)
 connect(EA.out, HX.exh_in)
@@ -72,6 +73,115 @@ dW_exh    = S2.W - 0.0093
     assert!(
         (t_out - 27.3).abs() < 0.3,
         "expected the supply near 27.3 C at eff = 0.70, got {t_out:.2} C"
+    );
+}
+
+/// The same exchanger with the two Standard 84 leakage terms switched on. A
+/// rotary matrix carries exhaust air round with it and a plate core leaks it
+/// through the seals; either way `eatr` is the fraction of the supply leaving
+/// stream that is really exhaust air, and it is the ONLY route by which a
+/// sensible device moves moisture. `oacf` is the supply-side leakage that makes
+/// the exchanger deliver less outdoor air than it is fed.
+///
+/// What must hold with both of them on is that nothing is created or lost: the
+/// dry air, the water and the energy that enter the device all leave it.
+#[test]
+fn sensible_hx_carryover_and_leakage_conserve_the_whole_device() {
+    let values = solved(
+        r#"
+MoistAirSource OA(P=101325, T=308.15, W=0.0155, mdot=1.0)
+MoistAirSource EA(P=101325, T=297.15, W=0.0093, mdot=1.2)
+MoistAirSink   S1()
+MoistAirSink   S2()
+SensibleAirToAirHX HX(eff=0.70, eatr=0.05, oacf=1.04)
+connect(OA.out, HX.sup_in)
+connect(HX.sup_out, S1.in)
+connect(EA.out, HX.exh_in)
+connect(HX.exh_out, S2.in)
+m_sup_out = S1.mdot
+m_exh_out = S2.mdot
+W_sup_out = S1.W
+res_air   = (S1.mdot + S2.mdot) - (1.0 + 1.2)
+res_water = (S1.mdot * S1.W + S2.mdot * S2.W) - (1.0 * 0.0155 + 1.2 * 0.0093)
+h_oa_in    = Enthalpy(AirH2O, T=308.15, P=101325, W=0.0155)
+h_ea_in    = Enthalpy(AirH2O, T=297.15, P=101325, W=0.0093)
+res_energy = (S1.mdot * S1.h + S2.mdot * S2.h) - (1.0 * h_oa_in + 1.2 * h_ea_in)
+"#,
+    );
+
+    // 4% of the supply never makes it out of the supply side...
+    assert!(
+        (get(&values, "m_sup_out") - 1.0 / 1.04).abs() < 1e-12,
+        "oacf did not scale the supply outlet flow"
+    );
+    // ...and turns up on the exhaust side rather than vanishing.
+    assert!(
+        get(&values, "res_air").abs() < 1e-12,
+        "dry air is not conserved"
+    );
+    assert!(
+        get(&values, "res_water").abs() < 1e-12,
+        "water is not conserved: {}",
+        get(&values, "res_water")
+    );
+    assert!(
+        get(&values, "res_energy").abs() < 1e-6,
+        "energy is not conserved: {}",
+        get(&values, "res_energy")
+    );
+
+    // The carryover moves moisture, and exactly 5% of the way to the exhaust.
+    let expected = 0.0155 + 0.05 * (0.0093 - 0.0155);
+    assert!(
+        (get(&values, "W_sup_out") - expected).abs() < 1e-12,
+        "eatr did not carry moisture across: {} vs {expected}",
+        get(&values, "W_sup_out")
+    );
+}
+
+/// A total-energy exchanger is rated on TWO independent effectivenesses —
+/// sensible on temperature, latent on humidity ratio — which is what separates
+/// it from `EnthalpyWheel`'s single enthalpy effectiveness. A membrane core
+/// whose sensible and latent ratings differ cannot be written the other way.
+#[test]
+fn total_energy_exchanger_rates_sensible_and_latent_separately() {
+    let values = solved(
+        r#"
+MoistAirSource OA(P=101325, T=308.15, W=0.0155, mdot=1.0)
+MoistAirSource EA(P=101325, T=297.15, W=0.0093, mdot=1.0)
+MoistAirSink   S1()
+MoistAirSink   S2()
+TotalEnergyExchanger MX(eps_s=0.70, eps_L=0.50, eatr=0, oacf=1)
+connect(OA.out, MX.sup_in)
+connect(MX.sup_out, S1.in)
+connect(EA.out, MX.exh_in)
+connect(MX.exh_out, S2.in)
+T_sup_out = Temperature(AirH2O, h=S1.h, P=101325, W=S1.W)
+W_sup_out = S1.W
+res_water = (S1.mdot * S1.W + S2.mdot * S2.W) - (0.0155 + 0.0093)
+"#,
+    );
+
+    // Temperature follows eps_s, on the temperature spread.
+    let t_out = get(&values, "T_sup_out");
+    let t_expected = 308.15 + 0.70 * (297.15 - 308.15);
+    assert!(
+        (t_out - t_expected).abs() < 0.05,
+        "sensible leg: {t_out} vs {t_expected}"
+    );
+
+    // Humidity follows eps_L, on the humidity spread — a different fraction of a
+    // different quantity. A single enthalpy effectiveness could not produce both.
+    let w_expected = 0.0155 + 0.50 * (0.0093 - 0.0155);
+    assert!(
+        (get(&values, "W_sup_out") - w_expected).abs() < 1e-12,
+        "latent leg: {} vs {w_expected}",
+        get(&values, "W_sup_out")
+    );
+
+    assert!(
+        get(&values, "res_water").abs() < 1e-12,
+        "water is not conserved"
     );
 }
 

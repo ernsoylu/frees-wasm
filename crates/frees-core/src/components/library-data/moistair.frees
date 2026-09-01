@@ -263,48 +263,40 @@ END
 
 // ── Air-to-air energy recovery, sensible family (Std 84) ────────────────────
 
-// Sensible air-to-air exchanger: the shared physics of a fixed-plate core, a
-// heat pipe, a run-around coil loop and a thermosiphon. All four move sensible
-// heat only — humidity ratio is untouched on both sides — and differ in the
-// effectiveness they can reach, not in form:
+// Sensible air-to-air exchanger: the shared physics of every sensible-only
+// recovery device. All five move heat and no moisture between the streams, and
+// differ in the numbers they are rated at rather than in form (Std 84 /
+// Handbook—Systems Ch. 25, Table 3):
 //
-//   fixed plate 50–80% · heat pipe 45–65% · run-around 55–65% · thermosiphon 40–60%
+//   fixed plate     eff 50-80%  eatr 0-5%    oacf 0.97-1.06
+//   heat wheel      eff 50-85%  eatr 0.5-10% oacf 1.0-1.2
+//   heat pipe       eff 45-65%  eatr 0-1%    oacf 0.99-1.01
+//   run-around loop eff 55-65%  eatr 0       oacf 1.0
+//   thermosiphon    eff 40-60%  eatr 0       oacf 1.0
 //
-// eff follows ASHRAE Standard 84: actual transfer over the maximum possible, so
-// the C_min stream is the one that would reach the other's inlet temperature at
+// eff follows Standard 84: actual transfer over the maximum possible, so the
+// C_min stream is the one that would reach the other's inlet temperature at
 // eff = 1. Sensible-only means the exchange is driven by TEMPERATURE, not by
 // enthalpy — enthalpy carries the latent term, and using it here would move
-// moisture that these devices cannot move.
+// moisture that none of these devices can move.
+//
+// A "sensible-only" device still moves some moisture, and that is what eatr is.
+// A rotary matrix drags exhaust air round with it; a plate core leaks it through
+// the seals. Either way a fraction of the supply leaving stream is really
+// exhaust air, 0 to 10% of it, cut by a purge sector but never eliminated. It is
+// a required parameter because cross-contamination is often the design question
+// rather than an afterthought — a wheel serving an isolation room, say — and
+// defaulting it to zero would answer that question wrongly and silently.
+//
+// oacf is supply inlet flow over supply outlet flow: the leakage that makes an
+// exchanger deliver less outdoor air than it is fed, and so the factor the
+// supply fan must be oversized by. What leaks out of the supply side joins the
+// exhaust, so the moisture and energy balances close over the whole device
+// rather than per stream.
 COMPONENT SensibleAirToAirHX(sup_in, sup_out, exh_in, exh_out)
-  PARAM eff, domain$ = moistair
-  sup_out.mdot = sup_in.mdot
-  exh_out.mdot = exh_in.mdot
-  sup_out.P    = sup_in.P
-  exh_out.P    = exh_in.P
-  sup_out.W    = sup_in.W
-  exh_out.W    = exh_in.W
-  T_s_in  = Temperature(AirH2O, h=sup_in.h, P=sup_in.P, W=sup_in.W)
-  T_e_in  = Temperature(AirH2O, h=exh_in.h, P=exh_in.P, W=exh_in.W)
-  C_s     = sup_in.mdot * Cp(AirH2O, T=T_s_in, P=sup_in.P, W=sup_in.W)
-  C_e     = exh_in.mdot * Cp(AirH2O, T=T_e_in, P=exh_in.P, W=exh_in.W)
-  Q       = eff * min(C_s, C_e) * (T_e_in - T_s_in)
-  T_s_out = T_s_in + Q / C_s
-  T_e_out = T_e_in - Q / C_e
-  sup_out.h = Enthalpy(AirH2O, T=T_s_out, P=sup_in.P, W=sup_in.W)
-  exh_out.h = Enthalpy(AirH2O, T=T_e_out, P=exh_in.P, W=exh_in.W)
-END
-
-// Rotary sensible heat wheel. The same sensible exchange as the plate core, plus
-// the carryover a rotating matrix cannot avoid: EATR (exhaust air transfer
-// ratio, Std 84) is the fraction of the supply stream that is really exhaust air
-// dragged round in the matrix. So a "sensible-only" wheel DOES move some
-// moisture — 0.5% to 10% of the stream, cut but never eliminated by a purge
-// sector. Modelling it matters wherever cross-contamination is the design
-// question rather than an afterthought.
-COMPONENT SensibleHeatWheel(sup_in, sup_out, exh_in, exh_out)
-  PARAM eff, eatr, domain$ = moistair
-  sup_out.mdot = sup_in.mdot
-  exh_out.mdot = exh_in.mdot
+  PARAM eff, eatr, oacf, domain$ = moistair
+  sup_out.mdot = sup_in.mdot / oacf
+  exh_out.mdot = exh_in.mdot + (sup_in.mdot - sup_out.mdot)
   sup_out.P    = sup_in.P
   exh_out.P    = exh_in.P
   T_s_in  = Temperature(AirH2O, h=sup_in.h, P=sup_in.P, W=sup_in.W)
@@ -313,11 +305,11 @@ COMPONENT SensibleHeatWheel(sup_in, sup_out, exh_in, exh_out)
   C_e     = exh_in.mdot * Cp(AirH2O, T=T_e_in, P=exh_in.P, W=exh_in.W)
   Q       = eff * min(C_s, C_e) * (T_e_in - T_s_in)
   T_s_out = T_s_in + Q / C_s
-  T_e_out = T_e_in - Q / C_e
   sup_out.W = sup_in.W + eatr * (exh_in.W - sup_in.W)
-  exh_out.W = exh_in.W - (sup_in.mdot / exh_in.mdot) * (sup_out.W - sup_in.W)
   sup_out.h = Enthalpy(AirH2O, T=T_s_out, P=sup_in.P, W=sup_out.W)
-  exh_out.h = Enthalpy(AirH2O, T=T_e_out, P=exh_in.P, W=exh_out.W)
+  exh_out.mdot * exh_out.W = exh_in.mdot * exh_in.W + sup_in.mdot * sup_in.W - sup_out.mdot * sup_out.W
+  exh_out.mdot * exh_out.h = exh_in.mdot * exh_in.h + sup_in.mdot * sup_in.h - sup_out.mdot * sup_out.h
+  T_e_out = Temperature(AirH2O, h=exh_out.h, P=exh_in.P, W=exh_out.W)
 END
 
 // ── Desiccant dehumidification ─────────────────────────────────────────────
@@ -333,6 +325,9 @@ END
 // is the extra enthalpy carried over from the hot regeneration sector — real
 // wheels are not perfectly adiabatic, and 80–90% of the process temperature rise
 // is heat of sorption with the balance carried over, so f_carry is small.
+// (`LiquidDesiccantContactor` names its equivalent `f_excess` and defines it on
+// the temperature GAIN rather than on an enthalpy gap, because a liquid
+// contactor has no regeneration port to take the gap against.)
 // Moisture and energy leave on the regeneration stream; both balances close on
 // the dry-air basis.
 COMPONENT DesiccantWheel(proc_in, proc_out, reg_in, reg_out)
@@ -423,4 +418,412 @@ COMPONENT FanPoweredBox(pri_in, ind_in, out)
   out.mdot = pri_in.mdot + ind_in.mdot
   out.mdot * out.W = pri_in.mdot * pri_in.W + ind_in.mdot * ind_in.W
   out.mdot * out.h = pri_in.mdot * pri_in.h + ind_in.mdot * ind_in.h + Q_fan + Q_reheat
+END
+
+// ── Coils: the apparatus dew point construction ─────────────────────────────
+
+// Cooling coil stated the way a designer actually sizes one: by its APPARATUS
+// DEW POINT and its BYPASS FACTOR, not by an imposed leaving temperature.
+//
+// The leaving state lies on the straight line from the entering state to the
+// ADP — the saturated state the coil surface would drive the air to if none of
+// it slipped past unconditioned. BF is the fraction that does slip past, so the
+// leaving state sits BF of the way back from the ADP toward the entering state.
+// Because the construction is one linear interpolation on the (W, h) pair, all
+// three textbook forms of the bypass factor hold identically:
+//
+//   BF = (t_lvg - t_adp)/(t_ent - t_adp)
+//      = (W_lvg - W_adp)/(W_ent - W_adp)
+//      = (h_lvg - h_adp)/(h_ent - h_adp)
+//
+// which is worth checking rather than assuming: it is what makes a coil result
+// reproducible against any textbook. Typical BF is 0.05-0.25. BF = 0 recovers
+// the saturated-leaving-air idealisation that `CoolingCoil` imposes, which is a
+// perfect coil — real leaving air sits at 85-95% RH, not on the saturation line.
+//
+// The condensate leaves the airstream carrying its own enthalpy, so the coil
+// load is NOT simply the air-side enthalpy drop. `h_f` is the ASHRAE condensate
+// term, 4.186*t at the leaving temperature. It is under 1% of the total at
+// ordinary conditions, which is exactly why it gets dropped silently — and why
+// `Q_air` (the air-side drop) and `Q` (the load the plant actually sees) are
+// both written out here instead of quietly conflated.
+//
+// The construction only applies to a coil that GETS WET. Run it on a surface
+// above the entering dew point and it interpolates toward an apparatus dew point
+// that does not exist, handing back air wetter than it entered — a cooling coil
+// that humidifies. The `dry` rung is the coil in that regime, and `margin_adp`
+// (entering dew point less T_adp) is the number that says which rung a design
+// belongs on rather than leaving it to judgement.
+COMPONENT ApparatusDewPointCoil(in, out)
+  PARAM T_adp, BF, domain$ = moistair, model$ = wet
+  out.mdot   = in.mdot
+  out.P      = in.P
+  T_in       = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+  T_out      = Temperature(AirH2O, h=out.h, P=in.P, W=out.W)
+  T_dp_in    = DewPoint(AirH2O, h=in.h, P=in.P, W=in.W)
+  margin_adp = T_dp_in - T_adp
+  mdot_w     = in.mdot * (in.W - out.W)
+  h_f        = 4186 * (T_out - 273.15)
+  Q_air      = in.mdot * (in.h - out.h)
+  Q          = Q_air - mdot_w * h_f
+  Q_sens     = in.mdot * Cp(AirH2O, T=T_in, P=in.P, W=in.W) * (T_in - T_out)
+  SHR        = Q_sens / Q_air
+  // Wet coil: the surface is below the entering dew point, so there IS an
+  // apparatus dew point and the leaving state is the interpolation toward it.
+  VARIANT wet
+    W_adp = HumRat(AirH2O, T=T_adp, P=in.P, R=1)
+    h_adp = Enthalpy(AirH2O, T=T_adp, P=in.P, W=W_adp)
+    out.W = W_adp + BF * (in.W - W_adp)
+    out.h = h_adp + BF * (in.h - h_adp)
+  END
+  // Dry coil: the surface never reaches saturation, so there is no apparatus
+  // dew point to construct anything from and T_adp is read as the mean surface
+  // temperature instead. Constant humidity ratio, and the same bypass factor
+  // interpolating temperature rather than the (W, h) pair.
+  VARIANT dry
+    out.W = in.W
+    out.h = Enthalpy(AirH2O, T=T_adp + BF * (T_in - T_adp), P=in.P, W=in.W)
+  END
+END
+
+// Face-and-bypass coil: the airstream splits at a damper, the face fraction
+// passes over the coil and the rest bypasses it untouched, and the two remix
+// adiabatically downstream. Capacity is modulated by the DAMPER rather than by
+// water flow, which is the classic way to hold a leaving condition with a coil
+// that would otherwise freeze or overshoot at part load.
+//
+// The consequence worth seeing on the chart: here the bypass factor is a
+// CONTROL variable, `BF = 1 - u_face`, not a fixed coil characteristic. At 40%
+// face the leaving air sits far from saturation on the mixing line between the
+// coil condition and the entering state — a leaving state no single-path coil
+// model produces.
+COMPONENT FaceAndBypassCoil(in, out, wall)
+  PARAM u_face, eps, domain$ = moistair
+  out.mdot  = in.mdot
+  out.P     = in.P
+  T_in      = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+  T_face    = T_in - eps * (T_in - wall.T)
+  W_sat     = HumRat(AirH2O, T=T_face, P=in.P, R=1)
+  W_face    = 0.5 * (in.W + W_sat - sqrt((in.W - W_sat)^2 + 1e-12))
+  h_face    = Enthalpy(AirH2O, T=T_face, P=in.P, W=W_face)
+  out.W     = u_face * W_face + (1 - u_face) * in.W
+  out.h     = u_face * h_face + (1 - u_face) * in.h
+  BF        = 1 - u_face
+  Q         = in.mdot * (in.h - out.h)
+  wall.Qdot = -Q
+END
+
+// Heat-pipe wrap-around, and the pumped run-around recuperative loop that is
+// the same idea with a glycol circuit: a PASSIVE loop that takes sensible heat
+// out of the air entering the cooling coil and puts exactly that heat back into
+// the air leaving it. Three vectors in sequence on the chart — sensible precool
+// at constant W, then the coil's cooling-with-dehumidification, then sensible
+// reheat at constant W — with no new energy anywhere.
+//
+// That is why it displaces the reheat energy codes restrict: the reheat IS the
+// precool, moved downstream. It also raises latent capacity, because the coil
+// now sees air already cooled toward its dew point.
+//
+// The defining property is Q_pre = Q_re EXACTLY, so the reheat leg is closed on
+// the enthalpy the precool leg gave up rather than on a second effectiveness —
+// a temperature-effectiveness pair would leave a small residual loop energy
+// that is precisely what a passive device cannot have.
+COMPONENT HeatPipeWrapAround(pre_in, pre_out, re_in, re_out)
+  PARAM eff, domain$ = moistair
+  pre_out.mdot = pre_in.mdot
+  re_out.mdot  = re_in.mdot
+  pre_out.P    = pre_in.P
+  re_out.P     = re_in.P
+  pre_out.W    = pre_in.W
+  re_out.W     = re_in.W
+  T_p_in    = Temperature(AirH2O, h=pre_in.h, P=pre_in.P, W=pre_in.W)
+  T_r_in    = Temperature(AirH2O, h=re_in.h, P=re_in.P, W=re_in.W)
+  T_p_out   = T_p_in - eff * (T_p_in - T_r_in)
+  pre_out.h = Enthalpy(AirH2O, T=T_p_out, P=pre_in.P, W=pre_out.W)
+  Q         = pre_in.mdot * (pre_in.h - pre_out.h)
+  re_out.h  = re_in.h + Q / re_in.mdot
+  T_r_out   = Temperature(AirH2O, h=re_out.h, P=re_in.P, W=re_out.W)
+END
+
+// ── Air-to-air energy recovery, total-energy family (Std 84) ────────────────
+
+// Total-energy exchanger stated the way ASHRAE Standard 84 defines it: SENSIBLE
+// effectiveness on TEMPERATURE and LATENT effectiveness on HUMIDITY RATIO, as
+// two independently rated numbers, plus the two leakage terms — EATR and OACF —
+// that a recovery device cannot honestly be specified without.
+//
+// This is the Std 84 form. `EnthalpyWheel` is the TOTAL-effectiveness form,
+// exchanging enthalpy under a single eff_h. Both are legitimate and they are not
+// the same model: a device whose sensible and latent effectivenesses differ
+// cannot be described by one enthalpy effectiveness, and a membrane core is
+// exactly such a device.
+//
+// One component covers the two total-energy devices that are not wheels
+// (Std 84 / Handbook—Systems Ch. 25, Table 3):
+//
+//   membrane plate  eps_s 50-75%  eps_L 50-73%  eatr 0-5%  oacf 0.97-1.06
+//   twin towers     eps_s 40-60%  eps_L 40-60%  eatr 0     oacf 1.0
+//
+// Twin towers circulate a sorbent solution between two physically separate
+// contactor towers, so there is no shared surface and no carryover at all:
+// eatr = 0 and oacf = 1 are structural there, not ratings.
+//
+// eatr is the fraction of the SUPPLY leaving stream that is really exhaust air,
+// so the leaving humidity is a mix of the conditioned outdoor air and that
+// carryover. oacf is supply inlet flow over supply outlet flow — the leakage
+// that makes a rated exchanger deliver less outdoor air than it is fed, and
+// therefore the factor the supply fan has to be oversized by. Both are required
+// rather than defaulted: leaving them implicit is the omission this component
+// exists to prevent.
+COMPONENT TotalEnergyExchanger(sup_in, sup_out, exh_in, exh_out)
+  PARAM eps_s, eps_L, eatr, oacf, domain$ = moistair
+  sup_out.mdot = sup_in.mdot / oacf
+  exh_out.mdot = exh_in.mdot + (sup_in.mdot - sup_out.mdot)
+  sup_out.P    = sup_in.P
+  exh_out.P    = exh_in.P
+  T_s_in  = Temperature(AirH2O, h=sup_in.h, P=sup_in.P, W=sup_in.W)
+  T_e_in  = Temperature(AirH2O, h=exh_in.h, P=exh_in.P, W=exh_in.W)
+  W_x     = sup_in.W + eps_L * (exh_in.W - sup_in.W)
+  T_s_out = T_s_in + eps_s * (T_e_in - T_s_in)
+  sup_out.W = W_x + eatr * (exh_in.W - W_x)
+  sup_out.h = Enthalpy(AirH2O, T=T_s_out, P=sup_in.P, W=sup_out.W)
+  exh_out.mdot * exh_out.W = exh_in.mdot * exh_in.W + sup_in.mdot * sup_in.W - sup_out.mdot * sup_out.W
+  exh_out.mdot * exh_out.h = exh_in.mdot * exh_in.h + sup_in.mdot * sup_in.h - sup_out.mdot * sup_out.h
+END
+
+// ── Desiccant dehumidification, liquid ──────────────────────────────────────
+
+// Liquid-desiccant contactor: air contacts a sorbent solution (lithium chloride,
+// lithium bromide, glycol) whose surface water-vapour pressure is set by its
+// CONCENTRATION and TEMPERATURE, not by a wheel position. The air is driven
+// toward the equilibrium humidity ratio W_eq of that solution — lower the
+// solution temperature or raise its concentration and W_eq falls.
+//
+// The two rungs are genuinely different processes, and this is the component
+// where that shows:
+//
+//   adiabatic — the heat of absorption stays in the air, which leaves WARMER
+//     and drier, down and to the right near a constant wet-bulb line. Gatley
+//     notes the real dry-bulb rise runs 20-30% ABOVE a pure latent-to-sensible
+//     conversion, from solution heat carried over from the regenerator and the
+//     heat of wetting; f_excess is that fraction. It is NOT `DesiccantWheel`'s
+//     `f_carry`, which is a fraction of the ENTHALPY GAP to a regeneration
+//     stream the wheel actually has a port for. Same phenomenon, two different
+//     quantities, so two different names.
+//
+//   cooled — an internally cooled contactor (bare-pipe coils in the contact bed
+//     with the solution sprayed over them) removes the heat of absorption as it
+//     is released, so the air leaves COOLER and drier. Run at eps_T such that
+//     the leaving dry bulb equals the entering one, this is the only device in
+//     the library that draws the DEHUMIDIFICATION-ONLY vector — straight down a
+//     constant-dry-bulb line — which Gatley uses as the textbook example of
+//     that process. It is one process, not chemical drying followed by cooling:
+//     there is no intermediate state to point at.
+//
+// The absorbed water leaves with the solution carrying its own liquid enthalpy,
+// so that term is taken out of the air rather than left in the balance.
+COMPONENT LiquidDesiccantContactor(in, out, wall)
+  PARAM eff_L, W_eq, eps_T, f_excess, domain$ = moistair, model$ = cooled
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.W    = in.W - eff_L * (in.W - W_eq)
+  T_in     = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+  mdot_w   = in.mdot * (in.W - out.W)
+  // Internally cooled: the air approaches the solution temperature at the wall.
+  VARIANT cooled REQUIRE eps_T
+    T_out     = T_in - eps_T * (T_in - wall.T)
+    out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=out.W)
+    h_f       = 4186 * (wall.T - 273.15)
+    Q         = in.mdot * (in.h - out.h) - mdot_w * h_f
+    wall.Qdot = -Q
+  END
+  // Adiabatic: nothing leaves through the wall, so the heat of absorption stays
+  // in the air. `h_pure` is the pure latent-to-sensible conversion, and f_excess
+  // is Gatley's excess on top of it, written as what he states it to be — the
+  // dry-bulb GAIN being (1 + f_excess) times the gain pure conversion predicts,
+  // f_excess = 0.20 to 0.30. The wall port carries no heat here; terminate it
+  // with a ThermalSource at the solution temperature, which is then reported
+  // rather than used (the ThermalSensor pattern).
+  VARIANT adiabatic REQUIRE f_excess
+    h_f       = 4186 * (T_in - 273.15)
+    h_pure    = in.h - mdot_w * h_f / in.mdot
+    T_pure    = Temperature(AirH2O, h=h_pure, P=in.P, W=out.W)
+    T_out     = T_in + (1 + f_excess) * (T_pure - T_in)
+    out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=out.W)
+    Q         = 0
+    wall.Qdot = 0
+  END
+END
+
+// ── Evaporative cooling, two-stage ──────────────────────────────────────────
+
+// Indirect/direct two-stage evaporative cooler. The indirect stage cools the
+// primary air SENSIBLY, which lowers its wet bulb; the direct stage that follows
+// then runs up that LOWER wet-bulb line and so reaches a dry bulb no single
+// direct stage could. That is the whole point of staging — a direct cooler can
+// never go below the entering wet bulb, so the way to go lower is to move the
+// wet bulb first.
+COMPONENT IndirectDirectEvaporativeCooler(pri_in, pri_out, sec_in, sec_out)
+  PARAM wbde, eff_sec, eff_dir
+  IndirectEvaporativeCooler IEC(wbde=wbde, eff_sec=eff_sec)
+  EvaporativeCooler         DEC(eff=eff_dir)
+  connect(pri_in, IEC.pri_in)
+  connect(IEC.pri_out, DEC.in)
+  connect(DEC.out, pri_out)
+  connect(sec_in, IEC.sec_in)
+  connect(IEC.sec_out, sec_out)
+END
+
+// ── Airside control ─────────────────────────────────────────────────────────
+
+// Airside economizer. It is a mixing box whose outdoor-air fraction is DECIDED
+// rather than given: when outdoor air is the cheaper source of cooling the
+// dampers open toward 100%, and otherwise they fall back to the minimum
+// ventilation fraction f_min.
+//
+// Two changeover strategies, as the codes define them. `drybulb` compares dry-
+// bulb temperatures; `enthalpy` compares total enthalpy and so counts the latent
+// penalty of humid outdoor air, which dry-bulb changeover cannot see. Each is
+// gated twice — the differential test against the return air AND a fixed high
+// limit `lim` above which the economizer locks out regardless. `band` is the
+// changeover width in the units of whichever variable the variant compares
+// (K for drybulb, J/kg for enthalpy); it keeps the decision differentiable
+// instead of stepping, which is what lets a solver cross it.
+//
+// f_oa is exported because the operating-hours question — how much of the year
+// the economizer actually runs against real weather — is the reason to model one
+// at all.
+COMPONENT Economizer(oa_in, ret_in, mix_out)
+  PARAM mdot_sup, f_min, lim, band, domain$ = moistair, model$ = drybulb
+  mix_out.P    = oa_in.P
+  mix_out.mdot = mdot_sup
+  oa_in.mdot   = f_oa * mdot_sup
+  ret_in.mdot  = (1 - f_oa) * mdot_sup
+  f_oa         = f_min + (1 - f_min) * g_diff * g_lim
+  mix_out.mdot * mix_out.W = oa_in.mdot * oa_in.W + ret_in.mdot * ret_in.W
+  mix_out.mdot * mix_out.h = oa_in.mdot * oa_in.h + ret_in.mdot * ret_in.h
+  VARIANT drybulb
+    T_oa   = Temperature(AirH2O, h=oa_in.h, P=oa_in.P, W=oa_in.W)
+    T_ret  = Temperature(AirH2O, h=ret_in.h, P=ret_in.P, W=ret_in.W)
+    g_diff = 0.5 * (1 + tanh((T_ret - T_oa) / band))
+    g_lim  = 0.5 * (1 + tanh((lim - T_oa) / band))
+  END
+  VARIANT enthalpy
+    g_diff = 0.5 * (1 + tanh((ret_in.h - oa_in.h) / band))
+    g_lim  = 0.5 * (1 + tanh((lim - oa_in.h) / band))
+  END
+END
+
+// ── Terminal units, continued ───────────────────────────────────────────────
+
+// Induction unit — and the ACTIVE chilled beam, which is the same machine under
+// a newer name. Medium-to-high-velocity primary air through nozzles entrains
+// room air across a secondary coil; the primary air does the pumping work, so
+// there is no fan and no fan heat. `ratio` is the induction ratio, induced over
+// primary, typically 2 to 5 (24 L/s of primary inducing 48 L/s of room air is
+// the textbook 2:1 case).
+//
+// The secondary coil MUST run dry. Induction terminals are built without a
+// piped drain — ASHRAE is blunt that raising chilled-water temperature on the
+// central coil can leave a terminal working as a dehumidifier and damage it —
+// so the induced stream's humidity ratio is carried through untouched and the
+// design is checked instead: `margin_dp` is the water temperature less the
+// induced air's dew point, and a negative value means the terminal is
+// condensing into the occupied space. Keeping it positive is what the primary
+// air is for, which is why induction terminals and a DOAS go together.
+//
+// The passive counterpart is `ChilledBeam`: no primary air, no induction, room
+// air moved by buoyancy alone.
+COMPONENT InductionUnit(pri_in, ind_in, out, wall)
+  PARAM ratio, eps, domain$ = moistair
+  ind_in.mdot = ratio * pri_in.mdot
+  out.mdot    = pri_in.mdot + ind_in.mdot
+  out.P       = pri_in.P
+  T_i_in      = Temperature(AirH2O, h=ind_in.h, P=ind_in.P, W=ind_in.W)
+  T_i_out     = T_i_in - eps * (T_i_in - wall.T)
+  h_i_out     = Enthalpy(AirH2O, T=T_i_out, P=ind_in.P, W=ind_in.W)
+  out.mdot * out.W = pri_in.mdot * pri_in.W + ind_in.mdot * ind_in.W
+  out.mdot * out.h = pri_in.mdot * pri_in.h + ind_in.mdot * h_i_out
+  Q           = ind_in.mdot * (ind_in.h - h_i_out)
+  wall.Qdot   = -Q
+  T_dp_ind    = DewPoint(AirH2O, h=ind_in.h, P=ind_in.P, W=ind_in.W)
+  margin_dp   = wall.T - T_dp_ind
+END
+
+// Fan coil unit: a room terminal that recirculates space air through a filter
+// and a wet coil, with the fan BLOW-THROUGH — upstream of the coil, pushing air
+// across it, which is the normal fan-coil arrangement (central station AHUs are
+// the ones usually drawn through).
+//
+// That ordering is not cosmetic. Blow-through puts the fan heat INTO the air the
+// coil then has to cool, so the fan power appears in the coil load; draw it
+// through instead and the same fan heat lands downstream of the coil, where it
+// reheats the supply air the coil just conditioned. The two arrangements put the
+// same watts in opposite places.
+//
+// Unlike a chilled beam or an induction unit, a fan coil is built WITH a drain
+// pan, so its coil may run wet and carry latent duty. That is the reason a fan
+// coil can serve a space with no upstream dew-point control and a beam cannot.
+COMPONENT FanCoilUnit(in, out, wall)
+  PARAM K, foul, dP, eta, eps
+  AirFilter      FL(K=K, foul=foul)
+  MoistAirFan    FN(dP=dP, eta=eta)
+  MoistAirWallHX CO(model$=eps_t, eps=eps)
+  connect(in, FL.in)
+  connect(FL.out, FN.in)
+  connect(FN.out, CO.in)
+  connect(CO.out, out)
+  connect(wall, CO.wall)
+END
+
+// Radiant panel or chilled ceiling. It conditions a space without moving any
+// air at all, so it has no airstream: it couples the zone node to the water node
+// and nothing else. That is precisely why it appears on a psychrometric design
+// as a LOAD SHIFT rather than as a process vector — sensible load it removes is
+// load the air system no longer has to carry, which is what lets the supply
+// airflow drop to the ventilation minimum.
+//
+// Capacity follows the ASHRAE panel characteristic q = C*dT*|dT|^(n-1) W/m^2
+// (Handbook—Systems Ch. 6, Eq. 18), signed so the same panel heats and cools
+// through one equation, and regularised at dT = 0 the way `Infiltration`
+// regularises its own odd power law. n = 1.1 for ceiling cooling and floor
+// heating, n = 1.0 for ceiling heating and floor cooling.
+//
+// SENSIBLE ONLY, with no drain anywhere: `margin_dp` against the design room
+// state is not a diagnostic here but the sizing constraint. A chilled ceiling
+// below the room dew point rains on the occupants.
+COMPONENT RadiantPanel(zone, wall)
+  PARAM A, C, n, eps_dT, W_room, P_room
+  dT        = zone.T - wall.T
+  q_flux    = C * dT * (dT^2 + eps_dT^2)^((n - 1) / 2)
+  Q         = A * q_flux
+  zone.Qdot = Q
+  wall.Qdot = -Q
+  T_dp_room = DewPoint(AirH2O, T=zone.T, P=P_room, W=W_room)
+  margin_dp = wall.T - T_dp_room
+END
+
+// ── System blocks ───────────────────────────────────────────────────────────
+
+// Dedicated outdoor air system: recovery wheel, cooling coil sized by apparatus
+// dew point, and reheat, conditioning the VENTILATION air on its own.
+//
+// The point of a DOAS is that it SEPARATES the sensible and latent loads. The
+// coil is driven to a dew point low enough to absorb the whole building's latent
+// gain, the reheat brings the dry bulb back to something neutral, and the space
+// sensible load is then left to terminals that have no latent capacity at all —
+// chilled beams, radiant panels, fan coils run dry, VRF. A tool that assumes one
+// coil serves both loads cannot represent this at all, and neither can a
+// terminal-unit model without a dew-point margin to check against.
+COMPONENT DOAS(oa_in, sup_out, exh_in, exh_out)
+  PARAM eff_h, eff_w, T_adp, BF, Q_reheat
+  EnthalpyWheel         ERV(eff_h=eff_h, eff_w=eff_w)
+  ApparatusDewPointCoil CC(T_adp=T_adp, BF=BF)
+  HeatingCoil           RH(Q=Q_reheat)
+  connect(oa_in, ERV.sup_in)
+  connect(ERV.sup_out, CC.in)
+  connect(CC.out, RH.in)
+  connect(RH.out, sup_out)
+  connect(exh_in, ERV.exh_in)
+  connect(ERV.exh_out, exh_out)
 END

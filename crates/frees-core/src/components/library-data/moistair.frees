@@ -259,3 +259,168 @@ COMPONENT AHU(ret_in, oa_in, sup_out)
   connect(HC.out, FN.in)
   connect(FN.out, sup_out)
 END
+
+
+// ── Air-to-air energy recovery, sensible family (Std 84) ────────────────────
+
+// Sensible air-to-air exchanger: the shared physics of a fixed-plate core, a
+// heat pipe, a run-around coil loop and a thermosiphon. All four move sensible
+// heat only — humidity ratio is untouched on both sides — and differ in the
+// effectiveness they can reach, not in form:
+//
+//   fixed plate 50–80% · heat pipe 45–65% · run-around 55–65% · thermosiphon 40–60%
+//
+// eff follows ASHRAE Standard 84: actual transfer over the maximum possible, so
+// the C_min stream is the one that would reach the other's inlet temperature at
+// eff = 1. Sensible-only means the exchange is driven by TEMPERATURE, not by
+// enthalpy — enthalpy carries the latent term, and using it here would move
+// moisture that these devices cannot move.
+COMPONENT SensibleAirToAirHX(sup_in, sup_out, exh_in, exh_out)
+  PARAM eff, domain$ = moistair
+  sup_out.mdot = sup_in.mdot
+  exh_out.mdot = exh_in.mdot
+  sup_out.P    = sup_in.P
+  exh_out.P    = exh_in.P
+  sup_out.W    = sup_in.W
+  exh_out.W    = exh_in.W
+  T_s_in  = Temperature(AirH2O, h=sup_in.h, P=sup_in.P, W=sup_in.W)
+  T_e_in  = Temperature(AirH2O, h=exh_in.h, P=exh_in.P, W=exh_in.W)
+  C_s     = sup_in.mdot * Cp(AirH2O, T=T_s_in, P=sup_in.P, W=sup_in.W)
+  C_e     = exh_in.mdot * Cp(AirH2O, T=T_e_in, P=exh_in.P, W=exh_in.W)
+  Q       = eff * min(C_s, C_e) * (T_e_in - T_s_in)
+  T_s_out = T_s_in + Q / C_s
+  T_e_out = T_e_in - Q / C_e
+  sup_out.h = Enthalpy(AirH2O, T=T_s_out, P=sup_in.P, W=sup_in.W)
+  exh_out.h = Enthalpy(AirH2O, T=T_e_out, P=exh_in.P, W=exh_in.W)
+END
+
+// Rotary sensible heat wheel. The same sensible exchange as the plate core, plus
+// the carryover a rotating matrix cannot avoid: EATR (exhaust air transfer
+// ratio, Std 84) is the fraction of the supply stream that is really exhaust air
+// dragged round in the matrix. So a "sensible-only" wheel DOES move some
+// moisture — 0.5% to 10% of the stream, cut but never eliminated by a purge
+// sector. Modelling it matters wherever cross-contamination is the design
+// question rather than an afterthought.
+COMPONENT SensibleHeatWheel(sup_in, sup_out, exh_in, exh_out)
+  PARAM eff, eatr, domain$ = moistair
+  sup_out.mdot = sup_in.mdot
+  exh_out.mdot = exh_in.mdot
+  sup_out.P    = sup_in.P
+  exh_out.P    = exh_in.P
+  T_s_in  = Temperature(AirH2O, h=sup_in.h, P=sup_in.P, W=sup_in.W)
+  T_e_in  = Temperature(AirH2O, h=exh_in.h, P=exh_in.P, W=exh_in.W)
+  C_s     = sup_in.mdot * Cp(AirH2O, T=T_s_in, P=sup_in.P, W=sup_in.W)
+  C_e     = exh_in.mdot * Cp(AirH2O, T=T_e_in, P=exh_in.P, W=exh_in.W)
+  Q       = eff * min(C_s, C_e) * (T_e_in - T_s_in)
+  T_s_out = T_s_in + Q / C_s
+  T_e_out = T_e_in - Q / C_e
+  sup_out.W = sup_in.W + eatr * (exh_in.W - sup_in.W)
+  exh_out.W = exh_in.W - (sup_in.mdot / exh_in.mdot) * (sup_out.W - sup_in.W)
+  sup_out.h = Enthalpy(AirH2O, T=T_s_out, P=sup_in.P, W=sup_out.W)
+  exh_out.h = Enthalpy(AirH2O, T=T_e_out, P=exh_in.P, W=exh_out.W)
+END
+
+// ── Desiccant dehumidification ─────────────────────────────────────────────
+
+// Solid desiccant wheel. The process side runs DOWN AND TO THE RIGHT on the
+// psychrometric chart: the latent heat released as vapour is sorbed reappears as
+// sensible heat, so the air leaves WARMER and DRIER at near-constant enthalpy.
+// That is the mirror image of adiabatic evaporative cooling, and it is the one
+// process direction a cooling-only component set cannot express at all.
+//
+// eff_L is latent effectiveness against the desiccant's equilibrium humidity
+// ratio W_eq, which is set by sorbent type and regeneration temperature. f_carry
+// is the extra enthalpy carried over from the hot regeneration sector — real
+// wheels are not perfectly adiabatic, and 80–90% of the process temperature rise
+// is heat of sorption with the balance carried over, so f_carry is small.
+// Moisture and energy leave on the regeneration stream; both balances close on
+// the dry-air basis.
+COMPONENT DesiccantWheel(proc_in, proc_out, reg_in, reg_out)
+  PARAM eff_L, W_eq, f_carry, domain$ = moistair
+  proc_out.mdot = proc_in.mdot
+  reg_out.mdot  = reg_in.mdot
+  proc_out.P    = proc_in.P
+  reg_out.P     = reg_in.P
+  proc_out.W    = proc_in.W - eff_L * (proc_in.W - W_eq)
+  proc_out.h    = proc_in.h + f_carry * (reg_in.h - proc_in.h)
+  reg_out.W     = reg_in.W + (proc_in.mdot / reg_in.mdot) * (proc_in.W - proc_out.W)
+  reg_out.h     = reg_in.h - (proc_in.mdot / reg_in.mdot) * (proc_out.h - proc_in.h)
+END
+
+// ── Evaporative cooling, indirect ──────────────────────────────────────────
+
+// Indirect evaporative cooler. The primary (supply) stream is cooled SENSIBLY at
+// constant humidity ratio — no moisture crosses the wall, which is the whole
+// point of "indirect" — while the secondary (scavenger) stream is evaporatively
+// cooled and carries the heat away. Performance is quoted as wet-bulb depression
+// efficiency, typically 60–80%: the primary approaches the secondary's ENTERING
+// WET BULB, not its dry bulb, which is why indirect cooling still works in
+// climates where the dry-bulb approach would be useless.
+COMPONENT IndirectEvaporativeCooler(pri_in, pri_out, sec_in, sec_out)
+  PARAM wbde, eff_sec, domain$ = moistair
+  pri_out.mdot = pri_in.mdot
+  sec_out.mdot = sec_in.mdot
+  pri_out.P    = pri_in.P
+  sec_out.P    = sec_in.P
+  pri_out.W    = pri_in.W
+  T_p_in   = Temperature(AirH2O, h=pri_in.h, P=pri_in.P, W=pri_in.W)
+  T_wb_sec = WetBulb(AirH2O, h=sec_in.h, P=sec_in.P, W=sec_in.W)
+  T_p_out  = T_p_in - wbde * (T_p_in - T_wb_sec)
+  pri_out.h = Enthalpy(AirH2O, T=T_p_out, P=pri_in.P, W=pri_out.W)
+  Q         = pri_in.mdot * (pri_in.h - pri_out.h)
+  W_sat_sec = HumRat(AirH2O, h=sec_in.h, P=sec_in.P, R=1)
+  sec_out.W = sec_in.W + eff_sec * (W_sat_sec - sec_in.W)
+  sec_out.h = sec_in.h + Q / sec_in.mdot
+END
+
+// ── Humidification ─────────────────────────────────────────────────────────
+
+// Steam (isothermal) humidifier. The latent heat was already supplied in the
+// boiler or the electrode cylinder, so injecting saturated steam is closer to
+// mixing two gases than to heating air: the dry-bulb temperature barely moves.
+// The process slope is dh/dW = h_g of the injected steam, which is what makes
+// the line near-vertical on the chart — as opposed to the adiabatic humidifier,
+// which runs up a constant wet-bulb line.
+COMPONENT SteamHumidifier(in, out)
+  PARAM W_set, h_steam, domain$ = moistair
+  out.mdot = in.mdot
+  out.P    = in.P
+  out.W    = W_set
+  mdot_w   = in.mdot * (W_set - in.W)
+  out.h    = in.h + mdot_w * h_steam / in.mdot
+END
+
+// ── Terminal units ─────────────────────────────────────────────────────────
+
+// Chilled beam, active or passive. SENSIBLE ONLY: it has no drain, so it must
+// never be given latent capacity. `T_dp_in` and `margin_dp` are exported so a
+// design can be checked rather than assumed — if the entering dew point reaches
+// the water temperature the beam condenses onto the room, which is the failure
+// mode that makes a DOAS (drying the ventilation air upstream) a requirement
+// rather than a preference. margin_dp < 0 means the design is condensing.
+COMPONENT ChilledBeam(in, out, wall)
+  PARAM eps, domain$ = moistair
+  out.mdot  = in.mdot
+  out.P     = in.P
+  out.W     = in.W
+  T_in      = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+  T_out     = T_in - eps * (T_in - wall.T)
+  out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=in.W)
+  Q         = in.mdot * (in.h - out.h)
+  wall.Qdot = -Q
+  T_dp_in   = DewPoint(AirH2O, h=in.h, P=in.P, W=in.W)
+  margin_dp = wall.T - T_dp_in
+END
+
+// Fan-powered terminal box. Primary supply air mixes with air induced from the
+// ceiling plenum, then takes the terminal fan's heat and any reheat. Series and
+// parallel boxes differ in whether the fan sees the mixed stream or only the
+// induced stream; both reduce to this mix-then-heat form for a psychrometric
+// design calculation.
+COMPONENT FanPoweredBox(pri_in, ind_in, out)
+  PARAM Q_fan, Q_reheat, domain$ = moistair
+  out.P    = pri_in.P
+  out.mdot = pri_in.mdot + ind_in.mdot
+  out.mdot * out.W = pri_in.mdot * pri_in.W + ind_in.mdot * ind_in.W
+  out.mdot * out.h = pri_in.mdot * pri_in.h + ind_in.mdot * ind_in.h + Q_fan + Q_reheat
+END

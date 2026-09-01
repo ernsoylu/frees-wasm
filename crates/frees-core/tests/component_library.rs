@@ -14,7 +14,7 @@
 //! pass — see `components/mod.rs`.
 
 use frees_core::components::def::ComponentDef;
-use frees_core::components::library::{LibraryFile, FILES};
+use frees_core::components::library::{LibraryFile, COMPONENT_COUNT, FILES};
 use frees_core::parser::parse_document;
 
 /// The 13 domain files in `ComponentLibrary.DOMAIN_FILES` order.
@@ -76,9 +76,14 @@ fn every_shipped_library_file_parses() {
         assert!(!defs.is_empty(), "{domain}.frees declared no components");
         total += defs.len();
     }
-    // The library ships 295 components (`../frEES/CLAUDE.md`), one `COMPONENT`
-    // and one matching `END` per definition in the vendored text.
-    assert_eq!(total, 295, "the library should still hold 295 components");
+    // One `COMPONENT` and one matching `END` per definition in the vendored
+    // text. Asserted against the library's own constant rather than a literal:
+    // the count was 295 when it matched the Java, and pinning the number here
+    // as well meant every addition failed in two places for the same reason.
+    assert_eq!(
+        total, COMPONENT_COUNT,
+        "the library should hold {COMPONENT_COUNT} components"
+    );
 }
 
 #[test]
@@ -92,7 +97,7 @@ fn the_library_parses_concatenated_exactly_as_java_feeds_it() {
         source.push_str("\n\n");
     }
     let doc = parse_document(&source).expect("the concatenated library parses");
-    assert_eq!(doc.components.defs.len(), 295);
+    assert_eq!(doc.components.defs.len(), COMPONENT_COUNT);
     assert!(doc.statements.is_empty());
 }
 

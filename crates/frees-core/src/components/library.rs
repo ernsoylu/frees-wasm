@@ -137,7 +137,7 @@ pub static FILES: [LibraryFile; 13] = [
     LibraryFile {
         domain: "moistair",
         text: include_str!("library-data/moistair.frees"),
-        components: 19,
+        components: 26,
     },
     LibraryFile {
         domain: "pneumatic",
@@ -158,10 +158,14 @@ pub static FILES: [LibraryFile; 13] = [
 
 /// How many components the standard library exposes.
 ///
-/// Matches the Java's own assertion — `LiquidDomainTest`:
+/// Was 295, matching the Java's own assertion — `LiquidDomainTest`:
 /// `assertEquals(295, names.size(), "built-in component count after Program II
-/// Wave 10")`.
-pub const COMPONENT_COUNT: usize = 295;
+/// Wave 10")`. The seven added since are moist-air components with no Java
+/// counterpart (sensible air-to-air recovery, sensible heat wheel with EATR
+/// carryover, desiccant wheel, indirect evaporative cooler, steam humidifier,
+/// chilled beam, fan-powered box), so the port now leads the reference here
+/// rather than trailing it.
+pub const COMPONENT_COUNT: usize = 302;
 
 /// The separator the Java appends after **every** file, including the last
 /// (`ComponentLibrary.loadSource`).

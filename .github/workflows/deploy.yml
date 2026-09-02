@@ -1,0 +1,179 @@
+# Publish the browser-native frees app to GitHub Pages.
+#
+# The whole engine is in-bundle wasm and the deploy is static-only (Phase 11),
+# so Pages is a complete host for this app: there is no /api to proxy, no
+# origin to talk to, and nothing to run server-side. What Pages does NOT give
+# us is the nginx image's runtime entrypoint, so the two things that image did
+# at container start are done here at build time instead — see the build-info
+# and 404.html steps below.
+name: Deploy to GitHub Pages
+
+on:
+  # A merged pull request lands as a push to main, which is the only automatic
+  # trigger: nothing publishes from a branch or a PR. workflow_dispatch is the
+  # manual re-deploy (e.g. to re-publish after changing the Pages settings)
+  # and is likewise restricted to main by the `branches` filter above it —
+  # GitHub only offers dispatch on branches carrying the workflow file, and
+  # the guard job below re-checks the ref rather than trusting that.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Both are required by actions/deploy-pages: `pages` to publish, `id-token`
+  # for the OIDC token it exchanges for the deployment credential.
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one in flight: a half-published site
+# is worse than a slightly stale one. Queued runs coalesce to the newest.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (wasm + vite)
+    runs-on: ubuntu-latest
+    # Belt and braces for workflow_dispatch, which can in principle be aimed
+    # at any ref that carries this file.
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Resolves the Pages URL for this repository and, with it, the path the
+      # site is served under. For a project site that is `/frees-wasm`; for a
+      # user site or a custom domain it is empty. Deriving `--base` from this
+      # rather than hardcoding it means the workflow survives a move to a
+      # custom domain with no edit. Requires Pages to be enabled with
+      # "GitHub Actions" as the source (Settings -> Pages); this step fails
+      # loudly if it is not, which is the right failure.
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # v0.4.0
+        with:
+          version: v0.13.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # Pinned by web/.nvmrc — Node 20.x cannot run the vitest suite
+          # (jsdom@30 -> undici@8 calls webidl.util.markAsUncloneable).
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build wasm package into the web tree
+        # web/src/wasm/pkg is generated output (gitignored) that the engine
+        # worker imports, so it must exist before Vite resolves anything.
+        run: wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci --ignore-scripts
+
+      # CI gates this too, on the same commit and in parallel — but a green CI
+      # run is not a precondition of this workflow, so without this step a
+      # commit whose tests fail would still publish as long as it compiled.
+      # 16 s to make "deployed" mean "passed".
+      - name: Frontend tests
+        working-directory: web
+        run: npx --no-install vitest run
+
+      # The nginx image wrote this at container start (docker-entrypoint.d/
+      # 40-build-info.sh) because platforms expose the commit at runtime.
+      # Pages has no runtime, so write it before the build: landing it in
+      # public/ (rather than dist/ afterwards) gets it copied by Vite AND
+      # picked up by the workbox precache glob, so the About dialog shows the
+      # deployed revision offline too. index.html references it at
+      # `${base}build-info.js` (buildInfoPlugin), so its absence would be a
+      # 404 on every page load.
+      #
+      # github.sha is always a 40-character hex SHA, which is the same shape
+      # the entrypoint's guard enforced before interpolating into a script the
+      # page's CSP trusts as same-origin.
+      - name: Stamp the deployed commit
+        working-directory: web
+        run: printf 'window.__BUILD_COMMIT__="%s";\n' "${GITHUB_SHA}" > public/build-info.js
+
+      - name: Build frontend
+        working-directory: web
+        env:
+          # Build-time fallback read by src/version.ts when build-info.js has
+          # not loaded (it is a classic script, so it can lose a race on a
+          # cold cache).
+          VITE_COMMIT_HASH: ${{ github.sha }}
+        # Everything in the built app derives from Vite's `base`, and the
+        # sub-path deploy was verified end to end in Wave I (see
+        # docs/status-phase11.md gap 4): the service worker registers under the
+        # prefix, the manifest inherits `scope`, and the precache fills and
+        # serves fully offline with no request escaping the prefix.
+        #
+        # base_path is `/frees-wasm` for a project site and empty for a user
+        # site or custom domain; Vite wants a trailing slash, hence the `/`.
+        # The `--` forwards the flag past `npm run` to the `vite build` at the
+        # end of the build script.
+        run: npm run build -- --base=${{ steps.pages.outputs.base_path }}/
+
+      # Pages serves 404.html for any path with no file behind it. The app
+      # routes /help on location.pathname (main.tsx, resolved against
+      # BASE_URL), so a first visit to a deep link — before the service worker
+      # exists to answer with navigateFallback — would otherwise hit the stock
+      # GitHub 404 page. Serving the SPA shell from 404.html hands those
+      # navigations to the client router instead.
+      - name: SPA deep-link fallback
+        working-directory: web
+        run: cp dist/index.html dist/404.html
+
+      # The same two structural checks the CI web job runs. They are cheap and
+      # they fail before anything is published, which is the point: a dist that
+      # is missing the engine or the service worker is a broken deploy, not a
+      # broken build.
+      - name: Verify the wasm asset shipped in dist
+        working-directory: web
+        run: |
+          set -euo pipefail
+          wasm=$(find dist -name '*.wasm' | head -1)
+          if [[ -z "$wasm" ]]; then
+            echo "::error::no .wasm asset in dist — the engine worker did not bundle"
+            exit 1
+          fi
+          echo "bundled wasm asset: $wasm ($(stat -c%s "$wasm") bytes)"
+
+      - name: Verify the PWA shipped in dist
+        working-directory: web
+        run: |
+          set -euo pipefail
+          for f in dist/sw.js dist/manifest.webmanifest dist/icons/icon-512.png dist/build-info.js; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error::$f missing — the PWA layer did not build"
+              exit 1
+            fi
+          done
+          if ! grep -q '\.wasm' dist/sw.js; then
+            echo "::error::dist/sw.js does not precache the wasm engine"
+            exit 1
+          fi
+          echo "sw.js precaches the manifest, wasm referenced"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: web/dist
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

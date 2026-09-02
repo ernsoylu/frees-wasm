@@ -333,10 +333,10 @@ fn library_instantiation_coverage() {
         "the probe did not account for every built-in"
     );
 
-    // Measured floor: how many of the 295 a generic probe can reach at all.
-    // 268 expand; the other 27 need a `TABLE` argument or name a variant the
+    // Measured floor: how many of the 302 a generic probe can reach at all.
+    // 275 expand; the other 27 need a `TABLE` argument or name a variant the
     // probe cannot invent, and are listed by name in the output above.
-    const FLOOR: usize = 268;
+    const FLOOR: usize = 275;
     assert!(
         expanded >= FLOOR,
         "only {expanded} of {COMPONENT_COUNT} built-ins expand from a bare \

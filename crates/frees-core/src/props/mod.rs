@@ -37,6 +37,7 @@ pub mod phtable;
 pub mod pneumatics;
 pub mod propfun;
 pub mod psychro;
+pub mod psychrochart;
 #[cfg(feature = "rustprop-backend")]
 pub mod rustprop_backend;
 #[cfg(feature = "rustprop-backend")]

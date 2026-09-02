@@ -108,6 +108,14 @@ jobs:
           # not loaded (it is a classic script, so it can lose a race on a
           # cold cache).
           VITE_COMMIT_HASH: ${{ github.sha }}
+          # Bound to an environment variable rather than interpolated into the
+          # `run:` below. A `${{ }}` expression in a run block is spliced into
+          # the script text before the shell ever parses it, so a value
+          # carrying shell metacharacters would execute instead of being
+          # passed as an argument; an env var plus a quoted expansion means
+          # the shell only ever sees it as data. GitHub's own hardening
+          # guidance, and the reason ci.yml has no `${{ }}` in any run block.
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         # Everything in the built app derives from Vite's `base`, and the
         # sub-path deploy was verified end to end in Wave I (see
         # docs/status-phase11.md gap 4): the service worker registers under the
@@ -115,10 +123,11 @@ jobs:
         # serves fully offline with no request escaping the prefix.
         #
         # base_path is `/frees-wasm` for a project site and empty for a user
-        # site or custom domain; Vite wants a trailing slash, hence the `/`.
+        # site or custom domain; Vite wants a trailing slash, hence the `/`
+        # inside the quotes.
         # The `--` forwards the flag past `npm run` to the `vite build` at the
         # end of the build script.
-        run: npm run build -- --base=${{ steps.pages.outputs.base_path }}/
+        run: npm run build -- "--base=${PAGES_BASE_PATH}/"
 
       # Pages serves 404.html for any path with no file behind it. The app
       # routes /help on location.pathname (main.tsx, resolved against

@@ -41,6 +41,15 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here pushes; the job only reads the tree. Left on, checkout
+          # persists the job's GITHUB_TOKEN as an auth header in .git/config,
+          # where every subsequent step can read it — and those steps build
+          # third-party npm and cargo dependencies, under a token carrying
+          # pages:write and id-token:write. Only this repo's local git config
+          # is affected, so cargo's anonymous fetch of the pinned public
+          # rustprop tag is untouched.
+          persist-credentials: false
 
       # Resolves the Pages URL for this repository and, with it, the path the
       # site is served under. For a project site that is `/frees-wasm`; for a
@@ -99,7 +108,24 @@ jobs:
       # page's CSP trusts as same-origin.
       - name: Stamp the deployed commit
         working-directory: web
-        run: printf 'window.__BUILD_COMMIT__="%s";\n' "${GITHUB_SHA}" > public/build-info.js
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # The guard is 40-build-info.sh's, and it is carried over verbatim
+          # rather than dropped as unreachable. The value is interpolated into
+          # a JavaScript string literal in a file every visitor loads and the
+          # page's CSP trusts as same-origin, so a value containing a quote
+          # would close the literal and run what followed. github.sha is a hex
+          # SHA today; "the input happens to be safe right now" is the exact
+          # argument the entrypoint's comment refuses to accept between an env
+          # var and script execution in a visitor's browser, and porting the
+          # sink without its guard is not a faithful port.
+          if ! printf '%s' "$BUILD_COMMIT" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            echo "::error::refusing to stamp '$BUILD_COMMIT' — not a hex SHA"
+            exit 1
+          fi
+          printf 'window.__BUILD_COMMIT__="%s";\n' "$BUILD_COMMIT" > public/build-info.js
 
       - name: Build frontend
         working-directory: web

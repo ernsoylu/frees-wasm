@@ -19,12 +19,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  # Both are required by actions/deploy-pages: `pages` to publish, `id-token`
-  # for the OIDC token it exchanges for the deployment credential.
-  pages: write
-  id-token: write
+# Nothing at the workflow level: the two jobs need very different things, and
+# a workflow-level grant hands the widest of them to both. The `build` job is
+# the one that runs third-party code — npm and cargo dependencies, wasm-pack —
+# so it is the last job that should hold `id-token: write`, which mints OIDC
+# tokens against any cloud trust relationship the account has. It gets read
+# access and nothing else; only `deploy`, which runs one first-party action and
+# no project code, can publish.
+permissions: {}
 
 # One deploy at a time, and never cancel one in flight: a half-published site
 # is worse than a slightly stale one. Queued runs coalesce to the newest.
@@ -36,6 +38,12 @@ jobs:
   build:
     name: build (wasm + vite)
     runs-on: ubuntu-latest
+    permissions:
+      # checkout, and configure-pages' read of the Pages settings. That read is
+      # all it does here: `enablement` is false (below), so it calls getPages
+      # and never createPagesSite, which is what keeps this job off `write`.
+      contents: read
+      pages: read
     # Belt and braces for workflow_dispatch, which can in principle be aimed
     # at any ref that carries this file.
     if: github.ref == 'refs/heads/main'
@@ -61,6 +69,12 @@ jobs:
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        with:
+          # The default, pinned because the job's `pages: read` depends on it:
+          # with enablement on, the action falls back to createPagesSite and
+          # would need write. Off, a repository without Pages configured is an
+          # error here rather than something this workflow silently turns on.
+          enablement: false
 
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
@@ -205,6 +219,12 @@ jobs:
     name: deploy
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      # The only job that needs either: `pages` to publish, `id-token` for the
+      # OIDC token deploy-pages exchanges for the deployment credential. It
+      # checks nothing out and runs no project code.
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
